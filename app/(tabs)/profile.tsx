@@ -39,7 +39,7 @@ export default function ProfileScreen() {
         >
           <View style={styles.profileHeader}>
             <View style={styles.avatarContainer}>
-              <IconSymbol name="person.circle.fill" size={80} color={colors.primary} />
+              <IconSymbol name="person.circle.fill" size={80} color={colors.text} />
             </View>
             <Text style={styles.name}>{mockUser.name}</Text>
             <Text style={styles.email}>{mockUser.email}</Text>
@@ -47,7 +47,6 @@ export default function ProfileScreen() {
 
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <IconSymbol name="location.fill" size={24} color={colors.primary} />
               <Text style={styles.sectionTitle}>Punto di Ritiro</Text>
             </View>
             <Text style={styles.sectionDescription}>
@@ -64,11 +63,9 @@ export default function ProfileScreen() {
                   ]}
                   onPress={() => handlePickupPointChange(point)}
                 >
-                  <IconSymbol
-                    name={selectedPickupPoint === point ? 'checkmark.circle.fill' : 'circle'}
-                    size={20}
-                    color={selectedPickupPoint === point ? colors.card : colors.textSecondary}
-                  />
+                  <View style={styles.radioOuter}>
+                    {selectedPickupPoint === point && <View style={styles.radioInner} />}
+                  </View>
                   <Text
                     style={[
                       styles.pickupPointText,
@@ -84,7 +81,6 @@ export default function ProfileScreen() {
 
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <IconSymbol name="bag.fill" size={24} color={colors.primary} />
               <Text style={styles.sectionTitle}>Le Mie Prenotazioni</Text>
             </View>
             <View style={styles.statsContainer}>
@@ -105,7 +101,6 @@ export default function ProfileScreen() {
 
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <IconSymbol name="info.circle.fill" size={24} color={colors.primary} />
               <Text style={styles.sectionTitle}>Come Funziona</Text>
             </View>
             <View style={styles.infoList}>
@@ -172,37 +167,35 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   name: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: '700',
     color: colors.text,
     marginBottom: 4,
+    letterSpacing: -0.5,
   },
   email: {
-    fontSize: 16,
+    fontSize: 14,
     color: colors.textSecondary,
   },
   section: {
     backgroundColor: colors.card,
-    borderRadius: 12,
+    borderRadius: 8,
     padding: 20,
     marginHorizontal: 16,
     marginBottom: 16,
-    boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.1)',
-    elevation: 3,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
     marginBottom: 12,
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '700',
     color: colors.text,
   },
   sectionDescription: {
-    fontSize: 14,
+    fontSize: 13,
     color: colors.textSecondary,
     lineHeight: 20,
     marginBottom: 16,
@@ -215,22 +208,37 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
     padding: 12,
-    borderRadius: 8,
-    backgroundColor: colors.background,
+    borderRadius: 4,
+    backgroundColor: colors.backgroundSecondary,
     borderWidth: 1,
-    borderColor: colors.textSecondary + '30',
+    borderColor: colors.border,
   },
   pickupPointButtonActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
+    backgroundColor: colors.text,
+    borderColor: colors.text,
+  },
+  radioOuter: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 2,
+    borderColor: colors.textSecondary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  radioInner: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: colors.background,
   },
   pickupPointText: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '500',
     color: colors.text,
   },
   pickupPointTextActive: {
-    color: colors.card,
+    color: colors.background,
     fontWeight: '600',
   },
   statsContainer: {
@@ -239,19 +247,22 @@ const styles = StyleSheet.create({
   },
   statCard: {
     flex: 1,
-    backgroundColor: colors.background,
-    borderRadius: 8,
+    backgroundColor: colors.backgroundSecondary,
+    borderRadius: 4,
     padding: 16,
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   statValue: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: '800',
-    color: colors.primary,
+    color: colors.text,
     marginBottom: 4,
+    letterSpacing: -0.5,
   },
   statLabel: {
-    fontSize: 12,
+    fontSize: 11,
     color: colors.textSecondary,
     textAlign: 'center',
   },
@@ -263,21 +274,21 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   infoNumber: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: colors.primary,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: colors.text,
     alignItems: 'center',
     justifyContent: 'center',
   },
   infoNumberText: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '700',
-    color: colors.card,
+    color: colors.background,
   },
   infoItemText: {
     flex: 1,
-    fontSize: 14,
+    fontSize: 13,
     color: colors.text,
     lineHeight: 20,
   },

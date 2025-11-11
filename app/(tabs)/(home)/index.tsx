@@ -68,7 +68,7 @@ export default function HomeScreen() {
         />
         
         <View style={styles.overlay}>
-          <Text style={styles.overlayText}>Punto di ritiro: {mockUser.pickupPoint}</Text>
+          <Text style={styles.overlayText}>{mockUser.pickupPoint}</Text>
         </View>
       </View>
     </>
@@ -85,17 +85,19 @@ const styles = StyleSheet.create({
     top: 60,
     left: 20,
     right: 20,
-    backgroundColor: colors.primary,
+    backgroundColor: colors.card,
     paddingHorizontal: 16,
     paddingVertical: 10,
-    borderRadius: 20,
+    borderRadius: 4,
     alignItems: 'center',
-    boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.2)',
-    elevation: 4,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   overlayText: {
-    color: colors.card,
-    fontSize: 14,
+    color: colors.text,
+    fontSize: 12,
     fontWeight: '600',
+    letterSpacing: 1,
+    textTransform: 'uppercase',
   },
 });

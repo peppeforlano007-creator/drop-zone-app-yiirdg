@@ -1,5 +1,4 @@
 
-import { BlurView } from 'expo-blur';
 import { IconSymbol } from '@/components/IconSymbol';
 import React from 'react';
 import Animated, {
@@ -38,7 +37,7 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 export default function FloatingTabBar({
   tabs,
   containerWidth = SCREEN_WIDTH - 40,
-  borderRadius = 25,
+  borderRadius = 8,
   bottomMargin = 20,
 }: FloatingTabBarProps) {
   const router = useRouter();
@@ -91,36 +90,34 @@ export default function FloatingTabBar({
       style={[styles.safeArea, { marginBottom: bottomMargin }]}
     >
       <View style={[styles.container, { width: containerWidth, borderRadius }]}>
-        <BlurView intensity={80} tint="light" style={styles.blurView}>
-          <Animated.View style={[styles.indicator, indicatorStyle]} />
-          <View style={styles.tabsContainer}>
-            {tabs.map((tab, index) => {
-              const isActive = currentIndex === index;
-              return (
-                <TouchableOpacity
-                  key={tab.route}
-                  style={styles.tab}
-                  onPress={() => handleTabPress(tab.route, index)}
-                  activeOpacity={0.7}
+        <Animated.View style={[styles.indicator, indicatorStyle]} />
+        <View style={styles.tabsContainer}>
+          {tabs.map((tab, index) => {
+            const isActive = currentIndex === index;
+            return (
+              <TouchableOpacity
+                key={tab.route}
+                style={styles.tab}
+                onPress={() => handleTabPress(tab.route, index)}
+                activeOpacity={0.7}
+              >
+                <IconSymbol
+                  name={tab.icon as any}
+                  size={22}
+                  color={isActive ? colors.text : colors.textSecondary}
+                />
+                <Text
+                  style={[
+                    styles.label,
+                    { color: isActive ? colors.text : colors.textSecondary },
+                  ]}
                 >
-                  <IconSymbol
-                    name={tab.icon as any}
-                    size={24}
-                    color={isActive ? colors.primary : colors.textSecondary}
-                  />
-                  <Text
-                    style={[
-                      styles.label,
-                      { color: isActive ? colors.primary : colors.textSecondary },
-                    ]}
-                  >
-                    {tab.label}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        </BlurView>
+                  {tab.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
       </View>
     </SafeAreaView>
   );
@@ -137,14 +134,9 @@ const styles = StyleSheet.create({
   },
   container: {
     overflow: 'hidden',
-    boxShadow: '0px 4px 16px rgba(0, 0, 0, 0.15)',
-    elevation: 8,
-  },
-  blurView: {
-    flexDirection: 'row',
-    overflow: 'hidden',
-    borderRadius: 25,
-    backgroundColor: Platform.OS === 'android' ? colors.card : 'transparent',
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   tabsContainer: {
     flexDirection: 'row',
@@ -158,14 +150,14 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   label: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '600',
+    letterSpacing: 0.5,
   },
   indicator: {
     position: 'absolute',
     height: '100%',
-    backgroundColor: colors.highlight,
-    opacity: 0.3,
-    borderRadius: 25,
+    backgroundColor: colors.backgroundSecondary,
+    borderRadius: 8,
   },
 });

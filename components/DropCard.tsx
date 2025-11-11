@@ -1,7 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { IconSymbol } from './IconSymbol';
 import { colors } from '@/styles/commonStyles';
 import { Drop } from '@/types/Product';
@@ -51,70 +50,62 @@ export default function DropCard({ drop }: DropCardProps) {
   };
 
   return (
-    <Pressable onPress={handlePress}>
-      <LinearGradient
-        colors={[colors.primary, colors.secondary]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.container}
-      >
-        <View style={styles.header}>
-          <View style={styles.locationBadge}>
-            <IconSymbol name="location.fill" size={16} color={colors.card} />
-            <Text style={styles.locationText}>{drop.pickupPoint}</Text>
-          </View>
-          <View style={styles.timerBadge}>
-            <IconSymbol name="clock.fill" size={16} color={colors.accent} />
-            <Text style={styles.timerText}>{timeRemaining}</Text>
-          </View>
+    <Pressable onPress={handlePress} style={styles.container}>
+      <View style={styles.header}>
+        <View style={styles.locationBadge}>
+          <IconSymbol name="location.fill" size={14} color={colors.text} />
+          <Text style={styles.locationText}>{drop.pickupPoint}</Text>
         </View>
-
-        <Text style={styles.supplierName}>{drop.supplierName}</Text>
-        <Text style={styles.productCount}>{drop.products.length} prodotti disponibili</Text>
-
-        <View style={styles.discountContainer}>
-          <View style={styles.discountRow}>
-            <Text style={styles.discountLabel}>Sconto attuale</Text>
-            <Text style={styles.discountValue}>{drop.currentDiscount}%</Text>
-          </View>
-          <View style={styles.progressBar}>
-            <View style={[styles.progressFill, { width: `${Math.min(discountProgress, 100)}%` }]} />
-          </View>
-          <View style={styles.discountRange}>
-            <Text style={styles.rangeText}>{drop.minDiscount}%</Text>
-            <Text style={styles.rangeText}>{drop.maxDiscount}%</Text>
-          </View>
+        <View style={styles.timerBadge}>
+          <Text style={styles.timerText}>{timeRemaining}</Text>
         </View>
+      </View>
 
-        <View style={styles.valueContainer}>
-          <View style={styles.valueRow}>
-            <IconSymbol name="eurosign.circle.fill" size={20} color={colors.card} />
-            <Text style={styles.valueText}>
-              €{drop.currentValue.toLocaleString()} / €{drop.maxValue.toLocaleString()}
-            </Text>
-          </View>
-          <View style={styles.progressBar}>
-            <View style={[styles.progressFill, { width: `${Math.min(progressPercentage, 100)}%` }]} />
-          </View>
-        </View>
+      <Text style={styles.supplierName}>{drop.supplierName}</Text>
+      <Text style={styles.productCount}>{drop.products.length} prodotti disponibili</Text>
 
-        <View style={styles.footer}>
-          <IconSymbol name="arrow.right.circle.fill" size={24} color={colors.card} />
-          <Text style={styles.footerText}>Tocca per vedere i prodotti</Text>
+      <View style={styles.discountContainer}>
+        <View style={styles.discountRow}>
+          <Text style={styles.discountLabel}>Sconto attuale</Text>
+          <Text style={styles.discountValue}>{drop.currentDiscount}%</Text>
         </View>
-      </LinearGradient>
+        <View style={styles.progressBar}>
+          <View style={[styles.progressFill, { width: `${Math.min(discountProgress, 100)}%` }]} />
+        </View>
+        <View style={styles.discountRange}>
+          <Text style={styles.rangeText}>{drop.minDiscount}%</Text>
+          <Text style={styles.rangeText}>{drop.maxDiscount}%</Text>
+        </View>
+      </View>
+
+      <View style={styles.valueContainer}>
+        <View style={styles.valueRow}>
+          <Text style={styles.valueText}>
+            €{drop.currentValue.toLocaleString()} / €{drop.maxValue.toLocaleString()}
+          </Text>
+        </View>
+        <View style={styles.progressBar}>
+          <View style={[styles.progressFill, { width: `${Math.min(progressPercentage, 100)}%` }]} />
+        </View>
+      </View>
+
+      <View style={styles.footer}>
+        <Text style={styles.footerText}>Tocca per vedere i prodotti</Text>
+        <IconSymbol name="arrow.right" size={16} color={colors.text} />
+      </View>
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    borderRadius: 16,
+    borderRadius: 8,
     padding: 20,
     marginHorizontal: 16,
     marginVertical: 8,
-    boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.15)',
-    elevation: 5,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   header: {
     flexDirection: 'row',
@@ -125,41 +116,40 @@ const styles = StyleSheet.create({
   locationBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    paddingHorizontal: 12,
+    backgroundColor: colors.backgroundSecondary,
+    paddingHorizontal: 10,
     paddingVertical: 6,
-    borderRadius: 20,
+    borderRadius: 4,
     gap: 6,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   locationText: {
-    color: colors.card,
-    fontSize: 14,
+    color: colors.text,
+    fontSize: 12,
     fontWeight: '600',
   },
   timerBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.accent,
-    paddingHorizontal: 12,
+    backgroundColor: colors.text,
+    paddingHorizontal: 10,
     paddingVertical: 6,
-    borderRadius: 20,
-    gap: 6,
+    borderRadius: 4,
   },
   timerText: {
-    color: colors.text,
-    fontSize: 14,
+    color: colors.background,
+    fontSize: 12,
     fontWeight: '700',
   },
   supplierName: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: '700',
-    color: colors.card,
+    color: colors.text,
     marginBottom: 4,
+    letterSpacing: -0.5,
   },
   productCount: {
-    fontSize: 14,
-    color: colors.card,
-    opacity: 0.9,
+    fontSize: 13,
+    color: colors.textSecondary,
     marginBottom: 20,
   },
   discountContainer: {
@@ -172,62 +162,59 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   discountLabel: {
-    fontSize: 14,
-    color: colors.card,
-    opacity: 0.9,
+    fontSize: 13,
+    color: colors.textSecondary,
   },
   discountValue: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: '800',
-    color: colors.card,
+    color: colors.text,
+    letterSpacing: -0.5,
   },
   progressBar: {
-    height: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 4,
+    height: 6,
+    backgroundColor: colors.backgroundSecondary,
+    borderRadius: 3,
     overflow: 'hidden',
     marginBottom: 4,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   progressFill: {
     height: '100%',
-    backgroundColor: colors.accent,
-    borderRadius: 4,
+    backgroundColor: colors.text,
   },
   discountRange: {
     flexDirection: 'row',
     justifyContent: 'space-between',
   },
   rangeText: {
-    fontSize: 12,
-    color: colors.card,
-    opacity: 0.8,
+    fontSize: 11,
+    color: colors.textSecondary,
   },
   valueContainer: {
     marginBottom: 16,
   },
   valueRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
     marginBottom: 8,
   },
   valueText: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
-    color: colors.card,
+    color: colors.text,
   },
   footer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    paddingTop: 12,
+    paddingTop: 16,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.2)',
+    borderTopColor: colors.border,
   },
   footerText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
-    color: colors.card,
+    color: colors.text,
   },
 });

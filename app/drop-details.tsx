@@ -29,7 +29,7 @@ export default function DropDetailsScreen() {
           }}
         />
         <View style={styles.errorContainer}>
-          <IconSymbol name="exclamationmark.triangle" size={64} color={colors.error} />
+          <IconSymbol name="exclamationmark.triangle" size={64} color={colors.text} />
           <Text style={styles.errorText}>Drop non trovato</Text>
         </View>
       </SafeAreaView>
@@ -86,7 +86,7 @@ export default function DropDetailsScreen() {
           headerTintColor: colors.text,
           headerRight: () => (
             <Pressable onPress={handleShare} style={styles.shareButton}>
-              <IconSymbol name="square.and.arrow.up" size={24} color={colors.primary} />
+              <IconSymbol name="square.and.arrow.up" size={22} color={colors.text} />
             </Pressable>
           ),
         }}
@@ -125,7 +125,7 @@ const styles = StyleSheet.create({
     padding: 40,
   },
   errorText: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '700',
     color: colors.text,
     marginTop: 16,

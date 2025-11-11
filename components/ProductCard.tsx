@@ -1,7 +1,6 @@
 
 import React, { useState } from 'react';
 import { View, Text, Image, StyleSheet, Pressable, Dimensions, Alert } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { IconSymbol } from './IconSymbol';
 import { colors } from '@/styles/commonStyles';
 import { Product } from '@/types/Product';
@@ -61,17 +60,13 @@ export default function ProductCard({
       
       {!imageLoaded && (
         <View style={styles.imagePlaceholder}>
-          <IconSymbol name="photo" size={60} color={colors.textSecondary} />
+          <IconSymbol name="photo" size={60} color={colors.textTertiary} />
         </View>
       )}
 
-      <LinearGradient
-        colors={['transparent', 'rgba(0,0,0,0.7)', 'rgba(0,0,0,0.9)']}
-        style={styles.gradient}
-      >
+      <View style={styles.overlay}>
         <View style={styles.content}>
           <View style={styles.supplierBadge}>
-            <IconSymbol name="building.2" size={14} color={colors.card} />
             <Text style={styles.supplierText}>{product.supplierName}</Text>
           </View>
 
@@ -92,9 +87,8 @@ export default function ProductCard({
 
           {isInDrop && currentDiscount && (
             <View style={styles.dropInfo}>
-              <IconSymbol name="clock.fill" size={16} color={colors.accent} />
               <Text style={styles.dropText}>
-                Drop attivo! Sconto attuale: {currentDiscount}%
+                Drop attivo • Sconto attuale: {currentDiscount}%
               </Text>
             </View>
           )}
@@ -102,37 +96,26 @@ export default function ProductCard({
           <Pressable
             style={[
               styles.actionButton,
-              isInDrop ? styles.bookButton : styles.interestButton,
               isInterested && styles.interestedButton,
             ]}
             onPress={handlePress}
           >
-            <IconSymbol
-              name={isInDrop ? 'cart.fill' : isInterested ? 'checkmark.circle.fill' : 'heart'}
-              size={20}
-              color={colors.card}
-            />
             <Text style={styles.actionButtonText}>
               {isInDrop
                 ? 'PRENOTA CON CARTA'
                 : isInterested
-                ? 'INTERESSATO'
+                ? 'INTERESSATO ✓'
                 : 'VORRÒ PARTECIPARE AL DROP'}
             </Text>
           </Pressable>
 
           <View style={styles.footer}>
-            <View style={styles.footerItem}>
-              <IconSymbol name="tag.fill" size={14} color={colors.textSecondary} />
-              <Text style={styles.footerText}>{product.category}</Text>
-            </View>
-            <View style={styles.footerItem}>
-              <IconSymbol name="cube.box.fill" size={14} color={colors.textSecondary} />
-              <Text style={styles.footerText}>{product.stock} disponibili</Text>
-            </View>
+            <Text style={styles.footerText}>{product.category}</Text>
+            <Text style={styles.footerText}>•</Text>
+            <Text style={styles.footerText}>{product.stock} disponibili</Text>
           </View>
         </View>
-      </LinearGradient>
+      </View>
     </View>
   );
 }
@@ -154,47 +137,49 @@ const styles = StyleSheet.create({
     position: 'absolute',
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: colors.textSecondary + '20',
+    backgroundColor: colors.backgroundSecondary,
   },
-  gradient: {
+  overlay: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    height: '60%',
-    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
   },
   content: {
     padding: 24,
     paddingBottom: 120,
   },
   supplierBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.primary,
+    backgroundColor: colors.backgroundSecondary,
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 20,
+    borderRadius: 4,
     alignSelf: 'flex-start',
     marginBottom: 12,
-    gap: 6,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   supplierText: {
-    color: colors.card,
-    fontSize: 12,
+    color: colors.text,
+    fontSize: 11,
     fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
   },
   productName: {
-    fontSize: 32,
+    fontSize: 28,
     fontWeight: '700',
-    color: colors.card,
+    color: colors.text,
     marginBottom: 8,
+    letterSpacing: -0.5,
   },
   description: {
-    fontSize: 16,
-    color: colors.card,
-    opacity: 0.9,
-    marginBottom: 16,
+    fontSize: 15,
+    color: colors.textSecondary,
+    marginBottom: 20,
     lineHeight: 22,
   },
   priceContainer: {
@@ -207,79 +192,66 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   originalPrice: {
-    fontSize: 18,
-    color: colors.card,
+    fontSize: 16,
+    color: colors.textSecondary,
     textDecorationLine: 'line-through',
-    opacity: 0.7,
   },
   discountBadge: {
-    backgroundColor: colors.accent,
+    backgroundColor: colors.text,
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 6,
+    borderRadius: 4,
   },
   discountText: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '700',
-    color: colors.text,
+    color: colors.background,
+    letterSpacing: 0.5,
   },
   discountedPrice: {
-    fontSize: 36,
+    fontSize: 32,
     fontWeight: '800',
-    color: colors.card,
+    color: colors.text,
+    letterSpacing: -1,
   },
   dropInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.accent + '30',
+    backgroundColor: colors.backgroundSecondary,
     paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
+    paddingVertical: 10,
+    borderRadius: 4,
     marginBottom: 16,
-    gap: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   dropText: {
-    color: colors.card,
-    fontSize: 14,
+    color: colors.text,
+    fontSize: 13,
     fontWeight: '600',
   },
   actionButton: {
-    flexDirection: 'row',
+    paddingVertical: 18,
+    borderRadius: 4,
+    marginBottom: 16,
+    backgroundColor: colors.text,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 18,
-    borderRadius: 12,
-    gap: 10,
-    marginBottom: 16,
-  },
-  interestButton: {
-    backgroundColor: colors.primary,
-  },
-  bookButton: {
-    backgroundColor: colors.accent,
   },
   interestedButton: {
-    backgroundColor: colors.success,
+    backgroundColor: colors.secondary,
   },
   actionButtonText: {
-    color: colors.card,
-    fontSize: 16,
+    color: colors.background,
+    fontSize: 13,
     fontWeight: '700',
-    letterSpacing: 0.5,
+    letterSpacing: 1.5,
   },
   footer: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 16,
-  },
-  footerItem: {
-    flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 8,
   },
   footerText: {
-    color: colors.card,
-    fontSize: 13,
-    opacity: 0.8,
+    color: colors.textSecondary,
+    fontSize: 12,
   },
 });

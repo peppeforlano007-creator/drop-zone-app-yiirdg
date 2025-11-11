@@ -31,10 +31,9 @@ export default function DropsScreen() {
           ]}
         >
           <View style={styles.header}>
-            <IconSymbol name="flame.fill" size={32} color={colors.accent} />
-            <Text style={commonStyles.title}>Drop Attivi</Text>
-            <Text style={commonStyles.textSecondary}>
-              Prenota ora e ottieni sconti incredibili!
+            <Text style={styles.headerTitle}>Drop Attivi</Text>
+            <Text style={styles.headerSubtitle}>
+              Prenota ora e ottieni sconti incredibili
             </Text>
           </View>
 
@@ -42,24 +41,29 @@ export default function DropsScreen() {
             activeDrops.map(drop => <DropCard key={drop.id} drop={drop} />)
           ) : (
             <View style={styles.emptyState}>
-              <IconSymbol name="tray" size={64} color={colors.textSecondary} />
+              <IconSymbol name="tray" size={64} color={colors.textTertiary} />
               <Text style={styles.emptyTitle}>Nessun drop attivo</Text>
               <Text style={styles.emptyText}>
                 I drop si attiveranno quando abbastanza utenti del tuo punto di ritiro
-                mostreranno interesse per gli stessi prodotti!
+                mostreranno interesse per gli stessi prodotti
               </Text>
             </View>
           )}
 
           <View style={styles.infoCard}>
-            <IconSymbol name="info.circle.fill" size={24} color={colors.primary} />
-            <View style={styles.infoContent}>
-              <Text style={styles.infoTitle}>Come funzionano i Drop?</Text>
+            <Text style={styles.infoTitle}>Come funzionano i Drop?</Text>
+            <View style={styles.infoList}>
               <Text style={styles.infoText}>
-                - Quando abbastanza utenti del tuo punto di ritiro prenotano prodotti della stessa lista, si attiva un drop{'\n'}
-                - Il drop parte con lo sconto minimo e dura 5 giorni{'\n'}
-                - Più persone prenotano, più lo sconto aumenta{'\n'}
-                - Alla fine del drop, paghi solo il prezzo finale con lo sconto raggiunto
+                • Quando abbastanza utenti del tuo punto di ritiro prenotano prodotti della stessa lista, si attiva un drop
+              </Text>
+              <Text style={styles.infoText}>
+                • Il drop parte con lo sconto minimo e dura 5 giorni
+              </Text>
+              <Text style={styles.infoText}>
+                • Più persone prenotano, più lo sconto aumenta
+              </Text>
+              <Text style={styles.infoText}>
+                • Alla fine del drop, paghi solo il prezzo finale con lo sconto raggiunto
               </Text>
             </View>
           </View>
@@ -84,9 +88,19 @@ const styles = StyleSheet.create({
     paddingBottom: 100,
   },
   header: {
-    alignItems: 'center',
     paddingHorizontal: 20,
     marginBottom: 24,
+  },
+  headerTitle: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: 4,
+    letterSpacing: -0.5,
+  },
+  headerSubtitle: {
+    fontSize: 14,
+    color: colors.textSecondary,
   },
   emptyState: {
     alignItems: 'center',
@@ -95,7 +109,7 @@ const styles = StyleSheet.create({
     paddingVertical: 60,
   },
   emptyTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '700',
     color: colors.text,
     marginTop: 16,
@@ -108,24 +122,22 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   infoCard: {
-    flexDirection: 'row',
     backgroundColor: colors.card,
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 8,
+    padding: 20,
     marginHorizontal: 16,
     marginTop: 24,
-    gap: 12,
-    boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.1)',
-    elevation: 3,
-  },
-  infoContent: {
-    flex: 1,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   infoTitle: {
     fontSize: 16,
     fontWeight: '700',
     color: colors.text,
-    marginBottom: 8,
+    marginBottom: 12,
+  },
+  infoList: {
+    gap: 8,
   },
   infoText: {
     fontSize: 13,
