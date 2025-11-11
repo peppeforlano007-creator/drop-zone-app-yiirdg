@@ -1,12 +1,13 @@
 
-import React, { useState, useRef } from 'react';
-import { View, Text, StyleSheet, FlatList, Dimensions, Pressable, Alert, Linking } from 'react-native';
+import React, { useState, useRef, useEffect } from 'react';
+import { View, Text, StyleSheet, FlatList, Dimensions, Pressable, Alert, Linking, Animated } from 'react-native';
 import { Stack, useLocalSearchParams, router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '@/styles/commonStyles';
 import ProductCard from '@/components/ProductCard';
 import { mockDrops } from '@/data/mockData';
 import { IconSymbol } from '@/components/IconSymbol';
+import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -15,8 +16,36 @@ export default function DropDetailsScreen() {
   const { dropId } = useLocalSearchParams();
   const [bookedProducts, setBookedProducts] = useState<Set<string>>(new Set());
   const flatListRef = useRef<FlatList>(null);
+  
+  // Animation values for WhatsApp button
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const scaleAnim = useRef(new Animated.Value(1)).current;
 
   const drop = mockDrops.find(d => d.id === dropId);
+
+  // Pulsing animation for WhatsApp button
+  useEffect(() => {
+    const pulseAnimation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1.03,
+          duration: 1200,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 1200,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+
+    pulseAnimation.start();
+
+    return () => {
+      pulseAnimation.stop();
+    };
+  }, []);
 
   if (!drop) {
     return (
@@ -51,8 +80,24 @@ export default function DropDetailsScreen() {
     console.log('Product booked:', productId);
   };
 
+  const handlePressIn = () => {
+    Animated.spring(scaleAnim, {
+      toValue: 0.96,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const handlePressOut = () => {
+    Animated.spring(scaleAnim, {
+      toValue: 1,
+      friction: 3,
+      tension: 40,
+      useNativeDriver: true,
+    }).start();
+  };
+
   const handleShareWhatsApp = async () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     
     // Create a shareable message
     const message = `🎉 Guarda questo Drop su DROPMARKET!\n\n` +
@@ -71,6 +116,7 @@ export default function DropDetailsScreen() {
       if (canOpen) {
         await Linking.openURL(whatsappUrl);
         console.log('WhatsApp opened successfully');
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       } else {
         Alert.alert(
           'WhatsApp non disponibile',
@@ -132,23 +178,43 @@ export default function DropDetailsScreen() {
           initialNumToRender={2}
         />
         
-        {/* WhatsApp Share Button - Fixed at bottom */}
+        {/* Enhanced WhatsApp Share Button */}
         <View style={styles.shareButtonContainer}>
-          <Pressable 
-            onPress={handleShareWhatsApp} 
-            style={styles.whatsappButton}
+          <Animated.View 
+            style={[
+              styles.shareButtonWrapper,
+              {
+                transform: [{ scale: Animated.multiply(pulseAnim, scaleAnim) }],
+              },
+            ]}
           >
-            <View style={styles.whatsappIconContainer}>
-              <Text style={styles.whatsappIcon}>📱</Text>
-            </View>
-            <View style={styles.whatsappTextContainer}>
-              <Text style={styles.whatsappButtonText}>Invita amici su WhatsApp</Text>
-              <Text style={styles.whatsappButtonSubtext}>
-                Più prenotazioni = più sconto!
-              </Text>
-            </View>
-            <IconSymbol name="chevron.right" size={20} color="#fff" />
-          </Pressable>
+            <Pressable 
+              onPress={handleShareWhatsApp}
+              onPressIn={handlePressIn}
+              onPressOut={handlePressOut}
+              style={styles.whatsappButtonPressable}
+            >
+              <LinearGradient
+                colors={['#25D366', '#20BA5A', '#1DA851']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.whatsappButton}
+              >
+                <View style={styles.whatsappIconContainer}>
+                  <Text style={styles.whatsappIcon}>💬</Text>
+                </View>
+                <View style={styles.whatsappTextContainer}>
+                  <Text style={styles.whatsappButtonText}>Invita amici su WhatsApp</Text>
+                  <Text style={styles.whatsappButtonSubtext}>
+                    🚀 Più prenotazioni = più sconto!
+                  </Text>
+                </View>
+                <View style={styles.whatsappArrow}>
+                  <IconSymbol name="arrow.right.circle.fill" size={28} color="#fff" />
+                </View>
+              </LinearGradient>
+            </Pressable>
+          </Animated.View>
         </View>
       </View>
     </>
@@ -181,40 +247,52 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
     backgroundColor: 'transparent',
   },
+  shareButtonWrapper: {
+    shadowColor: '#25D366',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.4,
+    shadowRadius: 16,
+    elevation: 12,
+  },
+  whatsappButtonPressable: {
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
   whatsappButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#25D366',
-    paddingVertical: 16,
+    paddingVertical: 18,
     paddingHorizontal: 20,
-    borderRadius: 16,
-    gap: 12,
-    boxShadow: '0px 4px 12px rgba(37, 211, 102, 0.3)',
-    elevation: 8,
+    gap: 14,
   },
   whatsappIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   whatsappIcon: {
-    fontSize: 24,
+    fontSize: 28,
   },
   whatsappTextContainer: {
     flex: 1,
+    gap: 2,
   },
   whatsappButtonText: {
     color: '#fff',
-    fontSize: 16,
-    fontWeight: '700',
-    marginBottom: 2,
+    fontSize: 17,
+    fontWeight: '800',
+    letterSpacing: 0.3,
   },
   whatsappButtonSubtext: {
-    color: 'rgba(255, 255, 255, 0.85)',
-    fontSize: 12,
-    fontWeight: '500',
+    color: 'rgba(255, 255, 255, 0.95)',
+    fontSize: 13,
+    fontWeight: '600',
+    letterSpacing: 0.2,
+  },
+  whatsappArrow: {
+    opacity: 0.9,
   },
 });
