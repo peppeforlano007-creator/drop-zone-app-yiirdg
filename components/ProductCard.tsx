@@ -58,6 +58,32 @@ export default function ProductCard({
   const discountedPrice = product.originalPrice * (1 - discount / 100);
   const hasMultipleImages = product.imageUrls && product.imageUrls.length > 1;
 
+  const getConditionColor = (condition?: string) => {
+    switch (condition) {
+      case 'nuovo':
+        return '#4CAF50';
+      case 'reso da cliente':
+        return '#FF9800';
+      case 'packaging rovinato':
+        return '#F44336';
+      default:
+        return colors.textSecondary;
+    }
+  };
+
+  const getConditionIcon = (condition?: string) => {
+    switch (condition) {
+      case 'nuovo':
+        return 'sparkles';
+      case 'reso da cliente':
+        return 'arrow.uturn.backward';
+      case 'packaging rovinato':
+        return 'exclamationmark.triangle';
+      default:
+        return 'tag';
+    }
+  };
+
   return (
     <View style={styles.container}>
       <Pressable 
@@ -100,6 +126,41 @@ export default function ProductCard({
           </View>
 
           <Text style={styles.productName} numberOfLines={1}>{product.name}</Text>
+
+          {/* Sizes and Condition Row */}
+          {(product.sizes || product.condition) && (
+            <View style={styles.detailsRow}>
+              {product.sizes && product.sizes.length > 0 && (
+                <View style={styles.sizesContainer}>
+                  <IconSymbol name="ruler" size={14} color={colors.textSecondary} />
+                  <Text style={styles.sizesText}>
+                    {Array.isArray(product.sizes) 
+                      ? product.sizes.join(', ') 
+                      : product.sizes}
+                  </Text>
+                </View>
+              )}
+              
+              {product.condition && (
+                <View style={[
+                  styles.conditionBadge,
+                  { backgroundColor: getConditionColor(product.condition) + '20' }
+                ]}>
+                  <IconSymbol 
+                    name={getConditionIcon(product.condition)} 
+                    size={12} 
+                    color={getConditionColor(product.condition)} 
+                  />
+                  <Text style={[
+                    styles.conditionText,
+                    { color: getConditionColor(product.condition) }
+                  ]}>
+                    {product.condition}
+                  </Text>
+                </View>
+              )}
+            </View>
+          )}
 
           <View style={styles.priceRow}>
             <View style={styles.priceInfo}>
@@ -229,8 +290,43 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: '700',
     color: colors.text,
-    marginBottom: 12,
+    marginBottom: 8,
     letterSpacing: -0.3,
+  },
+  detailsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+    flexWrap: 'wrap',
+  },
+  sizesContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: colors.backgroundSecondary,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+  },
+  sizesText: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    fontWeight: '600',
+  },
+  conditionBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+  },
+  conditionText: {
+    fontSize: 10,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   priceRow: {
     flexDirection: 'row',

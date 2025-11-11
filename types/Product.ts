@@ -1,4 +1,6 @@
 
+export type ProductCondition = 'nuovo' | 'reso da cliente' | 'packaging rovinato';
+
 export interface Product {
   id: string;
   supplierId: string;
@@ -15,6 +17,8 @@ export interface Product {
   maxReservationValue: number;
   category: string;
   stock: number;
+  sizes?: string[];
+  condition?: ProductCondition;
 }
 
 export interface ProductList {
