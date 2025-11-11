@@ -1,11 +1,21 @@
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Platform } from 'react-native';
-import { Stack } from 'expo-router';
+import { Stack, router } from 'expo-router';
 import FloatingTabBar, { TabBarItem } from '@/components/FloatingTabBar';
 import { colors } from '@/styles/commonStyles';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function TabLayout() {
+  const { user, isAuthenticated } = useAuth();
+
+  useEffect(() => {
+    if (!isAuthenticated || user?.role !== 'consumer') {
+      console.log('Not authenticated or not a consumer, redirecting to login');
+      router.replace('/login');
+    }
+  }, [isAuthenticated, user]);
+
   const tabs: TabBarItem[] = [
     {
       route: '/(tabs)/(home)',

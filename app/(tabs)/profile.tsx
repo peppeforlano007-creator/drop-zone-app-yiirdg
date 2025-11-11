@@ -1,142 +1,159 @@
 
-import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Platform, Pressable, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Stack } from 'expo-router';
-import { IconSymbol } from '@/components/IconSymbol';
 import { colors, commonStyles } from '@/styles/commonStyles';
+import React, { useState } from 'react';
+import { IconSymbol } from '@/components/IconSymbol';
+import { Stack, router } from 'expo-router';
 import { mockUser, PICKUP_POINTS } from '@/data/mockData';
+import { useAuth } from '@/contexts/AuthContext';
 import * as Haptics from 'expo-haptics';
 
 export default function ProfileScreen() {
+  const { user, logout } = useAuth();
   const [selectedPickupPoint, setSelectedPickupPoint] = useState(mockUser.pickupPoint);
 
   const handlePickupPointChange = (point: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setSelectedPickupPoint(point);
-    Alert.alert('Punto di ritiro aggiornato', `Nuovo punto di ritiro: ${point}`);
     console.log('Pickup point changed to:', point);
+  };
+
+  const handleLogout = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    Alert.alert(
+      'Logout',
+      'Sei sicuro di voler uscire?',
+      [
+        { text: 'Annulla', style: 'cancel' },
+        {
+          text: 'Esci',
+          style: 'destructive',
+          onPress: () => {
+            logout();
+            router.replace('/login');
+          },
+        },
+      ]
+    );
   };
 
   return (
     <>
       <Stack.Screen
         options={{
+          headerShown: true,
           title: 'Profilo',
           headerStyle: {
             backgroundColor: colors.background,
           },
           headerTintColor: colors.text,
+          headerRight: () => (
+            <Pressable onPress={handleLogout} style={{ marginRight: 8 }}>
+              <IconSymbol name="rectangle.portrait.and.arrow.right" size={24} color={colors.text} />
+            </Pressable>
+          ),
         }}
       />
-      <SafeAreaView style={styles.safeArea} edges={['bottom']}>
-        <ScrollView
-          style={styles.container}
-          contentContainerStyle={[
-            styles.contentContainer,
-            Platform.OS !== 'ios' && styles.contentContainerWithTabBar,
-          ]}
-        >
-          <View style={styles.profileHeader}>
+      <SafeAreaView style={styles.container} edges={['bottom']}>
+        <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+          {/* User Info */}
+          <View style={styles.section}>
             <View style={styles.avatarContainer}>
-              <IconSymbol name="person.circle.fill" size={80} color={colors.text} />
+              <View style={styles.avatar}>
+                <IconSymbol name="person.fill" size={48} color={colors.text} />
+              </View>
+              <Text style={styles.userName}>{user?.name || mockUser.name}</Text>
+              <Text style={styles.userEmail}>{mockUser.email}</Text>
             </View>
-            <Text style={styles.name}>{mockUser.name}</Text>
-            <Text style={styles.email}>{mockUser.email}</Text>
           </View>
 
+          {/* Pickup Point Selection */}
           <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Punto di Ritiro</Text>
-            </View>
+            <Text style={styles.sectionTitle}>Punto di Ritiro</Text>
             <Text style={styles.sectionDescription}>
-              Seleziona il punto di ritiro più vicino a te. I drop si attiveranno quando
-              abbastanza utenti dello stesso punto mostreranno interesse.
+              Seleziona il punto di ritiro più vicino a te
             </Text>
+            
             <View style={styles.pickupPointsContainer}>
-              {PICKUP_POINTS.map(point => (
+              {PICKUP_POINTS.map((point) => (
                 <Pressable
                   key={point}
                   style={[
-                    styles.pickupPointButton,
-                    selectedPickupPoint === point && styles.pickupPointButtonActive,
+                    styles.pickupPointCard,
+                    selectedPickupPoint === point && styles.pickupPointCardSelected,
                   ]}
                   onPress={() => handlePickupPointChange(point)}
                 >
-                  <View style={styles.radioOuter}>
-                    {selectedPickupPoint === point && <View style={styles.radioInner} />}
+                  <View style={styles.pickupPointContent}>
+                    <IconSymbol
+                      name="mappin.circle.fill"
+                      size={24}
+                      color={selectedPickupPoint === point ? colors.background : colors.text}
+                    />
+                    <Text
+                      style={[
+                        styles.pickupPointText,
+                        selectedPickupPoint === point && styles.pickupPointTextSelected,
+                      ]}
+                    >
+                      {point}
+                    </Text>
                   </View>
-                  <Text
-                    style={[
-                      styles.pickupPointText,
-                      selectedPickupPoint === point && styles.pickupPointTextActive,
-                    ]}
-                  >
-                    {point}
-                  </Text>
+                  {selectedPickupPoint === point && (
+                    <IconSymbol name="checkmark.circle.fill" size={24} color={colors.background} />
+                  )}
                 </Pressable>
               ))}
             </View>
           </View>
 
+          {/* Stats */}
           <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Le Mie Prenotazioni</Text>
-            </View>
+            <Text style={styles.sectionTitle}>Le Tue Statistiche</Text>
+            
             <View style={styles.statsContainer}>
               <View style={styles.statCard}>
-                <Text style={styles.statValue}>0</Text>
-                <Text style={styles.statLabel}>Interessato</Text>
+                <IconSymbol name="heart.fill" size={32} color={colors.text} />
+                <Text style={styles.statValue}>12</Text>
+                <Text style={styles.statLabel}>Prodotti Interessati</Text>
               </View>
+              
               <View style={styles.statCard}>
-                <Text style={styles.statValue}>0</Text>
-                <Text style={styles.statLabel}>Prenotati</Text>
-              </View>
-              <View style={styles.statCard}>
-                <Text style={styles.statValue}>0</Text>
-                <Text style={styles.statLabel}>Completati</Text>
+                <IconSymbol name="cart.fill" size={32} color={colors.text} />
+                <Text style={styles.statValue}>5</Text>
+                <Text style={styles.statLabel}>Ordini Completati</Text>
               </View>
             </View>
           </View>
 
+          {/* Settings */}
           <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Come Funziona</Text>
-            </View>
-            <View style={styles.infoList}>
-              <View style={styles.infoItem}>
-                <View style={styles.infoNumber}>
-                  <Text style={styles.infoNumberText}>1</Text>
-                </View>
-                <Text style={styles.infoItemText}>
-                  Scorri il feed e premi "Vorrò partecipare al drop" sui prodotti che ti interessano
-                </Text>
+            <Text style={styles.sectionTitle}>Impostazioni</Text>
+            
+            <Pressable style={styles.settingItem}>
+              <View style={styles.settingContent}>
+                <IconSymbol name="bell.fill" size={20} color={colors.text} />
+                <Text style={styles.settingText}>Notifiche</Text>
               </View>
-              <View style={styles.infoItem}>
-                <View style={styles.infoNumber}>
-                  <Text style={styles.infoNumberText}>2</Text>
-                </View>
-                <Text style={styles.infoItemText}>
-                  Quando abbastanza utenti del tuo punto di ritiro mostrano interesse, si attiva un drop
-                </Text>
+              <IconSymbol name="chevron.right" size={20} color={colors.textSecondary} />
+            </Pressable>
+
+            <Pressable style={styles.settingItem}>
+              <View style={styles.settingContent}>
+                <IconSymbol name="creditcard.fill" size={20} color={colors.text} />
+                <Text style={styles.settingText}>Metodi di Pagamento</Text>
               </View>
-              <View style={styles.infoItem}>
-                <View style={styles.infoNumber}>
-                  <Text style={styles.infoNumberText}>3</Text>
-                </View>
-                <Text style={styles.infoItemText}>
-                  Prenota con carta durante il drop. Più persone prenotano, più lo sconto aumenta!
-                </Text>
+              <IconSymbol name="chevron.right" size={20} color={colors.textSecondary} />
+            </Pressable>
+
+            <Pressable style={styles.settingItem}>
+              <View style={styles.settingContent}>
+                <IconSymbol name="questionmark.circle.fill" size={20} color={colors.text} />
+                <Text style={styles.settingText}>Aiuto e Supporto</Text>
               </View>
-              <View style={styles.infoItem}>
-                <View style={styles.infoNumber}>
-                  <Text style={styles.infoNumberText}>4</Text>
-                </View>
-                <Text style={styles.infoItemText}>
-                  Alla fine del drop, paghi il prezzo finale e ritiri il prodotto al tuo punto
-                </Text>
-              </View>
-            </View>
+              <IconSymbol name="chevron.right" size={20} color={colors.textSecondary} />
+            </Pressable>
           </View>
         </ScrollView>
       </SafeAreaView>
@@ -145,101 +162,82 @@ export default function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
+  container: {
     flex: 1,
     backgroundColor: colors.background,
   },
-  container: {
+  scrollView: {
     flex: 1,
   },
-  contentContainer: {
-    paddingVertical: 20,
-  },
-  contentContainerWithTabBar: {
-    paddingBottom: 100,
-  },
-  profileHeader: {
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    marginBottom: 32,
+  section: {
+    padding: 24,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
   avatarContainer: {
+    alignItems: 'center',
+    paddingVertical: 16,
+  },
+  avatar: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: colors.backgroundSecondary,
+    alignItems: 'center',
+    justifyContent: 'center',
     marginBottom: 16,
   },
-  name: {
-    fontSize: 22,
+  userName: {
+    fontSize: 24,
     fontWeight: '700',
     color: colors.text,
     marginBottom: 4,
-    letterSpacing: -0.5,
   },
-  email: {
+  userEmail: {
     fontSize: 14,
     color: colors.textSecondary,
   },
-  section: {
-    backgroundColor: colors.card,
-    borderRadius: 8,
-    padding: 20,
-    marginHorizontal: 16,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  sectionHeader: {
-    marginBottom: 12,
-  },
   sectionTitle: {
-    fontSize: 16,
+    fontSize: 20,
     fontWeight: '700',
     color: colors.text,
+    marginBottom: 8,
   },
   sectionDescription: {
-    fontSize: 13,
+    fontSize: 14,
     color: colors.textSecondary,
-    lineHeight: 20,
     marginBottom: 16,
+    lineHeight: 20,
   },
   pickupPointsContainer: {
-    gap: 8,
+    gap: 12,
   },
-  pickupPointButton: {
+  pickupPointCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: colors.card,
+    borderWidth: 2,
+    borderColor: colors.border,
+    borderRadius: 12,
+    padding: 16,
+  },
+  pickupPointCardSelected: {
+    borderColor: colors.text,
+    backgroundColor: colors.text,
+  },
+  pickupPointContent: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    padding: 12,
-    borderRadius: 4,
-    backgroundColor: colors.backgroundSecondary,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  pickupPointButtonActive: {
-    backgroundColor: colors.text,
-    borderColor: colors.text,
-  },
-  radioOuter: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    borderWidth: 2,
-    borderColor: colors.textSecondary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  radioInner: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: colors.background,
   },
   pickupPointText: {
-    fontSize: 14,
-    fontWeight: '500',
+    fontSize: 16,
+    fontWeight: '600',
     color: colors.text,
   },
-  pickupPointTextActive: {
+  pickupPointTextSelected: {
     color: colors.background,
-    fontWeight: '600',
   },
   statsContainer: {
     flexDirection: 'row',
@@ -247,49 +245,40 @@ const styles = StyleSheet.create({
   },
   statCard: {
     flex: 1,
-    backgroundColor: colors.backgroundSecondary,
-    borderRadius: 4,
-    padding: 16,
-    alignItems: 'center',
+    backgroundColor: colors.card,
     borderWidth: 1,
     borderColor: colors.border,
+    borderRadius: 12,
+    padding: 20,
+    alignItems: 'center',
   },
   statValue: {
-    fontSize: 24,
-    fontWeight: '800',
+    fontSize: 32,
+    fontWeight: '700',
     color: colors.text,
+    marginTop: 12,
     marginBottom: 4,
-    letterSpacing: -0.5,
   },
   statLabel: {
-    fontSize: 11,
+    fontSize: 12,
     color: colors.textSecondary,
     textAlign: 'center',
   },
-  infoList: {
-    gap: 16,
-  },
-  infoItem: {
+  settingItem: {
     flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  settingContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 12,
   },
-  infoNumber: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: colors.text,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  infoNumberText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.background,
-  },
-  infoItemText: {
-    flex: 1,
-    fontSize: 13,
+  settingText: {
+    fontSize: 16,
     color: colors.text,
-    lineHeight: 20,
   },
 });
