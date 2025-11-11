@@ -8,7 +8,6 @@ import { usePayment } from '@/contexts/PaymentContext';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import ImageGallery from './ImageGallery';
-import { LinearGradient } from 'expo-linear-gradient';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -35,52 +34,7 @@ export default function ProductCard({
   const { getDefaultPaymentMethod, authorizePayment } = usePayment();
   
   // Animation values
-  const pulseAnim = useRef(new Animated.Value(1)).current;
-  const glowAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(1)).current;
-
-  // Pulsing animation for the "PRENOTA CON CARTA" button
-  useEffect(() => {
-    if (isInDrop) {
-      const pulseAnimation = Animated.loop(
-        Animated.sequence([
-          Animated.timing(pulseAnim, {
-            toValue: 1.05,
-            duration: 1000,
-            useNativeDriver: true,
-          }),
-          Animated.timing(pulseAnim, {
-            toValue: 1,
-            duration: 1000,
-            useNativeDriver: true,
-          }),
-        ])
-      );
-
-      const glowAnimation = Animated.loop(
-        Animated.sequence([
-          Animated.timing(glowAnim, {
-            toValue: 1,
-            duration: 1500,
-            useNativeDriver: false,
-          }),
-          Animated.timing(glowAnim, {
-            toValue: 0,
-            duration: 1500,
-            useNativeDriver: false,
-          }),
-        ])
-      );
-
-      pulseAnimation.start();
-      glowAnimation.start();
-
-      return () => {
-        pulseAnimation.stop();
-        glowAnimation.stop();
-      };
-    }
-  }, [isInDrop]);
 
   const handleImagePress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -90,7 +44,7 @@ export default function ProductCard({
 
   const handlePressIn = () => {
     Animated.spring(scaleAnim, {
-      toValue: 0.95,
+      toValue: 0.97,
       useNativeDriver: true,
     }).start();
   };
@@ -194,11 +148,6 @@ export default function ProductCard({
     }
   };
 
-  const glowOpacity = glowAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0.3, 0.8],
-  });
-
   return (
     <View style={styles.container}>
       <Pressable 
@@ -287,54 +236,41 @@ export default function ProductCard({
             </View>
           </View>
 
-          {/* Enhanced Action Button */}
+          {/* Minimal "PRENOTA CON CARTA" Button */}
           {isInDrop ? (
             <Animated.View 
               style={[
                 styles.bookButtonWrapper,
                 {
-                  transform: [{ scale: Animated.multiply(pulseAnim, scaleAnim) }],
+                  transform: [{ scale: scaleAnim }],
                 },
               ]}
             >
-              <Animated.View 
-                style={[
-                  styles.glowEffect,
-                  { opacity: glowOpacity }
-                ]}
-              />
               <Pressable
                 onPress={handlePress}
                 onPressIn={handlePressIn}
                 onPressOut={handlePressOut}
                 disabled={isProcessing}
-                style={styles.bookButtonPressable}
+                style={styles.bookButton}
               >
-                <LinearGradient
-                  colors={['#FF6B35', '#FF8E53', '#FF6B35']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.bookButton}
-                >
-                  {isProcessing ? (
-                    <ActivityIndicator color="#FFFFFF" size="small" />
-                  ) : (
-                    <>
-                      <View style={styles.bookButtonIconContainer}>
-                        <IconSymbol name="creditcard.fill" size={24} color="#FFFFFF" />
-                      </View>
-                      <View style={styles.bookButtonTextContainer}>
-                        <Text style={styles.bookButtonTitle}>PRENOTA CON CARTA</Text>
-                        <Text style={styles.bookButtonSubtitle}>
-                          Blocco temporaneo • Addebito finale
-                        </Text>
-                      </View>
-                      <View style={styles.bookButtonArrow}>
-                        <IconSymbol name="arrow.right.circle.fill" size={28} color="#FFFFFF" />
-                      </View>
-                    </>
-                  )}
-                </LinearGradient>
+                {isProcessing ? (
+                  <ActivityIndicator color="#FFFFFF" size="small" />
+                ) : (
+                  <>
+                    <View style={styles.bookButtonIconContainer}>
+                      <IconSymbol name="creditcard.fill" size={28} color="#333" />
+                    </View>
+                    <View style={styles.bookButtonTextContainer}>
+                      <Text style={styles.bookButtonTitle}>PRENOTA CON CARTA</Text>
+                      <Text style={styles.bookButtonSubtitle}>
+                        Blocco temporaneo • Addebito finale
+                      </Text>
+                    </View>
+                    <View style={styles.bookButtonArrow}>
+                      <IconSymbol name="chevron.right" size={24} color="#333" />
+                    </View>
+                  </>
+                )}
               </Pressable>
             </Animated.View>
           ) : (
@@ -533,70 +469,55 @@ const styles = StyleSheet.create({
     color: colors.text,
     letterSpacing: -0.8,
   },
-  // Enhanced "PRENOTA CON CARTA" button styles
+  // Minimal "PRENOTA CON CARTA" button styles
   bookButtonWrapper: {
-    position: 'relative',
     marginTop: 4,
-  },
-  glowEffect: {
-    position: 'absolute',
-    top: -8,
-    left: -8,
-    right: -8,
-    bottom: -8,
-    backgroundColor: '#FF6B35',
-    borderRadius: 20,
-    opacity: 0.3,
-    shadowColor: '#FF6B35',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.6,
-    shadowRadius: 20,
-    elevation: 12,
-  },
-  bookButtonPressable: {
-    borderRadius: 16,
-    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 6,
   },
   bookButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 20,
-    paddingHorizontal: 20,
-    gap: 12,
-    shadowColor: '#FF6B35',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
-    elevation: 8,
+    paddingVertical: 24,
+    paddingHorizontal: 24,
+    gap: 16,
+    backgroundColor: '#FFF',
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: '#333',
   },
   bookButtonIconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#F5F5F5',
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
   },
   bookButtonTextContainer: {
     flex: 1,
-    gap: 2,
+    gap: 4,
   },
   bookButtonTitle: {
-    color: '#FFFFFF',
-    fontSize: 16,
+    color: '#000',
+    fontSize: 18,
     fontWeight: '800',
-    letterSpacing: 1.2,
-    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   bookButtonSubtitle: {
-    color: 'rgba(255, 255, 255, 0.9)',
-    fontSize: 11,
-    fontWeight: '600',
-    letterSpacing: 0.3,
+    color: '#666',
+    fontSize: 12,
+    fontWeight: '500',
+    letterSpacing: 0.2,
   },
   bookButtonArrow: {
-    opacity: 0.9,
+    opacity: 0.8,
   },
   // Standard action button (for non-drop products)
   actionButton: {

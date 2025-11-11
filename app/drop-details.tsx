@@ -7,7 +7,6 @@ import { colors } from '@/styles/commonStyles';
 import ProductCard from '@/components/ProductCard';
 import { mockDrops } from '@/data/mockData';
 import { IconSymbol } from '@/components/IconSymbol';
-import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -17,84 +16,33 @@ export default function DropDetailsScreen() {
   const [bookedProducts, setBookedProducts] = useState<Set<string>>(new Set());
   const flatListRef = useRef<FlatList>(null);
   
-  // Animation values for WhatsApp button
-  const pulseAnim = useRef(new Animated.Value(1)).current;
+  // Animation values for share button
   const scaleAnim = useRef(new Animated.Value(1)).current;
-  const glowAnim = useRef(new Animated.Value(0)).current;
   const bounceAnim = useRef(new Animated.Value(0)).current;
-  const shimmerAnim = useRef(new Animated.Value(0)).current;
 
   const drop = mockDrops.find(d => d.id === dropId);
 
-  // Complex animation sequence for the share button
+  // Subtle bounce animation for the share button
   useEffect(() => {
-    // Pulsing scale animation
-    const pulseAnimation = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, {
-          toValue: 1.05,
-          duration: 1500,
-          useNativeDriver: true,
-        }),
-        Animated.timing(pulseAnim, {
-          toValue: 1,
-          duration: 1500,
-          useNativeDriver: true,
-        }),
-      ])
-    );
-
-    // Glowing shadow animation
-    const glowAnimation = Animated.loop(
-      Animated.sequence([
-        Animated.timing(glowAnim, {
-          toValue: 1,
-          duration: 2000,
-          useNativeDriver: false,
-        }),
-        Animated.timing(glowAnim, {
-          toValue: 0,
-          duration: 2000,
-          useNativeDriver: false,
-        }),
-      ])
-    );
-
-    // Subtle bounce animation
     const bounceAnimation = Animated.loop(
       Animated.sequence([
         Animated.timing(bounceAnim, {
-          toValue: -8,
-          duration: 1800,
+          toValue: -4,
+          duration: 2000,
           useNativeDriver: true,
         }),
         Animated.timing(bounceAnim, {
           toValue: 0,
-          duration: 1800,
+          duration: 2000,
           useNativeDriver: true,
         }),
       ])
     );
 
-    // Shimmer effect
-    const shimmerAnimation = Animated.loop(
-      Animated.timing(shimmerAnim, {
-        toValue: 1,
-        duration: 2500,
-        useNativeDriver: true,
-      })
-    );
-
-    pulseAnimation.start();
-    glowAnimation.start();
     bounceAnimation.start();
-    shimmerAnimation.start();
 
     return () => {
-      pulseAnimation.stop();
-      glowAnimation.stop();
       bounceAnimation.stop();
-      shimmerAnimation.stop();
     };
   }, []);
 
@@ -132,9 +80,9 @@ export default function DropDetailsScreen() {
   };
 
   const handlePressIn = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     Animated.spring(scaleAnim, {
-      toValue: 0.94,
+      toValue: 0.96,
       useNativeDriver: true,
     }).start();
   };
@@ -203,18 +151,6 @@ export default function DropDetailsScreen() {
     index,
   });
 
-  // Interpolate shimmer position
-  const shimmerTranslate = shimmerAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [-300, 300],
-  });
-
-  // Interpolate glow opacity
-  const glowOpacity = glowAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0.3, 0.7],
-  });
-
   return (
     <>
       <Stack.Screen
@@ -242,81 +178,43 @@ export default function DropDetailsScreen() {
           initialNumToRender={2}
         />
         
-        {/* Enhanced WhatsApp Share Button with Multiple Animations */}
+        {/* Minimal WhatsApp Share Button */}
         <View style={styles.shareButtonContainer}>
           <Animated.View 
             style={[
               styles.shareButtonWrapper,
               {
                 transform: [
-                  { scale: Animated.multiply(pulseAnim, scaleAnim) },
+                  { scale: scaleAnim },
                   { translateY: bounceAnim },
                 ],
               },
             ]}
           >
-            {/* Animated Glow Effect */}
-            <Animated.View 
-              style={[
-                styles.glowEffect,
-                {
-                  opacity: glowOpacity,
-                },
-              ]}
-            />
-            
             <Pressable 
               onPress={handleShareWhatsApp}
               onPressIn={handlePressIn}
               onPressOut={handlePressOut}
-              style={styles.whatsappButtonPressable}
+              style={styles.whatsappButton}
             >
-              <LinearGradient
-                colors={['#25D366', '#20BA5A', '#128C7E']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.whatsappButton}
-              >
-                {/* Shimmer overlay effect */}
-                <Animated.View
-                  style={[
-                    styles.shimmerOverlay,
-                    {
-                      transform: [{ translateX: shimmerTranslate }],
-                    },
-                  ]}
-                />
-                
-                {/* Badge with incentive */}
-                <View style={styles.incentiveBadge}>
-                  <Text style={styles.incentiveBadgeText}>🎁 AUMENTA LO SCONTO</Text>
+              <View style={styles.buttonContent}>
+                <View style={styles.iconContainer}>
+                  <IconSymbol name="square.and.arrow.up" size={16} color="#666" />
                 </View>
                 
-                <View style={styles.buttonContent}>
-                  <View style={styles.whatsappIconContainer}>
-                    <Text style={styles.whatsappIcon}>💬</Text>
-                    <View style={styles.iconPulse} />
-                  </View>
-                  
-                  <View style={styles.whatsappTextContainer}>
-                    <Text style={styles.whatsappButtonTitle}>
-                      Invita Amici e Parenti
-                    </Text>
-                    <Text style={styles.whatsappButtonSubtext}>
-                      🚀 Più condividi, più risparmi!
-                    </Text>
-                    <View style={styles.discountIndicator}>
-                      <Text style={styles.discountIndicatorText}>
-                        {drop.currentDiscount}% → {drop.maxDiscount}%
-                      </Text>
-                    </View>
-                  </View>
-                  
-                  <View style={styles.whatsappArrowContainer}>
-                    <IconSymbol name="arrow.right.circle.fill" size={32} color="#fff" />
-                  </View>
+                <View style={styles.textContainer}>
+                  <Text style={styles.buttonTitle}>Invita Amici e Parenti</Text>
+                  <Text style={styles.buttonSubtext}>
+                    Più condividi, più risparmi
+                  </Text>
                 </View>
-              </LinearGradient>
+                
+                <View style={styles.discountBadge}>
+                  <Text style={styles.discountBadgeText}>
+                    {drop.currentDiscount}% → {drop.maxDiscount}%
+                  </Text>
+                </View>
+              </View>
             </Pressable>
           </Animated.View>
         </View>
@@ -352,129 +250,61 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   shareButtonWrapper: {
-    shadowColor: '#25D366',
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.5,
-    shadowRadius: 20,
-    elevation: 16,
-  },
-  glowEffect: {
-    position: 'absolute',
-    top: -10,
-    left: -10,
-    right: -10,
-    bottom: -10,
-    backgroundColor: '#25D366',
-    borderRadius: 24,
-    opacity: 0.4,
-  },
-  whatsappButtonPressable: {
-    borderRadius: 20,
-    overflow: 'hidden',
-  },
-  whatsappButton: {
-    position: 'relative',
-    paddingVertical: 20,
-    paddingHorizontal: 20,
-    borderRadius: 20,
-    overflow: 'hidden',
-  },
-  shimmerOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    width: 100,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
-    transform: [{ skewX: '-20deg' }],
-  },
-  incentiveBadge: {
-    position: 'absolute',
-    top: -8,
-    right: 20,
-    backgroundColor: '#FFD700',
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
   },
-  incentiveBadgeText: {
-    color: '#000',
-    fontSize: 10,
-    fontWeight: '900',
-    letterSpacing: 0.5,
+  whatsappButton: {
+    backgroundColor: '#F5F5F5',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    overflow: 'hidden',
   },
   buttonContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    gap: 10,
   },
-  whatsappIconContainer: {
-    position: 'relative',
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+  iconContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#FFF',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 3,
-    borderColor: 'rgba(255, 255, 255, 0.5)',
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
   },
-  whatsappIcon: {
-    fontSize: 32,
-  },
-  iconPulse: {
-    position: 'absolute',
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.4)',
-  },
-  whatsappTextContainer: {
+  textContainer: {
     flex: 1,
-    gap: 4,
+    gap: 2,
   },
-  whatsappButtonTitle: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '900',
-    letterSpacing: 0.5,
-    textShadowColor: 'rgba(0, 0, 0, 0.3)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
+  buttonTitle: {
+    color: '#333',
+    fontSize: 13,
+    fontWeight: '600',
+    letterSpacing: 0.2,
   },
-  whatsappButtonSubtext: {
-    color: 'rgba(255, 255, 255, 0.95)',
-    fontSize: 14,
+  buttonSubtext: {
+    color: '#666',
+    fontSize: 11,
+    fontWeight: '500',
+  },
+  discountBadge: {
+    backgroundColor: '#333',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  discountBadgeText: {
+    color: '#FFF',
+    fontSize: 10,
     fontWeight: '700',
     letterSpacing: 0.3,
-  },
-  discountIndicator: {
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 8,
-    alignSelf: 'flex-start',
-    marginTop: 2,
-  },
-  discountIndicatorText: {
-    color: '#fff',
-    fontSize: 13,
-    fontWeight: '800',
-    letterSpacing: 0.5,
-  },
-  whatsappArrowContainer: {
-    opacity: 0.95,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 3,
   },
 });
