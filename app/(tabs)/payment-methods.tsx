@@ -206,10 +206,11 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   contentContainer: {
-    paddingVertical: 20,
+    paddingTop: 20,
+    paddingBottom: 40,
   },
   contentContainerWithTabBar: {
-    paddingBottom: 100,
+    paddingBottom: 120,
   },
   header: {
     paddingHorizontal: 20,

@@ -131,7 +131,11 @@ export default function EarningsScreen() {
         }}
       />
       <SafeAreaView style={styles.container} edges={['bottom']}>
-        <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+        <ScrollView 
+          style={styles.scrollView} 
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
           {/* Summary Cards */}
           <View style={styles.summaryContainer}>
             <View style={styles.summaryCard}>
@@ -260,6 +264,9 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: 40,
   },
   summaryContainer: {
     flexDirection: 'row',

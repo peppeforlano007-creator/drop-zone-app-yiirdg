@@ -61,7 +61,14 @@ export default function ProfileScreen() {
         }}
       />
       <SafeAreaView style={styles.container} edges={['bottom']}>
-        <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+        <ScrollView 
+          style={styles.scrollView} 
+          contentContainerStyle={[
+            styles.scrollContent,
+            Platform.OS !== 'ios' && styles.scrollContentWithTabBar,
+          ]}
+          showsVerticalScrollIndicator={false}
+        >
           {/* User Info */}
           <View style={styles.section}>
             <View style={styles.avatarContainer}>
@@ -173,6 +180,12 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: 40,
+  },
+  scrollContentWithTabBar: {
+    paddingBottom: 120,
   },
   section: {
     padding: 24,

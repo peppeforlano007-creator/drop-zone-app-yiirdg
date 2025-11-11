@@ -78,7 +78,11 @@ export default function PickupPointDashboard() {
         }}
       />
       <SafeAreaView style={styles.container} edges={['bottom']}>
-        <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+        <ScrollView 
+          style={styles.scrollView} 
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
           {/* Welcome Section */}
           <View style={styles.welcomeSection}>
             <Text style={styles.welcomeText}>Benvenuto, {user?.name}</Text>
@@ -207,6 +211,9 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: 40,
   },
   welcomeSection: {
     padding: 24,

@@ -313,7 +313,11 @@ export default function OrdersScreen() {
           </Pressable>
         </View>
 
-        <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+        <ScrollView 
+          style={styles.scrollView} 
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
           {/* Info Card */}
           <View style={styles.infoCard}>
             <IconSymbol name="info.circle.fill" size={20} color={colors.text} />
@@ -380,6 +384,9 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: 40,
   },
   infoCard: {
     flexDirection: 'row',
