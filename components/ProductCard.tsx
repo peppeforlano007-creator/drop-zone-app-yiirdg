@@ -1,9 +1,11 @@
 
 import React, { useState } from 'react';
-import { View, Text, Image, StyleSheet, Pressable, Dimensions, Alert } from 'react-native';
+import { View, Text, Image, StyleSheet, Pressable, Dimensions, Alert, ActivityIndicator } from 'react-native';
 import { IconSymbol } from './IconSymbol';
 import { colors } from '@/styles/commonStyles';
 import { Product } from '@/types/Product';
+import { usePayment } from '@/contexts/PaymentContext';
+import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import ImageGallery from './ImageGallery';
 
@@ -28,6 +30,8 @@ export default function ProductCard({
 }: ProductCardProps) {
   const [imageLoaded, setImageLoaded] = useState(false);
   const [galleryVisible, setGalleryVisible] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const { getDefaultPaymentMethod, authorizePayment } = usePayment();
 
   const handleImagePress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -35,17 +39,58 @@ export default function ProductCard({
     console.log('Opening image gallery for product:', product.id);
   };
 
-  const handlePress = () => {
+  const handlePress = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    
     if (isInDrop && onBook) {
+      const defaultPaymentMethod = getDefaultPaymentMethod();
+      
+      if (!defaultPaymentMethod) {
+        Alert.alert(
+          'Metodo di Pagamento Richiesto',
+          'Devi aggiungere un metodo di pagamento prima di prenotare.',
+          [
+            { text: 'Annulla', style: 'cancel' },
+            {
+              text: 'Aggiungi Carta',
+              onPress: () => router.push('/add-payment-method'),
+            },
+          ]
+        );
+        return;
+      }
+
+      const discount = currentDiscount || product.minDiscount;
+      const discountedPrice = product.originalPrice * (1 - discount / 100);
+
       Alert.alert(
         'Conferma Prenotazione',
-        `Vuoi prenotare ${product.name} con ${currentDiscount}% di sconto?`,
+        `Vuoi prenotare ${product.name}?\n\nPrezzo attuale: €${discountedPrice.toFixed(2)} (-${discount}%)\n\nBlocchiamo €${product.originalPrice.toFixed(2)} sulla tua carta ${defaultPaymentMethod.brand} •••• ${defaultPaymentMethod.last4}.\n\nAlla fine del drop, addebiteremo solo l'importo finale con lo sconto raggiunto.`,
         [
           { text: 'Annulla', style: 'cancel' },
           {
             text: 'Prenota',
-            onPress: () => onBook(product.id),
+            onPress: async () => {
+              setIsProcessing(true);
+              try {
+                const authId = await authorizePayment(
+                  product.id,
+                  product.originalPrice,
+                  defaultPaymentMethod.id
+                );
+                console.log('Payment authorized:', authId);
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                onBook(product.id);
+              } catch (error) {
+                console.error('Payment authorization failed:', error);
+                Alert.alert(
+                  'Errore',
+                  'Non è stato possibile autorizzare il pagamento. Riprova.'
+                );
+              } finally {
+                setIsProcessing(false);
+              }
+            },
           },
         ]
       );
@@ -176,16 +221,22 @@ export default function ProductCard({
             style={[
               styles.actionButton,
               isInterested && styles.interestedButton,
+              isProcessing && styles.actionButtonDisabled,
             ]}
             onPress={handlePress}
+            disabled={isProcessing}
           >
-            <Text style={styles.actionButtonText}>
-              {isInDrop
-                ? 'PRENOTA CON CARTA'
-                : isInterested
-                ? 'INTERESSATO ✓'
-                : 'VORRÒ PARTECIPARE AL DROP'}
-            </Text>
+            {isProcessing ? (
+              <ActivityIndicator color={colors.background} />
+            ) : (
+              <Text style={styles.actionButtonText}>
+                {isInDrop
+                  ? 'PRENOTA CON CARTA'
+                  : isInterested
+                  ? 'INTERESSATO ✓'
+                  : 'VORRÒ PARTECIPARE AL DROP'}
+              </Text>
+            )}
           </Pressable>
         </View>
       </View>
@@ -371,6 +422,9 @@ const styles = StyleSheet.create({
   },
   interestedButton: {
     backgroundColor: colors.secondary,
+  },
+  actionButtonDisabled: {
+    opacity: 0.6,
   },
   actionButtonText: {
     color: colors.background,

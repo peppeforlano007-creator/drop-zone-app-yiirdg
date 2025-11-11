@@ -18,6 +18,7 @@ import { StatusBar } from "expo-status-bar";
 import { Button } from "@/components/button";
 import { WidgetProvider } from "@/contexts/WidgetContext";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { PaymentProvider } from "@/contexts/PaymentContext";
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -86,9 +87,10 @@ export default function RootLayout() {
           value={colorScheme === "dark" ? CustomDarkTheme : CustomDefaultTheme}
         >
           <AuthProvider>
-            <WidgetProvider>
-              <GestureHandlerRootView>
-              <Stack>
+            <PaymentProvider>
+              <WidgetProvider>
+                <GestureHandlerRootView>
+                <Stack>
                 {/* Login Screen */}
                 <Stack.Screen name="login" options={{ headerShown: false }} />
 
@@ -105,6 +107,9 @@ export default function RootLayout() {
 
                 {/* Drop Details */}
                 <Stack.Screen name="drop-details" options={{ headerShown: false }} />
+
+                {/* Payment Screens */}
+                <Stack.Screen name="add-payment-method" options={{ headerShown: false }} />
 
                 {/* Modal Demo Screens */}
                 <Stack.Screen
@@ -131,10 +136,11 @@ export default function RootLayout() {
                     headerShown: false,
                   }}
                 />
-              </Stack>
-              <SystemBars style={"auto"} />
-              </GestureHandlerRootView>
-            </WidgetProvider>
+                </Stack>
+                <SystemBars style={"auto"} />
+                </GestureHandlerRootView>
+              </WidgetProvider>
+            </PaymentProvider>
           </AuthProvider>
         </ThemeProvider>
     </>

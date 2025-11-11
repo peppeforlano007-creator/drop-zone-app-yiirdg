@@ -38,6 +38,11 @@ export default function ProfileScreen() {
     );
   };
 
+  const handleViewBookings = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push('/(tabs)/my-bookings');
+  };
+
   return (
     <>
       <Stack.Screen
@@ -131,18 +136,18 @@ export default function ProfileScreen() {
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Impostazioni</Text>
             
-            <Pressable style={styles.settingItem}>
+            <Pressable style={styles.settingItem} onPress={handleViewBookings}>
               <View style={styles.settingContent}>
-                <IconSymbol name="bell.fill" size={20} color={colors.text} />
-                <Text style={styles.settingText}>Notifiche</Text>
+                <IconSymbol name="cart.fill" size={20} color={colors.text} />
+                <Text style={styles.settingText}>Le Mie Prenotazioni</Text>
               </View>
               <IconSymbol name="chevron.right" size={20} color={colors.textSecondary} />
             </Pressable>
 
             <Pressable style={styles.settingItem}>
               <View style={styles.settingContent}>
-                <IconSymbol name="creditcard.fill" size={20} color={colors.text} />
-                <Text style={styles.settingText}>Metodi di Pagamento</Text>
+                <IconSymbol name="bell.fill" size={20} color={colors.text} />
+                <Text style={styles.settingText}>Notifiche</Text>
               </View>
               <IconSymbol name="chevron.right" size={20} color={colors.textSecondary} />
             </Pressable>
