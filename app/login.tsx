@@ -93,7 +93,9 @@ export default function LoginScreen() {
           >
             {/* Logo */}
             <View style={styles.logoContainer}>
-              <Text style={styles.logo}>DROPMARKET</Text>
+              <View style={styles.logoTextContainer}>
+                <Text style={styles.logo} numberOfLines={1} adjustsFontSizeToFit>DROPMARKET</Text>
+              </View>
               <Text style={styles.tagline}>Il marketplace dei drop</Text>
             </View>
 
@@ -236,12 +238,21 @@ const styles = StyleSheet.create({
     marginTop: 40,
     marginBottom: 60,
   },
+  logoTextContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '100%',
+    paddingHorizontal: 20,
+  },
   logo: {
     fontSize: 48,
     fontWeight: '900',
     color: colors.text,
-    letterSpacing: 2,
+    letterSpacing: 1,
     marginBottom: 8,
+    textAlign: 'center',
+    flexShrink: 1,
   },
   tagline: {
     fontSize: 14,
