@@ -5,6 +5,7 @@ import { IconSymbol } from './IconSymbol';
 import { colors } from '@/styles/commonStyles';
 import { Product } from '@/types/Product';
 import * as Haptics from 'expo-haptics';
+import ImageGallery from './ImageGallery';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -26,6 +27,13 @@ export default function ProductCard({
   isInterested = false,
 }: ProductCardProps) {
   const [imageLoaded, setImageLoaded] = useState(false);
+  const [galleryVisible, setGalleryVisible] = useState(false);
+
+  const handleImagePress = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setGalleryVisible(true);
+    console.log('Opening image gallery for product:', product.id);
+  };
 
   const handlePress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -48,21 +56,40 @@ export default function ProductCard({
 
   const discount = currentDiscount || product.minDiscount;
   const discountedPrice = product.originalPrice * (1 - discount / 100);
+  const hasMultipleImages = product.imageUrls && product.imageUrls.length > 1;
 
   return (
     <View style={styles.container}>
-      <Image
-        source={{ uri: product.imageUrl }}
-        style={styles.image}
-        resizeMode="cover"
-        onLoad={() => setImageLoaded(true)}
-      />
-      
-      {!imageLoaded && (
-        <View style={styles.imagePlaceholder}>
-          <IconSymbol name="photo" size={60} color={colors.textTertiary} />
+      <Pressable 
+        style={styles.imageWrapper}
+        onPress={handleImagePress}
+        activeOpacity={0.95}
+      >
+        <Image
+          source={{ uri: product.imageUrl }}
+          style={styles.image}
+          resizeMode="cover"
+          onLoad={() => setImageLoaded(true)}
+        />
+        
+        {!imageLoaded && (
+          <View style={styles.imagePlaceholder}>
+            <IconSymbol name="photo" size={60} color={colors.textTertiary} />
+          </View>
+        )}
+
+        {hasMultipleImages && (
+          <View style={styles.imageIndicator}>
+            <IconSymbol name="photo.stack" size={20} color={colors.background} />
+            <Text style={styles.imageCount}>{product.imageUrls.length}</Text>
+          </View>
+        )}
+
+        <View style={styles.tapHint}>
+          <IconSymbol name="hand.tap" size={16} color={colors.background} />
+          <Text style={styles.tapHintText}>Tocca per vedere tutte le foto</Text>
         </View>
-      )}
+      </Pressable>
 
       <View style={styles.overlay}>
         <View style={styles.content}>
@@ -116,6 +143,13 @@ export default function ProductCard({
           </View>
         </View>
       </View>
+
+      <ImageGallery
+        images={product.imageUrls || [product.imageUrl]}
+        visible={galleryVisible}
+        onClose={() => setGalleryVisible(false)}
+        initialIndex={0}
+      />
     </View>
   );
 }
@@ -126,10 +160,14 @@ const styles = StyleSheet.create({
     height: SCREEN_HEIGHT,
     backgroundColor: colors.background,
   },
-  image: {
+  imageWrapper: {
     width: '100%',
     height: '100%',
     position: 'absolute',
+  },
+  image: {
+    width: '100%',
+    height: '100%',
   },
   imagePlaceholder: {
     width: '100%',
@@ -139,12 +177,46 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: colors.backgroundSecondary,
   },
+  imageIndicator: {
+    position: 'absolute',
+    top: 60,
+    right: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  imageCount: {
+    color: colors.background,
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  tapHint: {
+    position: 'absolute',
+    top: 110,
+    right: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  tapHintText: {
+    color: colors.background,
+    fontSize: 11,
+    fontWeight: '600',
+  },
   overlay: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    backgroundColor: 'rgba(255, 255, 255, 0.97)',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
   },

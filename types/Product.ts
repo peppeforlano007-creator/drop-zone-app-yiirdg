@@ -7,6 +7,7 @@ export interface Product {
   name: string;
   description: string;
   imageUrl: string;
+  imageUrls: string[];
   originalPrice: number;
   minDiscount: number;
   maxDiscount: number;
