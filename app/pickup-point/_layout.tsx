@@ -7,6 +7,9 @@ export default function PickupPointLayout() {
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="dashboard" />
       <Stack.Screen name="edit" />
+      <Stack.Screen name="register" />
+      <Stack.Screen name="earnings" />
+      <Stack.Screen name="orders" />
     </Stack>
   );
 }

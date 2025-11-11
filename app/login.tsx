@@ -145,6 +145,20 @@ export default function LoginScreen() {
               </Pressable>
             </View>
 
+            {/* Register Pickup Point Link */}
+            <Pressable
+              style={styles.registerLink}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.push('/pickup-point/register');
+              }}
+            >
+              <IconSymbol name="plus.circle.fill" size={20} color={colors.text} />
+              <Text style={styles.registerLinkText}>
+                Vuoi diventare un punto di ritiro? Registrati qui
+              </Text>
+            </Pressable>
+
             {/* Phone Input for Consumer */}
             {selectedRole === 'consumer' && (
               <View style={styles.inputContainer}>
@@ -281,5 +295,24 @@ const styles = StyleSheet.create({
     color: colors.background,
     fontSize: 18,
     fontWeight: '700',
+  },
+  registerLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 8,
+    padding: 16,
+    marginBottom: 24,
+    gap: 8,
+  },
+  registerLinkText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.text,
+    textAlign: 'center',
+    flex: 1,
   },
 });

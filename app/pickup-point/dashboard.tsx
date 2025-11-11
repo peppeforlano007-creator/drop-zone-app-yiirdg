@@ -54,6 +54,16 @@ export default function PickupPointDashboard() {
     router.push('/pickup-point/edit');
   };
 
+  const handleViewEarnings = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push('/pickup-point/earnings');
+  };
+
+  const handleViewOrders = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push('/pickup-point/orders');
+  };
+
   return (
     <>
       <Stack.Screen
@@ -75,11 +85,37 @@ export default function PickupPointDashboard() {
             <Text style={styles.welcomeSubtext}>Gestisci il tuo punto di ritiro</Text>
           </View>
 
-          {/* Edit Button */}
-          <Pressable style={styles.editButton} onPress={handleEditPoint}>
-            <IconSymbol name="pencil.circle.fill" size={24} color={colors.background} />
-            <Text style={styles.editButtonText}>Modifica Informazioni</Text>
-          </Pressable>
+          {/* Quick Stats */}
+          <View style={styles.statsContainer}>
+            <View style={styles.statCard}>
+              <IconSymbol name="shippingbox.fill" size={28} color={colors.text} />
+              <Text style={styles.statValue}>12</Text>
+              <Text style={styles.statLabel}>Ordini Attivi</Text>
+            </View>
+            <View style={styles.statCard}>
+              <IconSymbol name="eurosign.circle.fill" size={28} color={colors.text} />
+              <Text style={styles.statValue}>€70.00</Text>
+              <Text style={styles.statLabel}>Da Incassare</Text>
+            </View>
+          </View>
+
+          {/* Action Buttons */}
+          <View style={styles.actionsContainer}>
+            <Pressable style={styles.actionButton} onPress={handleViewOrders}>
+              <IconSymbol name="shippingbox.fill" size={24} color={colors.background} />
+              <Text style={styles.actionButtonText}>Gestisci Ordini</Text>
+            </Pressable>
+
+            <Pressable style={styles.actionButton} onPress={handleViewEarnings}>
+              <IconSymbol name="eurosign.circle.fill" size={24} color={colors.background} />
+              <Text style={styles.actionButtonText}>Guadagni</Text>
+            </Pressable>
+
+            <Pressable style={styles.actionButtonSecondary} onPress={handleEditPoint}>
+              <IconSymbol name="pencil.circle.fill" size={24} color={colors.text} />
+              <Text style={styles.actionButtonSecondaryText}>Modifica Info</Text>
+            </Pressable>
+          </View>
 
           {/* Point Info */}
           <View style={styles.section}>
@@ -201,6 +237,68 @@ const styles = StyleSheet.create({
   editButtonText: {
     color: colors.background,
     fontSize: 18,
+    fontWeight: '700',
+  },
+  statsContainer: {
+    flexDirection: 'row',
+    padding: 24,
+    paddingTop: 0,
+    gap: 12,
+  },
+  statCard: {
+    flex: 1,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 12,
+    padding: 20,
+    alignItems: 'center',
+  },
+  statValue: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: colors.text,
+    marginTop: 12,
+    marginBottom: 4,
+  },
+  statLabel: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    textAlign: 'center',
+  },
+  actionsContainer: {
+    padding: 24,
+    paddingTop: 0,
+    gap: 12,
+  },
+  actionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.text,
+    padding: 18,
+    borderRadius: 8,
+    gap: 8,
+  },
+  actionButtonText: {
+    color: colors.background,
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  actionButtonSecondary: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 18,
+    borderRadius: 8,
+    gap: 8,
+  },
+  actionButtonSecondaryText: {
+    color: colors.text,
+    fontSize: 16,
     fontWeight: '700',
   },
   section: {
