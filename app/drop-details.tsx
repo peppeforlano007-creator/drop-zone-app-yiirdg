@@ -1,6 +1,6 @@
 
 import React, { useState, useRef } from 'react';
-import { View, Text, StyleSheet, FlatList, Dimensions, Pressable, Alert } from 'react-native';
+import { View, Text, StyleSheet, FlatList, Dimensions, Pressable, Alert, Linking } from 'react-native';
 import { Stack, useLocalSearchParams, router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '@/styles/commonStyles';
@@ -51,14 +51,42 @@ export default function DropDetailsScreen() {
     console.log('Product booked:', productId);
   };
 
-  const handleShare = () => {
+  const handleShareWhatsApp = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    Alert.alert(
-      'Condividi Drop',
-      'Condividi questo drop con amici e parenti per aumentare lo sconto!',
-      [{ text: 'OK' }]
-    );
-    console.log('Share drop:', dropId);
+    
+    // Create a shareable message
+    const message = `🎉 Guarda questo Drop su DROPMARKET!\n\n` +
+      `📦 ${drop.supplierName}\n` +
+      `📍 Punto di ritiro: ${drop.pickupPoint}\n` +
+      `💰 Sconto attuale: ${drop.currentDiscount}%\n` +
+      `🎯 Sconto massimo: ${drop.maxDiscount}%\n` +
+      `🛍️ ${drop.products.length} prodotti disponibili\n\n` +
+      `Più persone prenotano con carta, più lo sconto aumenta! 🚀\n\n` +
+      `Unisciti al drop: dropmarket://drop/${dropId}`;
+
+    const whatsappUrl = `whatsapp://send?text=${encodeURIComponent(message)}`;
+
+    try {
+      const canOpen = await Linking.canOpenURL(whatsappUrl);
+      if (canOpen) {
+        await Linking.openURL(whatsappUrl);
+        console.log('WhatsApp opened successfully');
+      } else {
+        Alert.alert(
+          'WhatsApp non disponibile',
+          'WhatsApp non è installato sul tuo dispositivo. Installa WhatsApp per condividere questo drop.',
+          [{ text: 'OK' }]
+        );
+        console.log('WhatsApp not available');
+      }
+    } catch (error) {
+      console.error('Error opening WhatsApp:', error);
+      Alert.alert(
+        'Errore',
+        'Si è verificato un errore durante l\'apertura di WhatsApp. Riprova più tardi.',
+        [{ text: 'OK' }]
+      );
+    }
   };
 
   const renderProduct = ({ item }: { item: typeof drop.products[0] }) => (
@@ -84,11 +112,6 @@ export default function DropDetailsScreen() {
           title: drop.supplierName,
           headerStyle: { backgroundColor: colors.background },
           headerTintColor: colors.text,
-          headerRight: () => (
-            <Pressable onPress={handleShare} style={styles.shareButton}>
-              <IconSymbol name="square.and.arrow.up" size={22} color={colors.text} />
-            </Pressable>
-          ),
         }}
       />
       <View style={styles.container}>
@@ -108,6 +131,25 @@ export default function DropDetailsScreen() {
           windowSize={5}
           initialNumToRender={2}
         />
+        
+        {/* WhatsApp Share Button - Fixed at bottom */}
+        <View style={styles.shareButtonContainer}>
+          <Pressable 
+            onPress={handleShareWhatsApp} 
+            style={styles.whatsappButton}
+          >
+            <View style={styles.whatsappIconContainer}>
+              <Text style={styles.whatsappIcon}>📱</Text>
+            </View>
+            <View style={styles.whatsappTextContainer}>
+              <Text style={styles.whatsappButtonText}>Invita amici su WhatsApp</Text>
+              <Text style={styles.whatsappButtonSubtext}>
+                Più prenotazioni = più sconto!
+              </Text>
+            </View>
+            <IconSymbol name="chevron.right" size={20} color="#fff" />
+          </Pressable>
+        </View>
       </View>
     </>
   );
@@ -130,8 +172,49 @@ const styles = StyleSheet.create({
     color: colors.text,
     marginTop: 16,
   },
-  shareButton: {
-    padding: 8,
-    marginRight: 8,
+  shareButtonContainer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: 16,
+    paddingBottom: 32,
+    backgroundColor: 'transparent',
+  },
+  whatsappButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#25D366',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    borderRadius: 16,
+    gap: 12,
+    boxShadow: '0px 4px 12px rgba(37, 211, 102, 0.3)',
+    elevation: 8,
+  },
+  whatsappIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  whatsappIcon: {
+    fontSize: 24,
+  },
+  whatsappTextContainer: {
+    flex: 1,
+  },
+  whatsappButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  whatsappButtonSubtext: {
+    color: 'rgba(255, 255, 255, 0.85)',
+    fontSize: 12,
+    fontWeight: '500',
   },
 });
