@@ -80,45 +80,36 @@ export default function ProductCard({
 
         {hasMultipleImages && (
           <View style={styles.imageIndicator}>
-            <IconSymbol name="photo.stack" size={20} color={colors.background} />
+            <IconSymbol name="photo.stack" size={18} color={colors.background} />
             <Text style={styles.imageCount}>{product.imageUrls.length}</Text>
           </View>
         )}
-
-        <View style={styles.tapHint}>
-          <IconSymbol name="hand.tap" size={16} color={colors.background} />
-          <Text style={styles.tapHintText}>Tocca per vedere tutte le foto</Text>
-        </View>
       </Pressable>
 
       <View style={styles.overlay}>
         <View style={styles.content}>
-          <View style={styles.supplierBadge}>
-            <Text style={styles.supplierText}>{product.supplierName}</Text>
-          </View>
-
-          <Text style={styles.productName}>{product.name}</Text>
-          <Text style={styles.description} numberOfLines={2}>
-            {product.description}
-          </Text>
-
-          <View style={styles.priceContainer}>
-            <View style={styles.priceRow}>
-              <Text style={styles.originalPrice}>€{product.originalPrice.toFixed(2)}</Text>
-              <View style={styles.discountBadge}>
-                <Text style={styles.discountText}>-{discount}%</Text>
+          <View style={styles.topRow}>
+            <View style={styles.supplierBadge}>
+              <Text style={styles.supplierText}>{product.supplierName}</Text>
+            </View>
+            {isInDrop && currentDiscount && (
+              <View style={styles.dropBadge}>
+                <Text style={styles.dropBadgeText}>Drop -{currentDiscount}%</Text>
               </View>
-            </View>
-            <Text style={styles.discountedPrice}>€{discountedPrice.toFixed(2)}</Text>
+            )}
           </View>
 
-          {isInDrop && currentDiscount && (
-            <View style={styles.dropInfo}>
-              <Text style={styles.dropText}>
-                Drop attivo • Sconto attuale: {currentDiscount}%
-              </Text>
+          <Text style={styles.productName} numberOfLines={1}>{product.name}</Text>
+
+          <View style={styles.priceRow}>
+            <View style={styles.priceInfo}>
+              <Text style={styles.discountedPrice}>€{discountedPrice.toFixed(2)}</Text>
+              <Text style={styles.originalPrice}>€{product.originalPrice.toFixed(2)}</Text>
             </View>
-          )}
+            <View style={styles.discountBadge}>
+              <Text style={styles.discountText}>-{discount}%</Text>
+            </View>
+          </View>
 
           <Pressable
             style={[
@@ -135,12 +126,6 @@ export default function ProductCard({
                 : 'VORRÒ PARTECIPARE AL DROP'}
             </Text>
           </Pressable>
-
-          <View style={styles.footer}>
-            <Text style={styles.footerText}>{product.category}</Text>
-            <Text style={styles.footerText}>•</Text>
-            <Text style={styles.footerText}>{product.stock} disponibili</Text>
-          </View>
         </View>
       </View>
 
@@ -182,34 +167,17 @@ const styles = StyleSheet.create({
     top: 60,
     right: 20,
     backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     borderRadius: 20,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 4,
   },
   imageCount: {
     color: colors.background,
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '700',
-  },
-  tapHint: {
-    position: 'absolute',
-    top: 110,
-    right: 20,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  tapHintText: {
-    color: colors.background,
-    fontSize: 11,
-    fontWeight: '600',
   },
   overlay: {
     position: 'absolute',
@@ -217,93 +185,90 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     backgroundColor: 'rgba(255, 255, 255, 0.97)',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
   },
   content: {
-    padding: 24,
+    padding: 20,
     paddingBottom: 120,
+  },
+  topRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
   },
   supplierBadge: {
     backgroundColor: colors.backgroundSecondary,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
     borderRadius: 4,
-    alignSelf: 'flex-start',
-    marginBottom: 12,
     borderWidth: 1,
     borderColor: colors.border,
   },
   supplierText: {
-    color: colors.text,
-    fontSize: 11,
+    color: colors.textSecondary,
+    fontSize: 10,
     fontWeight: '600',
     textTransform: 'uppercase',
-    letterSpacing: 1,
+    letterSpacing: 0.8,
+  },
+  dropBadge: {
+    backgroundColor: colors.text,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 4,
+  },
+  dropBadgeText: {
+    color: colors.background,
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.8,
   },
   productName: {
-    fontSize: 28,
+    fontSize: 22,
     fontWeight: '700',
     color: colors.text,
-    marginBottom: 8,
-    letterSpacing: -0.5,
-  },
-  description: {
-    fontSize: 15,
-    color: colors.textSecondary,
-    marginBottom: 20,
-    lineHeight: 22,
-  },
-  priceContainer: {
-    marginBottom: 16,
+    marginBottom: 12,
+    letterSpacing: -0.3,
   },
   priceRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    marginBottom: 4,
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  priceInfo: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 10,
   },
   originalPrice: {
-    fontSize: 16,
+    fontSize: 14,
     color: colors.textSecondary,
     textDecorationLine: 'line-through',
   },
   discountBadge: {
     backgroundColor: colors.text,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     borderRadius: 4,
   },
   discountText: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '700',
     color: colors.background,
     letterSpacing: 0.5,
   },
   discountedPrice: {
-    fontSize: 32,
+    fontSize: 26,
     fontWeight: '800',
     color: colors.text,
-    letterSpacing: -1,
-  },
-  dropInfo: {
-    backgroundColor: colors.backgroundSecondary,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 4,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  dropText: {
-    color: colors.text,
-    fontSize: 13,
-    fontWeight: '600',
+    letterSpacing: -0.8,
   },
   actionButton: {
-    paddingVertical: 18,
+    paddingVertical: 16,
     borderRadius: 4,
-    marginBottom: 16,
     backgroundColor: colors.text,
     alignItems: 'center',
     justifyContent: 'center',
@@ -313,17 +278,8 @@ const styles = StyleSheet.create({
   },
   actionButtonText: {
     color: colors.background,
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '700',
     letterSpacing: 1.5,
-  },
-  footer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  footerText: {
-    color: colors.textSecondary,
-    fontSize: 12,
   },
 });
