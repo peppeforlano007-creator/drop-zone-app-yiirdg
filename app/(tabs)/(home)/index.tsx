@@ -1,16 +1,19 @@
 
 import React, { useState, useRef } from 'react';
-import { View, StyleSheet, FlatList, Dimensions, Platform, Text } from 'react-native';
-import { Stack } from 'expo-router';
+import { View, StyleSheet, FlatList, Dimensions, Platform, Text, Pressable, Alert } from 'react-native';
+import { Stack, router } from 'expo-router';
 import { colors } from '@/styles/commonStyles';
 import ProductCard from '@/components/ProductCard';
 import { mockProducts, mockUser } from '@/data/mockData';
 import { Product } from '@/types/Product';
+import { IconSymbol } from '@/components/IconSymbol';
+import { useAuth } from '@/contexts/AuthContext';
 import * as Haptics from 'expo-haptics';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 export default function HomeScreen() {
+  const { logout } = useAuth();
   const [interestedProducts, setInterestedProducts] = useState<Set<string>>(new Set());
   const flatListRef = useRef<FlatList>(null);
 
@@ -26,6 +29,25 @@ export default function HomeScreen() {
       return newSet;
     });
     console.log('User interested in product:', productId);
+  };
+
+  const handleLogout = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    Alert.alert(
+      'Logout',
+      'Sei sicuro di voler uscire?',
+      [
+        { text: 'Annulla', style: 'cancel' },
+        {
+          text: 'Esci',
+          style: 'destructive',
+          onPress: () => {
+            logout();
+            router.replace('/login');
+          },
+        },
+      ]
+    );
   };
 
   const renderProduct = ({ item }: { item: Product }) => (
@@ -67,8 +89,15 @@ export default function HomeScreen() {
           initialNumToRender={2}
         />
         
-        <View style={styles.overlay}>
-          <Text style={styles.overlayText}>{mockUser.pickupPoint}</Text>
+        <View style={styles.topBar}>
+          <View style={styles.pickupPointBadge}>
+            <IconSymbol name="mappin.circle.fill" size={16} color={colors.text} />
+            <Text style={styles.pickupPointText}>{mockUser.pickupPoint}</Text>
+          </View>
+          
+          <Pressable onPress={handleLogout} style={styles.logoutButton}>
+            <IconSymbol name="rectangle.portrait.and.arrow.right" size={24} color={colors.text} />
+          </Pressable>
         </View>
       </View>
     </>
@@ -80,24 +109,42 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  overlay: {
+  topBar: {
     position: 'absolute',
     top: 60,
     left: 20,
     right: 20,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 12,
+  },
+  pickupPointBadge: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: colors.card,
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 4,
-    alignItems: 'center',
     borderWidth: 1,
     borderColor: colors.border,
+    gap: 8,
   },
-  overlayText: {
+  pickupPointText: {
     color: colors.text,
     fontSize: 12,
     fontWeight: '600',
     letterSpacing: 1,
     textTransform: 'uppercase',
+  },
+  logoutButton: {
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 4,
+    padding: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });
