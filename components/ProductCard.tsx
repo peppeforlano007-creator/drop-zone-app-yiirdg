@@ -164,39 +164,40 @@ export default function ProductCard({
         
         {!imageLoaded && (
           <View style={styles.imagePlaceholder}>
-            <IconSymbol name="photo" size={60} color={colors.textTertiary} />
+            <IconSymbol name="photo" size={80} color={colors.textTertiary} />
           </View>
         )}
 
         {hasMultipleImages && (
           <View style={styles.imageIndicator}>
-            <IconSymbol name="photo.stack" size={18} color={colors.background} />
+            <IconSymbol name="photo.stack" size={20} color={colors.background} />
             <Text style={styles.imageCount}>{product.imageUrls.length}</Text>
           </View>
         )}
+
+        {/* Top badges overlay on image */}
+        <View style={styles.topBadgesContainer}>
+          <View style={styles.supplierBadge}>
+            <Text style={styles.supplierText}>{product.supplierName}</Text>
+          </View>
+          {isInDrop && currentDiscount && (
+            <View style={styles.dropBadge}>
+              <Text style={styles.dropBadgeText}>Drop -{currentDiscount}%</Text>
+            </View>
+          )}
+        </View>
       </Pressable>
 
       <View style={styles.overlay}>
         <View style={styles.content}>
-          <View style={styles.topRow}>
-            <View style={styles.supplierBadge}>
-              <Text style={styles.supplierText}>{product.supplierName}</Text>
-            </View>
-            {isInDrop && currentDiscount && (
-              <View style={styles.dropBadge}>
-                <Text style={styles.dropBadgeText}>Drop -{currentDiscount}%</Text>
-              </View>
-            )}
-          </View>
-
-          <Text style={styles.productName} numberOfLines={1}>{product.name}</Text>
+          <Text style={styles.productName} numberOfLines={2}>{product.name}</Text>
 
           {/* Sizes and Condition Row */}
           {(product.sizes || product.condition) && (
             <View style={styles.detailsRow}>
               {product.sizes && product.sizes.length > 0 && (
                 <View style={styles.sizesContainer}>
-                  <IconSymbol name="ruler" size={14} color={colors.textSecondary} />
+                  <IconSymbol name="ruler" size={12} color={colors.textSecondary} />
                   <Text style={styles.sizesText}>
                     {Array.isArray(product.sizes) 
                       ? product.sizes.join(', ') 
@@ -212,7 +213,7 @@ export default function ProductCard({
                 ]}>
                   <IconSymbol 
                     name={getConditionIcon(product.condition)} 
-                    size={12} 
+                    size={11} 
                     color={getConditionColor(product.condition)} 
                   />
                   <Text style={[
@@ -258,7 +259,7 @@ export default function ProductCard({
                 ) : (
                   <>
                     <View style={styles.bookButtonIconContainer}>
-                      <IconSymbol name="creditcard.fill" size={28} color="#333" />
+                      <IconSymbol name="creditcard.fill" size={26} color="#333" />
                     </View>
                     <View style={styles.bookButtonTextContainer}>
                       <Text style={styles.bookButtonTitle}>PRENOTA CON CARTA</Text>
@@ -267,7 +268,7 @@ export default function ProductCard({
                       </Text>
                     </View>
                     <View style={styles.bookButtonArrow}>
-                      <IconSymbol name="chevron.right" size={24} color="#333" />
+                      <IconSymbol name="chevron.right" size={22} color="#333" />
                     </View>
                   </>
                 )}
@@ -334,18 +335,53 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 60,
     right: 20,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 24,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 6,
   },
   imageCount: {
     color: colors.background,
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '700',
+  },
+  topBadgesContainer: {
+    position: 'absolute',
+    top: 60,
+    left: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  supplierBadge: {
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 0, 0, 0.1)',
+  },
+  supplierText: {
+    color: '#333',
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+  },
+  dropBadge: {
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  dropBadgeText: {
+    color: '#FFF',
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.8,
   },
   overlay: {
     position: 'absolute',
@@ -353,58 +389,26 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     backgroundColor: 'rgba(255, 255, 255, 0.97)',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
   },
   content: {
-    padding: 20,
-    paddingBottom: 120,
-  },
-  topRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 10,
-  },
-  supplierBadge: {
-    backgroundColor: colors.backgroundSecondary,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 4,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  supplierText: {
-    color: colors.textSecondary,
-    fontSize: 10,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
-  },
-  dropBadge: {
-    backgroundColor: colors.text,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 4,
-  },
-  dropBadgeText: {
-    color: colors.background,
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 0.8,
+    padding: 18,
+    paddingBottom: 110,
   },
   productName: {
-    fontSize: 22,
-    fontWeight: '700',
+    fontSize: 24,
+    fontWeight: '800',
     color: colors.text,
     marginBottom: 8,
-    letterSpacing: -0.3,
+    letterSpacing: -0.5,
+    lineHeight: 28,
   },
   detailsRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginBottom: 12,
+    marginBottom: 10,
     flexWrap: 'wrap',
   },
   sizesContainer: {
@@ -439,7 +443,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 20,
+    marginBottom: 16,
   },
   priceInfo: {
     flexDirection: 'row',
@@ -455,7 +459,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.text,
     paddingHorizontal: 10,
     paddingVertical: 6,
-    borderRadius: 4,
+    borderRadius: 6,
   },
   discountText: {
     fontSize: 13,
@@ -464,10 +468,10 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   discountedPrice: {
-    fontSize: 26,
-    fontWeight: '800',
+    fontSize: 28,
+    fontWeight: '900',
     color: colors.text,
-    letterSpacing: -0.8,
+    letterSpacing: -1,
   },
   // Minimal "PRENOTA CON CARTA" button styles
   bookButtonWrapper: {
@@ -482,18 +486,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 24,
-    paddingHorizontal: 24,
-    gap: 16,
+    paddingVertical: 20,
+    paddingHorizontal: 20,
+    gap: 14,
     backgroundColor: '#FFF',
-    borderRadius: 16,
+    borderRadius: 14,
     borderWidth: 2,
     borderColor: '#333',
   },
   bookButtonIconContainer: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     backgroundColor: '#F5F5F5',
     justifyContent: 'center',
     alignItems: 'center',
@@ -502,17 +506,17 @@ const styles = StyleSheet.create({
   },
   bookButtonTextContainer: {
     flex: 1,
-    gap: 4,
+    gap: 3,
   },
   bookButtonTitle: {
     color: '#000',
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '800',
-    letterSpacing: 0.5,
+    letterSpacing: 0.4,
   },
   bookButtonSubtitle: {
     color: '#666',
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '500',
     letterSpacing: 0.2,
   },
