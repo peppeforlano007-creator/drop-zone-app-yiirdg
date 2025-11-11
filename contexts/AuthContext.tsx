@@ -4,7 +4,7 @@ import { User, UserRole } from '@/types/User';
 
 interface AuthContextType {
   user: User | null;
-  login: (role: UserRole, phone?: string) => void;
+  login: (role: UserRole, phone?: string, username?: string, email?: string) => void;
   logout: () => void;
   isAuthenticated: boolean;
 }
@@ -14,13 +14,14 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
 
-  const login = (role: UserRole, phone?: string) => {
+  const login = (role: UserRole, phone?: string, username?: string, email?: string) => {
     console.log('User logging in with role:', role);
     const newUser: User = {
       id: `user_${Date.now()}`,
-      name: role === 'consumer' ? 'Consumer User' : role === 'supplier' ? 'Supplier User' : 'Pickup Point Manager',
+      name: username || (role === 'consumer' ? 'Consumer User' : role === 'supplier' ? 'Supplier User' : 'Pickup Point Manager'),
       role,
       phone,
+      email,
       pickupPoint: role === 'consumer' ? 'Roma' : undefined,
     };
     setUser(newUser);

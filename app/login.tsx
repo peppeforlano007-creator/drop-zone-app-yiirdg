@@ -22,6 +22,7 @@ import * as Haptics from 'expo-haptics';
 export default function LoginScreen() {
   const [selectedRole, setSelectedRole] = useState<UserRole | null>(null);
   const [phoneNumber, setPhoneNumber] = useState('');
+  const [password, setPassword] = useState('');
   const { login } = useAuth();
 
   const handleRoleSelect = (role: UserRole) => {
@@ -36,8 +37,13 @@ export default function LoginScreen() {
       return;
     }
 
-    if (selectedRole === 'consumer' && !phoneNumber) {
+    if (!phoneNumber.trim()) {
       Alert.alert('Errore', 'Inserisci il numero di telefono');
+      return;
+    }
+
+    if (!password) {
+      Alert.alert('Errore', 'Inserisci la password');
       return;
     }
 
@@ -53,6 +59,23 @@ export default function LoginScreen() {
       router.replace('/supplier/dashboard');
     } else if (selectedRole === 'pickup-point') {
       router.replace('/pickup-point/dashboard');
+    }
+  };
+
+  const handleRegister = () => {
+    if (!selectedRole) {
+      Alert.alert('Errore', 'Seleziona prima un tipo di accesso');
+      return;
+    }
+
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+    if (selectedRole === 'supplier') {
+      router.push('/register/supplier');
+    } else if (selectedRole === 'consumer') {
+      router.push('/register/consumer');
+    } else if (selectedRole === 'pickup-point') {
+      router.push('/pickup-point/register');
     }
   };
 
@@ -145,44 +168,49 @@ export default function LoginScreen() {
               </Pressable>
             </View>
 
-            {/* Register Pickup Point Link */}
-            <Pressable
-              style={styles.registerLink}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                router.push('/pickup-point/register');
-              }}
-            >
-              <IconSymbol name="plus.circle.fill" size={20} color={colors.text} />
-              <Text style={styles.registerLinkText}>
-                Vuoi diventare un punto di ritiro? Registrati qui
-              </Text>
-            </Pressable>
-
-            {/* Phone Input for Consumer */}
-            {selectedRole === 'consumer' && (
-              <View style={styles.inputContainer}>
-                <Text style={styles.inputLabel}>Numero di telefono</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="+39 123 456 7890"
-                  placeholderTextColor={colors.textTertiary}
-                  value={phoneNumber}
-                  onChangeText={setPhoneNumber}
-                  keyboardType="phone-pad"
-                  autoComplete="tel"
-                />
-              </View>
-            )}
-
-            {/* Login Button */}
+            {/* Login Form */}
             {selectedRole && (
-              <Pressable
-                style={styles.loginButton}
-                onPress={handleLogin}
-              >
-                <Text style={styles.loginButtonText}>Accedi</Text>
-              </Pressable>
+              <View style={styles.loginForm}>
+                {/* Phone Input */}
+                <View style={styles.inputContainer}>
+                  <Text style={styles.inputLabel}>Numero di telefono</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="+39 123 456 7890"
+                    placeholderTextColor={colors.textTertiary}
+                    value={phoneNumber}
+                    onChangeText={setPhoneNumber}
+                    keyboardType="phone-pad"
+                    autoComplete="tel"
+                  />
+                </View>
+
+                {/* Password Input */}
+                <View style={styles.inputContainer}>
+                  <Text style={styles.inputLabel}>Password</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Inserisci la password"
+                    placeholderTextColor={colors.textTertiary}
+                    value={password}
+                    onChangeText={setPassword}
+                    secureTextEntry
+                    autoCapitalize="none"
+                    autoComplete="password"
+                  />
+                </View>
+
+                {/* Login Button */}
+                <Pressable style={styles.loginButton} onPress={handleLogin}>
+                  <Text style={styles.loginButtonText}>Accedi</Text>
+                </Pressable>
+
+                {/* Register Button */}
+                <Pressable style={styles.registerButton} onPress={handleRegister}>
+                  <IconSymbol name="person.badge.plus" size={20} color={colors.text} />
+                  <Text style={styles.registerButtonText}>Crea un nuovo account</Text>
+                </Pressable>
+              </View>
             )}
           </ScrollView>
         </KeyboardAvoidingView>
@@ -266,8 +294,11 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     lineHeight: 20,
   },
-  inputContainer: {
+  loginForm: {
     marginBottom: 32,
+  },
+  inputContainer: {
+    marginBottom: 20,
   },
   inputLabel: {
     fontSize: 16,
@@ -289,30 +320,27 @@ const styles = StyleSheet.create({
     paddingVertical: 18,
     borderRadius: 8,
     alignItems: 'center',
-    marginTop: 'auto',
+    marginBottom: 12,
   },
   loginButtonText: {
     color: colors.background,
     fontSize: 18,
     fontWeight: '700',
   },
-  registerLink: {
+  registerButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.card,
     borderWidth: 1,
     borderColor: colors.border,
+    paddingVertical: 16,
     borderRadius: 8,
-    padding: 16,
-    marginBottom: 24,
     gap: 8,
   },
-  registerLinkText: {
-    fontSize: 14,
-    fontWeight: '600',
+  registerButtonText: {
     color: colors.text,
-    textAlign: 'center',
-    flex: 1,
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

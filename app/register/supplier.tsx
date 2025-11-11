@@ -17,7 +17,7 @@ import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 import * as Haptics from 'expo-haptics';
 
-export default function RegisterPickupPointScreen() {
+export default function RegisterSupplierScreen() {
   const [username, setUsername] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
@@ -63,11 +63,11 @@ export default function RegisterPickupPointScreen() {
 
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     
-    console.log('Pickup point registered:', { username, phone, email });
+    console.log('Supplier registered:', { username, phone, email });
     
     Alert.alert(
       'Registrazione Completata',
-      'Il tuo account punto di ritiro è stato creato con successo!',
+      'Il tuo account fornitore è stato creato con successo!',
       [
         {
           text: 'OK',
@@ -82,7 +82,7 @@ export default function RegisterPickupPointScreen() {
       <Stack.Screen
         options={{
           headerShown: true,
-          title: 'Registrazione Punto di Ritiro',
+          title: 'Registrazione Fornitore',
           headerBackTitle: 'Indietro',
         }}
       />
@@ -97,11 +97,11 @@ export default function RegisterPickupPointScreen() {
           >
             <View style={styles.header}>
               <View style={styles.iconContainer}>
-                <IconSymbol name="mappin.circle.fill" size={48} color={colors.text} />
+                <IconSymbol name="briefcase.fill" size={48} color={colors.text} />
               </View>
-              <Text style={styles.title}>Crea Punto di Ritiro</Text>
+              <Text style={styles.title}>Crea Account Fornitore</Text>
               <Text style={styles.subtitle}>
-                Inserisci i tuoi dati per registrarti come punto di ritiro
+                Inserisci i tuoi dati per registrarti come fornitore
               </Text>
             </View>
 
@@ -191,7 +191,7 @@ export default function RegisterPickupPointScreen() {
                 style={styles.loginLink}
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  router.replace('/login');
+                  router.back();
                 }}
               >
                 <Text style={styles.loginLinkText}>

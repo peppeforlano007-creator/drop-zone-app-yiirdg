@@ -17,10 +17,9 @@ import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 import * as Haptics from 'expo-haptics';
 
-export default function RegisterPickupPointScreen() {
+export default function RegisterConsumerScreen() {
   const [username, setUsername] = useState('');
   const [phone, setPhone] = useState('');
-  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
@@ -33,16 +32,6 @@ export default function RegisterPickupPointScreen() {
 
     if (!phone.trim()) {
       Alert.alert('Errore', 'Inserisci il numero di cellulare');
-      return;
-    }
-
-    if (!email.trim()) {
-      Alert.alert('Errore', 'Inserisci l\'email');
-      return;
-    }
-
-    if (!email.includes('@')) {
-      Alert.alert('Errore', 'Inserisci un\'email valida');
       return;
     }
 
@@ -63,11 +52,11 @@ export default function RegisterPickupPointScreen() {
 
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     
-    console.log('Pickup point registered:', { username, phone, email });
+    console.log('Consumer registered:', { username, phone });
     
     Alert.alert(
       'Registrazione Completata',
-      'Il tuo account punto di ritiro è stato creato con successo!',
+      'Il tuo account consumatore è stato creato con successo!',
       [
         {
           text: 'OK',
@@ -82,7 +71,7 @@ export default function RegisterPickupPointScreen() {
       <Stack.Screen
         options={{
           headerShown: true,
-          title: 'Registrazione Punto di Ritiro',
+          title: 'Registrazione Consumatore',
           headerBackTitle: 'Indietro',
         }}
       />
@@ -97,11 +86,11 @@ export default function RegisterPickupPointScreen() {
           >
             <View style={styles.header}>
               <View style={styles.iconContainer}>
-                <IconSymbol name="mappin.circle.fill" size={48} color={colors.text} />
+                <IconSymbol name="person.fill" size={48} color={colors.text} />
               </View>
-              <Text style={styles.title}>Crea Punto di Ritiro</Text>
+              <Text style={styles.title}>Crea Account Consumatore</Text>
               <Text style={styles.subtitle}>
-                Inserisci i tuoi dati per registrarti come punto di ritiro
+                Inserisci i tuoi dati per registrarti come consumatore
               </Text>
             </View>
 
@@ -131,21 +120,6 @@ export default function RegisterPickupPointScreen() {
                   onChangeText={setPhone}
                   keyboardType="phone-pad"
                   autoComplete="tel"
-                />
-              </View>
-
-              {/* Email */}
-              <View style={styles.inputContainer}>
-                <Text style={styles.inputLabel}>Email *</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="esempio@email.com"
-                  placeholderTextColor={colors.textTertiary}
-                  value={email}
-                  onChangeText={setEmail}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  autoComplete="email"
                 />
               </View>
 
@@ -191,7 +165,7 @@ export default function RegisterPickupPointScreen() {
                 style={styles.loginLink}
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  router.replace('/login');
+                  router.back();
                 }}
               >
                 <Text style={styles.loginLinkText}>
