@@ -1,6 +1,6 @@
 
 import React, { useState, useRef } from 'react';
-import { View, StyleSheet, FlatList, Dimensions, Platform, Text, Pressable, Alert, Animated, ScrollView } from 'react-native';
+import { View, StyleSheet, FlatList, Dimensions, Platform, Text, Pressable, Alert, Animated } from 'react-native';
 import { Stack, router } from 'expo-router';
 import { colors } from '@/styles/commonStyles';
 import ProductCard from '@/components/ProductCard';
@@ -129,13 +129,6 @@ export default function HomeScreen() {
     }
   };
 
-  const handleProductThumbnailPress = (index: number) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setCurrentProductIndex(index);
-    productFlatListRef.current?.scrollToIndex({ index, animated: true });
-    console.log('Navigating to product index:', index);
-  };
-
   const renderList = ({ item, index }: { item: ProductList; index: number }) => {
     return (
       <View style={styles.listContainer}>
@@ -262,82 +255,6 @@ export default function HomeScreen() {
               </Text>
             </View>
           </View>
-        </View>
-
-        {/* Product Thumbnails Carousel - NEW */}
-        <View style={styles.thumbnailsContainer}>
-          <View style={styles.thumbnailsHeader}>
-            <IconSymbol name="square.grid.2x2" size={16} color={colors.text} />
-            <Text style={styles.thumbnailsTitle}>
-              Tutti gli articoli di questa lista ({totalProductsInList})
-            </Text>
-          </View>
-          <ScrollView 
-            horizontal 
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.thumbnailsScroll}
-          >
-            {currentList?.products.map((product, index) => {
-              const isInterested = interestedProducts.has(product.id);
-              const isCurrent = index === currentProductIndex;
-              
-              return (
-                <Pressable
-                  key={product.id}
-                  style={[
-                    styles.thumbnailCard,
-                    isCurrent && styles.thumbnailCardActive,
-                  ]}
-                  onPress={() => handleProductThumbnailPress(index)}
-                >
-                  <View style={styles.thumbnailImageContainer}>
-                    <View style={styles.thumbnailImage}>
-                      <Text style={styles.thumbnailImagePlaceholder}>
-                        {product.name.substring(0, 2).toUpperCase()}
-                      </Text>
-                    </View>
-                    {isCurrent && (
-                      <View style={styles.currentIndicator}>
-                        <IconSymbol name="eye.fill" size={12} color="#FFF" />
-                      </View>
-                    )}
-                  </View>
-                  
-                  <View style={styles.thumbnailInfo}>
-                    <Text style={styles.thumbnailName} numberOfLines={2}>
-                      {product.name}
-                    </Text>
-                    <Text style={styles.thumbnailPrice}>
-                      €{(product.originalPrice * (1 - product.minDiscount / 100)).toFixed(0)}
-                    </Text>
-                  </View>
-
-                  <Pressable
-                    style={[
-                      styles.thumbnailInterestButton,
-                      isInterested && styles.thumbnailInterestButtonActive,
-                    ]}
-                    onPress={(e) => {
-                      e.stopPropagation();
-                      handleInterest(product.id);
-                    }}
-                  >
-                    <IconSymbol 
-                      name={isInterested ? "heart.fill" : "heart"} 
-                      size={16} 
-                      color={isInterested ? "#FFF" : colors.text} 
-                    />
-                    <Text style={[
-                      styles.thumbnailInterestText,
-                      isInterested && styles.thumbnailInterestTextActive,
-                    ]}>
-                      {isInterested ? 'Interessato' : 'Interesse'}
-                    </Text>
-                  </Pressable>
-                </Pressable>
-              );
-            })}
-          </ScrollView>
         </View>
 
         {/* List Navigation Buttons */}
@@ -528,132 +445,9 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     letterSpacing: 0.5,
   },
-  // NEW: Thumbnails Carousel Styles
-  thumbnailsContainer: {
-    position: 'absolute',
-    bottom: 100,
-    left: 0,
-    right: 0,
-    zIndex: 10,
-    backgroundColor: 'rgba(255, 255, 255, 0.97)',
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    paddingTop: 12,
-    paddingBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-  thumbnailsHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 20,
-    marginBottom: 12,
-  },
-  thumbnailsTitle: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.text,
-    letterSpacing: 0.5,
-    textTransform: 'uppercase',
-  },
-  thumbnailsScroll: {
-    paddingHorizontal: 20,
-    gap: 12,
-  },
-  thumbnailCard: {
-    width: 140,
-    backgroundColor: colors.card,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: colors.border,
-    padding: 10,
-    gap: 8,
-  },
-  thumbnailCardActive: {
-    borderColor: colors.text,
-    borderWidth: 2,
-    shadowColor: colors.text,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-  thumbnailImageContainer: {
-    position: 'relative',
-  },
-  thumbnailImage: {
-    width: '100%',
-    aspectRatio: 1,
-    backgroundColor: colors.backgroundSecondary,
-    borderRadius: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  thumbnailImagePlaceholder: {
-    fontSize: 24,
-    fontWeight: '900',
-    color: colors.textTertiary,
-    letterSpacing: 1,
-  },
-  currentIndicator: {
-    position: 'absolute',
-    top: 6,
-    right: 6,
-    backgroundColor: colors.text,
-    borderRadius: 12,
-    width: 24,
-    height: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  thumbnailInfo: {
-    gap: 4,
-  },
-  thumbnailName: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: colors.text,
-    lineHeight: 14,
-    height: 28,
-  },
-  thumbnailPrice: {
-    fontSize: 13,
-    fontWeight: '900',
-    color: colors.text,
-    letterSpacing: -0.5,
-  },
-  thumbnailInterestButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    borderRadius: 6,
-    backgroundColor: colors.backgroundSecondary,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  thumbnailInterestButtonActive: {
-    backgroundColor: '#FF3B30',
-    borderColor: '#FF3B30',
-  },
-  thumbnailInterestText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: colors.text,
-    letterSpacing: 0.5,
-  },
-  thumbnailInterestTextActive: {
-    color: '#FFF',
-  },
   navigationContainer: {
     position: 'absolute',
-    bottom: 340,
+    bottom: 120,
     left: 0,
     right: 0,
     flexDirection: 'row',
@@ -691,7 +485,7 @@ const styles = StyleSheet.create({
   },
   hintContainer: {
     position: 'absolute',
-    bottom: 400,
+    bottom: 180,
     left: 20,
     right: 20,
     zIndex: 10,
