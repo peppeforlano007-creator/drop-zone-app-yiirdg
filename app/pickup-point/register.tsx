@@ -25,6 +25,11 @@ export default function RegisterPickupPointScreen() {
   const [confirmPassword, setConfirmPassword] = useState('');
 
   const handleRegister = () => {
+    console.log('handleRegister called');
+    
+    // Haptic feedback
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    
     // Validation
     if (!username.trim()) {
       Alert.alert('Errore', 'Inserisci il nome utente');
@@ -71,7 +76,10 @@ export default function RegisterPickupPointScreen() {
       [
         {
           text: 'OK',
-          onPress: () => router.replace('/login'),
+          onPress: () => {
+            console.log('Navigating to login...');
+            router.replace('/login');
+          },
         },
       ]
     );
@@ -94,6 +102,7 @@ export default function RegisterPickupPointScreen() {
           <ScrollView
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
           >
             <View style={styles.header}>
               <View style={styles.iconContainer}>
@@ -182,7 +191,13 @@ export default function RegisterPickupPointScreen() {
               <Text style={styles.requiredNote}>* Campi obbligatori</Text>
 
               {/* Register Button */}
-              <Pressable style={styles.registerButton} onPress={handleRegister}>
+              <Pressable 
+                style={({ pressed }) => [
+                  styles.registerButton,
+                  pressed && styles.registerButtonPressed
+                ]} 
+                onPress={handleRegister}
+              >
                 <Text style={styles.registerButtonText}>Registrati</Text>
               </Pressable>
 
@@ -277,6 +292,9 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: 'center',
     marginBottom: 16,
+  },
+  registerButtonPressed: {
+    opacity: 0.7,
   },
   registerButtonText: {
     color: colors.background,
