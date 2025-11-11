@@ -257,7 +257,7 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        {/* List Navigation Buttons */}
+        {/* List Navigation Buttons - Moved higher to avoid overlap */}
         <View style={styles.navigationContainer}>
           {currentListIndex > 0 && (
             <Pressable 
@@ -447,7 +447,7 @@ const styles = StyleSheet.create({
   },
   navigationContainer: {
     position: 'absolute',
-    bottom: 120,
+    bottom: 240,
     left: 0,
     right: 0,
     flexDirection: 'row',
@@ -485,7 +485,7 @@ const styles = StyleSheet.create({
   },
   hintContainer: {
     position: 'absolute',
-    bottom: 180,
+    bottom: 300,
     left: 20,
     right: 20,
     zIndex: 10,
