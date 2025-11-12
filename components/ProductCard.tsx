@@ -31,6 +31,8 @@ export default function ProductCard({
   const [imageLoaded, setImageLoaded] = useState(false);
   const [galleryVisible, setGalleryVisible] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [selectedSize, setSelectedSize] = useState<string | null>(null);
+  const [selectedColor, setSelectedColor] = useState<string | null>(null);
   const { getDefaultPaymentMethod, authorizePayment } = usePayment();
   
   // Animation values
@@ -118,9 +120,22 @@ export default function ProductCard({
     }
   };
 
+  const handleSizeSelect = (size: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setSelectedSize(size === selectedSize ? null : size);
+    console.log('Selected size:', size);
+  };
+
+  const handleColorSelect = (color: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setSelectedColor(color === selectedColor ? null : color);
+    console.log('Selected color:', color);
+  };
+
   const discount = currentDiscount || product.minDiscount;
   const discountedPrice = product.originalPrice * (1 - discount / 100);
   const hasMultipleImages = product.imageUrls && product.imageUrls.length > 1;
+  const isFashionItem = product.category === 'Fashion';
 
   const getConditionColor = (condition?: string) => {
     switch (condition) {
@@ -236,6 +251,81 @@ export default function ProductCard({
               <Text style={styles.discountText}>-{discount}%</Text>
             </View>
           </View>
+
+          {/* Size and Color Selection for Fashion Items */}
+          {isFashionItem && (product.availableSizes || product.availableColors) && (
+            <View style={styles.selectionContainer}>
+              {/* Size Selection */}
+              {product.availableSizes && product.availableSizes.length > 0 && (
+                <View style={styles.sizeColorSection}>
+                  <View style={styles.sectionHeader}>
+                    <IconSymbol 
+                      ios_icon_name="ruler" 
+                      android_material_icon_name="straighten" 
+                      size={14} 
+                      color={colors.textSecondary} 
+                    />
+                    <Text style={styles.sectionLabel}>Taglia</Text>
+                  </View>
+                  <View style={styles.optionsRow}>
+                    {product.availableSizes.map((size, index) => (
+                      <Pressable
+                        key={index}
+                        style={[
+                          styles.sizeOption,
+                          selectedSize === size && styles.sizeOptionSelected,
+                        ]}
+                        onPress={() => handleSizeSelect(size)}
+                      >
+                        <Text
+                          style={[
+                            styles.sizeOptionText,
+                            selectedSize === size && styles.sizeOptionTextSelected,
+                          ]}
+                        >
+                          {size}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                </View>
+              )}
+
+              {/* Color Selection */}
+              {product.availableColors && product.availableColors.length > 0 && (
+                <View style={styles.sizeColorSection}>
+                  <View style={styles.sectionHeader}>
+                    <IconSymbol 
+                      ios_icon_name="paintpalette" 
+                      android_material_icon_name="palette" 
+                      size={14} 
+                      color={colors.textSecondary} 
+                    />
+                    <Text style={styles.sectionLabel}>Colore</Text>
+                  </View>
+                  <View style={styles.optionsRow}>
+                    {product.availableColors.map((color, index) => (
+                      <Pressable
+                        key={index}
+                        style={[
+                          styles.colorOption,
+                          selectedColor === color && styles.colorOptionSelected,
+                        ]}
+                        onPress={() => handleColorSelect(color)}
+                      >
+                        <View
+                          style={[
+                            styles.colorCircle,
+                            { backgroundColor: color },
+                          ]}
+                        />
+                      </Pressable>
+                    ))}
+                  </View>
+                </View>
+              )}
+            </View>
+          )}
 
           {/* Minimal "PRENOTA CON CARTA" Button */}
           {isInDrop ? (
@@ -443,7 +533,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 16,
+    marginBottom: 12,
   },
   priceInfo: {
     flexDirection: 'row',
@@ -472,6 +562,75 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     color: colors.text,
     letterSpacing: -1,
+  },
+  // Size and Color Selection Styles
+  selectionContainer: {
+    marginBottom: 14,
+    gap: 10,
+  },
+  sizeColorSection: {
+    gap: 6,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  sectionLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  optionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  sizeOption: {
+    minWidth: 36,
+    height: 36,
+    paddingHorizontal: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: colors.backgroundSecondary,
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderColor: 'transparent',
+  },
+  sizeOptionSelected: {
+    backgroundColor: colors.text,
+    borderColor: colors.text,
+  },
+  sizeOptionText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  sizeOptionTextSelected: {
+    color: colors.background,
+  },
+  colorOption: {
+    width: 36,
+    height: 36,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 18,
+    borderWidth: 2,
+    borderColor: 'transparent',
+    backgroundColor: colors.backgroundSecondary,
+  },
+  colorOptionSelected: {
+    borderColor: colors.text,
+  },
+  colorCircle: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 0, 0, 0.1)',
   },
   // Minimal "PRENOTA CON CARTA" button styles
   bookButtonWrapper: {

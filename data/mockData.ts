@@ -33,6 +33,8 @@ export const mockProducts: Product[] = [
     maxReservationValue: 30000,
     category: 'Fashion',
     stock: 50,
+    availableSizes: ['S', 'M', 'L', 'XL'],
+    availableColors: ['#000000', '#8B4513', '#2C3E50'],
   },
   {
     id: '2',
@@ -55,6 +57,7 @@ export const mockProducts: Product[] = [
     maxReservationValue: 30000,
     category: 'Fashion',
     stock: 40,
+    availableColors: ['#8B4513', '#000000', '#C19A6B', '#DC143C'],
   },
   {
     id: '3',
@@ -160,6 +163,7 @@ export const mockProducts: Product[] = [
     maxReservationValue: 30000,
     category: 'Fashion',
     stock: 70,
+    availableColors: ['#000000', '#8B4513', '#FFD700', '#C0C0C0'],
   },
   {
     id: '8',

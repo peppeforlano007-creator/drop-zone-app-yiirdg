@@ -19,6 +19,8 @@ export interface Product {
   stock: number;
   sizes?: string[];
   condition?: ProductCondition;
+  availableSizes?: string[];
+  availableColors?: string[];
 }
 
 export interface ProductList {
