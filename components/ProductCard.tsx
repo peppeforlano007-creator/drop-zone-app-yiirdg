@@ -195,7 +195,7 @@ export default function ProductCard({
             <IconSymbol 
               ios_icon_name="photo.stack" 
               android_material_icon_name="collections" 
-              size={22} 
+              size={20} 
               color={colors.background} 
             />
             <Text style={styles.imageCount}>{product.imageUrls.length}</Text>
@@ -217,9 +217,9 @@ export default function ProductCard({
 
       <View style={styles.overlay}>
         <View style={styles.content}>
-          <Text style={styles.productName} numberOfLines={2}>{product.name}</Text>
+          <Text style={styles.productName} numberOfLines={1}>{product.name}</Text>
 
-          {/* Product Details Row: Sizes, Colors, and Condition */}
+          {/* Product Details Row: Sizes, Colors, and Condition - Compact */}
           {(product.sizes || product.colors || product.condition) && (
             <View style={styles.detailsRow}>
               {/* Sizes */}
@@ -228,12 +228,12 @@ export default function ProductCard({
                   <IconSymbol 
                     ios_icon_name="ruler" 
                     android_material_icon_name="straighten" 
-                    size={11} 
+                    size={10} 
                     color={colors.textSecondary} 
                   />
-                  <Text style={styles.detailText}>
+                  <Text style={styles.detailText} numberOfLines={1}>
                     {Array.isArray(product.sizes) 
-                      ? product.sizes.join(', ') 
+                      ? product.sizes.slice(0, 3).join(', ') 
                       : product.sizes}
                   </Text>
                 </View>
@@ -245,12 +245,12 @@ export default function ProductCard({
                   <IconSymbol 
                     ios_icon_name="paintpalette" 
                     android_material_icon_name="palette" 
-                    size={11} 
+                    size={10} 
                     color={colors.textSecondary} 
                   />
-                  <Text style={styles.detailText}>
+                  <Text style={styles.detailText} numberOfLines={1}>
                     {Array.isArray(product.colors) 
-                      ? product.colors.join(', ') 
+                      ? product.colors.slice(0, 2).join(', ') 
                       : product.colors}
                   </Text>
                 </View>
@@ -265,7 +265,7 @@ export default function ProductCard({
                   <IconSymbol 
                     ios_icon_name={conditionIcon.ios} 
                     android_material_icon_name={conditionIcon.android} 
-                    size={11} 
+                    size={10} 
                     color={getConditionColor(product.condition)} 
                   />
                   <Text style={[
@@ -289,7 +289,7 @@ export default function ProductCard({
             </View>
           </View>
 
-          {/* Size and Color Selection for Fashion Items */}
+          {/* Size and Color Selection for Fashion Items - Compact */}
           {isFashionItem && (product.availableSizes || product.availableColors) && (
             <View style={styles.selectionContainer}>
               {/* Size Selection */}
@@ -299,13 +299,13 @@ export default function ProductCard({
                     <IconSymbol 
                       ios_icon_name="ruler" 
                       android_material_icon_name="straighten" 
-                      size={14} 
+                      size={12} 
                       color={colors.textSecondary} 
                     />
                     <Text style={styles.sectionLabel}>Taglia</Text>
                   </View>
                   <View style={styles.optionsRow}>
-                    {product.availableSizes.map((size, index) => (
+                    {product.availableSizes.slice(0, 5).map((size, index) => (
                       <Pressable
                         key={index}
                         style={[
@@ -335,13 +335,13 @@ export default function ProductCard({
                     <IconSymbol 
                       ios_icon_name="paintpalette" 
                       android_material_icon_name="palette" 
-                      size={14} 
+                      size={12} 
                       color={colors.textSecondary} 
                     />
                     <Text style={styles.sectionLabel}>Colore</Text>
                   </View>
                   <View style={styles.optionsRow}>
-                    {product.availableColors.map((color, index) => (
+                    {product.availableColors.slice(0, 5).map((color, index) => (
                       <Pressable
                         key={index}
                         style={[
@@ -364,7 +364,7 @@ export default function ProductCard({
             </View>
           )}
 
-          {/* Minimal "PRENOTA CON CARTA" Button */}
+          {/* Compact "PRENOTA CON CARTA" Button */}
           {isInDrop ? (
             <Animated.View 
               style={[
@@ -389,7 +389,7 @@ export default function ProductCard({
                       <IconSymbol 
                         ios_icon_name="creditcard.fill" 
                         android_material_icon_name="credit_card" 
-                        size={26} 
+                        size={22} 
                         color="#333" 
                       />
                     </View>
@@ -403,7 +403,7 @@ export default function ProductCard({
                       <IconSymbol 
                         ios_icon_name="chevron.right" 
                         android_material_icon_name="chevron_right" 
-                        size={22} 
+                        size={20} 
                         color="#333" 
                       />
                     </View>
@@ -472,17 +472,17 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 60,
     right: 20,
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 24,
+    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 20,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 7,
+    gap: 5,
   },
   imageCount: {
     color: colors.background,
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: '700',
   },
   topBadgesContainer: {
@@ -495,28 +495,28 @@ const styles = StyleSheet.create({
   },
   supplierBadge: {
     backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: 'rgba(0, 0, 0, 0.1)',
   },
   supplierText: {
     color: '#333',
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '700',
     textTransform: 'uppercase',
     letterSpacing: 0.8,
   },
   dropBadge: {
     backgroundColor: 'rgba(0, 0, 0, 0.85)',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: 8,
   },
   dropBadgeText: {
     color: '#FFF',
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '700',
     letterSpacing: 0.8,
   },
@@ -526,124 +526,125 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     backgroundColor: 'rgba(255, 255, 255, 0.97)',
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
   },
   content: {
-    padding: 20,
+    padding: 16,
     paddingBottom: 110,
   },
   productName: {
-    fontSize: 26,
+    fontSize: 20,
     fontWeight: '800',
     color: colors.text,
-    marginBottom: 10,
-    letterSpacing: -0.5,
-    lineHeight: 30,
+    marginBottom: 6,
+    letterSpacing: -0.3,
+    lineHeight: 24,
   },
   detailsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 7,
-    marginBottom: 12,
+    gap: 5,
+    marginBottom: 8,
     flexWrap: 'wrap',
   },
   detailBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
+    gap: 4,
     backgroundColor: colors.backgroundSecondary,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 6,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 5,
+    maxWidth: 120,
   },
   detailText: {
-    fontSize: 11,
+    fontSize: 9,
     color: colors.textSecondary,
     fontWeight: '600',
   },
   conditionBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 6,
+    gap: 4,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 5,
   },
   conditionText: {
-    fontSize: 11,
+    fontSize: 9,
     fontWeight: '700',
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 0.3,
   },
   priceRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 14,
+    marginBottom: 10,
   },
   priceInfo: {
     flexDirection: 'row',
     alignItems: 'baseline',
-    gap: 12,
+    gap: 10,
   },
   originalPrice: {
-    fontSize: 15,
+    fontSize: 13,
     color: colors.textSecondary,
     textDecorationLine: 'line-through',
   },
   discountBadge: {
     backgroundColor: colors.text,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 7,
   },
   discountText: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '700',
     color: colors.background,
-    letterSpacing: 0.5,
+    letterSpacing: 0.4,
   },
   discountedPrice: {
-    fontSize: 32,
+    fontSize: 26,
     fontWeight: '900',
     color: colors.text,
-    letterSpacing: -1,
+    letterSpacing: -0.8,
   },
-  // Size and Color Selection Styles
+  // Size and Color Selection Styles - Compact
   selectionContainer: {
-    marginBottom: 16,
-    gap: 12,
+    marginBottom: 10,
+    gap: 8,
   },
   sizeColorSection: {
-    gap: 7,
+    gap: 5,
   },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 5,
   },
   sectionLabel: {
-    fontSize: 12,
+    fontSize: 10,
     fontWeight: '600',
     color: colors.textSecondary,
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 0.4,
   },
   optionsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 7,
     flexWrap: 'wrap',
   },
   sizeOption: {
-    minWidth: 40,
-    height: 40,
-    paddingHorizontal: 12,
+    minWidth: 34,
+    height: 34,
+    paddingHorizontal: 10,
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: colors.backgroundSecondary,
-    borderRadius: 8,
+    borderRadius: 7,
     borderWidth: 1.5,
     borderColor: 'transparent',
   },
@@ -652,7 +653,7 @@ const styles = StyleSheet.create({
     borderColor: colors.text,
   },
   sizeOptionText: {
-    fontSize: 13,
+    fontSize: 11,
     fontWeight: '700',
     color: colors.text,
   },
@@ -660,11 +661,11 @@ const styles = StyleSheet.create({
     color: colors.background,
   },
   colorOption: {
-    width: 40,
-    height: 40,
+    width: 34,
+    height: 34,
     justifyContent: 'center',
     alignItems: 'center',
-    borderRadius: 20,
+    borderRadius: 17,
     borderWidth: 2,
     borderColor: 'transparent',
     backgroundColor: colors.backgroundSecondary,
@@ -673,37 +674,37 @@ const styles = StyleSheet.create({
     borderColor: colors.text,
   },
   colorCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
     borderWidth: 1,
     borderColor: 'rgba(0, 0, 0, 0.1)',
   },
-  // Minimal "PRENOTA CON CARTA" button styles
+  // Compact "PRENOTA CON CARTA" button styles
   bookButtonWrapper: {
-    marginTop: 6,
+    marginTop: 4,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 6,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    elevation: 5,
   },
   bookButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 22,
-    paddingHorizontal: 22,
-    gap: 16,
+    paddingVertical: 16,
+    paddingHorizontal: 18,
+    gap: 12,
     backgroundColor: '#FFF',
-    borderRadius: 16,
+    borderRadius: 14,
     borderWidth: 2,
     borderColor: '#333',
   },
   bookButtonIconContainer: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 46,
+    height: 46,
+    borderRadius: 23,
     backgroundColor: '#F5F5F5',
     justifyContent: 'center',
     alignItems: 'center',
@@ -712,26 +713,26 @@ const styles = StyleSheet.create({
   },
   bookButtonTextContainer: {
     flex: 1,
-    gap: 4,
+    gap: 2,
   },
   bookButtonTitle: {
     color: '#000',
-    fontSize: 17,
+    fontSize: 14,
     fontWeight: '800',
-    letterSpacing: 0.4,
+    letterSpacing: 0.3,
   },
   bookButtonSubtitle: {
     color: '#666',
-    fontSize: 12,
+    fontSize: 10,
     fontWeight: '500',
-    letterSpacing: 0.2,
+    letterSpacing: 0.1,
   },
   bookButtonArrow: {
     opacity: 0.8,
   },
   // Standard action button (for non-drop products)
   actionButton: {
-    paddingVertical: 18,
+    paddingVertical: 15,
     borderRadius: 6,
     backgroundColor: colors.text,
     alignItems: 'center',
@@ -745,8 +746,8 @@ const styles = StyleSheet.create({
   },
   actionButtonText: {
     color: colors.background,
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '700',
-    letterSpacing: 1.5,
+    letterSpacing: 1.2,
   },
 });
