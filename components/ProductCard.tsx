@@ -153,15 +153,17 @@ export default function ProductCard({
   const getConditionIcon = (condition?: string) => {
     switch (condition) {
       case 'nuovo':
-        return 'sparkles';
+        return { ios: 'sparkles', android: 'star' };
       case 'reso da cliente':
-        return 'arrow.uturn.backward';
+        return { ios: 'arrow.uturn.backward', android: 'keyboard_return' };
       case 'packaging rovinato':
-        return 'exclamationmark.triangle';
+        return { ios: 'exclamationmark.triangle', android: 'warning' };
       default:
-        return 'tag';
+        return { ios: 'tag', android: 'label' };
     }
   };
+
+  const conditionIcon = getConditionIcon(product.condition);
 
   return (
     <View style={styles.container}>
@@ -179,13 +181,23 @@ export default function ProductCard({
         
         {!imageLoaded && (
           <View style={styles.imagePlaceholder}>
-            <IconSymbol name="photo" size={80} color={colors.textTertiary} />
+            <IconSymbol 
+              ios_icon_name="photo" 
+              android_material_icon_name="image" 
+              size={80} 
+              color={colors.textTertiary} 
+            />
           </View>
         )}
 
         {hasMultipleImages && (
           <View style={styles.imageIndicator}>
-            <IconSymbol name="photo.stack" size={20} color={colors.background} />
+            <IconSymbol 
+              ios_icon_name="photo.stack" 
+              android_material_icon_name="collections" 
+              size={20} 
+              color={colors.background} 
+            />
             <Text style={styles.imageCount}>{product.imageUrls.length}</Text>
           </View>
         )}
@@ -207,13 +219,19 @@ export default function ProductCard({
         <View style={styles.content}>
           <Text style={styles.productName} numberOfLines={2}>{product.name}</Text>
 
-          {/* Sizes and Condition Row */}
-          {(product.sizes || product.condition) && (
+          {/* Product Details Row: Sizes, Colors, and Condition */}
+          {(product.sizes || product.colors || product.condition) && (
             <View style={styles.detailsRow}>
+              {/* Sizes */}
               {product.sizes && product.sizes.length > 0 && (
-                <View style={styles.sizesContainer}>
-                  <IconSymbol name="ruler" size={12} color={colors.textSecondary} />
-                  <Text style={styles.sizesText}>
+                <View style={styles.detailBadge}>
+                  <IconSymbol 
+                    ios_icon_name="ruler" 
+                    android_material_icon_name="straighten" 
+                    size={11} 
+                    color={colors.textSecondary} 
+                  />
+                  <Text style={styles.detailText}>
                     {Array.isArray(product.sizes) 
                       ? product.sizes.join(', ') 
                       : product.sizes}
@@ -221,13 +239,32 @@ export default function ProductCard({
                 </View>
               )}
               
+              {/* Colors */}
+              {product.colors && product.colors.length > 0 && (
+                <View style={styles.detailBadge}>
+                  <IconSymbol 
+                    ios_icon_name="paintpalette" 
+                    android_material_icon_name="palette" 
+                    size={11} 
+                    color={colors.textSecondary} 
+                  />
+                  <Text style={styles.detailText}>
+                    {Array.isArray(product.colors) 
+                      ? product.colors.join(', ') 
+                      : product.colors}
+                  </Text>
+                </View>
+              )}
+              
+              {/* Condition */}
               {product.condition && (
                 <View style={[
                   styles.conditionBadge,
                   { backgroundColor: getConditionColor(product.condition) + '20' }
                 ]}>
                   <IconSymbol 
-                    name={getConditionIcon(product.condition)} 
+                    ios_icon_name={conditionIcon.ios} 
+                    android_material_icon_name={conditionIcon.android} 
                     size={11} 
                     color={getConditionColor(product.condition)} 
                   />
@@ -349,7 +386,12 @@ export default function ProductCard({
                 ) : (
                   <>
                     <View style={styles.bookButtonIconContainer}>
-                      <IconSymbol name="creditcard.fill" size={26} color="#333" />
+                      <IconSymbol 
+                        ios_icon_name="creditcard.fill" 
+                        android_material_icon_name="credit_card" 
+                        size={26} 
+                        color="#333" 
+                      />
                     </View>
                     <View style={styles.bookButtonTextContainer}>
                       <Text style={styles.bookButtonTitle}>PRENOTA CON CARTA</Text>
@@ -358,7 +400,12 @@ export default function ProductCard({
                       </Text>
                     </View>
                     <View style={styles.bookButtonArrow}>
-                      <IconSymbol name="chevron.right" size={22} color="#333" />
+                      <IconSymbol 
+                        ios_icon_name="chevron.right" 
+                        android_material_icon_name="chevron_right" 
+                        size={22} 
+                        color="#333" 
+                      />
                     </View>
                   </>
                 )}
@@ -497,11 +544,11 @@ const styles = StyleSheet.create({
   detailsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
     marginBottom: 10,
     flexWrap: 'wrap',
   },
-  sizesContainer: {
+  detailBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
@@ -510,8 +557,8 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 4,
   },
-  sizesText: {
-    fontSize: 11,
+  detailText: {
+    fontSize: 10,
     color: colors.textSecondary,
     fontWeight: '600',
   },

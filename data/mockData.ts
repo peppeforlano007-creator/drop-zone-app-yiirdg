@@ -33,6 +33,9 @@ export const mockProducts: Product[] = [
     maxReservationValue: 30000,
     category: 'Fashion',
     stock: 50,
+    sizes: ['S', 'M', 'L', 'XL'],
+    colors: ['Nero', 'Marrone', 'Blu Navy'],
+    condition: 'nuovo',
     availableSizes: ['S', 'M', 'L', 'XL'],
     availableColors: ['#000000', '#8B4513', '#2C3E50'],
   },
@@ -57,6 +60,9 @@ export const mockProducts: Product[] = [
     maxReservationValue: 30000,
     category: 'Fashion',
     stock: 40,
+    sizes: ['Unica'],
+    colors: ['Marrone', 'Nero', 'Beige', 'Rosso'],
+    condition: 'reso da cliente',
     availableColors: ['#8B4513', '#000000', '#C19A6B', '#DC143C'],
   },
   {
@@ -79,6 +85,8 @@ export const mockProducts: Product[] = [
     maxReservationValue: 25000,
     category: 'Electronics',
     stock: 100,
+    colors: ['Nero', 'Argento', 'Bianco'],
+    condition: 'packaging rovinato',
   },
   {
     id: '4',
@@ -101,6 +109,8 @@ export const mockProducts: Product[] = [
     maxReservationValue: 25000,
     category: 'Electronics',
     stock: 80,
+    colors: ['Nero', 'Argento', 'Oro Rosa'],
+    condition: 'nuovo',
   },
   {
     id: '5',
@@ -122,6 +132,8 @@ export const mockProducts: Product[] = [
     maxReservationValue: 20000,
     category: 'Furniture',
     stock: 30,
+    colors: ['Legno Naturale', 'Bianco', 'Nero'],
+    condition: 'nuovo',
   },
   {
     id: '6',
@@ -142,6 +154,8 @@ export const mockProducts: Product[] = [
     maxReservationValue: 20000,
     category: 'Furniture',
     stock: 60,
+    colors: ['Nero', 'Bianco', 'Oro'],
+    condition: 'reso da cliente',
   },
   {
     id: '7',
@@ -163,6 +177,9 @@ export const mockProducts: Product[] = [
     maxReservationValue: 30000,
     category: 'Fashion',
     stock: 70,
+    sizes: ['Unica'],
+    colors: ['Nero', 'Marrone', 'Oro', 'Argento'],
+    condition: 'nuovo',
     availableColors: ['#000000', '#8B4513', '#FFD700', '#C0C0C0'],
   },
   {
@@ -185,6 +202,8 @@ export const mockProducts: Product[] = [
     maxReservationValue: 25000,
     category: 'Electronics',
     stock: 120,
+    colors: ['Nero', 'Blu', 'Rosso'],
+    condition: 'packaging rovinato',
   },
 ];
 

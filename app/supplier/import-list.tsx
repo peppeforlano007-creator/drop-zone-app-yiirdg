@@ -11,6 +11,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, router } from 'expo-router';
@@ -20,6 +21,7 @@ import * as Haptics from 'expo-haptics';
 import * as DocumentPicker from 'expo-document-picker';
 import * as XLSX from 'xlsx';
 import { ProductCondition } from '@/types/Product';
+import ExcelFormatGuide from '@/components/ExcelFormatGuide';
 
 interface ExcelProduct {
   nome: string;
@@ -27,6 +29,7 @@ interface ExcelProduct {
   foto: string;
   prezzoListino: number;
   taglie?: string;
+  colori?: string;
   condizione: ProductCondition;
   categoria?: string;
   stock?: number;
@@ -41,6 +44,7 @@ export default function ImportListScreen() {
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [products, setProducts] = useState<ExcelProduct[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [showGuide, setShowGuide] = useState(false);
 
   const handlePickDocument = async () => {
     try {
@@ -109,6 +113,7 @@ export default function ImportListScreen() {
           foto: row.foto || row.Foto || row.photo || row.image || '',
           prezzoListino: parseFloat(row.prezzoListino || row.PrezzoListino || row.prezzo || row.Prezzo || row.price || 0),
           taglie: row.taglie || row.Taglie || row.sizes || row.size || '',
+          colori: row.colori || row.Colori || row.colors || row.color || '',
           condizione: condition,
           categoria: row.categoria || row.Categoria || row.category || 'Generale',
           stock: parseInt(row.stock || row.Stock || row.quantita || row.Quantita || '1'),
@@ -203,7 +208,12 @@ export default function ImportListScreen() {
             showsVerticalScrollIndicator={false}
           >
             <View style={styles.header}>
-              <IconSymbol name="doc.badge.plus" size={48} color={colors.text} />
+              <IconSymbol 
+                ios_icon_name="doc.badge.plus" 
+                android_material_icon_name="note_add" 
+                size={48} 
+                color={colors.text} 
+              />
               <Text style={styles.headerTitle}>Nuova Lista Prodotti</Text>
               <Text style={styles.headerSubtitle}>
                 Importa un file Excel con i tuoi prodotti
@@ -213,7 +223,12 @@ export default function ImportListScreen() {
             {/* Excel File Upload */}
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
-                <IconSymbol name="doc.text" size={20} color={colors.text} />
+                <IconSymbol 
+                  ios_icon_name="doc.text" 
+                  android_material_icon_name="description" 
+                  size={20} 
+                  color={colors.text} 
+                />
                 <Text style={styles.sectionTitle}>File Excel</Text>
               </View>
 
@@ -223,7 +238,8 @@ export default function ImportListScreen() {
                 disabled={isLoading}
               >
                 <IconSymbol 
-                  name={selectedFile ? "checkmark.circle.fill" : "arrow.up.doc"} 
+                  ios_icon_name={selectedFile ? "checkmark.circle.fill" : "arrow.up.doc"} 
+                  android_material_icon_name={selectedFile ? "check_circle" : "upload_file"} 
                   size={24} 
                   color={selectedFile ? '#4CAF50' : colors.text} 
                 />
@@ -246,10 +262,52 @@ export default function ImportListScreen() {
                 </View>
               )}
 
+              {/* Guide Button */}
+              <Pressable 
+                style={styles.guideButton}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setShowGuide(true);
+                }}
+              >
+                <IconSymbol 
+                  ios_icon_name="doc.text.magnifyingglass" 
+                  android_material_icon_name="help_outline" 
+                  size={20} 
+                  color={colors.text} 
+                />
+                <Text style={styles.guideButtonText}>
+                  Visualizza Guida Formato Excel
+                </Text>
+                <IconSymbol 
+                  ios_icon_name="chevron.right" 
+                  android_material_icon_name="chevron_right" 
+                  size={18} 
+                  color={colors.textSecondary} 
+                />
+              </Pressable>
+
               <View style={styles.infoBox}>
-                <IconSymbol name="info.circle" size={16} color={colors.textSecondary} />
+                <IconSymbol 
+                  ios_icon_name="info.circle" 
+                  android_material_icon_name="info" 
+                  size={16} 
+                  color={colors.textSecondary} 
+                />
                 <Text style={styles.infoText}>
-                  Il file Excel deve contenere le colonne: nome, foto, prezzoListino, taglie, condizione
+                  Il file Excel deve contenere le colonne: nome, foto, prezzoListino, taglie, colori, condizione
+                </Text>
+              </View>
+
+              <View style={styles.exampleBox}>
+                <Text style={styles.exampleTitle}>Esempio Colonne Excel:</Text>
+                <Text style={styles.exampleText}>
+                  • <Text style={styles.boldText}>nome:</Text> Giacca in Pelle{'\n'}
+                  • <Text style={styles.boldText}>foto:</Text> https://...{'\n'}
+                  • <Text style={styles.boldText}>prezzoListino:</Text> 450{'\n'}
+                  • <Text style={styles.boldText}>taglie:</Text> S, M, L, XL{'\n'}
+                  • <Text style={styles.boldText}>colori:</Text> Nero, Marrone, Blu{'\n'}
+                  • <Text style={styles.boldText}>condizione:</Text> nuovo
                 </Text>
               </View>
 
@@ -273,7 +331,12 @@ export default function ImportListScreen() {
             {/* Discount Section */}
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
-                <IconSymbol name="percent" size={20} color={colors.text} />
+                <IconSymbol 
+                  ios_icon_name="percent" 
+                  android_material_icon_name="percent" 
+                  size={20} 
+                  color={colors.text} 
+                />
                 <Text style={styles.sectionTitle}>Percentuale Sconto</Text>
               </View>
 
@@ -311,7 +374,12 @@ export default function ImportListScreen() {
             {/* Order Value Section */}
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
-                <IconSymbol name="eurosign.circle" size={20} color={colors.text} />
+                <IconSymbol 
+                  ios_icon_name="eurosign.circle" 
+                  android_material_icon_name="euro" 
+                  size={20} 
+                  color={colors.text} 
+                />
                 <Text style={styles.sectionTitle}>Valore Ordine</Text>
               </View>
 
@@ -362,6 +430,35 @@ export default function ImportListScreen() {
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
+
+      {/* Excel Format Guide Modal */}
+      <Modal
+        visible={showGuide}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowGuide(false)}
+      >
+        <SafeAreaView style={styles.modalContainer} edges={['top', 'bottom']}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Guida Formato Excel</Text>
+            <Pressable
+              style={styles.closeButton}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setShowGuide(false);
+              }}
+            >
+              <IconSymbol 
+                ios_icon_name="xmark.circle.fill" 
+                android_material_icon_name="close" 
+                size={28} 
+                color={colors.textSecondary} 
+              />
+            </Pressable>
+          </View>
+          <ExcelFormatGuide />
+        </SafeAreaView>
+      </Modal>
     </>
   );
 }
@@ -484,6 +581,23 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.textSecondary,
   },
+  guideButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 8,
+    padding: 14,
+    gap: 10,
+    marginBottom: 12,
+  },
+  guideButtonText: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.text,
+  },
   infoBox: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -491,13 +605,33 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 8,
     gap: 8,
-    marginBottom: 8,
+    marginBottom: 12,
   },
   infoText: {
     flex: 1,
     fontSize: 12,
     color: colors.textSecondary,
     lineHeight: 18,
+  },
+  exampleBox: {
+    backgroundColor: colors.background,
+    padding: 14,
+    borderRadius: 8,
+    marginBottom: 8,
+    borderLeftWidth: 3,
+    borderLeftColor: colors.text,
+  },
+  exampleTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: 8,
+  },
+  exampleText: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    lineHeight: 20,
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
   },
   importButton: {
     backgroundColor: colors.text,
@@ -513,5 +647,26 @@ const styles = StyleSheet.create({
     color: colors.background,
     fontSize: 18,
     fontWeight: '700',
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  closeButton: {
+    padding: 4,
   },
 });

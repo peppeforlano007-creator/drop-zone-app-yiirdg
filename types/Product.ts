@@ -18,6 +18,7 @@ export interface Product {
   category: string;
   stock: number;
   sizes?: string[];
+  colors?: string[];
   condition?: ProductCondition;
   availableSizes?: string[];
   availableColors?: string[];
