@@ -37,28 +37,16 @@ export default function HomeScreen() {
     try {
       console.log('Loading products from database...');
       
-      const { data: products, error } = await supabase
+      // First, get all active products
+      const { data: products, error: productsError } = await supabase
         .from('products')
-        .select(`
-          *,
-          supplier_lists (
-            id,
-            name,
-            min_discount,
-            max_discount,
-            min_reservation_value,
-            max_reservation_value,
-            profiles!supplier_lists_supplier_id_fkey (
-              full_name
-            )
-          )
-        `)
+        .select('*')
         .eq('status', 'active')
         .order('created_at', { ascending: false });
 
-      if (error) {
-        console.error('Error loading products:', error);
-        Alert.alert('Errore', 'Impossibile caricare i prodotti');
+      if (productsError) {
+        console.error('Error loading products:', productsError);
+        Alert.alert('Errore', 'Impossibile caricare i prodotti: ' + productsError.message);
         setLoading(false);
         return;
       }
@@ -69,20 +57,76 @@ export default function HomeScreen() {
         return;
       }
 
+      console.log(`Found ${products.length} products`);
+
+      // Get unique supplier list IDs
+      const listIds = [...new Set(products.map(p => p.supplier_list_id))];
+      
+      // Fetch supplier lists with supplier info
+      const { data: supplierLists, error: listsError } = await supabase
+        .from('supplier_lists')
+        .select(`
+          id,
+          name,
+          min_discount,
+          max_discount,
+          min_reservation_value,
+          max_reservation_value,
+          supplier_id
+        `)
+        .in('id', listIds);
+
+      if (listsError) {
+        console.error('Error loading supplier lists:', listsError);
+        Alert.alert('Errore', 'Impossibile caricare le liste fornitori');
+        setLoading(false);
+        return;
+      }
+
+      // Get supplier profiles
+      const supplierIds = supplierLists?.map(list => list.supplier_id) || [];
+      const { data: profiles, error: profilesError } = await supabase
+        .from('profiles')
+        .select('user_id, full_name')
+        .in('user_id', supplierIds);
+
+      if (profilesError) {
+        console.error('Error loading profiles:', profilesError);
+      }
+
+      // Create a map of supplier_id to full_name
+      const profilesMap = new Map(profiles?.map(p => [p.user_id, p.full_name]) || []);
+
+      // Create a map of list_id to list data
+      const listsMap = new Map(supplierLists?.map(list => [
+        list.id,
+        {
+          ...list,
+          supplierName: profilesMap.get(list.supplier_id) || 'Fornitore'
+        }
+      ]) || []);
+
       // Group products by supplier list
-      const listsMap = new Map<string, ProductList>();
+      const groupedLists = new Map<string, ProductList>();
       
       products.forEach((product: any) => {
         const listId = product.supplier_list_id;
-        if (!listsMap.has(listId)) {
-          listsMap.set(listId, {
+        const listData = listsMap.get(listId);
+        
+        if (!listData) {
+          console.warn(`No list data found for list ID: ${listId}`);
+          return;
+        }
+
+        if (!groupedLists.has(listId)) {
+          groupedLists.set(listId, {
             listId: listId,
-            supplierName: product.supplier_lists?.profiles?.full_name || 'Fornitore',
+            supplierName: listData.supplierName,
             products: [],
-            minDiscount: product.supplier_lists?.min_discount || 30,
-            maxDiscount: product.supplier_lists?.max_discount || 80,
-            minReservationValue: product.supplier_lists?.min_reservation_value || 5000,
-            maxReservationValue: product.supplier_lists?.max_reservation_value || 30000,
+            minDiscount: listData.min_discount || 30,
+            maxDiscount: listData.max_discount || 80,
+            minReservationValue: listData.min_reservation_value || 5000,
+            maxReservationValue: listData.max_reservation_value || 30000,
           });
         }
         
@@ -99,17 +143,17 @@ export default function HomeScreen() {
           category: product.category,
           stock: product.stock,
           listId: listId,
-          supplierName: product.supplier_lists?.profiles?.full_name || 'Fornitore',
-          minDiscount: product.supplier_lists?.min_discount || 30,
-          maxDiscount: product.supplier_lists?.max_discount || 80,
-          minReservationValue: product.supplier_lists?.min_reservation_value || 5000,
-          maxReservationValue: product.supplier_lists?.max_reservation_value || 30000,
+          supplierName: listData.supplierName,
+          minDiscount: listData.min_discount || 30,
+          maxDiscount: listData.max_discount || 80,
+          minReservationValue: listData.min_reservation_value || 5000,
+          maxReservationValue: listData.max_reservation_value || 30000,
         };
         
-        listsMap.get(listId)!.products.push(productData);
+        groupedLists.get(listId)!.products.push(productData);
       });
       
-      const lists = Array.from(listsMap.values());
+      const lists = Array.from(groupedLists.values());
       console.log(`Loaded ${lists.length} product lists with ${products.length} total products`);
       setProductLists(lists);
       setLoading(false);
