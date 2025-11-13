@@ -10,34 +10,32 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, router } from 'expo-router';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
+import { useAuth } from '@/contexts/AuthContext';
 import * as Haptics from 'expo-haptics';
 
 export default function RegisterSupplierScreen() {
-  const [username, setUsername] = useState('');
-  const [phone, setPhone] = useState('');
+  const { register } = useAuth();
+  const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleRegister = () => {
+  const handleRegister = async () => {
     console.log('handleRegister called');
     
-    // Haptic feedback
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     
     // Validation
-    if (!username.trim()) {
-      Alert.alert('Errore', 'Inserisci il nome utente');
-      return;
-    }
-
-    if (!phone.trim()) {
-      Alert.alert('Errore', 'Inserisci il numero di cellulare');
+    if (!fullName.trim()) {
+      Alert.alert('Errore', 'Inserisci il nome completo');
       return;
     }
 
@@ -48,6 +46,11 @@ export default function RegisterSupplierScreen() {
 
     if (!email.includes('@')) {
       Alert.alert('Errore', 'Inserisci un\'email valida');
+      return;
+    }
+
+    if (!phone.trim()) {
+      Alert.alert('Errore', 'Inserisci il numero di telefono');
       return;
     }
 
@@ -66,23 +69,43 @@ export default function RegisterSupplierScreen() {
       return;
     }
 
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    
-    console.log('Supplier registered:', { username, phone, email });
-    
-    Alert.alert(
-      'Registrazione Completata',
-      'Il tuo account fornitore è stato creato con successo!',
-      [
-        {
-          text: 'OK',
-          onPress: () => {
-            console.log('Navigating to login...');
-            router.replace('/login');
-          },
-        },
-      ]
-    );
+    setLoading(true);
+
+    try {
+      const result = await register(
+        email.trim().toLowerCase(),
+        password,
+        fullName.trim(),
+        phone.trim(),
+        'supplier'
+      );
+
+      if (result.success) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        Alert.alert(
+          'Registrazione Completata!',
+          result.message || 'Controlla la tua email per verificare l\'account.',
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                console.log('Navigating to login...');
+                router.replace('/login');
+              },
+            },
+          ]
+        );
+      } else {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        Alert.alert('Errore di Registrazione', result.message || 'Si è verificato un errore');
+      }
+    } catch (error) {
+      console.error('Registration exception:', error);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert('Errore', 'Si è verificato un errore imprevisto');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -106,7 +129,12 @@ export default function RegisterSupplierScreen() {
           >
             <View style={styles.header}>
               <View style={styles.iconContainer}>
-                <IconSymbol name="briefcase.fill" size={48} color={colors.text} />
+                <IconSymbol 
+                  ios_icon_name="building.2.fill" 
+                  android_material_icon_name="store"
+                  size={48} 
+                  color={colors.text} 
+                />
               </View>
               <Text style={styles.title}>Crea Account Fornitore</Text>
               <Text style={styles.subtitle}>
@@ -115,23 +143,37 @@ export default function RegisterSupplierScreen() {
             </View>
 
             <View style={styles.form}>
-              {/* Username */}
               <View style={styles.inputContainer}>
-                <Text style={styles.inputLabel}>Nome Utente *</Text>
+                <Text style={styles.inputLabel}>Nome Completo *</Text>
                 <TextInput
                   style={styles.input}
                   placeholder="Es. Mario Rossi"
                   placeholderTextColor={colors.textTertiary}
-                  value={username}
-                  onChangeText={setUsername}
+                  value={fullName}
+                  onChangeText={setFullName}
                   autoCapitalize="words"
                   autoComplete="name"
+                  editable={!loading}
                 />
               </View>
 
-              {/* Phone */}
               <View style={styles.inputContainer}>
-                <Text style={styles.inputLabel}>Numero di Cellulare *</Text>
+                <Text style={styles.inputLabel}>Email *</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="email@esempio.com"
+                  placeholderTextColor={colors.textTertiary}
+                  value={email}
+                  onChangeText={setEmail}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoComplete="email"
+                  editable={!loading}
+                />
+              </View>
+
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>Numero di Telefono *</Text>
                 <TextInput
                   style={styles.input}
                   placeholder="+39 123 456 7890"
@@ -140,25 +182,10 @@ export default function RegisterSupplierScreen() {
                   onChangeText={setPhone}
                   keyboardType="phone-pad"
                   autoComplete="tel"
+                  editable={!loading}
                 />
               </View>
 
-              {/* Email */}
-              <View style={styles.inputContainer}>
-                <Text style={styles.inputLabel}>Email *</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="esempio@email.com"
-                  placeholderTextColor={colors.textTertiary}
-                  value={email}
-                  onChangeText={setEmail}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  autoComplete="email"
-                />
-              </View>
-
-              {/* Password */}
               <View style={styles.inputContainer}>
                 <Text style={styles.inputLabel}>Password *</Text>
                 <TextInput
@@ -170,10 +197,10 @@ export default function RegisterSupplierScreen() {
                   secureTextEntry
                   autoCapitalize="none"
                   autoComplete="password-new"
+                  editable={!loading}
                 />
               </View>
 
-              {/* Confirm Password */}
               <View style={styles.inputContainer}>
                 <Text style={styles.inputLabel}>Conferma Password *</Text>
                 <TextInput
@@ -185,29 +212,34 @@ export default function RegisterSupplierScreen() {
                   secureTextEntry
                   autoCapitalize="none"
                   autoComplete="password-new"
+                  editable={!loading}
                 />
               </View>
 
               <Text style={styles.requiredNote}>* Campi obbligatori</Text>
 
-              {/* Register Button */}
               <Pressable 
                 style={({ pressed }) => [
                   styles.registerButton,
-                  pressed && styles.registerButtonPressed
+                  (pressed || loading) && styles.registerButtonPressed
                 ]} 
                 onPress={handleRegister}
+                disabled={loading}
               >
-                <Text style={styles.registerButtonText}>Registrati</Text>
+                {loading ? (
+                  <ActivityIndicator color={colors.background} />
+                ) : (
+                  <Text style={styles.registerButtonText}>Registrati</Text>
+                )}
               </Pressable>
 
-              {/* Login Link */}
               <Pressable
                 style={styles.loginLink}
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   router.back();
                 }}
+                disabled={loading}
               >
                 <Text style={styles.loginLinkText}>
                   Hai già un account? Accedi
@@ -292,6 +324,8 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: 'center',
     marginBottom: 16,
+    minHeight: 56,
+    justifyContent: 'center',
   },
   registerButtonPressed: {
     opacity: 0.7,

@@ -10,75 +10,83 @@ import {
   Platform,
   ScrollView,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { colors } from '@/styles/commonStyles';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { IconSymbol } from '@/components/IconSymbol';
-import { UserRole } from '@/types/User';
 import { useAuth } from '@/contexts/AuthContext';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import * as Haptics from 'expo-haptics';
 
 export default function LoginScreen() {
-  const { login } = useAuth();
-  const [selectedRole, setSelectedRole] = useState<UserRole | null>(null);
-  const [phone, setPhone] = useState('');
-  const [username, setUsername] = useState('');
+  const { login, user, loading: authLoading } = useAuth();
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleRoleSelect = (role: UserRole) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setSelectedRole(role);
-  };
+  useEffect(() => {
+    // Redirect if already logged in
+    if (user && !authLoading) {
+      console.log('User already logged in, redirecting...', user.role);
+      if (user.role === 'consumer') {
+        router.replace('/(tabs)/(home)');
+      } else if (user.role === 'supplier') {
+        router.replace('/supplier/dashboard');
+      } else if (user.role === 'pickup_point') {
+        router.replace('/pickup-point/dashboard');
+      } else if (user.role === 'admin') {
+        router.replace('/admin/dashboard');
+      }
+    }
+  }, [user, authLoading]);
 
-  const handleLogin = () => {
-    if (!selectedRole) {
-      Alert.alert('Errore', 'Seleziona un ruolo');
+  const handleLogin = async () => {
+    if (!email.trim()) {
+      Alert.alert('Errore', 'Inserisci l\'email');
       return;
     }
 
-    if (selectedRole === 'consumer' && !phone) {
-      Alert.alert('Errore', 'Inserisci il numero di telefono');
+    if (!password) {
+      Alert.alert('Errore', 'Inserisci la password');
       return;
     }
 
-    if ((selectedRole === 'supplier' || selectedRole === 'pickup-point' || selectedRole === 'admin') && (!username || !email)) {
-      Alert.alert('Errore', 'Inserisci username e email');
-      return;
-    }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setLoading(true);
 
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    login(selectedRole, phone, username, email);
-
-    if (selectedRole === 'consumer') {
-      router.replace('/(tabs)/(home)');
-    } else if (selectedRole === 'supplier') {
-      router.replace('/supplier/dashboard');
-    } else if (selectedRole === 'pickup-point') {
-      router.replace('/pickup-point/dashboard');
-    } else if (selectedRole === 'admin') {
-      router.replace('/admin/dashboard');
+    try {
+      const result = await login(email.trim().toLowerCase(), password);
+      
+      if (result.success) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        // Navigation will be handled by useEffect when user state updates
+      } else {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        Alert.alert('Errore di Login', result.message || 'Credenziali non valide');
+      }
+    } catch (error) {
+      console.error('Login error:', error);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert('Errore', 'Si è verificato un errore durante il login');
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleRegister = () => {
-    if (!selectedRole) {
-      Alert.alert('Errore', 'Seleziona un ruolo');
-      return;
-    }
-
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-
-    if (selectedRole === 'consumer') {
-      router.push('/register/consumer');
-    } else if (selectedRole === 'supplier') {
-      router.push('/register/supplier');
-    } else if (selectedRole === 'pickup-point') {
-      router.push('/pickup-point/register');
-    } else if (selectedRole === 'admin') {
-      Alert.alert('Info', 'Gli account admin vengono creati dal sistema');
-    }
+    router.push('/register/consumer');
   };
+
+  if (authLoading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={styles.loadingText}>Caricamento...</Text>
+      </View>
+    );
+  }
 
   return (
     <>
@@ -97,182 +105,98 @@ export default function LoginScreen() {
               <Text style={styles.subtitle}>Accedi per continuare</Text>
             </View>
 
-            <View style={styles.roleSection}>
-              <Text style={styles.sectionTitle}>Seleziona il tuo ruolo</Text>
-              <View style={styles.roleGrid}>
-                <Pressable
-                  style={({ pressed }) => [
-                    styles.roleCard,
-                    selectedRole === 'consumer' && styles.roleCardSelected,
-                    pressed && styles.roleCardPressed,
-                  ]}
-                  onPress={() => handleRoleSelect('consumer')}
-                >
-                  <IconSymbol
-                    ios_icon_name="person.fill"
-                    android_material_icon_name="person"
-                    size={32}
-                    color={selectedRole === 'consumer' ? colors.primary : colors.textSecondary}
-                  />
-                  <Text
-                    style={[
-                      styles.roleTitle,
-                      selectedRole === 'consumer' && styles.roleTitleSelected,
-                    ]}
-                  >
-                    Consumatore
-                  </Text>
-                  <Text style={styles.roleDescription}>
-                    Prenota prodotti e partecipa ai drop
-                  </Text>
-                </Pressable>
+            <View style={styles.formSection}>
+              <Text style={styles.inputLabel}>Email</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="email@esempio.com"
+                placeholderTextColor={colors.textTertiary}
+                value={email}
+                onChangeText={setEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoComplete="email"
+                editable={!loading}
+              />
 
-                <Pressable
-                  style={({ pressed }) => [
-                    styles.roleCard,
-                    selectedRole === 'supplier' && styles.roleCardSelected,
-                    pressed && styles.roleCardPressed,
-                  ]}
-                  onPress={() => handleRoleSelect('supplier')}
-                >
-                  <IconSymbol
-                    ios_icon_name="building.2.fill"
-                    android_material_icon_name="store"
-                    size={32}
-                    color={selectedRole === 'supplier' ? colors.primary : colors.textSecondary}
-                  />
-                  <Text
-                    style={[
-                      styles.roleTitle,
-                      selectedRole === 'supplier' && styles.roleTitleSelected,
-                    ]}
-                  >
-                    Fornitore
-                  </Text>
-                  <Text style={styles.roleDescription}>
-                    Carica prodotti e gestisci ordini
-                  </Text>
-                </Pressable>
+              <Text style={styles.inputLabel}>Password</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="La tua password"
+                placeholderTextColor={colors.textTertiary}
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry
+                autoCapitalize="none"
+                autoComplete="password"
+                editable={!loading}
+              />
 
-                <Pressable
-                  style={({ pressed }) => [
-                    styles.roleCard,
-                    selectedRole === 'pickup-point' && styles.roleCardSelected,
-                    pressed && styles.roleCardPressed,
-                  ]}
-                  onPress={() => handleRoleSelect('pickup-point')}
-                >
-                  <IconSymbol
-                    ios_icon_name="mappin.circle.fill"
-                    android_material_icon_name="location_on"
-                    size={32}
-                    color={selectedRole === 'pickup-point' ? colors.primary : colors.textSecondary}
-                  />
-                  <Text
-                    style={[
-                      styles.roleTitle,
-                      selectedRole === 'pickup-point' && styles.roleTitleSelected,
-                    ]}
-                  >
-                    Punto di Ritiro
-                  </Text>
-                  <Text style={styles.roleDescription}>
-                    Gestisci ritiri e guadagna commissioni
-                  </Text>
-                </Pressable>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.loginButton,
+                  (pressed || loading) && styles.loginButtonPressed,
+                ]}
+                onPress={handleLogin}
+                disabled={loading}
+              >
+                {loading ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.loginButtonText}>Accedi</Text>
+                )}
+              </Pressable>
 
-                <Pressable
-                  style={({ pressed }) => [
-                    styles.roleCard,
-                    selectedRole === 'admin' && styles.roleCardSelected,
-                    pressed && styles.roleCardPressed,
-                  ]}
-                  onPress={() => handleRoleSelect('admin')}
-                >
-                  <IconSymbol
-                    ios_icon_name="shield.fill"
-                    android_material_icon_name="admin_panel_settings"
-                    size={32}
-                    color={selectedRole === 'admin' ? colors.primary : colors.textSecondary}
-                  />
-                  <Text
-                    style={[
-                      styles.roleTitle,
-                      selectedRole === 'admin' && styles.roleTitleSelected,
-                    ]}
-                  >
-                    Amministratore
-                  </Text>
-                  <Text style={styles.roleDescription}>
-                    Gestisci drop e utenti
-                  </Text>
-                </Pressable>
-              </View>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.registerButton,
+                  pressed && styles.registerButtonPressed,
+                ]}
+                onPress={handleRegister}
+                disabled={loading}
+              >
+                <Text style={styles.registerButtonText}>
+                  Non hai un account? Registrati
+                </Text>
+              </Pressable>
             </View>
 
-            {selectedRole && (
-              <View style={styles.formSection}>
-                {selectedRole === 'consumer' ? (
-                  <>
-                    <Text style={styles.inputLabel}>Numero di Telefono</Text>
-                    <TextInput
-                      style={styles.input}
-                      placeholder="+39 123 456 7890"
-                      placeholderTextColor={colors.textTertiary}
-                      value={phone}
-                      onChangeText={setPhone}
-                      keyboardType="phone-pad"
-                      autoCapitalize="none"
-                    />
-                  </>
-                ) : (
-                  <>
-                    <Text style={styles.inputLabel}>Username</Text>
-                    <TextInput
-                      style={styles.input}
-                      placeholder="Il tuo username"
-                      placeholderTextColor={colors.textTertiary}
-                      value={username}
-                      onChangeText={setUsername}
-                      autoCapitalize="none"
-                    />
-
-                    <Text style={styles.inputLabel}>Email</Text>
-                    <TextInput
-                      style={styles.input}
-                      placeholder="email@esempio.com"
-                      placeholderTextColor={colors.textTertiary}
-                      value={email}
-                      onChangeText={setEmail}
-                      keyboardType="email-address"
-                      autoCapitalize="none"
-                    />
-                  </>
-                )}
-
-                <Pressable
-                  style={({ pressed }) => [
-                    styles.loginButton,
-                    pressed && styles.loginButtonPressed,
-                  ]}
-                  onPress={handleLogin}
-                >
-                  <Text style={styles.loginButtonText}>Accedi</Text>
-                </Pressable>
-
-                <Pressable
-                  style={({ pressed }) => [
-                    styles.registerButton,
-                    pressed && styles.registerButtonPressed,
-                  ]}
-                  onPress={handleRegister}
-                >
-                  <Text style={styles.registerButtonText}>
-                    Non hai un account? Registrati
-                  </Text>
-                </Pressable>
+            <View style={styles.roleInfo}>
+              <Text style={styles.roleInfoTitle}>Tipi di Account</Text>
+              <View style={styles.roleInfoItem}>
+                <IconSymbol
+                  ios_icon_name="person.fill"
+                  android_material_icon_name="person"
+                  size={20}
+                  color={colors.textSecondary}
+                />
+                <Text style={styles.roleInfoText}>
+                  <Text style={styles.roleInfoBold}>Consumatore:</Text> Prenota prodotti e partecipa ai drop
+                </Text>
               </View>
-            )}
+              <View style={styles.roleInfoItem}>
+                <IconSymbol
+                  ios_icon_name="building.2.fill"
+                  android_material_icon_name="store"
+                  size={20}
+                  color={colors.textSecondary}
+                />
+                <Text style={styles.roleInfoText}>
+                  <Text style={styles.roleInfoBold}>Fornitore:</Text> Carica prodotti e gestisci ordini
+                </Text>
+              </View>
+              <View style={styles.roleInfoItem}>
+                <IconSymbol
+                  ios_icon_name="mappin.circle.fill"
+                  android_material_icon_name="location_on"
+                  size={20}
+                  color={colors.textSecondary}
+                />
+                <Text style={styles.roleInfoText}>
+                  <Text style={styles.roleInfoBold}>Punto di Ritiro:</Text> Gestisci ritiri e guadagna commissioni
+                </Text>
+              </View>
+            </View>
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
@@ -292,6 +216,17 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     padding: 20,
   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: colors.background,
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: colors.textSecondary,
+  },
   header: {
     marginBottom: 32,
     marginTop: 20,
@@ -307,56 +242,8 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: colors.textSecondary,
   },
-  roleSection: {
-    marginBottom: 32,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: colors.text,
-    marginBottom: 16,
-  },
-  roleGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-  },
-  roleCard: {
-    flex: 1,
-    minWidth: '45%',
-    backgroundColor: colors.card,
-    borderRadius: 12,
-    padding: 16,
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: colors.border,
-  },
-  roleCardSelected: {
-    borderColor: colors.primary,
-    backgroundColor: colors.primary + '10',
-  },
-  roleCardPressed: {
-    opacity: 0.7,
-    transform: [{ scale: 0.98 }],
-  },
-  roleTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.text,
-    marginTop: 8,
-    marginBottom: 4,
-    textAlign: 'center',
-  },
-  roleTitleSelected: {
-    color: colors.primary,
-  },
-  roleDescription: {
-    fontSize: 11,
-    color: colors.textSecondary,
-    textAlign: 'center',
-  },
   formSection: {
-    marginBottom: 24,
+    marginBottom: 32,
   },
   inputLabel: {
     fontSize: 14,
@@ -380,6 +267,8 @@ const styles = StyleSheet.create({
     padding: 16,
     alignItems: 'center',
     marginBottom: 12,
+    minHeight: 56,
+    justifyContent: 'center',
   },
   loginButtonPressed: {
     opacity: 0.8,
@@ -400,5 +289,34 @@ const styles = StyleSheet.create({
   registerButtonText: {
     fontSize: 14,
     color: colors.primary,
+  },
+  roleInfo: {
+    backgroundColor: colors.card,
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  roleInfoTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 12,
+  },
+  roleInfoItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+    gap: 12,
+  },
+  roleInfoText: {
+    flex: 1,
+    fontSize: 13,
+    color: colors.textSecondary,
+    lineHeight: 20,
+  },
+  roleInfoBold: {
+    fontWeight: '600',
+    color: colors.text,
   },
 });
