@@ -199,7 +199,7 @@ export default function DropDetailsScreen() {
             >
               <View style={styles.buttonContent}>
                 <View style={styles.iconContainer}>
-                  <IconSymbol name="square.and.arrow.up" size={16} color="#1E88E5" />
+                  <IconSymbol name="square.and.arrow.up" size={16} color="#FFF" />
                 </View>
                 
                 <View style={styles.textContainer}>
@@ -257,10 +257,10 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   whatsappButton: {
-    backgroundColor: '#B3E5FC',
+    backgroundColor: '#1976D2',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#81D4FA',
+    borderColor: '#1565C0',
     overflow: 'hidden',
   },
   buttonContent: {
@@ -274,35 +274,35 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#FFF',
+    backgroundColor: '#1565C0',
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#81D4FA',
+    borderColor: '#0D47A1',
   },
   textContainer: {
     flex: 1,
     gap: 2,
   },
   buttonTitle: {
-    color: '#0D47A1',
+    color: '#FFF',
     fontSize: 13,
     fontWeight: '600',
     letterSpacing: 0.2,
   },
   buttonSubtext: {
-    color: '#1565C0',
+    color: '#E3F2FD',
     fontSize: 11,
     fontWeight: '500',
   },
   discountBadge: {
-    backgroundColor: '#1976D2',
+    backgroundColor: '#B3E5FC',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,
   },
   discountBadgeText: {
-    color: '#FFF',
+    color: '#0D47A1',
     fontSize: 10,
     fontWeight: '700',
     letterSpacing: 0.3,
