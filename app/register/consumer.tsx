@@ -53,14 +53,19 @@ export default function RegisterConsumerScreen() {
 
       if (error) {
         console.error('Error loading pickup points:', error);
-        Alert.alert('Errore', 'Impossibile caricare i punti di ritiro');
+        Alert.alert('Errore', 'Impossibile caricare i punti di ritiro. Riprova più tardi.');
         return;
       }
 
-      console.log('Pickup points loaded:', data?.length);
+      console.log('Pickup points loaded:', data?.length || 0);
       setPickupPoints(data || []);
+      
+      if (!data || data.length === 0) {
+        console.warn('No pickup points available');
+      }
     } catch (error) {
       console.error('Exception loading pickup points:', error);
+      Alert.alert('Errore', 'Si è verificato un errore durante il caricamento dei punti di ritiro.');
     } finally {
       setLoadingPickupPoints(false);
     }
@@ -237,11 +242,41 @@ export default function RegisterConsumerScreen() {
                     <ActivityIndicator size="small" color={colors.primary} />
                     <Text style={styles.loadingText}>Caricamento punti di ritiro...</Text>
                   </View>
+                ) : pickupPoints.length === 0 ? (
+                  <View style={styles.noPickupPointsContainer}>
+                    <IconSymbol
+                      ios_icon_name="exclamationmark.triangle.fill"
+                      android_material_icon_name="warning"
+                      size={32}
+                      color={colors.error || '#FF3B30'}
+                    />
+                    <Text style={styles.noPickupPointsTitle}>Nessun punto di ritiro disponibile</Text>
+                    <Text style={styles.noPickupPointsText}>
+                      Al momento non ci sono punti di ritiro attivi. Riprova più tardi o contatta il supporto.
+                    </Text>
+                    <Pressable
+                      style={styles.retryButton}
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        setLoadingPickupPoints(true);
+                        loadPickupPoints();
+                      }}
+                    >
+                      <IconSymbol
+                        ios_icon_name="arrow.clockwise"
+                        android_material_icon_name="refresh"
+                        size={20}
+                        color={colors.primary}
+                      />
+                      <Text style={styles.retryButtonText}>Ricarica</Text>
+                    </Pressable>
+                  </View>
                 ) : (
                   <ScrollView 
                     horizontal 
                     showsHorizontalScrollIndicator={false}
                     style={styles.pickupPointsScroll}
+                    contentContainerStyle={styles.pickupPointsScrollContent}
                   >
                     {pickupPoints.map((point) => (
                       <Pressable
@@ -254,6 +289,7 @@ export default function RegisterConsumerScreen() {
                         onPress={() => {
                           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                           setSelectedPickupPoint(point.id);
+                          console.log('Selected pickup point:', point.city, point.id);
                         }}
                         disabled={loading}
                       >
@@ -311,10 +347,10 @@ export default function RegisterConsumerScreen() {
               <Pressable 
                 style={({ pressed }) => [
                   styles.registerButton,
-                  (pressed || loading) && styles.registerButtonPressed
+                  (pressed || loading || pickupPoints.length === 0) && styles.registerButtonPressed
                 ]} 
                 onPress={handleRegister}
-                disabled={loading}
+                disabled={loading || pickupPoints.length === 0}
               >
                 {loading ? (
                   <ActivityIndicator color={colors.background} />
@@ -414,8 +450,48 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.textSecondary,
   },
+  noPickupPointsContainer: {
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 12,
+    padding: 24,
+    alignItems: 'center',
+  },
+  noPickupPointsTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.text,
+    marginTop: 12,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  noPickupPointsText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 16,
+  },
+  retryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    backgroundColor: colors.primary + '15',
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.primary,
+  },
   pickupPointsScroll: {
     marginHorizontal: -4,
+  },
+  pickupPointsScrollContent: {
+    paddingHorizontal: 4,
   },
   pickupPointCard: {
     backgroundColor: colors.card,
