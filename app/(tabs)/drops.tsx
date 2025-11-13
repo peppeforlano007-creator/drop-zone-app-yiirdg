@@ -9,6 +9,7 @@ import { mockDrops } from '@/data/mockData';
 import { IconSymbol } from '@/components/IconSymbol';
 
 export default function DropsScreen() {
+  // Only show drops that are active (approved and running)
   const activeDrops = mockDrops.filter(drop => drop.status === 'active');
 
   return (
@@ -41,7 +42,12 @@ export default function DropsScreen() {
             activeDrops.map(drop => <DropCard key={drop.id} drop={drop} />)
           ) : (
             <View style={styles.emptyState}>
-              <IconSymbol name="tray" size={64} color={colors.textTertiary} />
+              <IconSymbol
+                ios_icon_name="tray"
+                android_material_icon_name="inbox"
+                size={64}
+                color={colors.textTertiary}
+              />
               <Text style={styles.emptyTitle}>Nessun drop attivo</Text>
               <Text style={styles.emptyText}>
                 I drop si attiveranno quando abbastanza utenti del tuo punto di ritiro
@@ -54,10 +60,10 @@ export default function DropsScreen() {
             <Text style={styles.infoTitle}>Come funzionano i Drop?</Text>
             <View style={styles.infoList}>
               <Text style={styles.infoText}>
-                • Quando abbastanza utenti del tuo punto di ritiro prenotano prodotti della stessa lista, si attiva un drop
+                • Quando abbastanza utenti del tuo punto di ritiro prenotano prodotti della stessa lista, si crea un drop in attesa di approvazione
               </Text>
               <Text style={styles.infoText}>
-                • Il drop parte con lo sconto minimo e dura 5 giorni
+                • Una volta approvato e attivato, il drop parte con lo sconto minimo e dura 5 giorni
               </Text>
               <Text style={styles.infoText}>
                 • Più persone prenotano, più lo sconto aumenta

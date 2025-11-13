@@ -1,6 +1,15 @@
 
 export type ProductCondition = 'nuovo' | 'reso da cliente' | 'packaging rovinato';
 
+export type DropStatus = 
+  | 'pending_approval' 
+  | 'approved' 
+  | 'active' 
+  | 'inactive' 
+  | 'completed' 
+  | 'expired' 
+  | 'cancelled';
+
 export interface Product {
   id: string;
   supplierId: string;
@@ -60,7 +69,7 @@ export interface Drop {
   maxValue: number;
   startTime: Date;
   endTime: Date;
-  status: 'active' | 'completed' | 'expired';
+  status: DropStatus;
   products: Product[];
 }
 

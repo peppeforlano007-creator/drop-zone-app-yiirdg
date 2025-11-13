@@ -12,9 +12,10 @@ export const colors = {
   accent: '#E0E0E0',
   card: '#FFFFFF',
   border: '#E5E5E5',
-  success: '#000000',
-  error: '#000000',
-  warning: '#000000',
+  success: '#10B981',
+  error: '#EF4444',
+  warning: '#F59E0B',
+  info: '#3B82F6',
 };
 
 export const buttonStyles = StyleSheet.create({

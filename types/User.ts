@@ -1,5 +1,5 @@
 
-export type UserRole = 'consumer' | 'supplier' | 'pickup-point';
+export type UserRole = 'consumer' | 'supplier' | 'pickup-point' | 'admin';
 
 export interface User {
   id: string;
@@ -56,7 +56,7 @@ export interface PickupPoint {
   iban?: string;
   bankName?: string;
   accountHolder?: string;
-  commissionPerOrder: number; // Default: 2.50
+  commissionPerOrder: number;
   totalEarnings: number;
   totalOrdersDelivered: number;
   status: 'pending' | 'active' | 'suspended';
