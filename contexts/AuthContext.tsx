@@ -3,6 +3,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { User, UserRole } from '@/types/User';
 import { supabase } from '@/app/integrations/supabase/client';
 import { Session } from '@supabase/supabase-js';
+import { Alert } from 'react-native';
 
 interface AuthContextType {
   user: User | null;
@@ -52,46 +53,136 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const loadUserProfile = async (userId: string) => {
+  const loadUserProfile = async (userId: string, retryCount = 0) => {
     try {
-      console.log('AuthProvider: Loading profile for user:', userId);
+      console.log(`AuthProvider: Loading profile for user: ${userId} (attempt ${retryCount + 1})`);
       
-      const { data: profile, error } = await supabase
+      // Add a small delay to ensure the session is fully established
+      if (retryCount === 0) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+      
+      // First, try to get the profile without the join
+      const { data: profile, error: profileError } = await supabase
         .from('profiles')
-        .select(`
-          *,
-          pickup_points (
-            id,
-            name,
-            city
-          )
-        `)
+        .select('*')
         .eq('user_id', userId)
         .single();
 
-      if (error) {
-        console.error('AuthProvider: Error loading profile:', error);
+      if (profileError) {
+        console.error('AuthProvider: Error loading profile:', profileError);
+        console.error('AuthProvider: Error details:', {
+          message: profileError.message,
+          details: profileError.details,
+          hint: profileError.hint,
+          code: profileError.code
+        });
+        
+        // Retry up to 3 times with exponential backoff
+        if (retryCount < 3) {
+          console.log(`AuthProvider: Retrying profile load in ${(retryCount + 1) * 500}ms...`);
+          await new Promise(resolve => setTimeout(resolve, (retryCount + 1) * 500));
+          return loadUserProfile(userId, retryCount + 1);
+        }
+        
+        // Show error to user after all retries failed
+        Alert.alert(
+          'Errore Caricamento Profilo',
+          `Impossibile caricare il profilo utente: ${profileError.message}. Riprova ad accedere.`,
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                // Log out the user
+                supabase.auth.signOut();
+              }
+            }
+          ]
+        );
+        
         setLoading(false);
         return;
       }
 
-      if (profile) {
-        console.log('AuthProvider: Profile loaded:', profile.role);
-        const userData: User = {
-          id: profile.user_id,
-          name: profile.full_name || 'User',
-          email: profile.email,
-          role: profile.role as UserRole,
-          phone: profile.phone || undefined,
-          pickupPoint: profile.pickup_points?.city || undefined,
-          pickupPointId: profile.pickup_point_id || undefined,
-        };
-        setUser(userData);
+      if (!profile) {
+        console.error('AuthProvider: Profile not found for user:', userId);
+        
+        // Retry if this is the first attempt
+        if (retryCount < 3) {
+          console.log(`AuthProvider: Profile not found, retrying in ${(retryCount + 1) * 500}ms...`);
+          await new Promise(resolve => setTimeout(resolve, (retryCount + 1) * 500));
+          return loadUserProfile(userId, retryCount + 1);
+        }
+        
+        Alert.alert(
+          'Profilo Non Trovato',
+          'Il tuo profilo utente non è stato trovato. Contatta il supporto.',
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                supabase.auth.signOut();
+              }
+            }
+          ]
+        );
+        setLoading(false);
+        return;
       }
+
+      console.log('AuthProvider: Profile loaded successfully:', profile.role);
+
+      // Now get the pickup point if it exists
+      let pickupPointCity: string | undefined;
+      if (profile.pickup_point_id) {
+        const { data: pickupPoint, error: pickupError } = await supabase
+          .from('pickup_points')
+          .select('city')
+          .eq('id', profile.pickup_point_id)
+          .single();
+
+        if (pickupError) {
+          console.warn('AuthProvider: Error loading pickup point:', pickupError);
+        } else if (pickupPoint) {
+          pickupPointCity = pickupPoint.city;
+        }
+      }
+
+      const userData: User = {
+        id: profile.user_id,
+        name: profile.full_name || 'User',
+        email: profile.email,
+        role: profile.role as UserRole,
+        phone: profile.phone || undefined,
+        pickupPoint: pickupPointCity,
+        pickupPointId: profile.pickup_point_id || undefined,
+      };
       
+      console.log('AuthProvider: User data created:', userData.role, userData.email);
+      setUser(userData);
       setLoading(false);
     } catch (error) {
       console.error('AuthProvider: Exception loading profile:', error);
+      
+      // Retry on exception
+      if (retryCount < 3) {
+        console.log(`AuthProvider: Exception occurred, retrying in ${(retryCount + 1) * 500}ms...`);
+        await new Promise(resolve => setTimeout(resolve, (retryCount + 1) * 500));
+        return loadUserProfile(userId, retryCount + 1);
+      }
+      
+      Alert.alert(
+        'Errore',
+        'Si è verificato un errore imprevisto durante il caricamento del profilo. Riprova.',
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              supabase.auth.signOut();
+            }
+          }
+        ]
+      );
       setLoading(false);
     }
   };
@@ -156,6 +247,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (error) {
         console.error('AuthProvider: Login error:', error);
+        console.error('AuthProvider: Login error details:', {
+          message: error.message,
+          status: error.status,
+          name: error.name
+        });
         return { success: false, message: error.message };
       }
 
@@ -163,7 +259,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return { success: false, message: 'Errore durante il login' };
       }
 
-      console.log('AuthProvider: User logged in:', data.user.id);
+      console.log('AuthProvider: User logged in successfully:', data.user.id);
       
       // Profile will be loaded by the auth state change listener
       return { success: true };

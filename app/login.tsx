@@ -56,19 +56,36 @@ export default function LoginScreen() {
     setLoading(true);
 
     try {
+      console.log('Login: Attempting login for:', email);
       const result = await login(email.trim().toLowerCase(), password);
+      
+      console.log('Login: Result:', result);
       
       if (result.success) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        console.log('Login: Success, waiting for profile to load...');
         // Navigation will be handled by useEffect when user state updates
       } else {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-        Alert.alert('Errore di Login', result.message || 'Credenziali non valide');
+        console.error('Login: Failed:', result.message);
+        
+        // Show more user-friendly error messages
+        let errorMessage = result.message || 'Credenziali non valide';
+        
+        if (errorMessage.includes('Email not confirmed')) {
+          errorMessage = 'Email non confermata. Controlla la tua casella di posta e clicca sul link di conferma.';
+        } else if (errorMessage.includes('Invalid login credentials')) {
+          errorMessage = 'Email o password non corretti. Riprova.';
+        } else if (errorMessage.includes('Email not found')) {
+          errorMessage = 'Account non trovato. Registrati per creare un nuovo account.';
+        }
+        
+        Alert.alert('Errore di Login', errorMessage);
       }
     } catch (error) {
-      console.error('Login error:', error);
+      console.error('Login: Exception:', error);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert('Errore', 'Si è verificato un errore durante il login');
+      Alert.alert('Errore', 'Si è verificato un errore durante il login. Riprova.');
     } finally {
       setLoading(false);
     }
