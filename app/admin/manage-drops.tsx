@@ -215,6 +215,14 @@ export default function ManageDropsScreen() {
     });
   };
 
+  const handleViewAnalytics = (dropId: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    router.push({
+      pathname: '/admin/drop-analytics',
+      params: { dropId },
+    });
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'pending_approval':
@@ -288,6 +296,7 @@ export default function ManageDropsScreen() {
     const canActivate = drop.status === 'approved' || drop.status === 'inactive';
     const canDeactivate = drop.status === 'active';
     const canComplete = drop.status === 'active';
+    const canViewAnalytics = drop.status === 'active' || drop.status === 'completed';
 
     return (
       <View key={drop.id} style={styles.dropCard}>
@@ -330,6 +339,25 @@ export default function ManageDropsScreen() {
         </View>
 
         <View style={styles.dropActions}>
+          {canViewAnalytics && (
+            <Pressable
+              style={({ pressed }) => [
+                styles.actionButton,
+                styles.analyticsButton,
+                pressed && styles.actionButtonPressed,
+              ]}
+              onPress={() => handleViewAnalytics(drop.id)}
+            >
+              <IconSymbol
+                ios_icon_name="chart.bar.fill"
+                android_material_icon_name="analytics"
+                size={18}
+                color="#fff"
+              />
+              <Text style={styles.actionButtonText}>Analytics</Text>
+            </Pressable>
+          )}
+
           {canApprove && (
             <Pressable
               style={({ pressed }) => [
@@ -648,6 +676,9 @@ const styles = StyleSheet.create({
   actionButtonPressed: {
     opacity: 0.7,
     transform: [{ scale: 0.98 }],
+  },
+  analyticsButton: {
+    backgroundColor: '#9333EA',
   },
   approveButton: {
     backgroundColor: colors.info,
