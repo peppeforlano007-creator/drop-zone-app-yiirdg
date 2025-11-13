@@ -1,15 +1,23 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, Platform, ActivityIndicator, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Stack } from 'expo-router';
-import { colors, commonStyles } from '@/styles/commonStyles';
-import DropCard from '@/components/DropCard';
-import { IconSymbol } from '@/components/IconSymbol';
 import { supabase } from '@/app/integrations/supabase/client';
+import DropCard from '@/components/DropCard';
+import { Stack } from 'expo-router';
+import { colors } from '@/styles/commonStyles';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import {
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  RefreshControl,
+  ActivityIndicator,
+} from 'react-native';
+import { IconSymbol } from '@/components/IconSymbol';
+import { useRealtimeDrops } from '@/hooks/useRealtimeDrop';
 
-interface DropData {
+interface Drop {
   id: string;
   name: string;
   current_discount: number;
@@ -26,46 +34,37 @@ interface DropData {
     name: string;
     min_discount: number;
     max_discount: number;
-    min_reservation_value: number;
-    max_reservation_value: number;
   };
 }
 
 export default function DropsScreen() {
-  const [drops, setDrops] = useState<DropData[]>([]);
+  const [drops, setDrops] = useState<Drop[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const { user } = useAuth();
+  const [userPickupPointId, setUserPickupPointId] = useState<string | null>(null);
 
   const loadDrops = useCallback(async () => {
     try {
-      console.log('Loading active drops...');
-      
-      // Get user's pickup point
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('pickup_point_id')
-        .eq('user_id', user?.id)
-        .single();
+      console.log('Loading drops...');
 
-      if (!profile?.pickup_point_id) {
-        console.log('User has no pickup point assigned');
-        setLoading(false);
-        return;
+      // Get user's pickup point
+      if (user) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('pickup_point_id')
+          .eq('user_id', user.id)
+          .single();
+
+        if (profile?.pickup_point_id) {
+          setUserPickupPointId(profile.pickup_point_id);
+        }
       }
 
-      // Load active drops for user's pickup point
       const { data, error } = await supabase
         .from('drops')
         .select(`
-          id,
-          name,
-          current_discount,
-          current_value,
-          target_value,
-          start_time,
-          end_time,
-          status,
+          *,
           pickup_points (
             name,
             city
@@ -73,12 +72,9 @@ export default function DropsScreen() {
           supplier_lists (
             name,
             min_discount,
-            max_discount,
-            min_reservation_value,
-            max_reservation_value
+            max_discount
           )
         `)
-        .eq('pickup_point_id', profile.pickup_point_id)
         .eq('status', 'active')
         .order('created_at', { ascending: false });
 
@@ -87,7 +83,7 @@ export default function DropsScreen() {
         return;
       }
 
-      console.log('Loaded drops:', data?.length || 0);
+      console.log('Drops loaded:', data?.length);
       setDrops(data || []);
     } catch (error) {
       console.error('Error in loadDrops:', error);
@@ -95,193 +91,175 @@ export default function DropsScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [user?.id]);
+  }, [user]);
 
   useEffect(() => {
     loadDrops();
   }, [loadDrops]);
+
+  // Set up real-time subscription for drops updates
+  const handleDropUpdate = useCallback((updatedDrop: any) => {
+    console.log('Real-time drop update in list:', updatedDrop);
+    
+    setDrops(prevDrops => {
+      const dropIndex = prevDrops.findIndex(d => d.id === updatedDrop.id);
+      
+      if (dropIndex === -1) {
+        // New drop - reload the list
+        loadDrops();
+        return prevDrops;
+      }
+
+      // Update existing drop
+      const newDrops = [...prevDrops];
+      newDrops[dropIndex] = {
+        ...newDrops[dropIndex],
+        current_discount: updatedDrop.current_discount,
+        current_value: updatedDrop.current_value,
+        status: updatedDrop.status,
+        updated_at: updatedDrop.updated_at,
+      };
+
+      return newDrops;
+    });
+  }, [loadDrops]);
+
+  const { isConnected } = useRealtimeDrops({
+    pickupPointId: userPickupPointId || undefined,
+    onUpdate: handleDropUpdate,
+    enabled: true,
+  });
 
   const handleRefresh = () => {
     setRefreshing(true);
     loadDrops();
   };
 
+  const renderDrop = ({ item }: { item: Drop }) => (
+    <DropCard drop={item} />
+  );
+
   if (loading) {
     return (
-      <>
+      <SafeAreaView style={styles.container}>
         <Stack.Screen
           options={{
             title: 'Drop Attivi',
-            headerStyle: {
-              backgroundColor: colors.background,
-            },
-            headerTintColor: colors.text,
+            headerShown: true,
           }}
         />
-        <SafeAreaView style={styles.safeArea} edges={['bottom']}>
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={colors.text} />
-            <Text style={styles.loadingText}>Caricamento drop...</Text>
-          </View>
-        </SafeAreaView>
-      </>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={styles.loadingText}>Caricamento drops...</Text>
+        </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <>
+    <SafeAreaView style={styles.container} edges={['bottom']}>
       <Stack.Screen
         options={{
           title: 'Drop Attivi',
-          headerStyle: {
-            backgroundColor: colors.background,
-          },
-          headerTintColor: colors.text,
+          headerShown: true,
         }}
       />
-      <SafeAreaView style={styles.safeArea} edges={['bottom']}>
-        <ScrollView
-          style={styles.container}
-          contentContainerStyle={[
-            styles.contentContainer,
-            Platform.OS !== 'ios' && styles.contentContainerWithTabBar,
-          ]}
+
+      {isConnected && (
+        <View style={styles.realtimeIndicator}>
+          <View style={styles.realtimeDot} />
+          <Text style={styles.realtimeText}>Aggiornamenti in tempo reale attivi</Text>
+        </View>
+      )}
+
+      {drops.length === 0 ? (
+        <View style={styles.emptyContainer}>
+          <IconSymbol ios_icon_name="tray" android_material_icon_name="inbox" size={64} color={colors.textSecondary} />
+          <Text style={styles.emptyTitle}>Nessun drop attivo</Text>
+          <Text style={styles.emptyText}>
+            I drop appariranno qui quando raggiungeranno il valore minimo di prenotazioni
+          </Text>
+        </View>
+      ) : (
+        <FlatList
+          data={drops}
+          renderItem={renderDrop}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
               onRefresh={handleRefresh}
-              tintColor={colors.text}
+              tintColor={colors.primary}
+              colors={[colors.primary]}
             />
           }
-        >
-          <View style={styles.header}>
-            <Text style={styles.headerTitle}>Drop Attivi</Text>
-            <Text style={styles.headerSubtitle}>
-              Prenota ora e ottieni sconti incredibili
-            </Text>
-          </View>
-
-          {drops.length > 0 ? (
-            drops.map(drop => <DropCard key={drop.id} drop={drop} />)
-          ) : (
-            <View style={styles.emptyState}>
-              <IconSymbol
-                ios_icon_name="tray"
-                android_material_icon_name="inbox"
-                size={64}
-                color={colors.textTertiary}
-              />
-              <Text style={styles.emptyTitle}>Nessun drop attivo</Text>
-              <Text style={styles.emptyText}>
-                I drop si attiveranno quando abbastanza utenti del tuo punto di ritiro
-                mostreranno interesse per gli stessi prodotti
-              </Text>
-            </View>
-          )}
-
-          <View style={styles.infoCard}>
-            <Text style={styles.infoTitle}>Come funzionano i Drop?</Text>
-            <View style={styles.infoList}>
-              <Text style={styles.infoText}>
-                • Quando abbastanza utenti del tuo punto di ritiro prenotano prodotti della stessa lista, si crea un drop in attesa di approvazione
-              </Text>
-              <Text style={styles.infoText}>
-                • Una volta approvato e attivato, il drop parte con lo sconto minimo e dura 5 giorni
-              </Text>
-              <Text style={styles.infoText}>
-                • Più persone prenotano, più lo sconto aumenta
-              </Text>
-              <Text style={styles.infoText}>
-                • Alla fine del drop, paghi solo il prezzo finale con lo sconto raggiunto
-              </Text>
-            </View>
-          </View>
-        </ScrollView>
-      </SafeAreaView>
-    </>
+        />
+      )}
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
   container: {
     flex: 1,
-  },
-  contentContainer: {
-    paddingTop: 20,
-    paddingBottom: 40,
-  },
-  contentContainerWithTabBar: {
-    paddingBottom: 120,
+    backgroundColor: colors.background,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 16,
   },
   loadingText: {
-    fontSize: 14,
+    marginTop: 16,
+    fontSize: 16,
     color: colors.textSecondary,
+    fontFamily: 'System',
   },
-  header: {
-    paddingHorizontal: 20,
-    marginBottom: 24,
-  },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: colors.text,
-    marginBottom: 4,
-    letterSpacing: -0.5,
-  },
-  headerSubtitle: {
-    fontSize: 14,
-    color: colors.textSecondary,
-  },
-  emptyState: {
+  realtimeIndicator: {
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 40,
-    paddingVertical: 60,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: colors.success + '20',
+  },
+  realtimeDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.success,
+    marginRight: 8,
+  },
+  realtimeText: {
+    fontSize: 12,
+    color: colors.success,
+    fontWeight: '600',
+    fontFamily: 'System',
+  },
+  listContent: {
+    padding: 16,
+    paddingBottom: 100,
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 32,
   },
   emptyTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '700',
     color: colors.text,
     marginTop: 16,
-    marginBottom: 8,
+    fontFamily: 'System',
   },
   emptyText: {
-    fontSize: 14,
+    fontSize: 16,
     color: colors.textSecondary,
     textAlign: 'center',
-    lineHeight: 20,
-  },
-  infoCard: {
-    backgroundColor: colors.card,
-    borderRadius: 8,
-    padding: 20,
-    marginHorizontal: 16,
-    marginTop: 24,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  infoTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.text,
-    marginBottom: 12,
-  },
-  infoList: {
-    gap: 8,
-  },
-  infoText: {
-    fontSize: 13,
-    color: colors.textSecondary,
-    lineHeight: 20,
+    marginTop: 8,
+    fontFamily: 'System',
   },
 });

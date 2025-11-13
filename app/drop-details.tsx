@@ -1,17 +1,18 @@
 
-import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, Dimensions, Pressable, Alert, Linking, Animated, ActivityIndicator } from 'react-native';
-import { Stack, useLocalSearchParams, router } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { colors } from '@/styles/commonStyles';
-import ProductCard from '@/components/ProductCard';
+import { usePayment } from '@/contexts/PaymentContext';
 import { IconSymbol } from '@/components/IconSymbol';
 import * as Haptics from 'expo-haptics';
 import { supabase } from '@/app/integrations/supabase/client';
+import ProductCard from '@/components/ProductCard';
+import { colors } from '@/styles/commonStyles';
 import { useAuth } from '@/contexts/AuthContext';
-import { usePayment } from '@/contexts/PaymentContext';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { Stack, useLocalSearchParams, router } from 'expo-router';
+import { View, Text, StyleSheet, FlatList, Dimensions, Pressable, Alert, Linking, Animated, ActivityIndicator } from 'react-native';
+import { useRealtimeDrop } from '@/hooks/useRealtimeDrop';
 
-const { height: SCREEN_HEIGHT } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
 
 interface ProductData {
   id: string;
@@ -52,37 +53,29 @@ interface DropData {
 }
 
 export default function DropDetailsScreen() {
-  const { dropId } = useLocalSearchParams();
+  const { dropId } = useLocalSearchParams<{ dropId: string }>();
   const [drop, setDrop] = useState<DropData | null>(null);
-  const [products, setProducts] = useState<ProductData[]>([]);
-  const [bookedProducts, setBookedProducts] = useState<Set<string>>(new Set());
+  const [products, setProducts] = useState<ProductData[]>(0);
   const [loading, setLoading] = useState(true);
-  const flatListRef = useRef<FlatList>(null);
+  const [userBookings, setUserBookings] = useState<Set<string>>(new Set());
+  const [timeRemaining, setTimeRemaining] = useState('');
+  const bounceAnim = useRef(new Animated.Value(1)).current;
+  const { hasPaymentMethod } = usePayment();
   const { user } = useAuth();
-  const { getDefaultPaymentMethod } = usePayment();
-  
-  // Animation values for share button
-  const scaleAnim = useRef(new Animated.Value(1)).current;
-  const bounceAnim = useRef(new Animated.Value(0)).current;
 
   const loadDropDetails = useCallback(async () => {
+    if (!dropId) {
+      console.log('No dropId provided');
+      return;
+    }
+
     try {
       console.log('Loading drop details for:', dropId);
-
-      // Load drop details
+      
       const { data: dropData, error: dropError } = await supabase
         .from('drops')
         .select(`
-          id,
-          name,
-          current_discount,
-          current_value,
-          target_value,
-          start_time,
-          end_time,
-          status,
-          supplier_list_id,
-          pickup_point_id,
+          *,
           pickup_points (
             name,
             city
@@ -100,29 +93,25 @@ export default function DropDetailsScreen() {
 
       if (dropError) {
         console.error('Error loading drop:', dropError);
-        setLoading(false);
+        Alert.alert('Errore', 'Impossibile caricare i dettagli del drop');
         return;
       }
 
-      console.log('Drop loaded:', dropData);
+      console.log('Drop data loaded:', dropData);
       setDrop(dropData);
 
-      // Load products for this drop's supplier list
       const { data: productsData, error: productsError } = await supabase
         .from('products')
         .select('*')
         .eq('supplier_list_id', dropData.supplier_list_id)
-        .eq('status', 'active')
-        .order('created_at', { ascending: false });
+        .eq('status', 'active');
 
       if (productsError) {
         console.error('Error loading products:', productsError);
-        setLoading(false);
-        return;
+      } else {
+        console.log('Products loaded:', productsData?.length);
+        setProducts(productsData || []);
       }
-
-      console.log('Products loaded:', productsData?.length || 0);
-      setProducts(productsData || []);
     } catch (error) {
       console.error('Error in loadDropDetails:', error);
     } finally {
@@ -131,12 +120,12 @@ export default function DropDetailsScreen() {
   }, [dropId]);
 
   const loadUserBookings = useCallback(async () => {
-    try {
-      if (!user?.id) {
-        console.log('No user ID available');
-        return;
-      }
+    if (!user || !dropId) {
+      console.log('No user or dropId for loading bookings');
+      return;
+    }
 
+    try {
       const { data, error } = await supabase
         .from('bookings')
         .select('product_id')
@@ -145,127 +134,156 @@ export default function DropDetailsScreen() {
         .in('status', ['active', 'confirmed']);
 
       if (error) {
-        console.error('Error loading bookings:', error);
+        console.error('Error loading user bookings:', error);
         return;
       }
 
-      const bookedIds = new Set(data?.map(b => b.product_id) || []);
-      setBookedProducts(bookedIds);
+      const bookingSet = new Set(data.map(b => b.product_id));
+      setUserBookings(bookingSet);
+      console.log('User bookings loaded:', bookingSet.size);
     } catch (error) {
       console.error('Error in loadUserBookings:', error);
     }
-  }, [user?.id, dropId]);
+  }, [user, dropId]);
 
   useEffect(() => {
-    if (dropId) {
-      loadDropDetails();
-      loadUserBookings();
-    }
+    loadDropDetails();
+    loadUserBookings();
   }, [dropId, loadDropDetails, loadUserBookings]);
 
-  // Subtle bounce animation for the share button
-  useEffect(() => {
-    const bounceAnimation = Animated.loop(
-      Animated.sequence([
-        Animated.timing(bounceAnim, {
-          toValue: -4,
-          duration: 2000,
-          useNativeDriver: true,
-        }),
-        Animated.timing(bounceAnim, {
-          toValue: 0,
-          duration: 2000,
-          useNativeDriver: true,
-        }),
-      ])
-    );
+  // Set up real-time subscription for drop updates
+  const handleDropUpdate = useCallback((updatedDrop: any) => {
+    console.log('Real-time drop update received:', updatedDrop);
+    
+    setDrop(prevDrop => {
+      if (!prevDrop) return prevDrop;
+      
+      return {
+        ...prevDrop,
+        current_discount: updatedDrop.current_discount,
+        current_value: updatedDrop.current_value,
+        status: updatedDrop.status,
+        updated_at: updatedDrop.updated_at,
+      };
+    });
 
-    bounceAnimation.start();
+    // Trigger bounce animation on discount update
+    Animated.sequence([
+      Animated.timing(bounceAnim, {
+        toValue: 1.2,
+        duration: 150,
+        useNativeDriver: true,
+      }),
+      Animated.timing(bounceAnim, {
+        toValue: 1,
+        duration: 150,
+        useNativeDriver: true,
+      }),
+    ]).start();
 
-    return () => {
-      bounceAnimation.stop();
-    };
+    // Haptic feedback
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   }, [bounceAnim]);
+
+  const { isConnected } = useRealtimeDrop({
+    dropId: dropId || '',
+    onUpdate: handleDropUpdate,
+    enabled: !!dropId,
+  });
+
+  useEffect(() => {
+    if (!drop) return;
+
+    const updateTimer = () => {
+      const now = new Date().getTime();
+      const endTime = new Date(drop.end_time).getTime();
+      const distance = endTime - now;
+
+      if (distance < 0) {
+        setTimeRemaining('Drop terminato');
+        return;
+      }
+
+      const days = Math.floor(distance / (1000 * 60 * 60 * 24));
+      const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+      const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((distance % (1000 * 60)) / 1000);
+
+      setTimeRemaining(`${days}g ${hours}h ${minutes}m ${seconds}s`);
+    };
+
+    updateTimer();
+    const interval = setInterval(updateTimer, 1000);
+
+    return () => clearInterval(interval);
+  }, [drop]);
 
   const calculateNewDiscount = (newValue: number): number => {
     if (!drop) return 0;
 
-    const minValue = drop.supplier_lists.min_reservation_value;
-    const maxValue = drop.supplier_lists.max_reservation_value;
-    const minDiscount = drop.supplier_lists.min_discount;
-    const maxDiscount = drop.supplier_lists.max_discount;
+    const { min_discount, max_discount, min_reservation_value, max_reservation_value } = drop.supplier_lists;
 
-    // Calculate discount based on value progress
-    const valueProgress = (newValue - minValue) / (maxValue - minValue);
-    const discountRange = maxDiscount - minDiscount;
-    const newDiscount = minDiscount + (discountRange * valueProgress);
+    if (newValue <= min_reservation_value) {
+      return min_discount;
+    }
 
-    // Clamp between min and max
-    return Math.min(Math.max(newDiscount, minDiscount), maxDiscount);
+    if (newValue >= max_reservation_value) {
+      return max_discount;
+    }
+
+    const valueRange = max_reservation_value - min_reservation_value;
+    const discountRange = max_discount - min_discount;
+    const valueProgress = (newValue - min_reservation_value) / valueRange;
+    const newDiscount = min_discount + (discountRange * valueProgress);
+
+    return Math.round(newDiscount * 100) / 100;
   };
 
-  const handleBook = async (productId: string, selectedSize?: string, selectedColor?: string) => {
-    if (!drop || !user) return;
+  const handleBook = async (productId: string) => {
+    if (!user) {
+      Alert.alert('Accesso richiesto', 'Devi effettuare l\'accesso per prenotare');
+      router.push('/login');
+      return;
+    }
+
+    if (!hasPaymentMethod()) {
+      Alert.alert(
+        'Metodo di pagamento richiesto',
+        'Aggiungi un metodo di pagamento per prenotare',
+        [
+          { text: 'Annulla', style: 'cancel' },
+          { text: 'Aggiungi carta', onPress: () => router.push('/add-payment-method') }
+        ]
+      );
+      return;
+    }
+
+    if (!drop) {
+      Alert.alert('Errore', 'Impossibile prenotare in questo momento');
+      return;
+    }
+
+    const product = products.find(p => p.id === productId);
+    if (!product) {
+      Alert.alert('Errore', 'Prodotto non trovato');
+      return;
+    }
 
     try {
-      console.log('Booking product:', productId);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-      // Check if user has a payment method
-      const defaultPaymentMethod = getDefaultPaymentMethod();
-      if (!defaultPaymentMethod) {
-        Alert.alert(
-          'Metodo di Pagamento Richiesto',
-          'Devi aggiungere un metodo di pagamento prima di prenotare.',
-          [
-            { text: 'Annulla', style: 'cancel' },
-            {
-              text: 'Aggiungi Carta',
-              onPress: () => router.push('/add-payment-method'),
-            },
-          ]
-        );
-        return;
-      }
-
-      // Get product details
-      const product = products.find(p => p.id === productId);
-      if (!product) return;
-
-      // IMPORTANTE: Blocchiamo l'importo allo sconto ATTUALE, non il prezzo listino
       const currentDiscountedPrice = product.original_price * (1 - drop.current_discount / 100);
-      
-      // Il prezzo finale sarà calcolato quando il drop si chiude in base allo sconto finale raggiunto
-      const minPossiblePrice = product.original_price * (1 - drop.supplier_lists.max_discount / 100);
-      const maxPossiblePrice = product.original_price * (1 - drop.supplier_lists.min_discount / 100);
 
-      // Get user's profile for pickup point
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('pickup_point_id')
-        .eq('user_id', user.id)
-        .single();
-
-      if (!profile?.pickup_point_id) {
-        Alert.alert('Errore', 'Punto di ritiro non trovato');
-        return;
-      }
-
-      // Create booking
-      // authorized_amount: importo bloccato sulla carta ORA (allo sconto attuale)
-      // final_price: sarà calcolato quando il drop si chiude (allo sconto finale)
       const { data: booking, error: bookingError } = await supabase
         .from('bookings')
         .insert({
           user_id: user.id,
           product_id: productId,
           drop_id: drop.id,
-          pickup_point_id: profile.pickup_point_id,
-          selected_size: selectedSize,
-          selected_color: selectedColor,
+          pickup_point_id: drop.pickup_point_id,
           original_price: product.original_price,
           discount_percentage: drop.current_discount,
-          authorized_amount: currentDiscountedPrice, // Blocchiamo il prezzo con sconto attuale
-          final_price: null, // Sarà calcolato alla chiusura del drop
+          authorized_amount: currentDiscountedPrice,
           payment_status: 'authorized',
           status: 'active',
         })
@@ -274,14 +292,13 @@ export default function DropDetailsScreen() {
 
       if (bookingError) {
         console.error('Error creating booking:', bookingError);
-        Alert.alert('Errore', 'Non è stato possibile completare la prenotazione');
+        Alert.alert('Errore', 'Impossibile creare la prenotazione');
         return;
       }
 
       console.log('Booking created:', booking);
 
-      // Update drop value and discount
-      const newValue = drop.current_value + product.original_price;
+      const newValue = drop.current_value + currentDiscountedPrice;
       const newDiscount = calculateNewDiscount(newValue);
 
       const { error: updateError } = await supabase
@@ -295,37 +312,17 @@ export default function DropDetailsScreen() {
 
       if (updateError) {
         console.error('Error updating drop:', updateError);
-      } else {
-        console.log('Drop updated - New value:', newValue, 'New discount:', newDiscount);
-        
-        // Update local state
-        setDrop({
-          ...drop,
-          current_value: newValue,
-          current_discount: newDiscount,
-        });
       }
 
-      // Update booked products
-      setBookedProducts(prev => {
-        const newSet = new Set(prev);
-        newSet.add(productId);
-        return newSet;
-      });
+      setUserBookings(prev => new Set([...prev, productId]));
 
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert(
-        'Prenotazione Confermata! 🎉',
-        `Il prodotto è stato prenotato.\n\n` +
-        `💳 Importo bloccato sulla carta: €${currentDiscountedPrice.toFixed(2)}\n` +
-        `(Sconto attuale: ${drop.current_discount.toFixed(0)}%)\n\n` +
-        `🎯 Alla fine del drop, addebiteremo solo il prezzo finale con lo sconto raggiunto.\n\n` +
-        `💰 Prezzo minimo possibile: €${minPossiblePrice.toFixed(2)}\n` +
-        `(Se si raggiunge lo sconto massimo del ${drop.supplier_lists.max_discount}%)\n\n` +
-        `💵 Prezzo massimo possibile: €${maxPossiblePrice.toFixed(2)}\n` +
-        `(Se rimane allo sconto minimo del ${drop.supplier_lists.min_discount}%)`,
+        'Prenotazione confermata!',
+        `Hai prenotato ${product.name} con uno sconto del ${drop.current_discount.toFixed(1)}%.\n\nImporto bloccato: €${currentDiscountedPrice.toFixed(2)}\n\nL'importo finale verrà addebitato alla chiusura del drop in base allo sconto raggiunto.`,
         [{ text: 'OK' }]
       );
+
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error) {
       console.error('Error in handleBook:', error);
       Alert.alert('Errore', 'Si è verificato un errore durante la prenotazione');
@@ -333,15 +330,14 @@ export default function DropDetailsScreen() {
   };
 
   const handlePressIn = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    Animated.spring(scaleAnim, {
-      toValue: 0.96,
+    Animated.spring(bounceAnim, {
+      toValue: 0.95,
       useNativeDriver: true,
     }).start();
   };
 
   const handlePressOut = () => {
-    Animated.spring(scaleAnim, {
+    Animated.spring(bounceAnim, {
       toValue: 1,
       friction: 3,
       tension: 40,
@@ -352,228 +348,175 @@ export default function DropDetailsScreen() {
   const handleShareWhatsApp = async () => {
     if (!drop) return;
 
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    
-    // Create a shareable message
-    const message = `🎉 Guarda questo Drop su DROPMARKET!\n\n` +
-      `📦 ${drop.supplier_lists.name}\n` +
-      `📍 Punto di ritiro: ${drop.pickup_points.city}\n` +
-      `💰 Sconto attuale: ${drop.current_discount.toFixed(0)}%\n` +
-      `🎯 Sconto massimo: ${drop.supplier_lists.max_discount}%\n` +
-      `🛍️ ${products.length} prodotti disponibili\n\n` +
-      `Più persone prenotano con carta, più lo sconto aumenta! 🚀\n\n` +
-      `Unisciti al drop: dropmarket://drop/${dropId}`;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
-    const whatsappUrl = `whatsapp://send?text=${encodeURIComponent(message)}`;
+    const message = `🔥 Drop attivo: ${drop.name}!\n\n💰 Sconto attuale: ${drop.current_discount.toFixed(1)}%\n⏰ Tempo rimanente: ${timeRemaining}\n\n🎯 Più persone prenotano, più lo sconto aumenta!\n\nUnisciti ora! 👇`;
+
+    const url = `whatsapp://send?text=${encodeURIComponent(message)}`;
 
     try {
-      const canOpen = await Linking.canOpenURL(whatsappUrl);
+      const canOpen = await Linking.canOpenURL(url);
       if (canOpen) {
-        await Linking.openURL(whatsappUrl);
-        console.log('WhatsApp opened successfully');
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        await Linking.openURL(url);
       } else {
-        Alert.alert(
-          'WhatsApp non disponibile',
-          'WhatsApp non è installato sul tuo dispositivo. Installa WhatsApp per condividere questo drop.',
-          [{ text: 'OK' }]
-        );
-        console.log('WhatsApp not available');
+        Alert.alert('Errore', 'WhatsApp non è installato sul dispositivo');
       }
     } catch (error) {
       console.error('Error opening WhatsApp:', error);
-      Alert.alert(
-        'Errore',
-        'Si è verificato un errore durante l\'apertura di WhatsApp. Riprova più tardi.',
-        [{ text: 'OK' }]
-      );
+      Alert.alert('Errore', 'Impossibile aprire WhatsApp');
     }
   };
 
   const renderProduct = ({ item }: { item: ProductData }) => {
-    // Transform database product to ProductCard format
-    const transformedProduct = {
-      id: item.id,
-      supplierId: '',
-      supplierName: drop?.supplier_lists.name || '',
-      listId: drop?.supplier_list_id || '',
-      name: item.name,
-      description: item.description || '',
-      imageUrl: item.image_url,
-      imageUrls: [item.image_url, ...(item.additional_images || [])],
-      originalPrice: Number(item.original_price),
-      minDiscount: drop?.supplier_lists.min_discount || 0,
-      maxDiscount: drop?.supplier_lists.max_discount || 0,
-      minReservationValue: drop?.supplier_lists.min_reservation_value || 0,
-      maxReservationValue: drop?.supplier_lists.max_reservation_value || 0,
-      category: item.category || '',
-      stock: item.stock || 0,
-      sizes: item.available_sizes,
-      colors: item.available_colors,
-      condition: item.condition as any,
-      availableSizes: item.available_sizes,
-      availableColors: item.available_colors,
-    };
-
+    const isBooked = userBookings.has(item.id);
+    
     return (
-      <ProductCard
-        product={transformedProduct}
-        isInDrop={true}
-        currentDiscount={drop?.current_discount}
-        onBook={handleBook}
-        isInterested={bookedProducts.has(item.id)}
-      />
+      <View style={styles.productContainer}>
+        <ProductCard
+          product={item}
+          isInDrop={true}
+          currentDiscount={drop?.current_discount}
+          onBook={isBooked ? undefined : handleBook}
+          isInterested={isBooked}
+        />
+      </View>
     );
   };
 
   const getItemLayout = (_: any, index: number) => ({
-    length: SCREEN_HEIGHT,
-    offset: SCREEN_HEIGHT * index,
+    length: height,
+    offset: height * index,
     index,
   });
 
   if (loading) {
     return (
-      <>
-        <Stack.Screen
-          options={{
-            title: 'Caricamento...',
-            headerStyle: { backgroundColor: colors.background },
-            headerTintColor: colors.text,
-          }}
-        />
-        <SafeAreaView style={styles.container}>
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={colors.text} />
-            <Text style={styles.loadingText}>Caricamento drop...</Text>
-          </View>
-        </SafeAreaView>
-      </>
+      <SafeAreaView style={styles.container}>
+        <Stack.Screen options={{ headerShown: false }} />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={styles.loadingText}>Caricamento drop...</Text>
+        </View>
+      </SafeAreaView>
     );
   }
 
   if (!drop) {
     return (
       <SafeAreaView style={styles.container}>
-        <Stack.Screen
-          options={{
-            title: 'Drop non trovato',
-            headerStyle: { backgroundColor: colors.background },
-            headerTintColor: colors.text,
-          }}
-        />
+        <Stack.Screen options={{ headerShown: false }} />
         <View style={styles.errorContainer}>
-          <IconSymbol 
-            ios_icon_name="exclamationmark.triangle" 
-            android_material_icon_name="warning" 
-            size={64} 
-            color={colors.text} 
-          />
+          <IconSymbol ios_icon_name="exclamationmark.triangle" android_material_icon_name="error" size={48} color={colors.error} />
           <Text style={styles.errorText}>Drop non trovato</Text>
+          <Pressable style={styles.backButton} onPress={() => router.back()}>
+            <Text style={styles.backButtonText}>Torna indietro</Text>
+          </Pressable>
         </View>
       </SafeAreaView>
     );
   }
 
-  if (products.length === 0) {
-    return (
-      <>
-        <Stack.Screen
-          options={{
-            title: drop.supplier_lists.name,
-            headerStyle: { backgroundColor: colors.background },
-            headerTintColor: colors.text,
-          }}
-        />
-        <SafeAreaView style={styles.container}>
-          <View style={styles.errorContainer}>
-            <IconSymbol 
-              ios_icon_name="tray" 
-              android_material_icon_name="inbox" 
-              size={64} 
-              color={colors.textTertiary} 
-            />
-            <Text style={styles.errorText}>Nessun prodotto disponibile</Text>
-          </View>
-        </SafeAreaView>
-      </>
-    );
-  }
-
   return (
-    <>
-      <Stack.Screen
-        options={{
-          title: drop.supplier_lists.name,
-          headerStyle: { backgroundColor: colors.background },
-          headerTintColor: colors.text,
-        }}
-      />
-      <View style={styles.container}>
-        <FlatList
-          ref={flatListRef}
-          data={products}
-          renderItem={renderProduct}
-          keyExtractor={(item) => item.id}
-          pagingEnabled
-          showsVerticalScrollIndicator={false}
-          snapToInterval={SCREEN_HEIGHT}
-          snapToAlignment="start"
-          decelerationRate="fast"
-          getItemLayout={getItemLayout}
-          removeClippedSubviews={true}
-          maxToRenderPerBatch={3}
-          windowSize={5}
-          initialNumToRender={2}
-        />
-        
-        {/* Minimal WhatsApp Share Button */}
-        <View style={styles.shareButtonContainer}>
-          <Animated.View 
-            style={[
-              styles.shareButtonWrapper,
-              {
-                transform: [
-                  { scale: scaleAnim },
-                  { translateY: bounceAnim },
-                ],
-              },
-            ]}
-          >
-            <Pressable 
-              onPress={handleShareWhatsApp}
-              onPressIn={handlePressIn}
-              onPressOut={handlePressOut}
-              style={styles.whatsappButton}
-            >
-              <View style={styles.buttonContent}>
-                <View style={styles.iconContainer}>
-                  <IconSymbol 
-                    ios_icon_name="square.and.arrow.up" 
-                    android_material_icon_name="share" 
-                    size={16} 
-                    color="#FFF" 
-                  />
-                </View>
-                
-                <View style={styles.textContainer}>
-                  <Text style={styles.buttonTitle}>Invita Amici e Parenti</Text>
-                  <Text style={styles.buttonSubtext}>
-                    Più condividi, più risparmi
-                  </Text>
-                </View>
-                
-                <View style={styles.discountBadge}>
-                  <Text style={styles.discountBadgeText}>
-                    {drop.current_discount.toFixed(0)}% → {drop.supplier_lists.max_discount}%
-                  </Text>
-                </View>
-              </View>
-            </Pressable>
+    <SafeAreaView style={styles.container} edges={['top']}>
+      <Stack.Screen options={{ headerShown: false }} />
+      
+      {/* Header */}
+      <View style={styles.header}>
+        <Pressable
+          style={styles.backBtn}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            router.back();
+          }}
+        >
+          <IconSymbol ios_icon_name="chevron.left" android_material_icon_name="arrow_back" size={24} color={colors.text} />
+        </Pressable>
+
+        <View style={styles.headerCenter}>
+          <Text style={styles.dropName}>{drop.name}</Text>
+          <Text style={styles.pickupPoint}>
+            <IconSymbol ios_icon_name="location.fill" android_material_icon_name="location_on" size={14} color={colors.textSecondary} />
+            {' '}{drop.pickup_points.name}
+          </Text>
+        </View>
+
+        <Pressable
+          style={styles.shareBtn}
+          onPress={handleShareWhatsApp}
+          onPressIn={handlePressIn}
+          onPressOut={handlePressOut}
+        >
+          <Animated.View style={{ transform: [{ scale: bounceAnim }] }}>
+            <IconSymbol ios_icon_name="square.and.arrow.up" android_material_icon_name="share" size={24} color={colors.text} />
+          </Animated.View>
+        </Pressable>
+      </View>
+
+      {/* Drop Info Bar */}
+      <View style={styles.infoBar}>
+        <View style={styles.infoItem}>
+          <Text style={styles.infoLabel}>Sconto attuale</Text>
+          <Animated.View style={{ transform: [{ scale: bounceAnim }] }}>
+            <Text style={styles.discountText}>{drop.current_discount.toFixed(1)}%</Text>
           </Animated.View>
         </View>
+
+        <View style={styles.divider} />
+
+        <View style={styles.infoItem}>
+          <Text style={styles.infoLabel}>Tempo rimanente</Text>
+          <Text style={styles.timerText}>{timeRemaining}</Text>
+        </View>
+
+        <View style={styles.divider} />
+
+        <View style={styles.infoItem}>
+          <Text style={styles.infoLabel}>Progresso</Text>
+          <Text style={styles.progressText}>
+            €{drop.current_value.toFixed(0)} / €{drop.target_value.toFixed(0)}
+          </Text>
+        </View>
       </View>
-    </>
+
+      {/* Real-time connection indicator */}
+      {isConnected && (
+        <View style={styles.realtimeIndicator}>
+          <View style={styles.realtimeDot} />
+          <Text style={styles.realtimeText}>Aggiornamenti in tempo reale attivi</Text>
+        </View>
+      )}
+
+      {/* Progress Bar */}
+      <View style={styles.progressBarContainer}>
+        <View style={styles.progressBarBackground}>
+          <View
+            style={[
+              styles.progressBarFill,
+              { width: `${Math.min((drop.current_value / drop.target_value) * 100, 100)}%` }
+            ]}
+          />
+        </View>
+        <Text style={styles.progressLabel}>
+          {Math.min(Math.round((drop.current_value / drop.target_value) * 100), 100)}% dell'obiettivo
+        </Text>
+      </View>
+
+      {/* Products List */}
+      <FlatList
+        data={products}
+        renderItem={renderProduct}
+        keyExtractor={(item) => item.id}
+        pagingEnabled
+        showsVerticalScrollIndicator={false}
+        snapToInterval={height}
+        decelerationRate="fast"
+        getItemLayout={getItemLayout}
+        removeClippedSubviews={true}
+        maxToRenderPerBatch={2}
+        windowSize={3}
+        initialNumToRender={1}
+      />
+    </SafeAreaView>
   );
 }
 
@@ -586,89 +529,170 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 16,
   },
   loadingText: {
-    fontSize: 14,
+    marginTop: 16,
+    fontSize: 16,
     color: colors.textSecondary,
+    fontFamily: 'System',
   },
   errorContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 40,
+    padding: 24,
   },
   errorText: {
+    marginTop: 16,
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.text,
+    fontFamily: 'System',
+  },
+  backButton: {
+    marginTop: 24,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    backgroundColor: colors.primary,
+    borderRadius: 12,
+  },
+  backButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    fontFamily: 'System',
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: colors.card,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  backBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.background,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerCenter: {
+    flex: 1,
+    marginHorizontal: 12,
+    alignItems: 'center',
+  },
+  dropName: {
     fontSize: 18,
     fontWeight: '700',
     color: colors.text,
-    marginTop: 16,
+    fontFamily: 'System',
   },
-  shareButtonContainer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    padding: 16,
-    paddingBottom: 32,
-    backgroundColor: 'transparent',
+  pickupPoint: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginTop: 2,
+    fontFamily: 'System',
   },
-  shareButtonWrapper: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  whatsappButton: {
-    backgroundColor: '#1976D2',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#1565C0',
-    overflow: 'hidden',
-  },
-  buttonContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    gap: 10,
-  },
-  iconContainer: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#1565C0',
+  shareBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.background,
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#0D47A1',
   },
-  textContainer: {
+  infoBar: {
+    flexDirection: 'row',
+    backgroundColor: colors.card,
+    paddingVertical: 16,
+    paddingHorizontal: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  infoItem: {
     flex: 1,
-    gap: 2,
+    alignItems: 'center',
   },
-  buttonTitle: {
-    color: '#FFF',
-    fontSize: 13,
+  infoLabel: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginBottom: 4,
+    fontFamily: 'System',
+  },
+  discountText: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: colors.primary,
+    fontFamily: 'System',
+  },
+  timerText: {
+    fontSize: 14,
     fontWeight: '600',
-    letterSpacing: 0.2,
+    color: colors.text,
+    fontFamily: 'System',
   },
-  buttonSubtext: {
-    color: '#E3F2FD',
-    fontSize: 11,
-    fontWeight: '500',
+  progressText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.text,
+    fontFamily: 'System',
   },
-  discountBadge: {
-    backgroundColor: '#B3E5FC',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
+  divider: {
+    width: 1,
+    backgroundColor: colors.border,
+    marginHorizontal: 8,
   },
-  discountBadgeText: {
-    color: '#0D47A1',
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 0.3,
+  realtimeIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: colors.success + '20',
+  },
+  realtimeDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.success,
+    marginRight: 8,
+  },
+  realtimeText: {
+    fontSize: 12,
+    color: colors.success,
+    fontWeight: '600',
+    fontFamily: 'System',
+  },
+  progressBarContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: colors.card,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  progressBarBackground: {
+    height: 8,
+    backgroundColor: colors.border,
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  progressBarFill: {
+    height: '100%',
+    backgroundColor: colors.primary,
+    borderRadius: 4,
+  },
+  progressLabel: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginTop: 8,
+    textAlign: 'center',
+    fontFamily: 'System',
+  },
+  productContainer: {
+    height: height,
   },
 });
