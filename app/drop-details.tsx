@@ -199,7 +199,7 @@ export default function DropDetailsScreen() {
             >
               <View style={styles.buttonContent}>
                 <View style={styles.iconContainer}>
-                  <IconSymbol name="square.and.arrow.up" size={16} color="#666" />
+                  <IconSymbol name="square.and.arrow.up" size={16} color="#1E88E5" />
                 </View>
                 
                 <View style={styles.textContainer}>
@@ -257,10 +257,10 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   whatsappButton: {
-    backgroundColor: '#F5F5F5',
+    backgroundColor: '#B3E5FC',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#E0E0E0',
+    borderColor: '#81D4FA',
     overflow: 'hidden',
   },
   buttonContent: {
@@ -278,25 +278,25 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#E0E0E0',
+    borderColor: '#81D4FA',
   },
   textContainer: {
     flex: 1,
     gap: 2,
   },
   buttonTitle: {
-    color: '#333',
+    color: '#0D47A1',
     fontSize: 13,
     fontWeight: '600',
     letterSpacing: 0.2,
   },
   buttonSubtext: {
-    color: '#666',
+    color: '#1565C0',
     fontSize: 11,
     fontWeight: '500',
   },
   discountBadge: {
-    backgroundColor: '#333',
+    backgroundColor: '#1976D2',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,
