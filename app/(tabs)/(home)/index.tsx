@@ -257,28 +257,24 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        {/* List Navigation Buttons - Moved higher to avoid overlap */}
-        <View style={styles.navigationContainer}>
-          {currentListIndex > 0 && (
-            <Pressable 
-              style={[styles.navButton, styles.navButtonLeft]}
-              onPress={handlePreviousList}
-            >
-              <IconSymbol name="chevron.left" size={24} color={colors.text} />
-              <Text style={styles.navButtonText}>Lista Precedente</Text>
-            </Pressable>
-          )}
+        {/* Compact List Navigation Buttons - Small circular buttons on sides */}
+        {currentListIndex > 0 && (
+          <Pressable 
+            style={styles.navButtonLeft}
+            onPress={handlePreviousList}
+          >
+            <IconSymbol name="chevron.left" size={20} color="#000" />
+          </Pressable>
+        )}
 
-          {currentListIndex < productLists.length - 1 && (
-            <Pressable 
-              style={[styles.navButton, styles.navButtonRight]}
-              onPress={handleNextList}
-            >
-              <Text style={styles.navButtonText}>Lista Successiva</Text>
-              <IconSymbol name="chevron.right" size={24} color={colors.text} />
-            </Pressable>
-          )}
-        </View>
+        {currentListIndex < productLists.length - 1 && (
+          <Pressable 
+            style={styles.navButtonRight}
+            onPress={handleNextList}
+          >
+            <IconSymbol name="chevron.right" size={20} color="#000" />
+          </Pressable>
+        )}
 
         {/* Hint Message */}
         {interestedInCurrentList > 1 && (
@@ -445,43 +441,45 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     letterSpacing: 0.5,
   },
-  navigationContainer: {
+  navButtonLeft: {
     position: 'absolute',
-    bottom: 240,
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    zIndex: 10,
-  },
-  navButton: {
-    flexDirection: 'row',
+    left: 12,
+    top: '50%',
+    marginTop: -20,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.85)',
+    justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.97)',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 24,
-    gap: 6,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: 'rgba(0, 0, 0, 0.1)',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  navButtonLeft: {
-    marginRight: 'auto',
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
+    zIndex: 10,
   },
   navButtonRight: {
-    marginLeft: 'auto',
-  },
-  navButtonText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.text,
-    letterSpacing: 0.5,
+    position: 'absolute',
+    right: 12,
+    top: '50%',
+    marginTop: -20,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.85)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(0, 0, 0, 0.1)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
+    zIndex: 10,
   },
   hintContainer: {
     position: 'absolute',
