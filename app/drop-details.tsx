@@ -66,8 +66,10 @@ export default function DropDetailsScreen() {
   const bounceAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    loadDropDetails();
-    loadUserBookings();
+    if (dropId) {
+      loadDropDetails();
+      loadUserBookings();
+    }
   }, [dropId]);
 
   // Subtle bounce animation for the share button
@@ -161,10 +163,15 @@ export default function DropDetailsScreen() {
 
   const loadUserBookings = async () => {
     try {
+      if (!user?.id) {
+        console.log('No user ID available');
+        return;
+      }
+
       const { data, error } = await supabase
         .from('bookings')
         .select('product_id')
-        .eq('user_id', user?.id)
+        .eq('user_id', user.id)
         .eq('drop_id', dropId)
         .in('status', ['active', 'confirmed']);
 
@@ -224,8 +231,12 @@ export default function DropDetailsScreen() {
       const product = products.find(p => p.id === productId);
       if (!product) return;
 
-      // Calculate prices
-      const discountedPrice = product.original_price * (1 - drop.current_discount / 100);
+      // IMPORTANTE: Blocchiamo l'importo allo sconto ATTUALE, non il prezzo listino
+      const currentDiscountedPrice = product.original_price * (1 - drop.current_discount / 100);
+      
+      // Il prezzo finale sarà calcolato quando il drop si chiude in base allo sconto finale raggiunto
+      const minPossiblePrice = product.original_price * (1 - drop.supplier_lists.max_discount / 100);
+      const maxPossiblePrice = product.original_price * (1 - drop.supplier_lists.min_discount / 100);
 
       // Get user's profile for pickup point
       const { data: profile } = await supabase
@@ -240,6 +251,8 @@ export default function DropDetailsScreen() {
       }
 
       // Create booking
+      // authorized_amount: importo bloccato sulla carta ORA (allo sconto attuale)
+      // final_price: sarà calcolato quando il drop si chiude (allo sconto finale)
       const { data: booking, error: bookingError } = await supabase
         .from('bookings')
         .insert({
@@ -251,7 +264,8 @@ export default function DropDetailsScreen() {
           selected_color: selectedColor,
           original_price: product.original_price,
           discount_percentage: drop.current_discount,
-          final_price: discountedPrice,
+          authorized_amount: currentDiscountedPrice, // Blocchiamo il prezzo con sconto attuale
+          final_price: null, // Sarà calcolato alla chiusura del drop
           payment_status: 'authorized',
           status: 'active',
         })
@@ -302,7 +316,14 @@ export default function DropDetailsScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert(
         'Prenotazione Confermata! 🎉',
-        `Il prodotto è stato prenotato.\n\nAbbiamo bloccato €${product.original_price.toFixed(2)} sulla tua carta.\n\nAlla fine del drop, addebiteremo solo il prezzo finale con lo sconto raggiunto.`,
+        `Il prodotto è stato prenotato.\n\n` +
+        `💳 Importo bloccato sulla carta: €${currentDiscountedPrice.toFixed(2)}\n` +
+        `(Sconto attuale: ${drop.current_discount.toFixed(0)}%)\n\n` +
+        `🎯 Alla fine del drop, addebiteremo solo il prezzo finale con lo sconto raggiunto.\n\n` +
+        `💰 Prezzo minimo possibile: €${minPossiblePrice.toFixed(2)}\n` +
+        `(Se si raggiunge lo sconto massimo del ${drop.supplier_lists.max_discount}%)\n\n` +
+        `💵 Prezzo massimo possibile: €${maxPossiblePrice.toFixed(2)}\n` +
+        `(Se rimane allo sconto minimo del ${drop.supplier_lists.min_discount}%)`,
         [{ text: 'OK' }]
       );
     } catch (error) {

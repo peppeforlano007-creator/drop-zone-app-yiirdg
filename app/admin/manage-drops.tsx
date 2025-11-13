@@ -207,6 +207,14 @@ export default function ManageDropsScreen() {
     );
   };
 
+  const handleCompleteDrop = (dropId: string, dropName: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    router.push({
+      pathname: '/admin/complete-drop',
+      params: { dropId, dropName },
+    });
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'pending_approval':
@@ -279,6 +287,7 @@ export default function ManageDropsScreen() {
     const canApprove = drop.status === 'pending_approval';
     const canActivate = drop.status === 'approved' || drop.status === 'inactive';
     const canDeactivate = drop.status === 'active';
+    const canComplete = drop.status === 'active';
 
     return (
       <View key={drop.id} style={styles.dropCard}>
@@ -384,6 +393,25 @@ export default function ManageDropsScreen() {
                 color="#fff"
               />
               <Text style={styles.actionButtonText}>Disattiva</Text>
+            </Pressable>
+          )}
+
+          {canComplete && (
+            <Pressable
+              style={({ pressed }) => [
+                styles.actionButton,
+                styles.completeButton,
+                pressed && styles.actionButtonPressed,
+              ]}
+              onPress={() => handleCompleteDrop(drop.id, drop.name)}
+            >
+              <IconSymbol
+                ios_icon_name="checkmark.circle.fill"
+                android_material_icon_name="check_circle"
+                size={18}
+                color="#fff"
+              />
+              <Text style={styles.actionButtonText}>Completa</Text>
             </Pressable>
           )}
         </View>
@@ -605,9 +633,11 @@ const styles = StyleSheet.create({
   dropActions: {
     flexDirection: 'row',
     gap: 8,
+    flexWrap: 'wrap',
   },
   actionButton: {
     flex: 1,
+    minWidth: '45%',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -627,6 +657,9 @@ const styles = StyleSheet.create({
   },
   deactivateButton: {
     backgroundColor: colors.error,
+  },
+  completeButton: {
+    backgroundColor: '#4CAF50',
   },
   actionButtonText: {
     fontSize: 14,
