@@ -72,7 +72,11 @@ export default function RegisterConsumerScreen() {
   };
 
   const handleRegister = async () => {
-    console.log('handleRegister called');
+    console.log('=== REGISTRATION START ===');
+    console.log('Full Name:', fullName);
+    console.log('Email:', email);
+    console.log('Phone:', phone);
+    console.log('Selected Pickup Point ID:', selectedPickupPoint);
     
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     
@@ -120,6 +124,7 @@ export default function RegisterConsumerScreen() {
     setLoading(true);
 
     try {
+      console.log('Calling register function...');
       const result = await register(
         email.trim().toLowerCase(),
         password,
@@ -128,6 +133,8 @@ export default function RegisterConsumerScreen() {
         'consumer',
         selectedPickupPoint
       );
+
+      console.log('Registration result:', result);
 
       if (result.success) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -146,6 +153,7 @@ export default function RegisterConsumerScreen() {
         );
       } else {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        console.error('Registration failed:', result.message);
         Alert.alert('Errore di Registrazione', result.message || 'Si è verificato un errore');
       }
     } catch (error) {
@@ -154,6 +162,7 @@ export default function RegisterConsumerScreen() {
       Alert.alert('Errore', 'Si è verificato un errore imprevisto');
     } finally {
       setLoading(false);
+      console.log('=== REGISTRATION END ===');
     }
   };
 

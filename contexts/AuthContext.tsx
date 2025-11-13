@@ -105,9 +105,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     pickupPointId?: string
   ): Promise<{ success: boolean; message?: string }> => {
     try {
-      console.log('AuthProvider: Registering user:', email, role);
+      console.log('AuthProvider: Registering user:', email, role, 'pickup_point_id:', pickupPointId);
       
       // Sign up with Supabase Auth
+      // The profile will be created automatically by the database trigger
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
         password,
@@ -131,24 +132,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return { success: false, message: 'Errore durante la registrazione' };
       }
 
-      console.log('AuthProvider: User registered:', authData.user.id);
-
-      // Create profile
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .insert({
-          user_id: authData.user.id,
-          email,
-          full_name: fullName,
-          phone,
-          role,
-          pickup_point_id: pickupPointId,
-        });
-
-      if (profileError) {
-        console.error('AuthProvider: Profile creation error:', profileError);
-        return { success: false, message: 'Errore durante la creazione del profilo' };
-      }
+      console.log('AuthProvider: User registered successfully:', authData.user.id);
+      console.log('AuthProvider: Profile will be created automatically by database trigger');
 
       return { 
         success: true, 
