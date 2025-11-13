@@ -1,13 +1,13 @@
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { View, StyleSheet, FlatList, Dimensions, Platform, Text, Pressable, Alert, Animated } from 'react-native';
 import { Stack, router } from 'expo-router';
 import { colors } from '@/styles/commonStyles';
 import ProductCard from '@/components/ProductCard';
-import { mockProducts, mockUser } from '@/data/mockData';
 import { Product } from '@/types/Product';
 import { IconSymbol } from '@/components/IconSymbol';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/app/integrations/supabase/client';
 import * as Haptics from 'expo-haptics';
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -23,41 +23,137 @@ interface ProductList {
 }
 
 export default function HomeScreen() {
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
   const [interestedProducts, setInterestedProducts] = useState<Set<string>>(new Set());
   const [currentListIndex, setCurrentListIndex] = useState(0);
   const [currentProductIndex, setCurrentProductIndex] = useState(0);
+  const [productLists, setProductLists] = useState<ProductList[]>([]);
+  const [loading, setLoading] = useState(true);
   const listFlatListRef = useRef<FlatList>(null);
   const productFlatListRef = useRef<FlatList>(null);
   const progressAnim = useRef(new Animated.Value(0)).current;
 
-  // Group products by list
-  const productLists: ProductList[] = React.useMemo(() => {
-    const listsMap = new Map<string, ProductList>();
-    
-    mockProducts.forEach(product => {
-      if (!listsMap.has(product.listId)) {
-        listsMap.set(product.listId, {
-          listId: product.listId,
-          supplierName: product.supplierName,
-          products: [],
-          minDiscount: product.minDiscount,
-          maxDiscount: product.maxDiscount,
-          minReservationValue: product.minReservationValue,
-          maxReservationValue: product.maxReservationValue,
-        });
-      }
-      listsMap.get(product.listId)!.products.push(product);
-    });
-    
-    return Array.from(listsMap.values());
+  useEffect(() => {
+    loadProducts();
+    loadUserInterests();
   }, []);
+
+  const loadProducts = async () => {
+    try {
+      console.log('Loading products from database...');
+      
+      const { data: products, error } = await supabase
+        .from('products')
+        .select(`
+          *,
+          supplier_lists (
+            id,
+            name,
+            min_discount,
+            max_discount,
+            min_reservation_value,
+            max_reservation_value,
+            profiles!supplier_lists_supplier_id_fkey (
+              full_name
+            )
+          )
+        `)
+        .eq('status', 'active')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error loading products:', error);
+        Alert.alert('Errore', 'Impossibile caricare i prodotti');
+        setLoading(false);
+        return;
+      }
+
+      if (!products || products.length === 0) {
+        console.log('No products found');
+        setLoading(false);
+        return;
+      }
+
+      // Group products by supplier list
+      const listsMap = new Map<string, ProductList>();
+      
+      products.forEach((product: any) => {
+        const listId = product.supplier_list_id;
+        if (!listsMap.has(listId)) {
+          listsMap.set(listId, {
+            listId: listId,
+            supplierName: product.supplier_lists?.profiles?.full_name || 'Fornitore',
+            products: [],
+            minDiscount: product.supplier_lists?.min_discount || 30,
+            maxDiscount: product.supplier_lists?.max_discount || 80,
+            minReservationValue: product.supplier_lists?.min_reservation_value || 5000,
+            maxReservationValue: product.supplier_lists?.max_reservation_value || 30000,
+          });
+        }
+        
+        const productData: Product = {
+          id: product.id,
+          name: product.name,
+          description: product.description || '',
+          imageUrl: product.image_url,
+          additionalImages: product.additional_images || [],
+          originalPrice: parseFloat(product.original_price),
+          availableSizes: product.available_sizes || [],
+          availableColors: product.available_colors || [],
+          condition: product.condition as any,
+          category: product.category,
+          stock: product.stock,
+          listId: listId,
+          supplierName: product.supplier_lists?.profiles?.full_name || 'Fornitore',
+          minDiscount: product.supplier_lists?.min_discount || 30,
+          maxDiscount: product.supplier_lists?.max_discount || 80,
+          minReservationValue: product.supplier_lists?.min_reservation_value || 5000,
+          maxReservationValue: product.supplier_lists?.max_reservation_value || 30000,
+        };
+        
+        listsMap.get(listId)!.products.push(productData);
+      });
+      
+      const lists = Array.from(listsMap.values());
+      console.log(`Loaded ${lists.length} product lists with ${products.length} total products`);
+      setProductLists(lists);
+      setLoading(false);
+    } catch (error) {
+      console.error('Exception loading products:', error);
+      Alert.alert('Errore', 'Errore imprevisto durante il caricamento');
+      setLoading(false);
+    }
+  };
+
+  const loadUserInterests = async () => {
+    if (!user) return;
+    
+    try {
+      const { data: interests, error } = await supabase
+        .from('user_interests')
+        .select('product_id')
+        .eq('user_id', user.id);
+
+      if (error) {
+        console.error('Error loading user interests:', error);
+        return;
+      }
+
+      if (interests) {
+        const productIds = new Set(interests.map(i => i.product_id));
+        setInterestedProducts(productIds);
+        console.log(`Loaded ${productIds.size} user interests`);
+      }
+    } catch (error) {
+      console.error('Exception loading user interests:', error);
+    }
+  };
 
   const currentList = productLists[currentListIndex];
   const totalProductsInList = currentList?.products.length || 0;
   const interestedInCurrentList = currentList?.products.filter(p => interestedProducts.has(p.id)).length || 0;
 
-  React.useEffect(() => {
+  useEffect(() => {
     // Animate progress bar
     Animated.timing(progressAnim, {
       toValue: totalProductsInList > 0 ? (currentProductIndex + 1) / totalProductsInList : 0,
@@ -66,18 +162,68 @@ export default function HomeScreen() {
     }).start();
   }, [currentProductIndex, totalProductsInList]);
 
-  const handleInterest = (productId: string) => {
+  const handleInterest = async (productId: string) => {
+    if (!user || !user.pickupPointId) {
+      Alert.alert('Errore', 'Devi essere registrato con un punto di ritiro per mostrare interesse');
+      return;
+    }
+
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    setInterestedProducts(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(productId)) {
-        newSet.delete(productId);
+    
+    const isCurrentlyInterested = interestedProducts.has(productId);
+    const product = currentList?.products.find(p => p.id === productId);
+    
+    if (!product) return;
+
+    try {
+      if (isCurrentlyInterested) {
+        // Remove interest
+        const { error } = await supabase
+          .from('user_interests')
+          .delete()
+          .eq('user_id', user.id)
+          .eq('product_id', productId);
+
+        if (error) {
+          console.error('Error removing interest:', error);
+          Alert.alert('Errore', 'Impossibile rimuovere l\'interesse');
+          return;
+        }
+
+        setInterestedProducts(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(productId);
+          return newSet;
+        });
+        console.log('Interest removed for product:', productId);
       } else {
-        newSet.add(productId);
+        // Add interest
+        const { error } = await supabase
+          .from('user_interests')
+          .insert({
+            user_id: user.id,
+            product_id: productId,
+            supplier_list_id: product.listId,
+            pickup_point_id: user.pickupPointId,
+          });
+
+        if (error) {
+          console.error('Error adding interest:', error);
+          Alert.alert('Errore', 'Impossibile aggiungere l\'interesse');
+          return;
+        }
+
+        setInterestedProducts(prev => {
+          const newSet = new Set(prev);
+          newSet.add(productId);
+          return newSet;
+        });
+        console.log('Interest added for product:', productId);
       }
-      return newSet;
-    });
-    console.log('User interested in product:', productId);
+    } catch (error) {
+      console.error('Exception handling interest:', error);
+      Alert.alert('Errore', 'Errore imprevisto');
+    }
   };
 
   const handleLogout = () => {
@@ -170,6 +316,32 @@ export default function HomeScreen() {
     index,
   });
 
+  if (loading) {
+    return (
+      <>
+        <Stack.Screen options={{ headerShown: false }} />
+        <View style={[styles.container, styles.centerContent]}>
+          <Text style={styles.loadingText}>Caricamento prodotti...</Text>
+        </View>
+      </>
+    );
+  }
+
+  if (productLists.length === 0) {
+    return (
+      <>
+        <Stack.Screen options={{ headerShown: false }} />
+        <View style={[styles.container, styles.centerContent]}>
+          <IconSymbol name="tray" size={64} color={colors.textTertiary} />
+          <Text style={styles.emptyTitle}>Nessun prodotto disponibile</Text>
+          <Text style={styles.emptyText}>
+            I fornitori non hanno ancora caricato prodotti
+          </Text>
+        </View>
+      </>
+    );
+  }
+
   return (
     <>
       <Stack.Screen
@@ -195,7 +367,7 @@ export default function HomeScreen() {
         <View style={styles.topBar}>
           <View style={styles.pickupPointBadge}>
             <IconSymbol name="mappin.circle.fill" size={16} color={colors.text} />
-            <Text style={styles.pickupPointText}>{mockUser.pickupPoint}</Text>
+            <Text style={styles.pickupPointText}>{user?.pickupPoint || 'Nessun punto'}</Text>
           </View>
           
           <Pressable onPress={handleLogout} style={styles.logoutButton}>
@@ -296,6 +468,29 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
+  },
+  centerContent: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 40,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: colors.textSecondary,
+    marginTop: 16,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.text,
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  emptyText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 20,
   },
   listContainer: {
     width: SCREEN_WIDTH,
