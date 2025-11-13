@@ -1,5 +1,5 @@
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, FlatList, Dimensions, Pressable, Alert, Linking, Animated, ActivityIndicator } from 'react-native';
 import { Stack, useLocalSearchParams, router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -65,38 +65,7 @@ export default function DropDetailsScreen() {
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const bounceAnim = useRef(new Animated.Value(0)).current;
 
-  useEffect(() => {
-    if (dropId) {
-      loadDropDetails();
-      loadUserBookings();
-    }
-  }, [dropId]);
-
-  // Subtle bounce animation for the share button
-  useEffect(() => {
-    const bounceAnimation = Animated.loop(
-      Animated.sequence([
-        Animated.timing(bounceAnim, {
-          toValue: -4,
-          duration: 2000,
-          useNativeDriver: true,
-        }),
-        Animated.timing(bounceAnim, {
-          toValue: 0,
-          duration: 2000,
-          useNativeDriver: true,
-        }),
-      ])
-    );
-
-    bounceAnimation.start();
-
-    return () => {
-      bounceAnimation.stop();
-    };
-  }, []);
-
-  const loadDropDetails = async () => {
+  const loadDropDetails = useCallback(async () => {
     try {
       console.log('Loading drop details for:', dropId);
 
@@ -159,9 +128,9 @@ export default function DropDetailsScreen() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [dropId]);
 
-  const loadUserBookings = async () => {
+  const loadUserBookings = useCallback(async () => {
     try {
       if (!user?.id) {
         console.log('No user ID available');
@@ -185,7 +154,38 @@ export default function DropDetailsScreen() {
     } catch (error) {
       console.error('Error in loadUserBookings:', error);
     }
-  };
+  }, [user?.id, dropId]);
+
+  useEffect(() => {
+    if (dropId) {
+      loadDropDetails();
+      loadUserBookings();
+    }
+  }, [dropId, loadDropDetails, loadUserBookings]);
+
+  // Subtle bounce animation for the share button
+  useEffect(() => {
+    const bounceAnimation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(bounceAnim, {
+          toValue: -4,
+          duration: 2000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(bounceAnim, {
+          toValue: 0,
+          duration: 2000,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+
+    bounceAnimation.start();
+
+    return () => {
+      bounceAnimation.stop();
+    };
+  }, [bounceAnim]);
 
   const calculateNewDiscount = (newValue: number): number => {
     if (!drop) return 0;

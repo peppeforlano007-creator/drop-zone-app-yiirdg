@@ -1,5 +1,5 @@
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -53,11 +53,7 @@ export default function MyBookingsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    loadBookings();
-  }, []);
-
-  const loadBookings = async () => {
+  const loadBookings = useCallback(async () => {
     try {
       console.log('Loading bookings for user:', user?.id);
 
@@ -106,7 +102,11 @@ export default function MyBookingsScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [user?.id]);
+
+  useEffect(() => {
+    loadBookings();
+  }, [loadBookings]);
 
   const handleRefresh = () => {
     setRefreshing(true);

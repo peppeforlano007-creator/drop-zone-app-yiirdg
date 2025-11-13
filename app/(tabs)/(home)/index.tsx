@@ -1,5 +1,5 @@
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { View, StyleSheet, FlatList, Dimensions, Platform, Text, Pressable, Alert, Animated } from 'react-native';
 import { Stack, router } from 'expo-router';
 import { colors } from '@/styles/commonStyles';
@@ -33,12 +33,7 @@ export default function HomeScreen() {
   const productFlatListRef = useRef<FlatList>(null);
   const progressAnim = useRef(new Animated.Value(0)).current;
 
-  useEffect(() => {
-    loadProducts();
-    loadUserInterests();
-  }, []);
-
-  const loadProducts = async () => {
+  const loadProducts = useCallback(async () => {
     try {
       console.log('Loading products from database...');
       
@@ -123,9 +118,9 @@ export default function HomeScreen() {
       Alert.alert('Errore', 'Errore imprevisto durante il caricamento');
       setLoading(false);
     }
-  };
+  }, []);
 
-  const loadUserInterests = async () => {
+  const loadUserInterests = useCallback(async () => {
     if (!user) return;
     
     try {
@@ -147,7 +142,12 @@ export default function HomeScreen() {
     } catch (error) {
       console.error('Exception loading user interests:', error);
     }
-  };
+  }, [user]);
+
+  useEffect(() => {
+    loadProducts();
+    loadUserInterests();
+  }, [loadProducts, loadUserInterests]);
 
   const currentList = productLists[currentListIndex];
   const totalProductsInList = currentList?.products.length || 0;
@@ -160,7 +160,7 @@ export default function HomeScreen() {
       duration: 300,
       useNativeDriver: false,
     }).start();
-  }, [currentProductIndex, totalProductsInList]);
+  }, [currentProductIndex, totalProductsInList, progressAnim]);
 
   const handleInterest = async (productId: string) => {
     if (!user || !user.pickupPointId) {

@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, Platform, ActivityIndicator, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack } from 'expo-router';
@@ -37,11 +37,7 @@ export default function DropsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const { user } = useAuth();
 
-  useEffect(() => {
-    loadDrops();
-  }, []);
-
-  const loadDrops = async () => {
+  const loadDrops = useCallback(async () => {
     try {
       console.log('Loading active drops...');
       
@@ -99,7 +95,11 @@ export default function DropsScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [user?.id]);
+
+  useEffect(() => {
+    loadDrops();
+  }, [loadDrops]);
 
   const handleRefresh = () => {
     setRefreshing(true);
