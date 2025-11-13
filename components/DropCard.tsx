@@ -3,21 +3,41 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { IconSymbol } from './IconSymbol';
 import { colors } from '@/styles/commonStyles';
-import { Drop } from '@/types/Product';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 
 interface DropCardProps {
-  drop: Drop;
+  drop: {
+    id: string;
+    name: string;
+    current_discount: number;
+    current_value: number;
+    target_value: number;
+    start_time: string;
+    end_time: string;
+    status: string;
+    pickup_points: {
+      name: string;
+      city: string;
+    };
+    supplier_lists: {
+      name: string;
+      min_discount: number;
+      max_discount: number;
+      min_reservation_value: number;
+      max_reservation_value: number;
+    };
+  };
 }
 
 export default function DropCard({ drop }: DropCardProps) {
   const [timeRemaining, setTimeRemaining] = useState('');
+  const [productCount, setProductCount] = useState(0);
 
   useEffect(() => {
     const updateTimer = () => {
       const now = new Date().getTime();
-      const end = drop.endTime.getTime();
+      const end = new Date(drop.end_time).getTime();
       const distance = end - now;
 
       if (distance < 0) {
@@ -36,10 +56,15 @@ export default function DropCard({ drop }: DropCardProps) {
     const interval = setInterval(updateTimer, 60000);
 
     return () => clearInterval(interval);
-  }, [drop.endTime]);
+  }, [drop.end_time]);
 
-  const progressPercentage = ((drop.currentValue - drop.minValue) / (drop.maxValue - drop.minValue)) * 100;
-  const discountProgress = ((drop.currentDiscount - drop.minDiscount) / (drop.maxDiscount - drop.minDiscount)) * 100;
+  const minValue = drop.supplier_lists.min_reservation_value;
+  const maxValue = drop.supplier_lists.max_reservation_value;
+  const minDiscount = drop.supplier_lists.min_discount;
+  const maxDiscount = drop.supplier_lists.max_discount;
+
+  const progressPercentage = ((drop.current_value - minValue) / (maxValue - minValue)) * 100;
+  const discountProgress = ((drop.current_discount - minDiscount) / (maxDiscount - minDiscount)) * 100;
 
   const handlePress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -53,35 +78,40 @@ export default function DropCard({ drop }: DropCardProps) {
     <Pressable onPress={handlePress} style={styles.container}>
       <View style={styles.header}>
         <View style={styles.locationBadge}>
-          <IconSymbol name="location.fill" size={14} color={colors.text} />
-          <Text style={styles.locationText}>{drop.pickupPoint}</Text>
+          <IconSymbol 
+            ios_icon_name="location.fill" 
+            android_material_icon_name="location_on" 
+            size={14} 
+            color={colors.text} 
+          />
+          <Text style={styles.locationText}>{drop.pickup_points.city}</Text>
         </View>
         <View style={styles.timerBadge}>
           <Text style={styles.timerText}>{timeRemaining}</Text>
         </View>
       </View>
 
-      <Text style={styles.supplierName}>{drop.supplierName}</Text>
-      <Text style={styles.productCount}>{drop.products.length} prodotti disponibili</Text>
+      <Text style={styles.supplierName}>{drop.supplier_lists.name}</Text>
+      <Text style={styles.dropName}>{drop.name}</Text>
 
       <View style={styles.discountContainer}>
         <View style={styles.discountRow}>
           <Text style={styles.discountLabel}>Sconto attuale</Text>
-          <Text style={styles.discountValue}>{drop.currentDiscount}%</Text>
+          <Text style={styles.discountValue}>{drop.current_discount}%</Text>
         </View>
         <View style={styles.progressBar}>
           <View style={[styles.progressFill, { width: `${Math.min(discountProgress, 100)}%` }]} />
         </View>
         <View style={styles.discountRange}>
-          <Text style={styles.rangeText}>{drop.minDiscount}%</Text>
-          <Text style={styles.rangeText}>{drop.maxDiscount}%</Text>
+          <Text style={styles.rangeText}>{minDiscount}%</Text>
+          <Text style={styles.rangeText}>{maxDiscount}%</Text>
         </View>
       </View>
 
       <View style={styles.valueContainer}>
         <View style={styles.valueRow}>
           <Text style={styles.valueText}>
-            €{drop.currentValue.toLocaleString()} / €{drop.maxValue.toLocaleString()}
+            €{drop.current_value.toLocaleString()} / €{maxValue.toLocaleString()}
           </Text>
         </View>
         <View style={styles.progressBar}>
@@ -91,7 +121,12 @@ export default function DropCard({ drop }: DropCardProps) {
 
       <View style={styles.footer}>
         <Text style={styles.footerText}>Tocca per vedere i prodotti</Text>
-        <IconSymbol name="arrow.right" size={16} color={colors.text} />
+        <IconSymbol 
+          ios_icon_name="arrow.right" 
+          android_material_icon_name="arrow_forward" 
+          size={16} 
+          color={colors.text} 
+        />
       </View>
     </Pressable>
   );
@@ -147,7 +182,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
     letterSpacing: -0.5,
   },
-  productCount: {
+  dropName: {
     fontSize: 13,
     color: colors.textSecondary,
     marginBottom: 20,

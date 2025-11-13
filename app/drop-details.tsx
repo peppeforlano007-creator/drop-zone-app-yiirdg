@@ -1,26 +1,74 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, Dimensions, Pressable, Alert, Linking, Animated } from 'react-native';
+import { View, Text, StyleSheet, FlatList, Dimensions, Pressable, Alert, Linking, Animated, ActivityIndicator } from 'react-native';
 import { Stack, useLocalSearchParams, router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '@/styles/commonStyles';
 import ProductCard from '@/components/ProductCard';
-import { mockDrops } from '@/data/mockData';
 import { IconSymbol } from '@/components/IconSymbol';
 import * as Haptics from 'expo-haptics';
+import { supabase } from '@/app/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
+import { usePayment } from '@/contexts/PaymentContext';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
+interface ProductData {
+  id: string;
+  name: string;
+  description: string;
+  image_url: string;
+  additional_images: string[];
+  original_price: number;
+  available_sizes: string[];
+  available_colors: string[];
+  condition: string;
+  category: string;
+  stock: number;
+}
+
+interface DropData {
+  id: string;
+  name: string;
+  current_discount: number;
+  current_value: number;
+  target_value: number;
+  start_time: string;
+  end_time: string;
+  status: string;
+  supplier_list_id: string;
+  pickup_point_id: string;
+  pickup_points: {
+    name: string;
+    city: string;
+  };
+  supplier_lists: {
+    name: string;
+    min_discount: number;
+    max_discount: number;
+    min_reservation_value: number;
+    max_reservation_value: number;
+  };
+}
+
 export default function DropDetailsScreen() {
   const { dropId } = useLocalSearchParams();
+  const [drop, setDrop] = useState<DropData | null>(null);
+  const [products, setProducts] = useState<ProductData[]>([]);
   const [bookedProducts, setBookedProducts] = useState<Set<string>>(new Set());
+  const [loading, setLoading] = useState(true);
   const flatListRef = useRef<FlatList>(null);
+  const { user } = useAuth();
+  const { getDefaultPaymentMethod } = usePayment();
   
   // Animation values for share button
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const bounceAnim = useRef(new Animated.Value(0)).current;
 
-  const drop = mockDrops.find(d => d.id === dropId);
+  useEffect(() => {
+    loadDropDetails();
+    loadUserBookings();
+  }, [dropId]);
 
   // Subtle bounce animation for the share button
   useEffect(() => {
@@ -46,37 +94,221 @@ export default function DropDetailsScreen() {
     };
   }, []);
 
-  if (!drop) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <Stack.Screen
-          options={{
-            title: 'Drop non trovato',
-            headerStyle: { backgroundColor: colors.background },
-            headerTintColor: colors.text,
-          }}
-        />
-        <View style={styles.errorContainer}>
-          <IconSymbol name="exclamationmark.triangle" size={64} color={colors.text} />
-          <Text style={styles.errorText}>Drop non trovato</Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
+  const loadDropDetails = async () => {
+    try {
+      console.log('Loading drop details for:', dropId);
 
-  const handleBook = (productId: string) => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    setBookedProducts(prev => {
-      const newSet = new Set(prev);
-      newSet.add(productId);
-      return newSet;
-    });
-    Alert.alert(
-      'Prenotazione Confermata!',
-      'Il prodotto è stato prenotato. Verrai addebitato alla fine del drop con lo sconto finale.',
-      [{ text: 'OK' }]
-    );
-    console.log('Product booked:', productId);
+      // Load drop details
+      const { data: dropData, error: dropError } = await supabase
+        .from('drops')
+        .select(`
+          id,
+          name,
+          current_discount,
+          current_value,
+          target_value,
+          start_time,
+          end_time,
+          status,
+          supplier_list_id,
+          pickup_point_id,
+          pickup_points (
+            name,
+            city
+          ),
+          supplier_lists (
+            name,
+            min_discount,
+            max_discount,
+            min_reservation_value,
+            max_reservation_value
+          )
+        `)
+        .eq('id', dropId)
+        .single();
+
+      if (dropError) {
+        console.error('Error loading drop:', dropError);
+        setLoading(false);
+        return;
+      }
+
+      console.log('Drop loaded:', dropData);
+      setDrop(dropData);
+
+      // Load products for this drop's supplier list
+      const { data: productsData, error: productsError } = await supabase
+        .from('products')
+        .select('*')
+        .eq('supplier_list_id', dropData.supplier_list_id)
+        .eq('status', 'active')
+        .order('created_at', { ascending: false });
+
+      if (productsError) {
+        console.error('Error loading products:', productsError);
+        setLoading(false);
+        return;
+      }
+
+      console.log('Products loaded:', productsData?.length || 0);
+      setProducts(productsData || []);
+    } catch (error) {
+      console.error('Error in loadDropDetails:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadUserBookings = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('bookings')
+        .select('product_id')
+        .eq('user_id', user?.id)
+        .eq('drop_id', dropId)
+        .in('status', ['active', 'confirmed']);
+
+      if (error) {
+        console.error('Error loading bookings:', error);
+        return;
+      }
+
+      const bookedIds = new Set(data?.map(b => b.product_id) || []);
+      setBookedProducts(bookedIds);
+    } catch (error) {
+      console.error('Error in loadUserBookings:', error);
+    }
+  };
+
+  const calculateNewDiscount = (newValue: number): number => {
+    if (!drop) return 0;
+
+    const minValue = drop.supplier_lists.min_reservation_value;
+    const maxValue = drop.supplier_lists.max_reservation_value;
+    const minDiscount = drop.supplier_lists.min_discount;
+    const maxDiscount = drop.supplier_lists.max_discount;
+
+    // Calculate discount based on value progress
+    const valueProgress = (newValue - minValue) / (maxValue - minValue);
+    const discountRange = maxDiscount - minDiscount;
+    const newDiscount = minDiscount + (discountRange * valueProgress);
+
+    // Clamp between min and max
+    return Math.min(Math.max(newDiscount, minDiscount), maxDiscount);
+  };
+
+  const handleBook = async (productId: string, selectedSize?: string, selectedColor?: string) => {
+    if (!drop || !user) return;
+
+    try {
+      console.log('Booking product:', productId);
+
+      // Check if user has a payment method
+      const defaultPaymentMethod = getDefaultPaymentMethod();
+      if (!defaultPaymentMethod) {
+        Alert.alert(
+          'Metodo di Pagamento Richiesto',
+          'Devi aggiungere un metodo di pagamento prima di prenotare.',
+          [
+            { text: 'Annulla', style: 'cancel' },
+            {
+              text: 'Aggiungi Carta',
+              onPress: () => router.push('/add-payment-method'),
+            },
+          ]
+        );
+        return;
+      }
+
+      // Get product details
+      const product = products.find(p => p.id === productId);
+      if (!product) return;
+
+      // Calculate prices
+      const discountedPrice = product.original_price * (1 - drop.current_discount / 100);
+
+      // Get user's profile for pickup point
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('pickup_point_id')
+        .eq('user_id', user.id)
+        .single();
+
+      if (!profile?.pickup_point_id) {
+        Alert.alert('Errore', 'Punto di ritiro non trovato');
+        return;
+      }
+
+      // Create booking
+      const { data: booking, error: bookingError } = await supabase
+        .from('bookings')
+        .insert({
+          user_id: user.id,
+          product_id: productId,
+          drop_id: drop.id,
+          pickup_point_id: profile.pickup_point_id,
+          selected_size: selectedSize,
+          selected_color: selectedColor,
+          original_price: product.original_price,
+          discount_percentage: drop.current_discount,
+          final_price: discountedPrice,
+          payment_status: 'authorized',
+          status: 'active',
+        })
+        .select()
+        .single();
+
+      if (bookingError) {
+        console.error('Error creating booking:', bookingError);
+        Alert.alert('Errore', 'Non è stato possibile completare la prenotazione');
+        return;
+      }
+
+      console.log('Booking created:', booking);
+
+      // Update drop value and discount
+      const newValue = drop.current_value + product.original_price;
+      const newDiscount = calculateNewDiscount(newValue);
+
+      const { error: updateError } = await supabase
+        .from('drops')
+        .update({
+          current_value: newValue,
+          current_discount: newDiscount,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', drop.id);
+
+      if (updateError) {
+        console.error('Error updating drop:', updateError);
+      } else {
+        console.log('Drop updated - New value:', newValue, 'New discount:', newDiscount);
+        
+        // Update local state
+        setDrop({
+          ...drop,
+          current_value: newValue,
+          current_discount: newDiscount,
+        });
+      }
+
+      // Update booked products
+      setBookedProducts(prev => {
+        const newSet = new Set(prev);
+        newSet.add(productId);
+        return newSet;
+      });
+
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert(
+        'Prenotazione Confermata! 🎉',
+        `Il prodotto è stato prenotato.\n\nAbbiamo bloccato €${product.original_price.toFixed(2)} sulla tua carta.\n\nAlla fine del drop, addebiteremo solo il prezzo finale con lo sconto raggiunto.`,
+        [{ text: 'OK' }]
+      );
+    } catch (error) {
+      console.error('Error in handleBook:', error);
+      Alert.alert('Errore', 'Si è verificato un errore durante la prenotazione');
+    }
   };
 
   const handlePressIn = () => {
@@ -97,15 +329,17 @@ export default function DropDetailsScreen() {
   };
 
   const handleShareWhatsApp = async () => {
+    if (!drop) return;
+
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     
     // Create a shareable message
     const message = `🎉 Guarda questo Drop su DROPMARKET!\n\n` +
-      `📦 ${drop.supplierName}\n` +
-      `📍 Punto di ritiro: ${drop.pickupPoint}\n` +
-      `💰 Sconto attuale: ${drop.currentDiscount}%\n` +
-      `🎯 Sconto massimo: ${drop.maxDiscount}%\n` +
-      `🛍️ ${drop.products.length} prodotti disponibili\n\n` +
+      `📦 ${drop.supplier_lists.name}\n` +
+      `📍 Punto di ritiro: ${drop.pickup_points.city}\n` +
+      `💰 Sconto attuale: ${drop.current_discount.toFixed(0)}%\n` +
+      `🎯 Sconto massimo: ${drop.supplier_lists.max_discount}%\n` +
+      `🛍️ ${products.length} prodotti disponibili\n\n` +
       `Più persone prenotano con carta, più lo sconto aumenta! 🚀\n\n` +
       `Unisciti al drop: dropmarket://drop/${dropId}`;
 
@@ -135,15 +369,41 @@ export default function DropDetailsScreen() {
     }
   };
 
-  const renderProduct = ({ item }: { item: typeof drop.products[0] }) => (
-    <ProductCard
-      product={item}
-      isInDrop={true}
-      currentDiscount={drop.currentDiscount}
-      onBook={handleBook}
-      isInterested={bookedProducts.has(item.id)}
-    />
-  );
+  const renderProduct = ({ item }: { item: ProductData }) => {
+    // Transform database product to ProductCard format
+    const transformedProduct = {
+      id: item.id,
+      supplierId: '',
+      supplierName: drop?.supplier_lists.name || '',
+      listId: drop?.supplier_list_id || '',
+      name: item.name,
+      description: item.description || '',
+      imageUrl: item.image_url,
+      imageUrls: [item.image_url, ...(item.additional_images || [])],
+      originalPrice: Number(item.original_price),
+      minDiscount: drop?.supplier_lists.min_discount || 0,
+      maxDiscount: drop?.supplier_lists.max_discount || 0,
+      minReservationValue: drop?.supplier_lists.min_reservation_value || 0,
+      maxReservationValue: drop?.supplier_lists.max_reservation_value || 0,
+      category: item.category || '',
+      stock: item.stock || 0,
+      sizes: item.available_sizes,
+      colors: item.available_colors,
+      condition: item.condition as any,
+      availableSizes: item.available_sizes,
+      availableColors: item.available_colors,
+    };
+
+    return (
+      <ProductCard
+        product={transformedProduct}
+        isInDrop={true}
+        currentDiscount={drop?.current_discount}
+        onBook={handleBook}
+        isInterested={bookedProducts.has(item.id)}
+      />
+    );
+  };
 
   const getItemLayout = (_: any, index: number) => ({
     length: SCREEN_HEIGHT,
@@ -151,11 +411,79 @@ export default function DropDetailsScreen() {
     index,
   });
 
+  if (loading) {
+    return (
+      <>
+        <Stack.Screen
+          options={{
+            title: 'Caricamento...',
+            headerStyle: { backgroundColor: colors.background },
+            headerTintColor: colors.text,
+          }}
+        />
+        <SafeAreaView style={styles.container}>
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={colors.text} />
+            <Text style={styles.loadingText}>Caricamento drop...</Text>
+          </View>
+        </SafeAreaView>
+      </>
+    );
+  }
+
+  if (!drop) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <Stack.Screen
+          options={{
+            title: 'Drop non trovato',
+            headerStyle: { backgroundColor: colors.background },
+            headerTintColor: colors.text,
+          }}
+        />
+        <View style={styles.errorContainer}>
+          <IconSymbol 
+            ios_icon_name="exclamationmark.triangle" 
+            android_material_icon_name="warning" 
+            size={64} 
+            color={colors.text} 
+          />
+          <Text style={styles.errorText}>Drop non trovato</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (products.length === 0) {
+    return (
+      <>
+        <Stack.Screen
+          options={{
+            title: drop.supplier_lists.name,
+            headerStyle: { backgroundColor: colors.background },
+            headerTintColor: colors.text,
+          }}
+        />
+        <SafeAreaView style={styles.container}>
+          <View style={styles.errorContainer}>
+            <IconSymbol 
+              ios_icon_name="tray" 
+              android_material_icon_name="inbox" 
+              size={64} 
+              color={colors.textTertiary} 
+            />
+            <Text style={styles.errorText}>Nessun prodotto disponibile</Text>
+          </View>
+        </SafeAreaView>
+      </>
+    );
+  }
+
   return (
     <>
       <Stack.Screen
         options={{
-          title: drop.supplierName,
+          title: drop.supplier_lists.name,
           headerStyle: { backgroundColor: colors.background },
           headerTintColor: colors.text,
         }}
@@ -163,7 +491,7 @@ export default function DropDetailsScreen() {
       <View style={styles.container}>
         <FlatList
           ref={flatListRef}
-          data={drop.products}
+          data={products}
           renderItem={renderProduct}
           keyExtractor={(item) => item.id}
           pagingEnabled
@@ -199,7 +527,12 @@ export default function DropDetailsScreen() {
             >
               <View style={styles.buttonContent}>
                 <View style={styles.iconContainer}>
-                  <IconSymbol name="square.and.arrow.up" size={16} color="#FFF" />
+                  <IconSymbol 
+                    ios_icon_name="square.and.arrow.up" 
+                    android_material_icon_name="share" 
+                    size={16} 
+                    color="#FFF" 
+                  />
                 </View>
                 
                 <View style={styles.textContainer}>
@@ -211,7 +544,7 @@ export default function DropDetailsScreen() {
                 
                 <View style={styles.discountBadge}>
                   <Text style={styles.discountBadgeText}>
-                    {drop.currentDiscount}% → {drop.maxDiscount}%
+                    {drop.current_discount.toFixed(0)}% → {drop.supplier_lists.max_discount}%
                   </Text>
                 </View>
               </View>
@@ -227,6 +560,16 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 16,
+  },
+  loadingText: {
+    fontSize: 14,
+    color: colors.textSecondary,
   },
   errorContainer: {
     flex: 1,

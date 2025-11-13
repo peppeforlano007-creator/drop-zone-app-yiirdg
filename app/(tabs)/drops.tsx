@@ -1,16 +1,132 @@
 
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, Platform } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, Platform, ActivityIndicator, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack } from 'expo-router';
 import { colors, commonStyles } from '@/styles/commonStyles';
 import DropCard from '@/components/DropCard';
-import { mockDrops } from '@/data/mockData';
 import { IconSymbol } from '@/components/IconSymbol';
+import { supabase } from '@/app/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
+
+interface DropData {
+  id: string;
+  name: string;
+  current_discount: number;
+  current_value: number;
+  target_value: number;
+  start_time: string;
+  end_time: string;
+  status: string;
+  pickup_points: {
+    name: string;
+    city: string;
+  };
+  supplier_lists: {
+    name: string;
+    min_discount: number;
+    max_discount: number;
+    min_reservation_value: number;
+    max_reservation_value: number;
+  };
+}
 
 export default function DropsScreen() {
-  // Only show drops that are active (approved and running)
-  const activeDrops = mockDrops.filter(drop => drop.status === 'active');
+  const [drops, setDrops] = useState<DropData[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const { user } = useAuth();
+
+  useEffect(() => {
+    loadDrops();
+  }, []);
+
+  const loadDrops = async () => {
+    try {
+      console.log('Loading active drops...');
+      
+      // Get user's pickup point
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('pickup_point_id')
+        .eq('user_id', user?.id)
+        .single();
+
+      if (!profile?.pickup_point_id) {
+        console.log('User has no pickup point assigned');
+        setLoading(false);
+        return;
+      }
+
+      // Load active drops for user's pickup point
+      const { data, error } = await supabase
+        .from('drops')
+        .select(`
+          id,
+          name,
+          current_discount,
+          current_value,
+          target_value,
+          start_time,
+          end_time,
+          status,
+          pickup_points (
+            name,
+            city
+          ),
+          supplier_lists (
+            name,
+            min_discount,
+            max_discount,
+            min_reservation_value,
+            max_reservation_value
+          )
+        `)
+        .eq('pickup_point_id', profile.pickup_point_id)
+        .eq('status', 'active')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error loading drops:', error);
+        return;
+      }
+
+      console.log('Loaded drops:', data?.length || 0);
+      setDrops(data || []);
+    } catch (error) {
+      console.error('Error in loadDrops:', error);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  const handleRefresh = () => {
+    setRefreshing(true);
+    loadDrops();
+  };
+
+  if (loading) {
+    return (
+      <>
+        <Stack.Screen
+          options={{
+            title: 'Drop Attivi',
+            headerStyle: {
+              backgroundColor: colors.background,
+            },
+            headerTintColor: colors.text,
+          }}
+        />
+        <SafeAreaView style={styles.safeArea} edges={['bottom']}>
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={colors.text} />
+            <Text style={styles.loadingText}>Caricamento drop...</Text>
+          </View>
+        </SafeAreaView>
+      </>
+    );
+  }
 
   return (
     <>
@@ -30,6 +146,13 @@ export default function DropsScreen() {
             styles.contentContainer,
             Platform.OS !== 'ios' && styles.contentContainerWithTabBar,
           ]}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              tintColor={colors.text}
+            />
+          }
         >
           <View style={styles.header}>
             <Text style={styles.headerTitle}>Drop Attivi</Text>
@@ -38,8 +161,8 @@ export default function DropsScreen() {
             </Text>
           </View>
 
-          {activeDrops.length > 0 ? (
-            activeDrops.map(drop => <DropCard key={drop.id} drop={drop} />)
+          {drops.length > 0 ? (
+            drops.map(drop => <DropCard key={drop.id} drop={drop} />)
           ) : (
             <View style={styles.emptyState}>
               <IconSymbol
@@ -93,6 +216,16 @@ const styles = StyleSheet.create({
   },
   contentContainerWithTabBar: {
     paddingBottom: 120,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 16,
+  },
+  loadingText: {
+    fontSize: 14,
+    color: colors.textSecondary,
   },
   header: {
     paddingHorizontal: 20,
