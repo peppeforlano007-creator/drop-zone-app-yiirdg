@@ -19,10 +19,10 @@ interface ProductData {
   name: string;
   description: string;
   image_url: string;
-  additional_images: string[];
+  additional_images: Array<string>;
   original_price: number;
-  available_sizes: string[];
-  available_colors: string[];
+  available_sizes: Array<string>;
+  available_colors: Array<string>;
   condition: string;
   category: string;
   stock: number;
@@ -55,7 +55,7 @@ interface DropData {
 export default function DropDetailsScreen() {
   const { dropId } = useLocalSearchParams<{ dropId: string }>();
   const [drop, setDrop] = useState<DropData | null>(null);
-  const [products, setProducts] = useState<ProductData[]>(0);
+  const [products, setProducts] = useState<Array<ProductData>>([]);
   const [loading, setLoading] = useState(true);
   const [userBookings, setUserBookings] = useState<Set<string>>(new Set());
   const [timeRemaining, setTimeRemaining] = useState('');
@@ -497,7 +497,7 @@ export default function DropDetailsScreen() {
           />
         </View>
         <Text style={styles.progressLabel}>
-          {Math.min(Math.round((drop.current_value / drop.target_value) * 100), 100)}% dell'obiettivo
+          {Math.min(Math.round((drop.current_value / drop.target_value) * 100), 100)}% dell&apos;obiettivo
         </Text>
       </View>
 
