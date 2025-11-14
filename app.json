@@ -1,7 +1,8 @@
+
 {
   "expo": {
     "name": "Drop Zone",
-    "slug": "Drop Zone",
+    "slug": "drop-zone",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/natively-dark.png",
@@ -14,9 +15,16 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.anonymous.Natively",
+      "bundleIdentifier": "com.dropzone.app",
+      "buildNumber": "1",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSCameraUsageDescription": "Questa app ha bisogno di accedere alla fotocamera per caricare foto dei prodotti.",
+        "NSPhotoLibraryUsageDescription": "Questa app ha bisogno di accedere alla galleria per selezionare foto dei prodotti.",
+        "NSLocationWhenInUseUsageDescription": "Questa app utilizza la tua posizione per mostrarti i punti di ritiro più vicini."
+      },
+      "config": {
+        "usesNonExemptEncryption": false
       }
     },
     "android": {
@@ -25,7 +33,16 @@
         "backgroundColor": "#000000"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.anonymous.Natively"
+      "package": "com.dropzone.app",
+      "versionCode": 1,
+      "permissions": [
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "INTERNET"
+      ]
     },
     "web": {
       "favicon": "./assets/images/final_quest_240x240.png",
@@ -34,15 +51,34 @@
     "plugins": [
       "expo-font",
       "expo-router",
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "L'app ha bisogno di accedere alle tue foto per caricare immagini dei prodotti.",
+          "cameraPermission": "L'app ha bisogno di accedere alla fotocamera per scattare foto dei prodotti."
+        }
+      ],
+      [
+        "expo-document-picker",
+        {
+          "iCloudContainerEnvironment": "Production"
+        }
+      ]
     ],
-    "scheme": "natively",
+    "scheme": "dropzone",
     "experiments": {
       "typedRoutes": true
     },
     "extra": {
-      "router": {}
-    }
-  },
-  "scheme": "Drop Zone"
+      "router": {},
+      "eas": {
+        "projectId": "your-project-id-here"
+      }
+    },
+    "owner": "your-expo-username",
+    "privacy": "public",
+    "description": "Drop Zone - Social e-commerce con sconti progressivi basati su prenotazioni collettive",
+    "githubUrl": "https://github.com/your-username/drop-zone"
+  }
 }

@@ -29,6 +29,18 @@ import {
   TestResult,
   generateTestReport,
 } from '@/utils/testHelpers';
+import {
+  testSupplierListValidation,
+  testExcelParsing,
+} from '@/utils/supplierTestHelpers';
+import {
+  testDropDiscountCalculation,
+  testDropStatusTransitions,
+} from '@/utils/dropTestHelpers';
+import {
+  testPaymentMethodValidation,
+  testPaymentSecurity,
+} from '@/utils/paymentTestHelpers';
 import { getDeviceInfo } from '@/utils/uiTestHelpers';
 import { performanceMonitor } from '@/utils/performanceMonitor';
 import { useAuth } from '@/contexts/AuthContext';
@@ -69,6 +81,18 @@ export default function TestingScreen() {
 
     try {
       const results = await runAllTests(undefined, undefined, user?.id);
+      
+      // Add supplier tests
+      results.push(await testSupplierListValidation());
+      results.push(await testExcelParsing());
+      
+      // Add drop tests
+      results.push(await testDropStatusTransitions());
+      
+      // Add payment tests
+      results.push(await testPaymentMethodValidation());
+      results.push(await testPaymentSecurity());
+      
       setTestResults(results);
       
       const passed = results.filter(r => r.success).length;
@@ -76,7 +100,7 @@ export default function TestingScreen() {
       
       Alert.alert(
         'Test Completati',
-        `Passati: ${passed}\nFalliti: ${failed}`,
+        `✅ Passati: ${passed}\n❌ Falliti: ${failed}\n\nL'app è ${failed === 0 ? 'PRONTA' : 'NON PRONTA'} per il deployment!`,
         [{ text: 'OK' }]
       );
       
@@ -133,9 +157,17 @@ export default function TestingScreen() {
 
     try {
       const report = generateTestReport(testResults);
+      const passed = testResults.filter(r => r.success).length;
+      const failed = testResults.filter(r => !r.success).length;
+      const readyForDeployment = failed === 0;
+      
+      const deploymentStatus = readyForDeployment
+        ? '✅ APP PRONTA PER DEPLOYMENT'
+        : '⚠️ APP NON PRONTA - Risolvere i problemi evidenziati';
+      
       await Share.share({
-        message: report,
-        title: 'Test Report',
+        message: `${deploymentStatus}\n\n${report}`,
+        title: 'Drop Zone - Test Report',
       });
     } catch (error) {
       console.error('Error sharing report:', error);
@@ -149,12 +181,29 @@ export default function TestingScreen() {
     performanceMonitor.clear();
   };
 
+  const getDeploymentReadiness = () => {
+    if (testResults.length === 0) return null;
+    
+    const passed = testResults.filter(r => r.success).length;
+    const failed = testResults.filter(r => !r.success).length;
+    const percentage = (passed / testResults.length) * 100;
+    
+    return {
+      passed,
+      failed,
+      percentage,
+      ready: failed === 0,
+    };
+  };
+
+  const readiness = getDeploymentReadiness();
+
   return (
     <>
       <Stack.Screen
         options={{
           headerShown: true,
-          title: 'Testing & Diagnostica',
+          title: 'Testing & Deployment',
           headerBackTitle: 'Dashboard',
         }}
       />
@@ -163,6 +212,29 @@ export default function TestingScreen() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
+          {/* Deployment Readiness Banner */}
+          {readiness && (
+            <View style={[
+              styles.readinessBanner,
+              readiness.ready ? styles.readyBanner : styles.notReadyBanner
+            ]}>
+              <IconSymbol
+                ios_icon_name={readiness.ready ? "checkmark.seal.fill" : "exclamationmark.triangle.fill"}
+                android_material_icon_name={readiness.ready ? "verified" : "warning"}
+                size={32}
+                color="#fff"
+              />
+              <View style={styles.readinessContent}>
+                <Text style={styles.readinessTitle}>
+                  {readiness.ready ? 'APP PRONTA PER DEPLOYMENT' : 'APP NON PRONTA'}
+                </Text>
+                <Text style={styles.readinessSubtitle}>
+                  {readiness.passed} test passati, {readiness.failed} falliti ({readiness.percentage.toFixed(0)}%)
+                </Text>
+              </View>
+            </View>
+          )}
+
           {/* Quick Actions */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Azioni Rapide</Text>
@@ -186,7 +258,7 @@ export default function TestingScreen() {
                     size={24}
                     color="#fff"
                   />
-                  <Text style={styles.primaryButtonText}>Esegui Tutti i Test</Text>
+                  <Text style={styles.primaryButtonText}>Esegui Test Completi</Text>
                 </>
               )}
             </Pressable>
@@ -244,14 +316,14 @@ export default function TestingScreen() {
                   size={20}
                   color={colors.primary}
                 />
-                <Text style={styles.secondaryButtonText}>Condividi Report</Text>
+                <Text style={styles.secondaryButtonText}>Condividi Report Deployment</Text>
               </Pressable>
             )}
           </View>
 
-          {/* Individual Tests */}
+          {/* Core Tests */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Test Individuali</Text>
+            <Text style={styles.sectionTitle}>Test Core</Text>
 
             <Pressable
               style={({ pressed }) => [
@@ -268,7 +340,7 @@ export default function TestingScreen() {
                   size={20}
                   color={colors.text}
                 />
-                <Text style={styles.testButtonText}>Test Performance Database</Text>
+                <Text style={styles.testButtonText}>Performance Database</Text>
               </View>
               {testing && selectedTest === 'Database Performance' && (
                 <ActivityIndicator size="small" color={colors.primary} />
@@ -290,7 +362,7 @@ export default function TestingScreen() {
                   size={20}
                   color={colors.text}
                 />
-                <Text style={styles.testButtonText}>Test Navigazione Prodotti</Text>
+                <Text style={styles.testButtonText}>Navigazione Prodotti</Text>
               </View>
               {testing && selectedTest === 'Product Browsing' && (
                 <ActivityIndicator size="small" color={colors.primary} />
@@ -312,7 +384,7 @@ export default function TestingScreen() {
                   size={20}
                   color={colors.text}
                 />
-                <Text style={styles.testButtonText}>Test Funzionalità Drop</Text>
+                <Text style={styles.testButtonText}>Funzionalità Drop</Text>
               </View>
               {testing && selectedTest === 'Drop Functionality' && (
                 <ActivityIndicator size="small" color={colors.primary} />
@@ -334,7 +406,7 @@ export default function TestingScreen() {
                   size={20}
                   color={colors.text}
                 />
-                <Text style={styles.testButtonText}>Test Politiche RLS</Text>
+                <Text style={styles.testButtonText}>Sicurezza RLS</Text>
               </View>
               {testing && selectedTest === 'RLS Policies' && (
                 <ActivityIndicator size="small" color={colors.primary} />
@@ -356,7 +428,7 @@ export default function TestingScreen() {
                   size={20}
                   color={colors.text}
                 />
-                <Text style={styles.testButtonText}>Test Aggiornamenti Real-time</Text>
+                <Text style={styles.testButtonText}>Aggiornamenti Real-time</Text>
               </View>
               {testing && selectedTest === 'Real-time Subscriptions' && (
                 <ActivityIndicator size="small" color={colors.primary} />
@@ -378,61 +450,191 @@ export default function TestingScreen() {
                   size={20}
                   color={colors.text}
                 />
-                <Text style={styles.testButtonText}>Test Caricamento Immagini</Text>
+                <Text style={styles.testButtonText}>Caricamento Immagini</Text>
               </View>
               {testing && selectedTest === 'Image Loading' && (
                 <ActivityIndicator size="small" color={colors.primary} />
               )}
             </Pressable>
+          </View>
+
+          {/* Supplier Tests */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Test Fornitori</Text>
+
+            <Pressable
+              style={({ pressed }) => [
+                styles.testButton,
+                pressed && styles.buttonPressed,
+              ]}
+              onPress={() => runTest('Supplier List Validation', testSupplierListValidation)}
+              disabled={testing}
+            >
+              <View style={styles.testButtonContent}>
+                <IconSymbol
+                  ios_icon_name="checkmark.circle.fill"
+                  android_material_icon_name="check_circle"
+                  size={20}
+                  color={colors.text}
+                />
+                <Text style={styles.testButtonText}>Validazione Liste</Text>
+              </View>
+              {testing && selectedTest === 'Supplier List Validation' && (
+                <ActivityIndicator size="small" color={colors.primary} />
+              )}
+            </Pressable>
+
+            <Pressable
+              style={({ pressed }) => [
+                styles.testButton,
+                pressed && styles.buttonPressed,
+              ]}
+              onPress={() => runTest('Excel Parsing', testExcelParsing)}
+              disabled={testing}
+            >
+              <View style={styles.testButtonContent}>
+                <IconSymbol
+                  ios_icon_name="doc.text.fill"
+                  android_material_icon_name="description"
+                  size={20}
+                  color={colors.text}
+                />
+                <Text style={styles.testButtonText}>Parsing Excel</Text>
+              </View>
+              {testing && selectedTest === 'Excel Parsing' && (
+                <ActivityIndicator size="small" color={colors.primary} />
+              )}
+            </Pressable>
+          </View>
+
+          {/* Drop Management Tests */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Test Gestione Drop</Text>
+
+            <Pressable
+              style={({ pressed }) => [
+                styles.testButton,
+                pressed && styles.buttonPressed,
+              ]}
+              onPress={() => runTest('Drop Status Transitions', testDropStatusTransitions)}
+              disabled={testing}
+            >
+              <View style={styles.testButtonContent}>
+                <IconSymbol
+                  ios_icon_name="arrow.triangle.2.circlepath"
+                  android_material_icon_name="sync"
+                  size={20}
+                  color={colors.text}
+                />
+                <Text style={styles.testButtonText}>Transizioni Stato Drop</Text>
+              </View>
+              {testing && selectedTest === 'Drop Status Transitions' && (
+                <ActivityIndicator size="small" color={colors.primary} />
+              )}
+            </Pressable>
+          </View>
+
+          {/* Payment Tests */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Test Pagamenti</Text>
+
+            <Pressable
+              style={({ pressed }) => [
+                styles.testButton,
+                pressed && styles.buttonPressed,
+              ]}
+              onPress={() => runTest('Payment Method Validation', testPaymentMethodValidation)}
+              disabled={testing}
+            >
+              <View style={styles.testButtonContent}>
+                <IconSymbol
+                  ios_icon_name="creditcard.fill"
+                  android_material_icon_name="credit_card"
+                  size={20}
+                  color={colors.text}
+                />
+                <Text style={styles.testButtonText}>Validazione Metodi Pagamento</Text>
+              </View>
+              {testing && selectedTest === 'Payment Method Validation' && (
+                <ActivityIndicator size="small" color={colors.primary} />
+              )}
+            </Pressable>
+
+            <Pressable
+              style={({ pressed }) => [
+                styles.testButton,
+                pressed && styles.buttonPressed,
+              ]}
+              onPress={() => runTest('Payment Security', testPaymentSecurity)}
+              disabled={testing}
+            >
+              <View style={styles.testButtonContent}>
+                <IconSymbol
+                  ios_icon_name="lock.shield.fill"
+                  android_material_icon_name="verified_user"
+                  size={20}
+                  color={colors.text}
+                />
+                <Text style={styles.testButtonText}>Sicurezza Pagamenti</Text>
+              </View>
+              {testing && selectedTest === 'Payment Security' && (
+                <ActivityIndicator size="small" color={colors.primary} />
+              )}
+            </Pressable>
 
             {user && (
-              <>
-                <Pressable
-                  style={({ pressed }) => [
-                    styles.testButton,
-                    pressed && styles.buttonPressed,
-                  ]}
-                  onPress={() => runTest('Payment Methods', () => testPaymentMethods(user.id))}
-                  disabled={testing}
-                >
-                  <View style={styles.testButtonContent}>
-                    <IconSymbol
-                      ios_icon_name="creditcard.fill"
-                      android_material_icon_name="credit_card"
-                      size={20}
-                      color={colors.text}
-                    />
-                    <Text style={styles.testButtonText}>Test Metodi di Pagamento</Text>
-                  </View>
-                  {testing && selectedTest === 'Payment Methods' && (
-                    <ActivityIndicator size="small" color={colors.primary} />
-                  )}
-                </Pressable>
-
-                <Pressable
-                  style={({ pressed }) => [
-                    styles.testButton,
-                    pressed && styles.buttonPressed,
-                  ]}
-                  onPress={() => runTest('User Interests', () => testUserInterests(user.id))}
-                  disabled={testing}
-                >
-                  <View style={styles.testButtonContent}>
-                    <IconSymbol
-                      ios_icon_name="heart.fill"
-                      android_material_icon_name="favorite"
-                      size={20}
-                      color={colors.text}
-                    />
-                    <Text style={styles.testButtonText}>Test Interessi Utente</Text>
-                  </View>
-                  {testing && selectedTest === 'User Interests' && (
-                    <ActivityIndicator size="small" color={colors.primary} />
-                  )}
-                </Pressable>
-              </>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.testButton,
+                  pressed && styles.buttonPressed,
+                ]}
+                onPress={() => runTest('Payment Methods', () => testPaymentMethods(user.id))}
+                disabled={testing}
+              >
+                <View style={styles.testButtonContent}>
+                  <IconSymbol
+                    ios_icon_name="creditcard.and.123"
+                    android_material_icon_name="payment"
+                    size={20}
+                    color={colors.text}
+                  />
+                  <Text style={styles.testButtonText}>Metodi Pagamento Utente</Text>
+                </View>
+                {testing && selectedTest === 'Payment Methods' && (
+                  <ActivityIndicator size="small" color={colors.primary} />
+                )}
+              </Pressable>
             )}
           </View>
+
+          {/* User Tests */}
+          {user && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Test Utente</Text>
+
+              <Pressable
+                style={({ pressed }) => [
+                  styles.testButton,
+                  pressed && styles.buttonPressed,
+                ]}
+                onPress={() => runTest('User Interests', () => testUserInterests(user.id))}
+                disabled={testing}
+              >
+                <View style={styles.testButtonContent}>
+                  <IconSymbol
+                    ios_icon_name="heart.fill"
+                    android_material_icon_name="favorite"
+                    size={20}
+                    color={colors.text}
+                  />
+                  <Text style={styles.testButtonText}>Interessi Utente</Text>
+                </View>
+                {testing && selectedTest === 'User Interests' && (
+                  <ActivityIndicator size="small" color={colors.primary} />
+                )}
+              </Pressable>
+            </View>
+          )}
 
           {/* Test Results */}
           {testResults.length > 0 && (
@@ -482,7 +684,7 @@ export default function TestingScreen() {
           {/* Summary */}
           {testResults.length > 0 && (
             <View style={styles.summaryCard}>
-              <Text style={styles.summaryTitle}>Riepilogo</Text>
+              <Text style={styles.summaryTitle}>Riepilogo Deployment</Text>
               <View style={styles.summaryRow}>
                 <Text style={styles.summaryLabel}>Test Eseguiti:</Text>
                 <Text style={styles.summaryValue}>{testResults.length}</Text>
@@ -514,6 +716,21 @@ export default function TestingScreen() {
                   {((testResults.filter(r => r.success).length / testResults.length) * 100).toFixed(1)}%
                 </Text>
               </View>
+              <View style={[styles.summaryRow, { marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: colors.border }]}>
+                <Text style={[styles.summaryLabel, { fontSize: 16, fontWeight: '700' }]}>
+                  Stato Deployment:
+                </Text>
+                <Text style={[
+                  styles.summaryValue,
+                  { 
+                    fontSize: 16,
+                    fontWeight: '700',
+                    color: testResults.filter(r => !r.success).length === 0 ? '#34C759' : '#FF3B30'
+                  }
+                ]}>
+                  {testResults.filter(r => !r.success).length === 0 ? '✅ PRONTA' : '⚠️ NON PRONTA'}
+                </Text>
+              </View>
             </View>
           )}
         </ScrollView>
@@ -530,6 +747,34 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: 16,
     paddingBottom: 100,
+  },
+  readinessBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 20,
+    borderRadius: 16,
+    marginBottom: 24,
+    gap: 16,
+  },
+  readyBanner: {
+    backgroundColor: '#34C759',
+  },
+  notReadyBanner: {
+    backgroundColor: '#FF9500',
+  },
+  readinessContent: {
+    flex: 1,
+  },
+  readinessTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#fff',
+    marginBottom: 4,
+  },
+  readinessSubtitle: {
+    fontSize: 14,
+    color: '#fff',
+    opacity: 0.9,
   },
   section: {
     marginBottom: 24,
