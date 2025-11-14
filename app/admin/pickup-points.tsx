@@ -49,6 +49,7 @@ export default function PickupPointsScreen() {
       const { data: points, error: pointsError } = await supabase
         .from('pickup_points')
         .select('*')
+        .order('status', { ascending: false })
         .order('city', { ascending: true });
 
       if (pointsError) {
@@ -96,13 +97,140 @@ export default function PickupPointsScreen() {
     loadPickupPoints();
   };
 
+  const handleApprovePickupPoint = async (pointId: string, pointName: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    
+    Alert.alert(
+      'Approva Punto di Ritiro',
+      `Vuoi approvare il punto di ritiro "${pointName}"?\n\nUna volta approvato, il punto di ritiro sarà attivo e visibile agli utenti.`,
+      [
+        {
+          text: 'Annulla',
+          style: 'cancel',
+        },
+        {
+          text: 'Approva',
+          style: 'default',
+          onPress: async () => {
+            try {
+              const { error } = await supabase
+                .from('pickup_points')
+                .update({ status: 'active' })
+                .eq('id', pointId);
+
+              if (error) {
+                console.error('Error approving pickup point:', error);
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+                Alert.alert('Errore', 'Impossibile approvare il punto di ritiro: ' + error.message);
+                return;
+              }
+
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              Alert.alert('Successo', `Il punto di ritiro "${pointName}" è stato approvato!`);
+              loadPickupPoints();
+            } catch (error) {
+              console.error('Exception approving pickup point:', error);
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+              Alert.alert('Errore', 'Si è verificato un errore imprevisto');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleRejectPickupPoint = async (pointId: string, pointName: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    
+    Alert.alert(
+      'Rifiuta Punto di Ritiro',
+      `Vuoi rifiutare il punto di ritiro "${pointName}"?\n\nIl punto di ritiro verrà impostato come inattivo.`,
+      [
+        {
+          text: 'Annulla',
+          style: 'cancel',
+        },
+        {
+          text: 'Rifiuta',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const { error } = await supabase
+                .from('pickup_points')
+                .update({ status: 'inactive' })
+                .eq('id', pointId);
+
+              if (error) {
+                console.error('Error rejecting pickup point:', error);
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+                Alert.alert('Errore', 'Impossibile rifiutare il punto di ritiro: ' + error.message);
+                return;
+              }
+
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              Alert.alert('Rifiutato', `Il punto di ritiro "${pointName}" è stato rifiutato.`);
+              loadPickupPoints();
+            } catch (error) {
+              console.error('Exception rejecting pickup point:', error);
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+              Alert.alert('Errore', 'Si è verificato un errore imprevisto');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleToggleStatus = async (pointId: string, pointName: string, currentStatus: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    
+    const newStatus = currentStatus === 'active' ? 'inactive' : 'active';
+    const action = newStatus === 'active' ? 'attivare' : 'disattivare';
+    
+    Alert.alert(
+      'Cambia Stato',
+      `Vuoi ${action} il punto di ritiro "${pointName}"?`,
+      [
+        {
+          text: 'Annulla',
+          style: 'cancel',
+        },
+        {
+          text: 'Conferma',
+          onPress: async () => {
+            try {
+              const { error } = await supabase
+                .from('pickup_points')
+                .update({ status: newStatus })
+                .eq('id', pointId);
+
+              if (error) {
+                console.error('Error updating pickup point status:', error);
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+                Alert.alert('Errore', 'Impossibile aggiornare lo stato: ' + error.message);
+                return;
+              }
+
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              loadPickupPoints();
+            } catch (error) {
+              console.error('Exception updating pickup point status:', error);
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+              Alert.alert('Errore', 'Si è verificato un errore imprevisto');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'active':
         return colors.success;
       case 'inactive':
         return colors.textTertiary;
-      case 'pending':
+      case 'pending_approval':
         return colors.warning;
       default:
         return colors.textSecondary;
@@ -115,7 +243,7 @@ export default function PickupPointsScreen() {
         return 'Attivo';
       case 'inactive':
         return 'Inattivo';
-      case 'pending':
+      case 'pending_approval':
         return 'In Attesa';
       default:
         return status;
@@ -123,17 +251,15 @@ export default function PickupPointsScreen() {
   };
 
   const renderPickupPoint = (point: PickupPointData) => {
+    const isPending = point.status === 'pending_approval';
+    
     return (
-      <Pressable
+      <View
         key={point.id}
-        style={({ pressed }) => [
+        style={[
           styles.pointCard,
-          pressed && styles.pointCardPressed,
+          isPending && styles.pointCardPending,
         ]}
-        onPress={() => {
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-          Alert.alert('Punto di Ritiro', `Dettagli per: ${point.name}`);
-        }}
       >
         <View style={styles.pointHeader}>
           <View style={styles.pointIconContainer}>
@@ -141,7 +267,7 @@ export default function PickupPointsScreen() {
               ios_icon_name="mappin.circle.fill"
               android_material_icon_name="location_on"
               size={24}
-              color={colors.primary}
+              color={isPending ? colors.warning : colors.primary}
             />
           </View>
           <View style={styles.pointInfo}>
@@ -220,7 +346,62 @@ export default function PickupPointsScreen() {
             <Text style={styles.statLabel}>Commissione</Text>
           </View>
         </View>
-      </Pressable>
+
+        {isPending ? (
+          <View style={styles.actionButtons}>
+            <Pressable
+              style={({ pressed }) => [
+                styles.approveButton,
+                pressed && styles.buttonPressed,
+              ]}
+              onPress={() => handleApprovePickupPoint(point.id, point.name)}
+            >
+              <IconSymbol
+                ios_icon_name="checkmark.circle.fill"
+                android_material_icon_name="check_circle"
+                size={20}
+                color={colors.background}
+              />
+              <Text style={styles.approveButtonText}>Approva</Text>
+            </Pressable>
+            <Pressable
+              style={({ pressed }) => [
+                styles.rejectButton,
+                pressed && styles.buttonPressed,
+              ]}
+              onPress={() => handleRejectPickupPoint(point.id, point.name)}
+            >
+              <IconSymbol
+                ios_icon_name="xmark.circle.fill"
+                android_material_icon_name="cancel"
+                size={20}
+                color={colors.background}
+              />
+              <Text style={styles.rejectButtonText}>Rifiuta</Text>
+            </Pressable>
+          </View>
+        ) : (
+          <View style={styles.actionButtons}>
+            <Pressable
+              style={({ pressed }) => [
+                styles.toggleButton,
+                pressed && styles.buttonPressed,
+              ]}
+              onPress={() => handleToggleStatus(point.id, point.name, point.status)}
+            >
+              <IconSymbol
+                ios_icon_name={point.status === 'active' ? 'pause.circle.fill' : 'play.circle.fill'}
+                android_material_icon_name={point.status === 'active' ? 'pause_circle' : 'play_circle'}
+                size={20}
+                color={colors.background}
+              />
+              <Text style={styles.toggleButtonText}>
+                {point.status === 'active' ? 'Disattiva' : 'Attiva'}
+              </Text>
+            </Pressable>
+          </View>
+        )}
+      </View>
     );
   };
 
@@ -232,6 +413,10 @@ export default function PickupPointsScreen() {
       </View>
     );
   }
+
+  const pendingPoints = pickupPoints.filter(p => p.status === 'pending_approval');
+  const activePoints = pickupPoints.filter(p => p.status === 'active');
+  const inactivePoints = pickupPoints.filter(p => p.status === 'inactive');
 
   return (
     <>
@@ -256,11 +441,37 @@ export default function PickupPointsScreen() {
             <Text style={styles.statsText}>
               {pickupPoints.length} punt{pickupPoints.length === 1 ? 'o' : 'i'} di ritiro
             </Text>
+            {pendingPoints.length > 0 && (
+              <View style={styles.pendingBadge}>
+                <Text style={styles.pendingBadgeText}>
+                  {pendingPoints.length} in attesa
+                </Text>
+              </View>
+            )}
           </View>
 
-          {pickupPoints.length > 0 ? (
-            pickupPoints.map(renderPickupPoint)
-          ) : (
+          {pendingPoints.length > 0 && (
+            <>
+              <Text style={styles.sectionTitle}>⏳ In Attesa di Approvazione</Text>
+              {pendingPoints.map(renderPickupPoint)}
+            </>
+          )}
+
+          {activePoints.length > 0 && (
+            <>
+              <Text style={styles.sectionTitle}>✅ Attivi</Text>
+              {activePoints.map(renderPickupPoint)}
+            </>
+          )}
+
+          {inactivePoints.length > 0 && (
+            <>
+              <Text style={styles.sectionTitle}>⏸️ Inattivi</Text>
+              {inactivePoints.map(renderPickupPoint)}
+            </>
+          )}
+
+          {pickupPoints.length === 0 && (
             <View style={styles.emptyState}>
               <IconSymbol
                 ios_icon_name="mappin.slash"
@@ -304,12 +515,33 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
   },
   statsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     marginBottom: 16,
   },
   statsText: {
     fontSize: 14,
     fontWeight: '600',
     color: colors.textSecondary,
+  },
+  pendingBadge: {
+    backgroundColor: colors.warning + '20',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+  pendingBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.warning,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.text,
+    marginTop: 8,
+    marginBottom: 12,
   },
   pointCard: {
     backgroundColor: colors.card,
@@ -319,9 +551,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
-  pointCardPressed: {
-    opacity: 0.7,
-    transform: [{ scale: 0.98 }],
+  pointCardPending: {
+    borderColor: colors.warning,
+    borderWidth: 2,
   },
   pointHeader: {
     flexDirection: 'row',
@@ -392,6 +624,7 @@ const styles = StyleSheet.create({
   pointStats: {
     flexDirection: 'row',
     justifyContent: 'space-around',
+    marginBottom: 12,
   },
   statItem: {
     alignItems: 'center',
@@ -405,6 +638,58 @@ const styles = StyleSheet.create({
   statLabel: {
     fontSize: 11,
     color: colors.textTertiary,
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  approveButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.success,
+    paddingVertical: 12,
+    borderRadius: 8,
+    gap: 6,
+  },
+  approveButtonText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.background,
+  },
+  rejectButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.error,
+    paddingVertical: 12,
+    borderRadius: 8,
+    gap: 6,
+  },
+  rejectButtonText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.background,
+  },
+  toggleButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.text,
+    paddingVertical: 12,
+    borderRadius: 8,
+    gap: 6,
+  },
+  toggleButtonText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.background,
+  },
+  buttonPressed: {
+    opacity: 0.7,
   },
   emptyState: {
     alignItems: 'center',

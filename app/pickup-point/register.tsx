@@ -131,13 +131,26 @@ export default function RegisterPickupPointScreen() {
     setLoading(true);
 
     try {
-      // First, create the pickup point
+      console.log('Creating pickup point with data:', {
+        name: pointName.trim(),
+        address: address.trim(),
+        city: city.trim(),
+        phone: phone.trim(),
+        email: email.trim().toLowerCase(),
+        manager_name: fullName.trim(),
+        status: 'pending_approval',
+      });
+
+      // First, create the pickup point with all required fields
       const { data: pickupPointData, error: pickupPointError } = await supabase
         .from('pickup_points')
         .insert({
           name: pointName.trim(),
           address: address.trim(),
           city: city.trim(),
+          phone: phone.trim(),
+          email: email.trim().toLowerCase(),
+          manager_name: fullName.trim(),
           status: 'pending_approval',
         })
         .select()
@@ -145,13 +158,35 @@ export default function RegisterPickupPointScreen() {
 
       if (pickupPointError) {
         console.error('Error creating pickup point:', pickupPointError);
+        console.error('Error details:', {
+          message: pickupPointError.message,
+          details: pickupPointError.details,
+          hint: pickupPointError.hint,
+          code: pickupPointError.code
+        });
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-        Alert.alert('Errore', 'Impossibile creare il punto di ritiro: ' + pickupPointError.message);
+        
+        let errorMessage = 'Impossibile creare il punto di ritiro.';
+        
+        // Provide more helpful error messages
+        if (pickupPointError.message.includes('permission denied') || 
+            pickupPointError.message.includes('policy')) {
+          errorMessage = 'Errore di permessi. Contatta il supporto.';
+        } else if (pickupPointError.message.includes('duplicate') || 
+                   pickupPointError.message.includes('unique')) {
+          errorMessage = 'Esiste già un punto di ritiro con questi dati.';
+        } else if (pickupPointError.message.includes('violates check constraint')) {
+          errorMessage = 'I dati inseriti non sono validi. Controlla tutti i campi.';
+        } else {
+          errorMessage += '\n\nDettagli: ' + pickupPointError.message;
+        }
+        
+        Alert.alert('Errore', errorMessage);
         setLoading(false);
         return;
       }
 
-      console.log('Pickup point created:', pickupPointData.id);
+      console.log('Pickup point created successfully:', pickupPointData.id);
 
       // Then, register the user
       const { data: authData, error: authError } = await supabase.auth.signUp({
@@ -223,7 +258,7 @@ export default function RegisterPickupPointScreen() {
     } catch (error) {
       console.error('Registration exception:', error);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert('Errore', 'Si è verificato un errore imprevisto');
+      Alert.alert('Errore', 'Si è verificato un errore imprevisto: ' + (error instanceof Error ? error.message : 'Errore sconosciuto'));
     } finally {
       setLoading(false);
     }
@@ -305,7 +340,7 @@ export default function RegisterPickupPointScreen() {
               <Text style={styles.sectionTitle}>Informazioni Personali</Text>
               
               <View style={styles.inputContainer}>
-                <Text style={styles.inputLabel}>Nome Completo *</Text>
+                <Text style={styles.inputLabel}>Nome Completo (Responsabile) *</Text>
                 <TextInput
                   style={styles.input}
                   placeholder="Es. Mario Rossi"
