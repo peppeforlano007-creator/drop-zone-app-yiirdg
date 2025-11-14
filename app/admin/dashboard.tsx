@@ -110,6 +110,11 @@ export default function AdminDashboard() {
     router.push('/admin/manage-drops');
   };
 
+  const handleTesting = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push('/admin/testing');
+  };
+
   return (
     <>
       <Stack.Screen
@@ -552,6 +557,35 @@ export default function AdminDashboard() {
                 <Text style={styles.actionTitle}>Log Attività</Text>
                 <Text style={styles.actionDescription}>
                   Visualizza log di sistema
+                </Text>
+              </View>
+              <IconSymbol
+                ios_icon_name="chevron.right"
+                android_material_icon_name="chevron_right"
+                size={20}
+                color={colors.textTertiary}
+              />
+            </Pressable>
+
+            <Pressable
+              style={({ pressed }) => [
+                styles.actionCard,
+                pressed && styles.actionCardPressed,
+              ]}
+              onPress={handleTesting}
+            >
+              <View style={styles.actionIconContainer}>
+                <IconSymbol
+                  ios_icon_name="wrench.and.screwdriver.fill"
+                  android_material_icon_name="build"
+                  size={24}
+                  color="#10B981"
+                />
+              </View>
+              <View style={styles.actionContent}>
+                <Text style={styles.actionTitle}>Testing & Diagnostica</Text>
+                <Text style={styles.actionDescription}>
+                  Test funzionalità e performance
                 </Text>
               </View>
               <IconSymbol
