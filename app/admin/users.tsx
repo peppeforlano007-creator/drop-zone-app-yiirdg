@@ -63,24 +63,47 @@ export default function UsersScreen() {
   const loadUsers = useCallback(async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
+      
+      // First, fetch all profiles
+      const { data: profilesData, error: profilesError } = await supabase
         .from('profiles')
-        .select(`
-          *,
-          pickup_points (
-            name,
-            city
-          )
-        `)
+        .select('*')
         .order('created_at', { ascending: false });
 
-      if (error) {
-        console.error('Error loading users:', error);
+      if (profilesError) {
+        console.error('Error loading users:', profilesError);
         Alert.alert('Errore', 'Impossibile caricare gli utenti');
         return;
       }
 
-      setUsers(data || []);
+      // Then, fetch pickup points for users who have them
+      const pickupPointIds = profilesData
+        ?.filter(p => p.pickup_point_id)
+        .map(p => p.pickup_point_id) || [];
+
+      let pickupPointsMap: Record<string, any> = {};
+      
+      if (pickupPointIds.length > 0) {
+        const { data: pickupPointsData, error: pickupPointsError } = await supabase
+          .from('pickup_points')
+          .select('id, name, city')
+          .in('id', pickupPointIds);
+
+        if (!pickupPointsError && pickupPointsData) {
+          pickupPointsMap = pickupPointsData.reduce((acc, pp) => {
+            acc[pp.id] = pp;
+            return acc;
+          }, {} as Record<string, any>);
+        }
+      }
+
+      // Merge the data
+      const usersWithPickupPoints = profilesData?.map(profile => ({
+        ...profile,
+        pickup_points: profile.pickup_point_id ? pickupPointsMap[profile.pickup_point_id] : null
+      })) || [];
+
+      setUsers(usersWithPickupPoints);
     } catch (error) {
       console.error('Error loading users:', error);
       Alert.alert('Errore', 'Si è verificato un errore');
