@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
@@ -68,37 +68,7 @@ export default function DropAnalyticsScreen() {
   const [bookings, setBookings] = useState<BookingData[]>([]);
   const [timeRemaining, setTimeRemaining] = useState('');
 
-  useEffect(() => {
-    loadAnalytics();
-  }, [dropId]);
-
-  useEffect(() => {
-    if (!analytics) return;
-
-    const updateTimer = () => {
-      const now = new Date().getTime();
-      const endTime = new Date(analytics.end_time).getTime();
-      const distance = endTime - now;
-
-      if (distance < 0) {
-        setTimeRemaining('Terminato');
-        return;
-      }
-
-      const days = Math.floor(distance / (1000 * 60 * 60 * 24));
-      const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-      const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
-
-      setTimeRemaining(`${days}g ${hours}h ${minutes}m`);
-    };
-
-    updateTimer();
-    const interval = setInterval(updateTimer, 60000); // Update every minute
-
-    return () => clearInterval(interval);
-  }, [analytics]);
-
-  const loadAnalytics = async () => {
+  const loadAnalytics = useCallback(async () => {
     if (!dropId) return;
 
     try {
@@ -176,7 +146,37 @@ export default function DropAnalyticsScreen() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [dropId]);
+
+  useEffect(() => {
+    loadAnalytics();
+  }, [loadAnalytics]);
+
+  useEffect(() => {
+    if (!analytics) return;
+
+    const updateTimer = () => {
+      const now = new Date().getTime();
+      const endTime = new Date(analytics.end_time).getTime();
+      const distance = endTime - now;
+
+      if (distance < 0) {
+        setTimeRemaining('Terminato');
+        return;
+      }
+
+      const days = Math.floor(distance / (1000 * 60 * 60 * 24));
+      const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+      const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+
+      setTimeRemaining(`${days}g ${hours}h ${minutes}m`);
+    };
+
+    updateTimer();
+    const interval = setInterval(updateTimer, 60000); // Update every minute
+
+    return () => clearInterval(interval);
+  }, [analytics]);
 
   const getProgressPercentage = () => {
     if (!analytics) return 0;

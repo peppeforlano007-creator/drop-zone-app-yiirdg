@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { View, Text, StyleSheet, Pressable, Dimensions, Alert, ActivityIndicator, Animated } from 'react-native';
 import { IconSymbol } from './IconSymbol';
 import { colors } from '@/styles/commonStyles';
@@ -40,8 +40,7 @@ export default function EnhancedProductCard({
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(50)).current;
 
-  useEffect(() => {
-    // Entrance animation
+  const animateEntrance = useCallback(() => {
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
@@ -55,7 +54,11 @@ export default function EnhancedProductCard({
         useNativeDriver: true,
       }),
     ]).start();
-  }, []);
+  }, [fadeAnim, slideAnim]);
+
+  useEffect(() => {
+    animateEntrance();
+  }, [animateEntrance]);
 
   const handleImagePress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);

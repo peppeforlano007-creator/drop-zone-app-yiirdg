@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, router } from 'expo-router';
 import {
@@ -46,13 +46,32 @@ export default function ProductsScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive' | 'sold_out'>('all');
 
+  const filterProducts = useCallback(() => {
+    let filtered = products;
+
+    if (statusFilter !== 'all') {
+      filtered = filtered.filter(product => product.status === statusFilter);
+    }
+
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(product =>
+        product.name?.toLowerCase().includes(query) ||
+        product.category?.toLowerCase().includes(query) ||
+        product.supplier_lists?.name?.toLowerCase().includes(query)
+      );
+    }
+
+    setFilteredProducts(filtered);
+  }, [products, searchQuery, statusFilter]);
+
   useEffect(() => {
     loadProducts();
   }, []);
 
   useEffect(() => {
     filterProducts();
-  }, [searchQuery, statusFilter, products]);
+  }, [filterProducts]);
 
   const loadProducts = async () => {
     try {
@@ -85,25 +104,6 @@ export default function ProductsScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  };
-
-  const filterProducts = () => {
-    let filtered = products;
-
-    if (statusFilter !== 'all') {
-      filtered = filtered.filter(product => product.status === statusFilter);
-    }
-
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(product =>
-        product.name?.toLowerCase().includes(query) ||
-        product.category?.toLowerCase().includes(query) ||
-        product.supplier_lists?.name?.toLowerCase().includes(query)
-      );
-    }
-
-    setFilteredProducts(filtered);
   };
 
   const handleRefresh = () => {

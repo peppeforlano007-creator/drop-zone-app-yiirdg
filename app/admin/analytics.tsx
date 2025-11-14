@@ -30,27 +30,27 @@ interface AnalyticsData {
   capturedRevenue: number;
   averageDiscount: number;
   conversionRate: number;
-  topSuppliers: Array<{
+  topSuppliers: {
     name: string;
     revenue: number;
     bookings: number;
-  }>;
-  topProducts: Array<{
+  }[];
+  topProducts: {
     name: string;
     bookings: number;
     revenue: number;
-  }>;
-  topPickupPoints: Array<{
+  }[];
+  topPickupPoints: {
     name: string;
     city: string;
     users: number;
     drops: number;
-  }>;
-  recentActivity: Array<{
+  }[];
+  recentActivity: {
     type: string;
     description: string;
     timestamp: string;
-  }>;
+  }[];
 }
 
 export default function AnalyticsScreen() {

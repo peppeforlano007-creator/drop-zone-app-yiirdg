@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Image, ImageProps, View, StyleSheet, ActivityIndicator } from 'react-native';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from './IconSymbol';
@@ -16,11 +16,7 @@ export default function CachedImage({ uri, showPlaceholder = true, style, ...pro
   const [imageUri, setImageUri] = useState<string>(uri);
   const { getCachedImage, cacheImage } = useImageCache();
 
-  useEffect(() => {
-    loadImage();
-  }, [uri]);
-
-  const loadImage = async () => {
+  const loadImage = useCallback(async () => {
     try {
       setLoading(true);
       setError(false);
@@ -42,7 +38,11 @@ export default function CachedImage({ uri, showPlaceholder = true, style, ...pro
     } finally {
       setLoading(false);
     }
-  };
+  }, [uri, getCachedImage, cacheImage]);
+
+  useEffect(() => {
+    loadImage();
+  }, [loadImage]);
 
   const handleLoadEnd = () => {
     setLoading(false);

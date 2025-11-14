@@ -1,5 +1,5 @@
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { User, UserRole } from '@/types/User';
 import { supabase } from '@/app/integrations/supabase/client';
 import { Session } from '@supabase/supabase-js';
@@ -22,38 +22,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    console.log('AuthProvider: Initializing...');
-    
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      console.log('AuthProvider: Initial session:', session?.user?.id);
-      setSession(session);
-      if (session) {
-        loadUserProfile(session.user.id);
-      } else {
-        setLoading(false);
-      }
-    });
-
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      console.log('AuthProvider: Auth state changed:', _event, session?.user?.id);
-      setSession(session);
-      if (session) {
-        loadUserProfile(session.user.id);
-      } else {
-        setUser(null);
-        setLoading(false);
-      }
-    });
-
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, []);
-
-  const loadUserProfile = async (userId: string, retryCount = 0) => {
+  const loadUserProfile = useCallback(async (userId: string, retryCount = 0) => {
     try {
       console.log(`AuthProvider: Loading profile for user: ${userId} (attempt ${retryCount + 1})`);
       
@@ -185,7 +154,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       );
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    console.log('AuthProvider: Initializing...');
+    
+    // Get initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      console.log('AuthProvider: Initial session:', session?.user?.id);
+      setSession(session);
+      if (session) {
+        loadUserProfile(session.user.id);
+      } else {
+        setLoading(false);
+      }
+    });
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      console.log('AuthProvider: Auth state changed:', _event, session?.user?.id);
+      setSession(session);
+      if (session) {
+        loadUserProfile(session.user.id);
+      } else {
+        setUser(null);
+        setLoading(false);
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [loadUserProfile]);
 
   const register = async (
     email: string,

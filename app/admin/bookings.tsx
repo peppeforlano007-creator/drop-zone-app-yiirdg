@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, router } from 'expo-router';
 import {
@@ -53,13 +53,37 @@ export default function BookingsScreen() {
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'confirmed' | 'cancelled' | 'completed'>('all');
   const [paymentFilter, setPaymentFilter] = useState<'all' | 'pending' | 'authorized' | 'captured' | 'failed' | 'refunded'>('all');
 
+  const filterBookings = useCallback(() => {
+    let filtered = bookings;
+
+    if (statusFilter !== 'all') {
+      filtered = filtered.filter(booking => booking.status === statusFilter);
+    }
+
+    if (paymentFilter !== 'all') {
+      filtered = filtered.filter(booking => booking.payment_status === paymentFilter);
+    }
+
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(booking =>
+        booking.profiles?.full_name?.toLowerCase().includes(query) ||
+        booking.profiles?.email?.toLowerCase().includes(query) ||
+        booking.products?.name?.toLowerCase().includes(query) ||
+        booking.drops?.name?.toLowerCase().includes(query)
+      );
+    }
+
+    setFilteredBookings(filtered);
+  }, [bookings, searchQuery, statusFilter, paymentFilter]);
+
   useEffect(() => {
     loadBookings();
   }, []);
 
   useEffect(() => {
     filterBookings();
-  }, [searchQuery, statusFilter, paymentFilter, bookings]);
+  }, [filterBookings]);
 
   const loadBookings = async () => {
     try {
@@ -98,30 +122,6 @@ export default function BookingsScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  };
-
-  const filterBookings = () => {
-    let filtered = bookings;
-
-    if (statusFilter !== 'all') {
-      filtered = filtered.filter(booking => booking.status === statusFilter);
-    }
-
-    if (paymentFilter !== 'all') {
-      filtered = filtered.filter(booking => booking.payment_status === paymentFilter);
-    }
-
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(booking =>
-        booking.profiles?.full_name?.toLowerCase().includes(query) ||
-        booking.profiles?.email?.toLowerCase().includes(query) ||
-        booking.products?.name?.toLowerCase().includes(query) ||
-        booking.drops?.name?.toLowerCase().includes(query)
-      );
-    }
-
-    setFilteredBookings(filtered);
   };
 
   const handleRefresh = () => {

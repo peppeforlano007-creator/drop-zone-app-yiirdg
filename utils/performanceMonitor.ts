@@ -1,11 +1,12 @@
 
+import React from 'react';
+import { InteractionManager } from 'react-native';
+
 /**
  * Performance Monitoring Utilities
  * 
  * This file contains utilities for monitoring and optimizing app performance.
  */
-
-import { InteractionManager } from 'react-native';
 
 interface PerformanceMetric {
   name: string;
@@ -148,6 +149,3 @@ export async function measureNetworkRequest<T>(
 ): Promise<T> {
   return performanceMonitor.measure(`network_${requestName}`, request);
 }
-
-// Import React for the hook
-import React from 'react';

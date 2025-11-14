@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, router } from 'expo-router';
 import {
@@ -41,13 +41,32 @@ export default function UsersScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState<'all' | 'consumer' | 'supplier' | 'pickup_point' | 'admin'>('all');
 
+  const filterUsers = useCallback(() => {
+    let filtered = users;
+
+    if (roleFilter !== 'all') {
+      filtered = filtered.filter(user => user.role === roleFilter);
+    }
+
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(user =>
+        user.full_name?.toLowerCase().includes(query) ||
+        user.email?.toLowerCase().includes(query) ||
+        user.phone?.toLowerCase().includes(query)
+      );
+    }
+
+    setFilteredUsers(filtered);
+  }, [users, searchQuery, roleFilter]);
+
   useEffect(() => {
     loadUsers();
   }, []);
 
   useEffect(() => {
     filterUsers();
-  }, [searchQuery, roleFilter, users]);
+  }, [filterUsers]);
 
   const loadUsers = async () => {
     try {
@@ -77,25 +96,6 @@ export default function UsersScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  };
-
-  const filterUsers = () => {
-    let filtered = users;
-
-    if (roleFilter !== 'all') {
-      filtered = filtered.filter(user => user.role === roleFilter);
-    }
-
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(user =>
-        user.full_name?.toLowerCase().includes(query) ||
-        user.email?.toLowerCase().includes(query) ||
-        user.phone?.toLowerCase().includes(query)
-      );
-    }
-
-    setFilteredUsers(filtered);
   };
 
   const handleRefresh = () => {

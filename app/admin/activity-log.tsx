@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack } from 'expo-router';
 import {
@@ -36,13 +36,32 @@ export default function ActivityLogScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [actionFilter, setActionFilter] = useState<'all' | 'drop' | 'booking' | 'user' | 'product'>('all');
 
+  const filterLogs = useCallback(() => {
+    let filtered = logs;
+
+    if (actionFilter !== 'all') {
+      filtered = filtered.filter(log => log.action.startsWith(actionFilter));
+    }
+
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(log =>
+        log.description.toLowerCase().includes(query) ||
+        log.user_name.toLowerCase().includes(query) ||
+        log.action.toLowerCase().includes(query)
+      );
+    }
+
+    setFilteredLogs(filtered);
+  }, [logs, searchQuery, actionFilter]);
+
   useEffect(() => {
     loadActivityLogs();
   }, []);
 
   useEffect(() => {
     filterLogs();
-  }, [searchQuery, actionFilter, logs]);
+  }, [filterLogs]);
 
   const loadActivityLogs = async () => {
     try {
@@ -105,25 +124,6 @@ export default function ActivityLogScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  };
-
-  const filterLogs = () => {
-    let filtered = logs;
-
-    if (actionFilter !== 'all') {
-      filtered = filtered.filter(log => log.action.startsWith(actionFilter));
-    }
-
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(log =>
-        log.description.toLowerCase().includes(query) ||
-        log.user_name.toLowerCase().includes(query) ||
-        log.action.toLowerCase().includes(query)
-      );
-    }
-
-    setFilteredLogs(filtered);
   };
 
   const handleRefresh = () => {
