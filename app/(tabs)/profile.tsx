@@ -43,6 +43,11 @@ export default function ProfileScreen() {
     router.push('/(tabs)/my-bookings');
   };
 
+  const handleAdminPanel = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push('/admin/dashboard');
+  };
+
   return (
     <>
       <Stack.Screen
@@ -77,8 +82,32 @@ export default function ProfileScreen() {
               </View>
               <Text style={styles.userName}>{user?.name || mockUser.name}</Text>
               <Text style={styles.userEmail}>{mockUser.email}</Text>
+              {user?.role && (
+                <View style={styles.roleBadge}>
+                  <Text style={styles.roleText}>{user.role.toUpperCase()}</Text>
+                </View>
+              )}
             </View>
           </View>
+
+          {/* Admin Panel Button - Only visible for admins */}
+          {user?.role === 'admin' && (
+            <View style={styles.section}>
+              <Pressable 
+                style={styles.adminButton}
+                onPress={handleAdminPanel}
+              >
+                <View style={styles.adminButtonContent}>
+                  <IconSymbol name="gear.circle.fill" size={24} color={colors.background} />
+                  <View style={styles.adminButtonTextContainer}>
+                    <Text style={styles.adminButtonTitle}>Pannello Amministratore</Text>
+                    <Text style={styles.adminButtonSubtitle}>Gestisci utenti, fornitori, prodotti e drop</Text>
+                  </View>
+                </View>
+                <IconSymbol name="chevron.right" size={24} color={colors.background} />
+              </Pressable>
+            </View>
+          )}
 
           {/* Pickup Point Selection */}
           <View style={styles.section}>
@@ -214,6 +243,49 @@ const styles = StyleSheet.create({
   userEmail: {
     fontSize: 14,
     color: colors.textSecondary,
+    marginBottom: 8,
+  },
+  roleBadge: {
+    backgroundColor: colors.text,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginTop: 4,
+  },
+  roleText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.background,
+  },
+  adminButton: {
+    backgroundColor: colors.text,
+    borderRadius: 16,
+    padding: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.1)',
+    elevation: 4,
+  },
+  adminButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+    flex: 1,
+  },
+  adminButtonTextContainer: {
+    flex: 1,
+  },
+  adminButtonTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.background,
+    marginBottom: 4,
+  },
+  adminButtonSubtitle: {
+    fontSize: 13,
+    color: colors.background,
+    opacity: 0.8,
   },
   sectionTitle: {
     fontSize: 20,
