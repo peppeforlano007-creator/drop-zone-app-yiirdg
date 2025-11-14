@@ -38,6 +38,7 @@ export default function HomeScreen() {
     try {
       console.log('Loading products from database...');
       setError(null);
+      setLoading(true);
       
       // First, get all active products
       const { data: products, error: productsError } = await supabase
@@ -48,18 +49,19 @@ export default function HomeScreen() {
 
       if (productsError) {
         console.error('Error loading products:', productsError);
-        setError('Errore nel caricamento dei prodotti: ' + productsError.message);
+        setError(`Errore nel caricamento dei prodotti: ${productsError.message}`);
         setLoading(false);
         return;
       }
+
+      console.log(`Found ${products?.length || 0} products`);
 
       if (!products || products.length === 0) {
         console.log('No products found in database');
+        setProductLists([]);
         setLoading(false);
         return;
       }
-
-      console.log(`Found ${products.length} products`);
 
       // Get unique supplier list IDs
       const listIds = [...new Set(products.map(p => p.supplier_list_id))];
@@ -80,7 +82,7 @@ export default function HomeScreen() {
 
       if (listsError) {
         console.error('Error loading supplier lists:', listsError);
-        setError('Errore nel caricamento delle liste fornitori');
+        setError(`Errore nel caricamento delle liste fornitori: ${listsError.message}`);
         setLoading(false);
         return;
       }
@@ -94,6 +96,7 @@ export default function HomeScreen() {
 
       if (profilesError) {
         console.error('Error loading profiles:', profilesError);
+        // Don't fail completely if profiles fail to load
       }
 
       // Create a map of supplier_id to full_name
@@ -161,7 +164,7 @@ export default function HomeScreen() {
       setLoading(false);
     } catch (error) {
       console.error('Exception loading products:', error);
-      setError('Errore imprevisto durante il caricamento dei prodotti');
+      setError(`Errore imprevisto: ${error instanceof Error ? error.message : 'Errore sconosciuto'}`);
       setLoading(false);
     }
   }, []);
@@ -322,7 +325,7 @@ export default function HomeScreen() {
   };
 
   const handleRetry = () => {
-    setLoading(true);
+    console.log('Retrying product load...');
     setError(null);
     loadProducts();
   };
@@ -393,6 +396,9 @@ export default function HomeScreen() {
           />
           <Text style={styles.errorTitle}>Errore di Caricamento</Text>
           <Text style={styles.errorText}>{error}</Text>
+          <Text style={styles.errorHint}>
+            Verifica la tua connessione internet e riprova.
+          </Text>
           <Pressable style={styles.retryButton} onPress={handleRetry}>
             <IconSymbol 
               ios_icon_name="arrow.clockwise" 
@@ -603,6 +609,13 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     textAlign: 'center',
     lineHeight: 20,
+    marginBottom: 8,
+  },
+  errorHint: {
+    fontSize: 12,
+    color: colors.textTertiary,
+    textAlign: 'center',
+    fontStyle: 'italic',
     marginBottom: 24,
   },
   retryButton: {
