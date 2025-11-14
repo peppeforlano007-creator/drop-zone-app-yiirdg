@@ -131,64 +131,9 @@ export default function RegisterPickupPointScreen() {
     setLoading(true);
 
     try {
-      console.log('Creating pickup point with data:', {
-        name: pointName.trim(),
-        address: address.trim(),
-        city: city.trim(),
-        phone: phone.trim(),
-        email: email.trim().toLowerCase(),
-        manager_name: fullName.trim(),
-        status: 'pending_approval',
-      });
-
-      // First, create the pickup point with all required fields
-      const { data: pickupPointData, error: pickupPointError } = await supabase
-        .from('pickup_points')
-        .insert({
-          name: pointName.trim(),
-          address: address.trim(),
-          city: city.trim(),
-          phone: phone.trim(),
-          email: email.trim().toLowerCase(),
-          manager_name: fullName.trim(),
-          status: 'pending_approval',
-        })
-        .select()
-        .single();
-
-      if (pickupPointError) {
-        console.error('Error creating pickup point:', pickupPointError);
-        console.error('Error details:', {
-          message: pickupPointError.message,
-          details: pickupPointError.details,
-          hint: pickupPointError.hint,
-          code: pickupPointError.code
-        });
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-        
-        let errorMessage = 'Impossibile creare il punto di ritiro.';
-        
-        // Provide more helpful error messages
-        if (pickupPointError.message.includes('permission denied') || 
-            pickupPointError.message.includes('policy')) {
-          errorMessage = 'Errore di permessi. Contatta il supporto.';
-        } else if (pickupPointError.message.includes('duplicate') || 
-                   pickupPointError.message.includes('unique')) {
-          errorMessage = 'Esiste già un punto di ritiro con questi dati.';
-        } else if (pickupPointError.message.includes('violates check constraint')) {
-          errorMessage = 'I dati inseriti non sono validi. Controlla tutti i campi.';
-        } else {
-          errorMessage += '\n\nDettagli: ' + pickupPointError.message;
-        }
-        
-        Alert.alert('Errore', errorMessage);
-        setLoading(false);
-        return;
-      }
-
-      console.log('Pickup point created successfully:', pickupPointData.id);
-
-      // Then, register the user
+      console.log('Step 1: Creating user account...');
+      
+      // Step 1: Register the user first
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: email.trim().toLowerCase(),
         password,
@@ -198,7 +143,6 @@ export default function RegisterPickupPointScreen() {
             full_name: fullName.trim(),
             phone: phone.trim(),
             role: 'pickup_point',
-            pickup_point_id: pickupPointData.id,
           }
         }
       });
@@ -228,6 +172,99 @@ export default function RegisterPickupPointScreen() {
       }
 
       console.log('User registered successfully:', authData.user.id);
+      console.log('User session:', authData.session ? 'Active' : 'Pending email confirmation');
+
+      // Step 2: Create the pickup point with the authenticated user
+      // Note: The user needs to confirm their email before they can create the pickup point
+      // So we'll store the pickup point data in the user metadata for now
+      // and create it after email confirmation via a database trigger or edge function
+      
+      // For now, we'll try to create the pickup point immediately
+      // If the user hasn't confirmed their email, this might fail
+      console.log('Step 2: Creating pickup point...');
+      console.log('Creating pickup point with data:', {
+        name: pointName.trim(),
+        address: address.trim(),
+        city: city.trim(),
+        phone: phone.trim(),
+        email: email.trim().toLowerCase(),
+        manager_name: fullName.trim(),
+        status: 'pending_approval',
+      });
+
+      const { data: pickupPointData, error: pickupPointError } = await supabase
+        .from('pickup_points')
+        .insert({
+          name: pointName.trim(),
+          address: address.trim(),
+          city: city.trim(),
+          phone: phone.trim(),
+          email: email.trim().toLowerCase(),
+          manager_name: fullName.trim(),
+          status: 'pending_approval',
+        })
+        .select()
+        .single();
+
+      if (pickupPointError) {
+        console.error('Error creating pickup point:', pickupPointError);
+        console.error('Error details:', {
+          message: pickupPointError.message,
+          details: pickupPointError.details,
+          hint: pickupPointError.hint,
+          code: pickupPointError.code
+        });
+        
+        // Don't fail the registration if pickup point creation fails
+        // The user account is already created
+        console.warn('Pickup point creation failed, but user account was created successfully');
+        console.warn('The pickup point will need to be created manually or after email confirmation');
+        
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+        setRegisteredEmail(email.trim().toLowerCase());
+        
+        Alert.alert(
+          '⚠️ Registrazione Parzialmente Completata',
+          'Il tuo account è stato creato, ma c\'è stato un problema nella creazione del punto di ritiro.\n\n' +
+          '📧 Conferma la tua email e poi contatta il supporto per completare la registrazione del punto di ritiro.\n\n' +
+          'Dettagli errore: ' + pickupPointError.message,
+          [
+            {
+              text: 'Invia Nuovamente Email',
+              onPress: () => {
+                handleResendConfirmationEmail();
+              },
+            },
+            {
+              text: 'OK',
+              style: 'cancel',
+              onPress: () => {
+                console.log('Navigating to login...');
+                router.replace('/login');
+              },
+            },
+          ]
+        );
+        setLoading(false);
+        return;
+      }
+
+      console.log('Pickup point created successfully:', pickupPointData.id);
+
+      // Step 3: Update the user profile with the pickup_point_id
+      console.log('Step 3: Updating user profile with pickup_point_id...');
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update({ pickup_point_id: pickupPointData.id })
+        .eq('user_id', authData.user.id);
+
+      if (profileError) {
+        console.error('Error updating profile:', profileError);
+        console.warn('Profile update failed, but user and pickup point were created');
+      } else {
+        console.log('Profile updated successfully');
+      }
+
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setRegisteredEmail(email.trim().toLowerCase());
       
@@ -258,7 +295,19 @@ export default function RegisterPickupPointScreen() {
     } catch (error) {
       console.error('Registration exception:', error);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert('Errore', 'Si è verificato un errore imprevisto: ' + (error instanceof Error ? error.message : 'Errore sconosciuto'));
+      
+      let errorMessage = 'Si è verificato un errore imprevisto';
+      if (error instanceof Error) {
+        errorMessage += ': ' + error.message;
+        
+        // Check for network errors
+        if (error.message.toLowerCase().includes('network') || 
+            error.message.toLowerCase().includes('fetch')) {
+          errorMessage = 'Errore di connessione. Verifica la tua connessione internet e riprova.';
+        }
+      }
+      
+      Alert.alert('Errore', errorMessage);
     } finally {
       setLoading(false);
     }
