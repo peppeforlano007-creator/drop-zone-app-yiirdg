@@ -55,15 +55,7 @@ export default function ActivityLogScreen() {
     setFilteredLogs(filtered);
   }, [logs, searchQuery, actionFilter]);
 
-  useEffect(() => {
-    loadActivityLogs();
-  }, []);
-
-  useEffect(() => {
-    filterLogs();
-  }, [filterLogs]);
-
-  const loadActivityLogs = async () => {
+  const loadActivityLogs = useCallback(async () => {
     try {
       setLoading(true);
 
@@ -124,7 +116,15 @@ export default function ActivityLogScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    loadActivityLogs();
+  }, [loadActivityLogs]);
+
+  useEffect(() => {
+    filterLogs();
+  }, [filterLogs]);
 
   const handleRefresh = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);

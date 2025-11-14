@@ -60,15 +60,7 @@ export default function UsersScreen() {
     setFilteredUsers(filtered);
   }, [users, searchQuery, roleFilter]);
 
-  useEffect(() => {
-    loadUsers();
-  }, []);
-
-  useEffect(() => {
-    filterUsers();
-  }, [filterUsers]);
-
-  const loadUsers = async () => {
+  const loadUsers = useCallback(async () => {
     try {
       setLoading(true);
       const { data, error } = await supabase
@@ -96,7 +88,15 @@ export default function UsersScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    loadUsers();
+  }, [loadUsers]);
+
+  useEffect(() => {
+    filterUsers();
+  }, [filterUsers]);
 
   const handleRefresh = () => {
     setRefreshing(true);

@@ -65,15 +65,7 @@ export default function ProductsScreen() {
     setFilteredProducts(filtered);
   }, [products, searchQuery, statusFilter]);
 
-  useEffect(() => {
-    loadProducts();
-  }, []);
-
-  useEffect(() => {
-    filterProducts();
-  }, [filterProducts]);
-
-  const loadProducts = async () => {
+  const loadProducts = useCallback(async () => {
     try {
       setLoading(true);
       const { data, error } = await supabase
@@ -104,7 +96,15 @@ export default function ProductsScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    loadProducts();
+  }, [loadProducts]);
+
+  useEffect(() => {
+    filterProducts();
+  }, [filterProducts]);
 
   const handleRefresh = () => {
     setRefreshing(true);
