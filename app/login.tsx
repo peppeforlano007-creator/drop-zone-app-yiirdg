@@ -18,12 +18,15 @@ import { IconSymbol } from '@/components/IconSymbol';
 import { useAuth } from '@/contexts/AuthContext';
 import React, { useState, useEffect } from 'react';
 import * as Haptics from 'expo-haptics';
+import { supabase } from '@/app/integrations/supabase/client';
 
 export default function LoginScreen() {
   const { login, user, loading: authLoading } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showResendEmail, setShowResendEmail] = useState(false);
+  const [resendingEmail, setResendingEmail] = useState(false);
 
   useEffect(() => {
     // Redirect if already logged in
@@ -41,6 +44,50 @@ export default function LoginScreen() {
     }
   }, [user, authLoading]);
 
+  const handleResendConfirmationEmail = async () => {
+    if (!email.trim()) {
+      Alert.alert('Errore', 'Inserisci l\'email per ricevere nuovamente l\'email di conferma');
+      return;
+    }
+
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setResendingEmail(true);
+
+    try {
+      console.log('Resending confirmation email to:', email);
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email: email.trim().toLowerCase(),
+        options: {
+          emailRedirectTo: 'https://natively.dev/email-confirmed'
+        }
+      });
+
+      if (error) {
+        console.error('Error resending confirmation email:', error);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        Alert.alert(
+          'Errore',
+          'Impossibile inviare l\'email di conferma. Verifica che l\'indirizzo email sia corretto.'
+        );
+      } else {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        Alert.alert(
+          'Email Inviata!',
+          'Abbiamo inviato nuovamente l\'email di conferma. Controlla la tua casella di posta (anche nello spam).',
+          [{ text: 'OK' }]
+        );
+        setShowResendEmail(false);
+      }
+    } catch (error) {
+      console.error('Exception resending confirmation email:', error);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert('Errore', 'Si è verificato un errore imprevisto. Riprova.');
+    } finally {
+      setResendingEmail(false);
+    }
+  };
+
   const handleLogin = async () => {
     if (!email.trim()) {
       Alert.alert('Errore', 'Inserisci l\'email');
@@ -54,6 +101,7 @@ export default function LoginScreen() {
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setLoading(true);
+    setShowResendEmail(false);
 
     try {
       console.log('Login: Attempting login for:', email);
@@ -71,16 +119,42 @@ export default function LoginScreen() {
         
         // Show more user-friendly error messages
         let errorMessage = result.message || 'Credenziali non valide';
+        let showResend = false;
         
-        if (errorMessage.includes('Email not confirmed')) {
-          errorMessage = 'Email non confermata. Controlla la tua casella di posta e clicca sul link di conferma.';
-        } else if (errorMessage.includes('Invalid login credentials')) {
-          errorMessage = 'Email o password non corretti. Riprova.';
-        } else if (errorMessage.includes('Email not found')) {
-          errorMessage = 'Account non trovato. Registrati per creare un nuovo account.';
+        // Check for email not confirmed error
+        if (errorMessage.toLowerCase().includes('email not confirmed') || 
+            errorMessage.toLowerCase().includes('email confirmation')) {
+          errorMessage = 'La tua email non è stata ancora confermata.\n\nControlla la tua casella di posta e clicca sul link di conferma che ti abbiamo inviato.\n\nNon hai ricevuto l\'email?';
+          showResend = true;
+        } else if (errorMessage.toLowerCase().includes('invalid login credentials') ||
+                   errorMessage.toLowerCase().includes('invalid credentials')) {
+          errorMessage = 'Email o password non corretti.\n\nVerifica i tuoi dati e riprova.';
+        } else if (errorMessage.toLowerCase().includes('email not found') ||
+                   errorMessage.toLowerCase().includes('user not found')) {
+          errorMessage = 'Account non trovato.\n\nRegistrati per creare un nuovo account.';
         }
         
-        Alert.alert('Errore di Login', errorMessage);
+        if (showResend) {
+          Alert.alert(
+            'Email Non Confermata',
+            errorMessage,
+            [
+              {
+                text: 'Annulla',
+                style: 'cancel',
+              },
+              {
+                text: 'Invia Nuovamente',
+                onPress: () => {
+                  setShowResendEmail(true);
+                  handleResendConfirmationEmail();
+                },
+              },
+            ]
+          );
+        } else {
+          Alert.alert('Errore di Login', errorMessage);
+        }
       }
     } catch (error) {
       console.error('Login: Exception:', error);
@@ -143,7 +217,7 @@ export default function LoginScreen() {
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoComplete="email"
-                editable={!loading}
+                editable={!loading && !resendingEmail}
               />
 
               <Text style={styles.inputLabel}>Password</Text>
@@ -156,16 +230,43 @@ export default function LoginScreen() {
                 secureTextEntry
                 autoCapitalize="none"
                 autoComplete="password"
-                editable={!loading}
+                editable={!loading && !resendingEmail}
               />
+
+              {showResendEmail && (
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.resendButton,
+                    (pressed || resendingEmail) && styles.resendButtonPressed,
+                  ]}
+                  onPress={handleResendConfirmationEmail}
+                  disabled={resendingEmail}
+                >
+                  {resendingEmail ? (
+                    <ActivityIndicator color={colors.primary} size="small" />
+                  ) : (
+                    <>
+                      <IconSymbol
+                        ios_icon_name="envelope.fill"
+                        android_material_icon_name="email"
+                        size={20}
+                        color={colors.primary}
+                      />
+                      <Text style={styles.resendButtonText}>
+                        Invia Nuovamente Email di Conferma
+                      </Text>
+                    </>
+                  )}
+                </Pressable>
+              )}
 
               <Pressable
                 style={({ pressed }) => [
                   styles.loginButton,
-                  (pressed || loading) && styles.loginButtonPressed,
+                  (pressed || loading || resendingEmail) && styles.loginButtonPressed,
                 ]}
                 onPress={handleLogin}
-                disabled={loading}
+                disabled={loading || resendingEmail}
               >
                 {loading ? (
                   <ActivityIndicator color="#fff" />
@@ -190,7 +291,7 @@ export default function LoginScreen() {
                   pressed && styles.registerCardPressed,
                 ]}
                 onPress={handleRegisterConsumer}
-                disabled={loading}
+                disabled={loading || resendingEmail}
               >
                 <View style={styles.registerCardIcon}>
                   <IconSymbol
@@ -220,7 +321,7 @@ export default function LoginScreen() {
                   pressed && styles.registerCardPressed,
                 ]}
                 onPress={handleRegisterSupplier}
-                disabled={loading}
+                disabled={loading || resendingEmail}
               >
                 <View style={styles.registerCardIcon}>
                   <IconSymbol
@@ -250,7 +351,7 @@ export default function LoginScreen() {
                   pressed && styles.registerCardPressed,
                 ]}
                 onPress={handleRegisterPickupPoint}
-                disabled={loading}
+                disabled={loading || resendingEmail}
               >
                 <View style={styles.registerCardIcon}>
                   <IconSymbol
@@ -337,6 +438,27 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     borderWidth: 1,
     borderColor: colors.border,
+  },
+  resendButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primary + '15',
+    borderRadius: 8,
+    padding: 14,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: colors.primary + '30',
+    minHeight: 52,
+  },
+  resendButtonPressed: {
+    opacity: 0.7,
+  },
+  resendButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.primary,
+    marginLeft: 8,
   },
   loginButton: {
     backgroundColor: colors.primary,

@@ -18,6 +18,7 @@ import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 import { useAuth } from '@/contexts/AuthContext';
 import * as Haptics from 'expo-haptics';
+import { supabase } from '@/app/integrations/supabase/client';
 
 export default function RegisterSupplierScreen() {
   const { register } = useAuth();
@@ -27,6 +28,48 @@ export default function RegisterSupplierScreen() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [registeredEmail, setRegisteredEmail] = useState<string | null>(null);
+  const [resendingEmail, setResendingEmail] = useState(false);
+
+  const handleResendConfirmationEmail = async () => {
+    if (!registeredEmail) return;
+
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setResendingEmail(true);
+
+    try {
+      console.log('Resending confirmation email to:', registeredEmail);
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email: registeredEmail,
+        options: {
+          emailRedirectTo: 'https://natively.dev/email-confirmed'
+        }
+      });
+
+      if (error) {
+        console.error('Error resending confirmation email:', error);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        Alert.alert(
+          'Errore',
+          'Impossibile inviare l\'email di conferma. Riprova più tardi.'
+        );
+      } else {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        Alert.alert(
+          'Email Inviata!',
+          'Abbiamo inviato nuovamente l\'email di conferma. Controlla la tua casella di posta (anche nello spam).',
+          [{ text: 'OK' }]
+        );
+      }
+    } catch (error) {
+      console.error('Exception resending confirmation email:', error);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert('Errore', 'Si è verificato un errore imprevisto. Riprova.');
+    } finally {
+      setResendingEmail(false);
+    }
+  };
 
   const handleRegister = async () => {
     console.log('handleRegister called');
@@ -82,12 +125,24 @@ export default function RegisterSupplierScreen() {
 
       if (result.success) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        setRegisteredEmail(email.trim().toLowerCase());
+        
         Alert.alert(
-          'Registrazione Completata!',
-          result.message || 'Controlla la tua email per verificare l\'account.',
+          '✅ Registrazione Completata!',
+          'Ti abbiamo inviato un\'email di conferma.\n\n' +
+          '📧 Controlla la tua casella di posta (anche nello spam) e clicca sul link per attivare il tuo account.\n\n' +
+          '⚠️ Non potrai accedere finché non confermi la tua email.\n\n' +
+          'Non hai ricevuto l\'email?',
           [
             {
-              text: 'OK',
+              text: 'Invia Nuovamente',
+              onPress: () => {
+                handleResendConfirmationEmail();
+              },
+            },
+            {
+              text: 'Vai al Login',
+              style: 'cancel',
               onPress: () => {
                 console.log('Navigating to login...');
                 router.replace('/login');
@@ -97,7 +152,16 @@ export default function RegisterSupplierScreen() {
         );
       } else {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-        Alert.alert('Errore di Registrazione', result.message || 'Si è verificato un errore');
+        
+        // Provide more helpful error messages
+        let errorMessage = result.message || 'Si è verificato un errore';
+        
+        if (errorMessage.toLowerCase().includes('user already registered') ||
+            errorMessage.toLowerCase().includes('already registered')) {
+          errorMessage = 'Questo indirizzo email è già registrato.\n\nSe hai dimenticato la password, contatta il supporto.';
+        }
+        
+        Alert.alert('Errore di Registrazione', errorMessage);
       }
     } catch (error) {
       console.error('Registration exception:', error);
@@ -142,6 +206,44 @@ export default function RegisterSupplierScreen() {
               </Text>
             </View>
 
+            {registeredEmail && (
+              <View style={styles.emailConfirmationBanner}>
+                <IconSymbol
+                  ios_icon_name="envelope.badge.fill"
+                  android_material_icon_name="mark_email_unread"
+                  size={24}
+                  color={colors.primary}
+                />
+                <View style={styles.emailConfirmationContent}>
+                  <Text style={styles.emailConfirmationTitle}>
+                    Email di Conferma Inviata
+                  </Text>
+                  <Text style={styles.emailConfirmationText}>
+                    Controlla {registeredEmail}
+                  </Text>
+                </View>
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.resendIconButton,
+                    (pressed || resendingEmail) && styles.resendIconButtonPressed,
+                  ]}
+                  onPress={handleResendConfirmationEmail}
+                  disabled={resendingEmail}
+                >
+                  {resendingEmail ? (
+                    <ActivityIndicator size="small" color={colors.primary} />
+                  ) : (
+                    <IconSymbol
+                      ios_icon_name="arrow.clockwise"
+                      android_material_icon_name="refresh"
+                      size={20}
+                      color={colors.primary}
+                    />
+                  )}
+                </Pressable>
+              </View>
+            )}
+
             <View style={styles.form}>
               <View style={styles.inputContainer}>
                 <Text style={styles.inputLabel}>Nome Completo *</Text>
@@ -153,7 +255,7 @@ export default function RegisterSupplierScreen() {
                   onChangeText={setFullName}
                   autoCapitalize="words"
                   autoComplete="name"
-                  editable={!loading}
+                  editable={!loading && !resendingEmail}
                 />
               </View>
 
@@ -168,7 +270,7 @@ export default function RegisterSupplierScreen() {
                   keyboardType="email-address"
                   autoCapitalize="none"
                   autoComplete="email"
-                  editable={!loading}
+                  editable={!loading && !resendingEmail}
                 />
               </View>
 
@@ -182,7 +284,7 @@ export default function RegisterSupplierScreen() {
                   onChangeText={setPhone}
                   keyboardType="phone-pad"
                   autoComplete="tel"
-                  editable={!loading}
+                  editable={!loading && !resendingEmail}
                 />
               </View>
 
@@ -197,7 +299,7 @@ export default function RegisterSupplierScreen() {
                   secureTextEntry
                   autoCapitalize="none"
                   autoComplete="password-new"
-                  editable={!loading}
+                  editable={!loading && !resendingEmail}
                 />
               </View>
 
@@ -212,7 +314,7 @@ export default function RegisterSupplierScreen() {
                   secureTextEntry
                   autoCapitalize="none"
                   autoComplete="password-new"
-                  editable={!loading}
+                  editable={!loading && !resendingEmail}
                 />
               </View>
 
@@ -221,10 +323,10 @@ export default function RegisterSupplierScreen() {
               <Pressable 
                 style={({ pressed }) => [
                   styles.registerButton,
-                  (pressed || loading) && styles.registerButtonPressed
+                  (pressed || loading || resendingEmail) && styles.registerButtonPressed
                 ]} 
                 onPress={handleRegister}
-                disabled={loading}
+                disabled={loading || resendingEmail}
               >
                 {loading ? (
                   <ActivityIndicator color={colors.background} />
@@ -239,7 +341,7 @@ export default function RegisterSupplierScreen() {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   router.back();
                 }}
-                disabled={loading}
+                disabled={loading || resendingEmail}
               >
                 <Text style={styles.loginLinkText}>
                   Hai già un account? Accedi
@@ -290,6 +392,42 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     textAlign: 'center',
     lineHeight: 20,
+  },
+  emailConfirmationBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.primary + '15',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: colors.primary + '30',
+  },
+  emailConfirmationContent: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  emailConfirmationTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 4,
+  },
+  emailConfirmationText: {
+    fontSize: 12,
+    color: colors.textSecondary,
+  },
+  resendIconButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 8,
+  },
+  resendIconButtonPressed: {
+    opacity: 0.7,
   },
   form: {
     flex: 1,

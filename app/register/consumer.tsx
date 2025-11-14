@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -17,8 +17,8 @@ import { Stack, router } from 'expo-router';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/app/integrations/supabase/client';
 import * as Haptics from 'expo-haptics';
+import { supabase } from '@/app/integrations/supabase/client';
 
 interface PickupPoint {
   id: string;
@@ -33,14 +33,19 @@ export default function RegisterConsumerScreen() {
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [selectedPickupPoint, setSelectedPickupPoint] = useState<string | null>(null);
+  const [selectedPickupPoint, setSelectedPickupPoint] = useState<string>('');
   const [pickupPoints, setPickupPoints] = useState<PickupPoint[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadingPickupPoints, setLoadingPickupPoints] = useState(true);
+  const [registeredEmail, setRegisteredEmail] = useState<string | null>(null);
+  const [resendingEmail, setResendingEmail] = useState(false);
 
-  const loadPickupPoints = useCallback(async () => {
+  React.useEffect(() => {
+    loadPickupPoints();
+  }, []);
+
+  const loadPickupPoints = async () => {
     try {
-      console.log('Loading pickup points...');
       const { data, error } = await supabase
         .from('pickup_points')
         .select('id, name, city')
@@ -49,34 +54,59 @@ export default function RegisterConsumerScreen() {
 
       if (error) {
         console.error('Error loading pickup points:', error);
-        Alert.alert('Errore', 'Impossibile caricare i punti di ritiro. Riprova più tardi.');
-        return;
-      }
-
-      console.log('Pickup points loaded:', data?.length || 0);
-      setPickupPoints(data || []);
-      
-      if (!data || data.length === 0) {
-        console.warn('No pickup points available');
+        Alert.alert('Errore', 'Impossibile caricare i punti di ritiro');
+      } else {
+        setPickupPoints(data || []);
       }
     } catch (error) {
       console.error('Exception loading pickup points:', error);
-      Alert.alert('Errore', 'Si è verificato un errore durante il caricamento dei punti di ritiro.');
     } finally {
       setLoadingPickupPoints(false);
     }
-  }, []);
+  };
 
-  useEffect(() => {
-    loadPickupPoints();
-  }, [loadPickupPoints]);
+  const handleResendConfirmationEmail = async () => {
+    if (!registeredEmail) return;
+
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setResendingEmail(true);
+
+    try {
+      console.log('Resending confirmation email to:', registeredEmail);
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email: registeredEmail,
+        options: {
+          emailRedirectTo: 'https://natively.dev/email-confirmed'
+        }
+      });
+
+      if (error) {
+        console.error('Error resending confirmation email:', error);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        Alert.alert(
+          'Errore',
+          'Impossibile inviare l\'email di conferma. Riprova più tardi.'
+        );
+      } else {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        Alert.alert(
+          'Email Inviata!',
+          'Abbiamo inviato nuovamente l\'email di conferma. Controlla la tua casella di posta (anche nello spam).',
+          [{ text: 'OK' }]
+        );
+      }
+    } catch (error) {
+      console.error('Exception resending confirmation email:', error);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert('Errore', 'Si è verificato un errore imprevisto. Riprova.');
+    } finally {
+      setResendingEmail(false);
+    }
+  };
 
   const handleRegister = async () => {
-    console.log('=== REGISTRATION START ===');
-    console.log('Full Name:', fullName);
-    console.log('Email:', email);
-    console.log('Phone:', phone);
-    console.log('Selected Pickup Point ID:', selectedPickupPoint);
+    console.log('handleRegister called');
     
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     
@@ -124,7 +154,6 @@ export default function RegisterConsumerScreen() {
     setLoading(true);
 
     try {
-      console.log('Calling register function...');
       const result = await register(
         email.trim().toLowerCase(),
         password,
@@ -134,16 +163,26 @@ export default function RegisterConsumerScreen() {
         selectedPickupPoint
       );
 
-      console.log('Registration result:', result);
-
       if (result.success) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        setRegisteredEmail(email.trim().toLowerCase());
+        
         Alert.alert(
-          'Registrazione Completata!',
-          result.message || 'Controlla la tua email per verificare l\'account.',
+          '✅ Registrazione Completata!',
+          'Ti abbiamo inviato un\'email di conferma.\n\n' +
+          '📧 Controlla la tua casella di posta (anche nello spam) e clicca sul link per attivare il tuo account.\n\n' +
+          '⚠️ Non potrai accedere finché non confermi la tua email.\n\n' +
+          'Non hai ricevuto l\'email?',
           [
             {
-              text: 'OK',
+              text: 'Invia Nuovamente',
+              onPress: () => {
+                handleResendConfirmationEmail();
+              },
+            },
+            {
+              text: 'Vai al Login',
+              style: 'cancel',
               onPress: () => {
                 console.log('Navigating to login...');
                 router.replace('/login');
@@ -153,8 +192,16 @@ export default function RegisterConsumerScreen() {
         );
       } else {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-        console.error('Registration failed:', result.message);
-        Alert.alert('Errore di Registrazione', result.message || 'Si è verificato un errore');
+        
+        // Provide more helpful error messages
+        let errorMessage = result.message || 'Si è verificato un errore';
+        
+        if (errorMessage.toLowerCase().includes('user already registered') ||
+            errorMessage.toLowerCase().includes('already registered')) {
+          errorMessage = 'Questo indirizzo email è già registrato.\n\nSe hai dimenticato la password, contatta il supporto.';
+        }
+        
+        Alert.alert('Errore di Registrazione', errorMessage);
       }
     } catch (error) {
       console.error('Registration exception:', error);
@@ -162,7 +209,6 @@ export default function RegisterConsumerScreen() {
       Alert.alert('Errore', 'Si è verificato un errore imprevisto');
     } finally {
       setLoading(false);
-      console.log('=== REGISTRATION END ===');
     }
   };
 
@@ -194,11 +240,49 @@ export default function RegisterConsumerScreen() {
                   color={colors.text} 
                 />
               </View>
-              <Text style={styles.title}>Crea Account Consumatore</Text>
+              <Text style={styles.title}>Crea Account</Text>
               <Text style={styles.subtitle}>
-                Inserisci i tuoi dati per registrarti come consumatore
+                Inserisci i tuoi dati per iniziare a prenotare prodotti
               </Text>
             </View>
+
+            {registeredEmail && (
+              <View style={styles.emailConfirmationBanner}>
+                <IconSymbol
+                  ios_icon_name="envelope.badge.fill"
+                  android_material_icon_name="mark_email_unread"
+                  size={24}
+                  color={colors.primary}
+                />
+                <View style={styles.emailConfirmationContent}>
+                  <Text style={styles.emailConfirmationTitle}>
+                    Email di Conferma Inviata
+                  </Text>
+                  <Text style={styles.emailConfirmationText}>
+                    Controlla {registeredEmail}
+                  </Text>
+                </View>
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.resendIconButton,
+                    (pressed || resendingEmail) && styles.resendIconButtonPressed,
+                  ]}
+                  onPress={handleResendConfirmationEmail}
+                  disabled={resendingEmail}
+                >
+                  {resendingEmail ? (
+                    <ActivityIndicator size="small" color={colors.primary} />
+                  ) : (
+                    <IconSymbol
+                      ios_icon_name="arrow.clockwise"
+                      android_material_icon_name="refresh"
+                      size={20}
+                      color={colors.primary}
+                    />
+                  )}
+                </Pressable>
+              </View>
+            )}
 
             <View style={styles.form}>
               <View style={styles.inputContainer}>
@@ -211,7 +295,7 @@ export default function RegisterConsumerScreen() {
                   onChangeText={setFullName}
                   autoCapitalize="words"
                   autoComplete="name"
-                  editable={!loading}
+                  editable={!loading && !resendingEmail}
                 />
               </View>
 
@@ -226,7 +310,7 @@ export default function RegisterConsumerScreen() {
                   keyboardType="email-address"
                   autoCapitalize="none"
                   autoComplete="email"
-                  editable={!loading}
+                  editable={!loading && !resendingEmail}
                 />
               </View>
 
@@ -240,7 +324,7 @@ export default function RegisterConsumerScreen() {
                   onChangeText={setPhone}
                   keyboardType="phone-pad"
                   autoComplete="tel"
-                  editable={!loading}
+                  editable={!loading && !resendingEmail}
                 />
               </View>
 
@@ -248,44 +332,13 @@ export default function RegisterConsumerScreen() {
                 <Text style={styles.inputLabel}>Punto di Ritiro *</Text>
                 {loadingPickupPoints ? (
                   <View style={styles.loadingPickupPoints}>
-                    <ActivityIndicator size="small" color={colors.primary} />
+                    <ActivityIndicator color={colors.primary} />
                     <Text style={styles.loadingText}>Caricamento punti di ritiro...</Text>
-                  </View>
-                ) : pickupPoints.length === 0 ? (
-                  <View style={styles.noPickupPointsContainer}>
-                    <IconSymbol
-                      ios_icon_name="exclamationmark.triangle.fill"
-                      android_material_icon_name="warning"
-                      size={32}
-                      color={colors.error || '#FF3B30'}
-                    />
-                    <Text style={styles.noPickupPointsTitle}>Nessun punto di ritiro disponibile</Text>
-                    <Text style={styles.noPickupPointsText}>
-                      Al momento non ci sono punti di ritiro attivi. Riprova più tardi o contatta il supporto.
-                    </Text>
-                    <Pressable
-                      style={styles.retryButton}
-                      onPress={() => {
-                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                        setLoadingPickupPoints(true);
-                        loadPickupPoints();
-                      }}
-                    >
-                      <IconSymbol
-                        ios_icon_name="arrow.clockwise"
-                        android_material_icon_name="refresh"
-                        size={20}
-                        color={colors.primary}
-                      />
-                      <Text style={styles.retryButtonText}>Ricarica</Text>
-                    </Pressable>
                   </View>
                 ) : (
                   <ScrollView 
-                    horizontal 
-                    showsHorizontalScrollIndicator={false}
-                    style={styles.pickupPointsScroll}
-                    contentContainerStyle={styles.pickupPointsScrollContent}
+                    style={styles.pickupPointsContainer}
+                    nestedScrollEnabled
                   >
                     {pickupPoints.map((point) => (
                       <Pressable
@@ -298,23 +351,21 @@ export default function RegisterConsumerScreen() {
                         onPress={() => {
                           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                           setSelectedPickupPoint(point.id);
-                          console.log('Selected pickup point:', point.city, point.id);
                         }}
-                        disabled={loading}
+                        disabled={loading || resendingEmail}
                       >
-                        <IconSymbol
-                          ios_icon_name="mappin.circle.fill"
-                          android_material_icon_name="location_on"
-                          size={24}
-                          color={selectedPickupPoint === point.id ? colors.primary : colors.textSecondary}
-                        />
-                        <Text style={[
-                          styles.pickupPointCity,
-                          selectedPickupPoint === point.id && styles.pickupPointCitySelected
-                        ]}>
-                          {point.city}
-                        </Text>
-                        <Text style={styles.pickupPointName}>{point.name}</Text>
+                        <View style={styles.pickupPointIcon}>
+                          <IconSymbol
+                            ios_icon_name={selectedPickupPoint === point.id ? "checkmark.circle.fill" : "circle"}
+                            android_material_icon_name={selectedPickupPoint === point.id ? "check_circle" : "radio_button_unchecked"}
+                            size={24}
+                            color={selectedPickupPoint === point.id ? colors.primary : colors.textSecondary}
+                          />
+                        </View>
+                        <View style={styles.pickupPointInfo}>
+                          <Text style={styles.pickupPointName}>{point.name}</Text>
+                          <Text style={styles.pickupPointCity}>{point.city}</Text>
+                        </View>
                       </Pressable>
                     ))}
                   </ScrollView>
@@ -332,7 +383,7 @@ export default function RegisterConsumerScreen() {
                   secureTextEntry
                   autoCapitalize="none"
                   autoComplete="password-new"
-                  editable={!loading}
+                  editable={!loading && !resendingEmail}
                 />
               </View>
 
@@ -347,7 +398,7 @@ export default function RegisterConsumerScreen() {
                   secureTextEntry
                   autoCapitalize="none"
                   autoComplete="password-new"
-                  editable={!loading}
+                  editable={!loading && !resendingEmail}
                 />
               </View>
 
@@ -356,10 +407,10 @@ export default function RegisterConsumerScreen() {
               <Pressable 
                 style={({ pressed }) => [
                   styles.registerButton,
-                  (pressed || loading || pickupPoints.length === 0) && styles.registerButtonPressed
+                  (pressed || loading || resendingEmail) && styles.registerButtonPressed
                 ]} 
                 onPress={handleRegister}
-                disabled={loading || pickupPoints.length === 0}
+                disabled={loading || resendingEmail}
               >
                 {loading ? (
                   <ActivityIndicator color={colors.background} />
@@ -374,7 +425,7 @@ export default function RegisterConsumerScreen() {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   router.back();
                 }}
-                disabled={loading}
+                disabled={loading || resendingEmail}
               >
                 <Text style={styles.loginLinkText}>
                   Hai già un account? Accedi
@@ -426,6 +477,42 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 20,
   },
+  emailConfirmationBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.primary + '15',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: colors.primary + '30',
+  },
+  emailConfirmationContent: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  emailConfirmationTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 4,
+  },
+  emailConfirmationText: {
+    fontSize: 12,
+    color: colors.textSecondary,
+  },
+  resendIconButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 8,
+  },
+  resendIconButtonPressed: {
+    opacity: 0.7,
+  },
   form: {
     flex: 1,
   },
@@ -450,90 +537,50 @@ const styles = StyleSheet.create({
   loadingPickupPoints: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
+    padding: 20,
     backgroundColor: colors.card,
     borderRadius: 8,
-    gap: 12,
   },
   loadingText: {
+    marginLeft: 12,
     fontSize: 14,
     color: colors.textSecondary,
   },
-  noPickupPointsContainer: {
+  pickupPointsContainer: {
+    maxHeight: 200,
     backgroundColor: colors.card,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 12,
-    padding: 24,
-    alignItems: 'center',
-  },
-  noPickupPointsTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: colors.text,
-    marginTop: 12,
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  noPickupPointsText: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    lineHeight: 20,
-    marginBottom: 16,
-  },
-  retryButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    backgroundColor: colors.primary + '15',
-    borderRadius: 8,
-  },
-  retryButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.primary,
-  },
-  pickupPointsScroll: {
-    marginHorizontal: -4,
-  },
-  pickupPointsScrollContent: {
-    paddingHorizontal: 4,
   },
   pickupPointCard: {
-    backgroundColor: colors.card,
-    borderWidth: 2,
-    borderColor: colors.border,
-    borderRadius: 12,
-    padding: 16,
-    marginHorizontal: 4,
-    minWidth: 120,
+    flexDirection: 'row',
     alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
   pickupPointCardSelected: {
-    borderColor: colors.primary,
     backgroundColor: colors.primary + '10',
   },
   pickupPointCardPressed: {
     opacity: 0.7,
-    transform: [{ scale: 0.98 }],
   },
-  pickupPointCity: {
+  pickupPointIcon: {
+    marginRight: 12,
+  },
+  pickupPointInfo: {
+    flex: 1,
+  },
+  pickupPointName: {
     fontSize: 16,
     fontWeight: '600',
     color: colors.text,
-    marginTop: 8,
+    marginBottom: 4,
   },
-  pickupPointCitySelected: {
-    color: colors.primary,
-  },
-  pickupPointName: {
-    fontSize: 12,
+  pickupPointCity: {
+    fontSize: 14,
     color: colors.textSecondary,
-    marginTop: 4,
-    textAlign: 'center',
   },
   requiredNote: {
     fontSize: 12,
