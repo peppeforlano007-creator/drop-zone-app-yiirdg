@@ -91,9 +91,19 @@ export default function LoginScreen() {
     }
   };
 
-  const handleRegister = () => {
+  const handleRegisterConsumer = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push('/register/consumer');
+  };
+
+  const handleRegisterSupplier = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push('/register/supplier');
+  };
+
+  const handleRegisterPickupPoint = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push('/pickup-point/register');
   };
 
   if (authLoading) {
@@ -163,56 +173,106 @@ export default function LoginScreen() {
                   <Text style={styles.loginButtonText}>Accedi</Text>
                 )}
               </Pressable>
+            </View>
+
+            <View style={styles.divider}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>Non hai un account?</Text>
+              <View style={styles.dividerLine} />
+            </View>
+
+            <View style={styles.registerSection}>
+              <Text style={styles.registerTitle}>Registrati come:</Text>
+              
+              <Pressable
+                style={({ pressed }) => [
+                  styles.registerCard,
+                  pressed && styles.registerCardPressed,
+                ]}
+                onPress={handleRegisterConsumer}
+                disabled={loading}
+              >
+                <View style={styles.registerCardIcon}>
+                  <IconSymbol
+                    ios_icon_name="person.fill"
+                    android_material_icon_name="person"
+                    size={28}
+                    color={colors.primary}
+                  />
+                </View>
+                <View style={styles.registerCardContent}>
+                  <Text style={styles.registerCardTitle}>Consumatore</Text>
+                  <Text style={styles.registerCardDescription}>
+                    Prenota prodotti e partecipa ai drop
+                  </Text>
+                </View>
+                <IconSymbol
+                  ios_icon_name="chevron.right"
+                  android_material_icon_name="chevron_right"
+                  size={20}
+                  color={colors.textSecondary}
+                />
+              </Pressable>
 
               <Pressable
                 style={({ pressed }) => [
-                  styles.registerButton,
-                  pressed && styles.registerButtonPressed,
+                  styles.registerCard,
+                  pressed && styles.registerCardPressed,
                 ]}
-                onPress={handleRegister}
+                onPress={handleRegisterSupplier}
                 disabled={loading}
               >
-                <Text style={styles.registerButtonText}>
-                  Non hai un account? Registrati
-                </Text>
+                <View style={styles.registerCardIcon}>
+                  <IconSymbol
+                    ios_icon_name="building.2.fill"
+                    android_material_icon_name="store"
+                    size={28}
+                    color={colors.primary}
+                  />
+                </View>
+                <View style={styles.registerCardContent}>
+                  <Text style={styles.registerCardTitle}>Fornitore</Text>
+                  <Text style={styles.registerCardDescription}>
+                    Carica prodotti e gestisci ordini
+                  </Text>
+                </View>
+                <IconSymbol
+                  ios_icon_name="chevron.right"
+                  android_material_icon_name="chevron_right"
+                  size={20}
+                  color={colors.textSecondary}
+                />
               </Pressable>
-            </View>
 
-            <View style={styles.roleInfo}>
-              <Text style={styles.roleInfoTitle}>Tipi di Account</Text>
-              <View style={styles.roleInfoItem}>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.registerCard,
+                  pressed && styles.registerCardPressed,
+                ]}
+                onPress={handleRegisterPickupPoint}
+                disabled={loading}
+              >
+                <View style={styles.registerCardIcon}>
+                  <IconSymbol
+                    ios_icon_name="mappin.circle.fill"
+                    android_material_icon_name="location_on"
+                    size={28}
+                    color={colors.primary}
+                  />
+                </View>
+                <View style={styles.registerCardContent}>
+                  <Text style={styles.registerCardTitle}>Punto di Ritiro</Text>
+                  <Text style={styles.registerCardDescription}>
+                    Gestisci ritiri e guadagna commissioni
+                  </Text>
+                </View>
                 <IconSymbol
-                  ios_icon_name="person.fill"
-                  android_material_icon_name="person"
+                  ios_icon_name="chevron.right"
+                  android_material_icon_name="chevron_right"
                   size={20}
                   color={colors.textSecondary}
                 />
-                <Text style={styles.roleInfoText}>
-                  <Text style={styles.roleInfoBold}>Consumatore:</Text> Prenota prodotti e partecipa ai drop
-                </Text>
-              </View>
-              <View style={styles.roleInfoItem}>
-                <IconSymbol
-                  ios_icon_name="building.2.fill"
-                  android_material_icon_name="store"
-                  size={20}
-                  color={colors.textSecondary}
-                />
-                <Text style={styles.roleInfoText}>
-                  <Text style={styles.roleInfoBold}>Fornitore:</Text> Carica prodotti e gestisci ordini
-                </Text>
-              </View>
-              <View style={styles.roleInfoItem}>
-                <IconSymbol
-                  ios_icon_name="mappin.circle.fill"
-                  android_material_icon_name="location_on"
-                  size={20}
-                  color={colors.textSecondary}
-                />
-                <Text style={styles.roleInfoText}>
-                  <Text style={styles.roleInfoBold}>Punto di Ritiro:</Text> Gestisci ritiri e guadagna commissioni
-                </Text>
-              </View>
+              </Pressable>
             </View>
           </ScrollView>
         </KeyboardAvoidingView>
@@ -260,7 +320,7 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
   },
   formSection: {
-    marginBottom: 32,
+    marginBottom: 24,
   },
   inputLabel: {
     fontSize: 14,
@@ -283,7 +343,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: 16,
     alignItems: 'center',
-    marginBottom: 12,
+    marginTop: 8,
     minHeight: 56,
     justifyContent: 'center',
   },
@@ -296,44 +356,66 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#fff',
   },
-  registerButton: {
-    padding: 12,
+  divider: {
+    flexDirection: 'row',
     alignItems: 'center',
+    marginVertical: 24,
   },
-  registerButtonPressed: {
-    opacity: 0.6,
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: colors.border,
   },
-  registerButtonText: {
+  dividerText: {
+    marginHorizontal: 16,
     fontSize: 14,
-    color: colors.primary,
+    color: colors.textSecondary,
+    fontWeight: '500',
   },
-  roleInfo: {
+  registerSection: {
+    marginBottom: 32,
+  },
+  registerTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 16,
+  },
+  registerCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: colors.card,
     borderRadius: 12,
     padding: 16,
+    marginBottom: 12,
     borderWidth: 1,
     borderColor: colors.border,
   },
-  roleInfoTitle: {
+  registerCardPressed: {
+    opacity: 0.7,
+    transform: [{ scale: 0.98 }],
+  },
+  registerCardIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: colors.primary + '15',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 16,
+  },
+  registerCardContent: {
+    flex: 1,
+  },
+  registerCardTitle: {
     fontSize: 16,
     fontWeight: '600',
     color: colors.text,
-    marginBottom: 12,
+    marginBottom: 4,
   },
-  roleInfoItem: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: 12,
-    gap: 12,
-  },
-  roleInfoText: {
-    flex: 1,
+  registerCardDescription: {
     fontSize: 13,
     color: colors.textSecondary,
-    lineHeight: 20,
-  },
-  roleInfoBold: {
-    fontWeight: '600',
-    color: colors.text,
+    lineHeight: 18,
   },
 });

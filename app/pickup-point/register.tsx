@@ -10,34 +10,35 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, router } from 'expo-router';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
+import { useAuth } from '@/contexts/AuthContext';
 import * as Haptics from 'expo-haptics';
 
 export default function RegisterPickupPointScreen() {
-  const [username, setUsername] = useState('');
-  const [phone, setPhone] = useState('');
+  const { register } = useAuth();
+  const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleRegister = () => {
-    console.log('handleRegister called');
+  const handleRegister = async () => {
+    console.log('=== PICKUP POINT REGISTRATION START ===');
+    console.log('Full Name:', fullName);
+    console.log('Email:', email);
+    console.log('Phone:', phone);
     
-    // Haptic feedback
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     
     // Validation
-    if (!username.trim()) {
-      Alert.alert('Errore', 'Inserisci il nome utente');
-      return;
-    }
-
-    if (!phone.trim()) {
-      Alert.alert('Errore', 'Inserisci il numero di cellulare');
+    if (!fullName.trim()) {
+      Alert.alert('Errore', 'Inserisci il nome completo');
       return;
     }
 
@@ -48,6 +49,11 @@ export default function RegisterPickupPointScreen() {
 
     if (!email.includes('@')) {
       Alert.alert('Errore', 'Inserisci un\'email valida');
+      return;
+    }
+
+    if (!phone.trim()) {
+      Alert.alert('Errore', 'Inserisci il numero di telefono');
       return;
     }
 
@@ -66,23 +72,48 @@ export default function RegisterPickupPointScreen() {
       return;
     }
 
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    
-    console.log('Pickup point registered:', { username, phone, email });
-    
-    Alert.alert(
-      'Registrazione Completata',
-      'Il tuo account punto di ritiro è stato creato con successo!',
-      [
-        {
-          text: 'OK',
-          onPress: () => {
-            console.log('Navigating to login...');
-            router.replace('/login');
-          },
-        },
-      ]
-    );
+    setLoading(true);
+
+    try {
+      console.log('Calling register function for pickup_point...');
+      const result = await register(
+        email.trim().toLowerCase(),
+        password,
+        fullName.trim(),
+        phone.trim(),
+        'pickup_point'
+      );
+
+      console.log('Registration result:', result);
+
+      if (result.success) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        Alert.alert(
+          'Registrazione Completata!',
+          result.message || 'Controlla la tua email per verificare l\'account. Il tuo account punto di ritiro sarà attivato dopo la verifica da parte dell\'amministratore.',
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                console.log('Navigating to login...');
+                router.replace('/login');
+              },
+            },
+          ]
+        );
+      } else {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        console.error('Registration failed:', result.message);
+        Alert.alert('Errore di Registrazione', result.message || 'Si è verificato un errore');
+      }
+    } catch (error) {
+      console.error('Registration exception:', error);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert('Errore', 'Si è verificato un errore imprevisto');
+    } finally {
+      setLoading(false);
+      console.log('=== PICKUP POINT REGISTRATION END ===');
+    }
   };
 
   return (
@@ -106,7 +137,12 @@ export default function RegisterPickupPointScreen() {
           >
             <View style={styles.header}>
               <View style={styles.iconContainer}>
-                <IconSymbol name="mappin.circle.fill" size={48} color={colors.text} />
+                <IconSymbol 
+                  ios_icon_name="mappin.circle.fill" 
+                  android_material_icon_name="location_on"
+                  size={48} 
+                  color={colors.text} 
+                />
               </View>
               <Text style={styles.title}>Crea Punto di Ritiro</Text>
               <Text style={styles.subtitle}>
@@ -114,24 +150,50 @@ export default function RegisterPickupPointScreen() {
               </Text>
             </View>
 
+            <View style={styles.infoBox}>
+              <IconSymbol
+                ios_icon_name="info.circle.fill"
+                android_material_icon_name="info"
+                size={20}
+                color={colors.primary}
+              />
+              <Text style={styles.infoText}>
+                Il tuo account sarà attivato dopo la verifica da parte dell&apos;amministratore.
+              </Text>
+            </View>
+
             <View style={styles.form}>
-              {/* Username */}
               <View style={styles.inputContainer}>
-                <Text style={styles.inputLabel}>Nome Utente *</Text>
+                <Text style={styles.inputLabel}>Nome Completo *</Text>
                 <TextInput
                   style={styles.input}
                   placeholder="Es. Mario Rossi"
                   placeholderTextColor={colors.textTertiary}
-                  value={username}
-                  onChangeText={setUsername}
+                  value={fullName}
+                  onChangeText={setFullName}
                   autoCapitalize="words"
                   autoComplete="name"
+                  editable={!loading}
                 />
               </View>
 
-              {/* Phone */}
               <View style={styles.inputContainer}>
-                <Text style={styles.inputLabel}>Numero di Cellulare *</Text>
+                <Text style={styles.inputLabel}>Email *</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="email@esempio.com"
+                  placeholderTextColor={colors.textTertiary}
+                  value={email}
+                  onChangeText={setEmail}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoComplete="email"
+                  editable={!loading}
+                />
+              </View>
+
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>Numero di Telefono *</Text>
                 <TextInput
                   style={styles.input}
                   placeholder="+39 123 456 7890"
@@ -140,25 +202,10 @@ export default function RegisterPickupPointScreen() {
                   onChangeText={setPhone}
                   keyboardType="phone-pad"
                   autoComplete="tel"
+                  editable={!loading}
                 />
               </View>
 
-              {/* Email */}
-              <View style={styles.inputContainer}>
-                <Text style={styles.inputLabel}>Email *</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="esempio@email.com"
-                  placeholderTextColor={colors.textTertiary}
-                  value={email}
-                  onChangeText={setEmail}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  autoComplete="email"
-                />
-              </View>
-
-              {/* Password */}
               <View style={styles.inputContainer}>
                 <Text style={styles.inputLabel}>Password *</Text>
                 <TextInput
@@ -170,10 +217,10 @@ export default function RegisterPickupPointScreen() {
                   secureTextEntry
                   autoCapitalize="none"
                   autoComplete="password-new"
+                  editable={!loading}
                 />
               </View>
 
-              {/* Confirm Password */}
               <View style={styles.inputContainer}>
                 <Text style={styles.inputLabel}>Conferma Password *</Text>
                 <TextInput
@@ -185,29 +232,34 @@ export default function RegisterPickupPointScreen() {
                   secureTextEntry
                   autoCapitalize="none"
                   autoComplete="password-new"
+                  editable={!loading}
                 />
               </View>
 
               <Text style={styles.requiredNote}>* Campi obbligatori</Text>
 
-              {/* Register Button */}
               <Pressable 
                 style={({ pressed }) => [
                   styles.registerButton,
-                  pressed && styles.registerButtonPressed
+                  (pressed || loading) && styles.registerButtonPressed
                 ]} 
                 onPress={handleRegister}
+                disabled={loading}
               >
-                <Text style={styles.registerButtonText}>Registrati</Text>
+                {loading ? (
+                  <ActivityIndicator color={colors.background} />
+                ) : (
+                  <Text style={styles.registerButtonText}>Registrati</Text>
+                )}
               </Pressable>
 
-              {/* Login Link */}
               <Pressable
                 style={styles.loginLink}
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  router.replace('/login');
+                  router.back();
                 }}
+                disabled={loading}
               >
                 <Text style={styles.loginLinkText}>
                   Hai già un account? Accedi
@@ -235,7 +287,7 @@ const styles = StyleSheet.create({
   },
   header: {
     alignItems: 'center',
-    marginBottom: 32,
+    marginBottom: 24,
   },
   iconContainer: {
     width: 100,
@@ -257,6 +309,21 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.textSecondary,
     textAlign: 'center',
+    lineHeight: 20,
+  },
+  infoBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: colors.primary + '15',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 24,
+    gap: 12,
+  },
+  infoText: {
+    flex: 1,
+    fontSize: 14,
+    color: colors.text,
     lineHeight: 20,
   },
   form: {
@@ -292,6 +359,8 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: 'center',
     marginBottom: 16,
+    minHeight: 56,
+    justifyContent: 'center',
   },
   registerButtonPressed: {
     opacity: 0.7,

@@ -1,8 +1,7 @@
-
 {
   "expo": {
     "name": "Drop Zone",
-    "slug": "drop-zone",
+    "slug": "Drop Zone",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/natively-dark.png",
@@ -21,7 +20,7 @@
         "ITSAppUsesNonExemptEncryption": false,
         "NSCameraUsageDescription": "Questa app ha bisogno di accedere alla fotocamera per caricare foto dei prodotti.",
         "NSPhotoLibraryUsageDescription": "Questa app ha bisogno di accedere alla galleria per selezionare foto dei prodotti.",
-        "NSLocationWhenInUseUsageDescription": "Questa app utilizza la tua posizione per mostrarti i punti di ritiro più vicini."
+        "NSLocationWhenInUseUsageDescription": "Questa app utilizza la tua posizione per mostrarti i punti di ritiro pi\u00f9 vicini."
       },
       "config": {
         "usesNonExemptEncryption": false
@@ -77,5 +76,6 @@
     "privacy": "public",
     "description": "Drop Zone - Social e-commerce con sconti progressivi basati su prenotazioni collettive",
     "githubUrl": "https://github.com/your-username/drop-zone"
-  }
+  },
+  "scheme": "Drop Zone"
 }
