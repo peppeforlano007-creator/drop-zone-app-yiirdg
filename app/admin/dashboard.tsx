@@ -611,7 +611,7 @@ export default function AdminDashboard() {
                 size={24}
                 color="#FFFFFF"
               />
-              <Text style={styles.logoutButtonText}>Esci dall&apos;Account</Text>
+              <Text style={styles.logoutButtonText}>Esci dall'Account</Text>
             </Pressable>
           </View>
         </ScrollView>

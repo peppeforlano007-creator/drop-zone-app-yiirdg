@@ -49,7 +49,7 @@ interface Booking {
 
 export default function MyBookingsScreen() {
   const { user } = useAuth();
-  const [bookings, setBookings] = useState<Array<Booking>>([]);
+  const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
