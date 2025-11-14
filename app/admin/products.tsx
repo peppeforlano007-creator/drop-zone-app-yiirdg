@@ -32,10 +32,10 @@ interface ProductData {
   created_at: string;
   supplier_lists: {
     name: string;
-  };
-  profiles: {
+  } | null;
+  supplier_profile?: {
     full_name: string;
-  };
+  } | null;
 }
 
 export default function ProductsScreen() {
@@ -68,30 +68,62 @@ export default function ProductsScreen() {
   const loadProducts = useCallback(async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
+      console.log('Loading products for admin...');
+      
+      // First, get all products with supplier_lists
+      const { data: productsData, error: productsError } = await supabase
         .from('products')
         .select(`
           *,
           supplier_lists (
             name
-          ),
-          profiles:supplier_id (
-            full_name
           )
         `)
         .order('created_at', { ascending: false })
         .limit(100);
 
-      if (error) {
-        console.error('Error loading products:', error);
-        Alert.alert('Errore', 'Impossibile caricare i prodotti');
+      if (productsError) {
+        console.error('Error loading products:', productsError);
+        Alert.alert('Errore', `Impossibile caricare i prodotti: ${productsError.message}`);
         return;
       }
 
-      setProducts(data || []);
+      console.log('Products loaded:', productsData?.length || 0);
+
+      // Then, get supplier profiles separately
+      if (productsData && productsData.length > 0) {
+        const supplierIds = [...new Set(productsData.map(p => p.supplier_id).filter(Boolean))];
+        
+        if (supplierIds.length > 0) {
+          const { data: profilesData, error: profilesError } = await supabase
+            .from('profiles')
+            .select('user_id, full_name')
+            .in('user_id', supplierIds);
+
+          if (!profilesError && profilesData) {
+            // Create a map of supplier_id to profile
+            const profilesMap = new Map(profilesData.map(p => [p.user_id, p]));
+            
+            // Merge the data
+            const enrichedProducts = productsData.map(product => ({
+              ...product,
+              supplier_profile: product.supplier_id ? profilesMap.get(product.supplier_id) : null
+            }));
+            
+            setProducts(enrichedProducts);
+          } else {
+            console.error('Error loading profiles:', profilesError);
+            setProducts(productsData);
+          }
+        } else {
+          setProducts(productsData);
+        }
+      } else {
+        setProducts([]);
+      }
     } catch (error) {
       console.error('Error loading products:', error);
-      Alert.alert('Errore', 'Si è verificato un errore');
+      Alert.alert('Errore', 'Si è verificato un errore durante il caricamento dei prodotti');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -205,7 +237,7 @@ export default function ProductsScreen() {
           </View>
 
           <Text style={styles.productSupplier}>
-            Fornitore: {product.profiles?.full_name || 'N/A'}
+            Fornitore: {product.supplier_profile?.full_name || 'N/A'}
           </Text>
           <Text style={styles.productList}>
             Lista: {product.supplier_lists?.name || 'N/A'}
@@ -338,7 +370,9 @@ export default function ProductsScreen() {
               />
               <Text style={styles.emptyTitle}>Nessun prodotto trovato</Text>
               <Text style={styles.emptyText}>
-                Prova a modificare i filtri di ricerca
+                {products.length === 0 
+                  ? 'Non ci sono ancora prodotti nel sistema. I fornitori possono importare prodotti dalla loro dashboard.'
+                  : 'Prova a modificare i filtri di ricerca'}
               </Text>
             </View>
           )}
@@ -545,5 +579,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.textSecondary,
     textAlign: 'center',
+    paddingHorizontal: 32,
   },
 });
