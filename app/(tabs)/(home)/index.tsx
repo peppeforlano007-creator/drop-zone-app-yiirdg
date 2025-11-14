@@ -330,6 +330,11 @@ export default function HomeScreen() {
     loadProducts();
   };
 
+  const handleGoToAdmin = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    router.push('/admin/testing');
+  };
+
   const renderList = ({ item, index }: { item: ProductList; index: number }) => {
     return (
       <View style={styles.listContainer}>
@@ -414,6 +419,8 @@ export default function HomeScreen() {
   }
 
   if (productLists.length === 0) {
+    const isAdmin = user?.role === 'admin';
+    
     return (
       <>
         <Stack.Screen options={{ headerShown: false }} />
@@ -440,9 +447,33 @@ export default function HomeScreen() {
             Al momento non ci sono prodotti disponibili.{'\n'}
             I fornitori non hanno ancora caricato articoli.
           </Text>
-          <Text style={styles.emptySubtext}>
-            Torna più tardi per scoprire le offerte!
-          </Text>
+          
+          {isAdmin && (
+            <>
+              <Text style={styles.adminHint}>
+                👨‍💼 Sei un amministratore
+              </Text>
+              <Text style={styles.emptySubtext}>
+                Puoi creare dati di test per provare l&apos;app
+              </Text>
+              
+              <Pressable style={styles.adminButton} onPress={handleGoToAdmin}>
+                <IconSymbol 
+                  ios_icon_name="wrench.and.screwdriver.fill" 
+                  android_material_icon_name="build" 
+                  size={20} 
+                  color="#FFF" 
+                />
+                <Text style={styles.adminButtonText}>Vai a Testing & Crea Dati</Text>
+              </Pressable>
+            </>
+          )}
+          
+          {!isAdmin && (
+            <Text style={styles.emptySubtext}>
+              Torna più tardi per scoprire le offerte!
+            </Text>
+          )}
           
           <Pressable style={styles.refreshButton} onPress={handleRetry}>
             <IconSymbol 
@@ -645,6 +676,13 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     textAlign: 'center',
     lineHeight: 22,
+    marginBottom: 16,
+  },
+  adminHint: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#007AFF',
+    textAlign: 'center',
     marginBottom: 8,
   },
   emptySubtext: {
@@ -652,7 +690,22 @@ const styles = StyleSheet.create({
     color: colors.textTertiary,
     textAlign: 'center',
     fontStyle: 'italic',
-    marginBottom: 32,
+    marginBottom: 24,
+  },
+  adminButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#007AFF',
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    borderRadius: 8,
+    gap: 8,
+    marginBottom: 16,
+  },
+  adminButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFF',
   },
   refreshButton: {
     flexDirection: 'row',

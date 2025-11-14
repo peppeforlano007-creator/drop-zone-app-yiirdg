@@ -15,106 +15,28 @@ export interface TestDataResult {
 }
 
 /**
- * Create multiple test supplier users
- */
-export async function createTestSuppliers(): Promise<TestDataResult> {
-  try {
-    const suppliers = [
-      {
-        email: 'fornitore.moda@example.com',
-        password: 'TestSupplier123!',
-        full_name: 'Fornitore Moda Italia',
-        phone: '+39 02 1234567',
-      },
-      {
-        email: 'fornitore.tech@example.com',
-        password: 'TestSupplier123!',
-        full_name: 'Fornitore Tech Store',
-        phone: '+39 06 7654321',
-      },
-      {
-        email: 'fornitore.sport@example.com',
-        password: 'TestSupplier123!',
-        full_name: 'Fornitore Sport & Outdoor',
-        phone: '+39 011 9876543',
-      },
-    ];
-
-    const createdSuppliers = [];
-
-    for (const supplier of suppliers) {
-      // Check if supplier already exists
-      const { data: existingProfile } = await supabase
-        .from('profiles')
-        .select('user_id, email')
-        .eq('email', supplier.email)
-        .single();
-
-      if (existingProfile) {
-        console.log(`Fornitore ${supplier.email} già esistente`);
-        createdSuppliers.push(existingProfile);
-        continue;
-      }
-
-      // Create auth user
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: supplier.email,
-        password: supplier.password,
-        options: {
-          data: {
-            full_name: supplier.full_name,
-            role: 'supplier',
-            phone: supplier.phone,
-          },
-        },
-      });
-
-      if (authError) {
-        console.error(`Errore creazione fornitore ${supplier.email}:`, authError);
-        continue;
-      }
-
-      if (authData.user) {
-        createdSuppliers.push({ user_id: authData.user.id, email: supplier.email });
-      }
-    }
-
-    return {
-      success: true,
-      message: `${createdSuppliers.length} fornitori creati/trovati`,
-      data: createdSuppliers,
-    };
-  } catch (error) {
-    return {
-      success: false,
-      message: 'Errore nella creazione dei fornitori',
-      error,
-    };
-  }
-}
-
-/**
- * Create test supplier lists with products
+ * Create test supplier lists with products (without creating new supplier users)
+ * Uses the current admin user as the supplier
  */
 export async function createTestSupplierLists(): Promise<TestDataResult> {
   try {
-    // Get supplier profiles
-    const { data: suppliers } = await supabase
-      .from('profiles')
-      .select('user_id, email, full_name')
-      .eq('role', 'supplier');
-
-    if (!suppliers || suppliers.length === 0) {
+    // Get current user (should be admin)
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
       return {
         success: false,
-        message: 'Nessun fornitore trovato. Crea prima i fornitori.',
+        message: 'Devi essere autenticato',
       };
     }
+
+    // Use the current user as the supplier for test data
+    const supplierId = user.id;
 
     const lists = [
       // Lista 1 - Abbigliamento Moda
       {
-        supplier_id: suppliers[0]?.user_id,
+        supplier_id: supplierId,
         name: 'Collezione Primavera/Estate 2024',
         min_discount: 30,
         max_discount: 70,
@@ -183,7 +105,7 @@ export async function createTestSupplierLists(): Promise<TestDataResult> {
       },
       // Lista 2 - Calzature e Accessori
       {
-        supplier_id: suppliers[0]?.user_id,
+        supplier_id: supplierId,
         name: 'Calzature & Accessori Premium',
         min_discount: 25,
         max_discount: 65,
@@ -267,7 +189,7 @@ export async function createTestSupplierLists(): Promise<TestDataResult> {
       },
       // Lista 3 - Elettronica
       {
-        supplier_id: suppliers[1]?.user_id,
+        supplier_id: supplierId,
         name: 'Elettronica & Gadget Tech',
         min_discount: 20,
         max_discount: 60,
@@ -334,7 +256,7 @@ export async function createTestSupplierLists(): Promise<TestDataResult> {
       },
       // Lista 4 - Sport & Outdoor
       {
-        supplier_id: suppliers[2]?.user_id,
+        supplier_id: supplierId,
         name: 'Sport & Outdoor Collection',
         min_discount: 35,
         max_discount: 75,
@@ -418,8 +340,6 @@ export async function createTestSupplierLists(): Promise<TestDataResult> {
     const createdLists = [];
 
     for (const listData of lists) {
-      if (!listData.supplier_id) continue;
-
       // Create supplier list
       const { data: list, error: listError } = await supabase
         .from('supplier_lists')
@@ -493,7 +413,7 @@ export async function createTestDrops(): Promise<TestDataResult> {
     if (!pickupPoints || pickupPoints.length === 0) {
       return {
         success: false,
-        message: 'Nessun punto di ritiro trovato',
+        message: 'Nessun punto di ritiro trovato. Assicurati che ci siano punti di ritiro attivi.',
       };
     }
 
@@ -507,7 +427,7 @@ export async function createTestDrops(): Promise<TestDataResult> {
     if (!supplierLists || supplierLists.length === 0) {
       return {
         success: false,
-        message: 'Nessuna lista fornitore trovata',
+        message: 'Nessuna lista fornitore trovata. Crea prima le liste prodotti.',
       };
     }
 
@@ -585,7 +505,7 @@ export async function createTestDrops(): Promise<TestDataResult> {
 }
 
 /**
- * Create complete test data (suppliers + lists + products + drops)
+ * Create complete test data (lists + products + drops)
  */
 export async function createCompleteTestData(): Promise<TestDataResult> {
   try {
@@ -626,36 +546,31 @@ export async function createCompleteTestData(): Promise<TestDataResult> {
       };
     }
 
-    // Step 1: Create suppliers
-    console.log('Creazione fornitori...');
-    const suppliersResult = await createTestSuppliers();
-    if (!suppliersResult.success) {
-      return suppliersResult;
-    }
-
-    // Step 2: Create supplier lists with products
+    // Step 1: Create supplier lists with products
     console.log('Creazione liste e prodotti...');
     const listsResult = await createTestSupplierLists();
     if (!listsResult.success) {
       return listsResult;
     }
 
-    // Step 3: Create drops
+    // Step 2: Create drops
     console.log('Creazione drop...');
     const dropsResult = await createTestDrops();
     if (!dropsResult.success) {
       return dropsResult;
     }
 
+    // Count total products created
+    const totalProducts = listsResult.data?.reduce((sum: number, list: any) => sum + list.productsCount, 0) || 0;
+
     return {
       success: true,
       message: `✅ Dati di test creati con successo!\n\n` +
-        `• ${suppliersResult.data?.length || 0} fornitori\n` +
         `• ${listsResult.data?.length || 0} liste prodotti\n` +
+        `• ${totalProducts} prodotti\n` +
         `• ${dropsResult.data?.length || 0} drop\n\n` +
         `Puoi ora testare l'app con dati realistici!`,
       data: {
-        suppliers: suppliersResult.data,
         lists: listsResult.data,
         drops: dropsResult.data,
       },
