@@ -20,7 +20,7 @@ export function isValidEmail(email: string): boolean {
  */
 export function isValidPhone(phone: string): boolean {
   // Remove spaces and special characters
-  const cleanPhone = phone.replace(/[\s-()]/g, '');
+  const cleanPhone = phone.replace(/[\s\-()]/g, '');
   
   // Check if it's a valid Italian phone number
   // Accepts: +39xxxxxxxxxx, 39xxxxxxxxxx, or xxxxxxxxxx (10 digits)

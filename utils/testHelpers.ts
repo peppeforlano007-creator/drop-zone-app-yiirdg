@@ -79,7 +79,7 @@ export async function testAuthentication(email: string, password: string): Promi
 /**
  * Test RLS policies for a specific table
  */
-export async function testRLSPolicies(tableName: string, userId?: string): Promise<TestResult> {
+export async function testRLSPolicies(tableName: string): Promise<TestResult> {
   console.log(`🧪 Testing RLS policies for ${tableName}...`);
   const startTime = Date.now();
   
