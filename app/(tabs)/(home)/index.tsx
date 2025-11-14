@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { View, StyleSheet, FlatList, Dimensions, Platform, Text, Pressable, Alert, Animated } from 'react-native';
+import { View, StyleSheet, FlatList, Dimensions, Platform, Text, Pressable, Alert, Animated, ActivityIndicator } from 'react-native';
 import { Stack, router } from 'expo-router';
 import { colors } from '@/styles/commonStyles';
 import ProductCard from '@/components/ProductCard';
@@ -29,6 +29,7 @@ export default function HomeScreen() {
   const [currentProductIndex, setCurrentProductIndex] = useState(0);
   const [productLists, setProductLists] = useState<ProductList[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const listFlatListRef = useRef<FlatList>(null);
   const productFlatListRef = useRef<FlatList>(null);
   const progressAnim = useRef(new Animated.Value(0)).current;
@@ -36,6 +37,7 @@ export default function HomeScreen() {
   const loadProducts = useCallback(async () => {
     try {
       console.log('Loading products from database...');
+      setError(null);
       
       // First, get all active products
       const { data: products, error: productsError } = await supabase
@@ -46,13 +48,13 @@ export default function HomeScreen() {
 
       if (productsError) {
         console.error('Error loading products:', productsError);
-        Alert.alert('Errore', 'Impossibile caricare i prodotti: ' + productsError.message);
+        setError('Errore nel caricamento dei prodotti: ' + productsError.message);
         setLoading(false);
         return;
       }
 
       if (!products || products.length === 0) {
-        console.log('No products found');
+        console.log('No products found in database');
         setLoading(false);
         return;
       }
@@ -78,7 +80,7 @@ export default function HomeScreen() {
 
       if (listsError) {
         console.error('Error loading supplier lists:', listsError);
-        Alert.alert('Errore', 'Impossibile caricare le liste fornitori');
+        setError('Errore nel caricamento delle liste fornitori');
         setLoading(false);
         return;
       }
@@ -159,7 +161,7 @@ export default function HomeScreen() {
       setLoading(false);
     } catch (error) {
       console.error('Exception loading products:', error);
-      Alert.alert('Errore', 'Errore imprevisto durante il caricamento');
+      setError('Errore imprevisto durante il caricamento dei prodotti');
       setLoading(false);
     }
   }, []);
@@ -319,6 +321,12 @@ export default function HomeScreen() {
     }
   };
 
+  const handleRetry = () => {
+    setLoading(true);
+    setError(null);
+    loadProducts();
+  };
+
   const renderList = ({ item, index }: { item: ProductList; index: number }) => {
     return (
       <View style={styles.listContainer}>
@@ -365,7 +373,35 @@ export default function HomeScreen() {
       <>
         <Stack.Screen options={{ headerShown: false }} />
         <View style={[styles.container, styles.centerContent]}>
+          <ActivityIndicator size="large" color={colors.text} />
           <Text style={styles.loadingText}>Caricamento prodotti...</Text>
+        </View>
+      </>
+    );
+  }
+
+  if (error) {
+    return (
+      <>
+        <Stack.Screen options={{ headerShown: false }} />
+        <View style={[styles.container, styles.centerContent]}>
+          <IconSymbol 
+            ios_icon_name="exclamationmark.triangle" 
+            android_material_icon_name="error" 
+            size={64} 
+            color="#FF3B30" 
+          />
+          <Text style={styles.errorTitle}>Errore di Caricamento</Text>
+          <Text style={styles.errorText}>{error}</Text>
+          <Pressable style={styles.retryButton} onPress={handleRetry}>
+            <IconSymbol 
+              ios_icon_name="arrow.clockwise" 
+              android_material_icon_name="refresh" 
+              size={20} 
+              color="#FFF" 
+            />
+            <Text style={styles.retryButtonText}>Riprova</Text>
+          </Pressable>
         </View>
       </>
     );
@@ -376,11 +412,41 @@ export default function HomeScreen() {
       <>
         <Stack.Screen options={{ headerShown: false }} />
         <View style={[styles.container, styles.centerContent]}>
-          <IconSymbol ios_icon_name="tray" android_material_icon_name="inbox" size={64} color={colors.textTertiary} />
-          <Text style={styles.emptyTitle}>Nessun prodotto disponibile</Text>
+          <View style={styles.topBar}>
+            <View style={styles.pickupPointBadge}>
+              <IconSymbol ios_icon_name="mappin.circle.fill" android_material_icon_name="location_on" size={16} color={colors.text} />
+              <Text style={styles.pickupPointText}>{user?.pickupPoint || 'Nessun punto'}</Text>
+            </View>
+            
+            <Pressable onPress={handleLogout} style={styles.logoutButton}>
+              <IconSymbol ios_icon_name="rectangle.portrait.and.arrow.right" android_material_icon_name="logout" size={24} color={colors.text} />
+            </Pressable>
+          </View>
+
+          <IconSymbol 
+            ios_icon_name="tray" 
+            android_material_icon_name="inbox" 
+            size={80} 
+            color={colors.textTertiary} 
+          />
+          <Text style={styles.emptyTitle}>Nessun Prodotto Disponibile</Text>
           <Text style={styles.emptyText}>
-            I fornitori non hanno ancora caricato prodotti
+            Al momento non ci sono prodotti disponibili.{'\n'}
+            I fornitori non hanno ancora caricato articoli.
           </Text>
+          <Text style={styles.emptySubtext}>
+            Torna più tardi per scoprire le offerte!
+          </Text>
+          
+          <Pressable style={styles.refreshButton} onPress={handleRetry}>
+            <IconSymbol 
+              ios_icon_name="arrow.clockwise" 
+              android_material_icon_name="refresh" 
+              size={20} 
+              color={colors.text} 
+            />
+            <Text style={styles.refreshButtonText}>Aggiorna</Text>
+          </Pressable>
         </View>
       </>
     );
@@ -522,19 +588,74 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: colors.textSecondary,
     marginTop: 16,
+    fontWeight: '500',
   },
-  emptyTitle: {
-    fontSize: 18,
+  errorTitle: {
+    fontSize: 20,
     fontWeight: '700',
-    color: colors.text,
-    marginTop: 16,
-    marginBottom: 8,
+    color: '#FF3B30',
+    marginTop: 20,
+    marginBottom: 12,
+    textAlign: 'center',
   },
-  emptyText: {
+  errorText: {
     fontSize: 14,
     color: colors.textSecondary,
     textAlign: 'center',
     lineHeight: 20,
+    marginBottom: 24,
+  },
+  retryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.text,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+    gap: 8,
+  },
+  retryButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFF',
+  },
+  emptyTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: colors.text,
+    marginTop: 24,
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  emptyText: {
+    fontSize: 15,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 8,
+  },
+  emptySubtext: {
+    fontSize: 13,
+    color: colors.textTertiary,
+    textAlign: 'center',
+    fontStyle: 'italic',
+    marginBottom: 32,
+  },
+  refreshButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.card,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: 8,
+  },
+  refreshButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: colors.text,
   },
   listContainer: {
     width: SCREEN_WIDTH,

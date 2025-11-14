@@ -14,6 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, router } from 'expo-router';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
+import { useAuth } from '@/contexts/AuthContext';
 import * as Haptics from 'expo-haptics';
 import {
   runAllTests,
@@ -43,699 +44,392 @@ import {
 } from '@/utils/paymentTestHelpers';
 import { getDeviceInfo } from '@/utils/uiTestHelpers';
 import { performanceMonitor } from '@/utils/performanceMonitor';
-import { useAuth } from '@/contexts/AuthContext';
+import {
+  createCompleteTestData,
+  deleteAllTestData,
+  TestDataResult,
+} from '@/utils/testDataHelpers';
 
 export default function TestingScreen() {
   const { user } = useAuth();
-  const [testing, setTesting] = useState(false);
-  const [testResults, setTestResults] = useState<TestResult[]>([]);
-  const [selectedTest, setSelectedTest] = useState<string | null>(null);
+  const [results, setResults] = useState<TestResult[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [testDataLoading, setTestDataLoading] = useState(false);
 
   const runTest = async (testName: string, testFn: () => Promise<TestResult>) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setTesting(true);
-    setSelectedTest(testName);
-
+    setLoading(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    
     try {
       const result = await testFn();
-      setTestResults(prev => [...prev, result]);
+      setResults(prev => [...prev, result]);
       
-      if (result.success) {
+      if (result.passed) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       } else {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       }
     } catch (error) {
-      console.error('Test error:', error);
+      console.error(`Error running test ${testName}:`, error);
+      setResults(prev => [...prev, {
+        testName,
+        passed: false,
+        message: 'Test failed with exception',
+        error: error instanceof Error ? error.message : String(error),
+        timestamp: new Date(),
+      }]);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally {
-      setTesting(false);
-      setSelectedTest(null);
+      setLoading(false);
     }
   };
 
   const runAllTestsSuite = async () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-    setTesting(true);
-    setTestResults([]);
-
+    setLoading(true);
+    setResults([]);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    
     try {
-      const results = await runAllTests(undefined, undefined, user?.id);
+      const allResults = await runAllTests();
+      setResults(allResults);
       
-      // Add supplier tests
-      results.push(await testSupplierListValidation());
-      results.push(await testExcelParsing());
-      
-      // Add drop tests
-      results.push(await testDropStatusTransitions());
-      
-      // Add payment tests
-      results.push(await testPaymentMethodValidation());
-      results.push(await testPaymentSecurity());
-      
-      setTestResults(results);
-      
-      const passed = results.filter(r => r.success).length;
-      const failed = results.filter(r => !r.success).length;
-      
-      Alert.alert(
-        'Test Completati',
-        `✅ Passati: ${passed}\n❌ Falliti: ${failed}\n\nL'app è ${failed === 0 ? 'PRONTA' : 'NON PRONTA'} per il deployment!`,
-        [{ text: 'OK' }]
-      );
-      
-      if (failed === 0) {
+      const allPassed = allResults.every(r => r.passed);
+      if (allPassed) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        Alert.alert('Successo', 'Tutti i test sono passati!');
       } else {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        const failedCount = allResults.filter(r => !r.passed).length;
+        Alert.alert('Test Falliti', `${failedCount} test su ${allResults.length} sono falliti`);
       }
     } catch (error) {
-      console.error('Test suite error:', error);
+      console.error('Error running all tests:', error);
+      Alert.alert('Errore', 'Errore durante l\'esecuzione dei test');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert('Errore', 'Si è verificato un errore durante i test');
     } finally {
-      setTesting(false);
+      setLoading(false);
     }
   };
 
-  const showDeviceInfo = () => {
-    const info = getDeviceInfo();
+  const showDeviceInfo = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const info = await getDeviceInfo();
     Alert.alert(
       'Informazioni Dispositivo',
-      `Platform: ${info.platform} ${info.platformVersion}\n` +
-      `Screen: ${info.screenWidth}x${info.screenHeight}\n` +
-      `Window: ${info.windowWidth}x${info.windowHeight}\n` +
-      `Pixel Ratio: ${info.pixelRatio}\n` +
-      `Font Scale: ${info.fontScale}\n` +
-      `Type: ${info.isTablet ? 'Tablet' : 'Phone'}\n` +
-      `Orientation: ${info.orientation}`,
+      `Piattaforma: ${info.platform}\nVersione OS: ${info.osVersion}\nModello: ${info.deviceModel}\nDimensioni: ${info.screenWidth}x${info.screenHeight}`,
       [{ text: 'OK' }]
     );
   };
 
   const showPerformanceMetrics = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const metrics = performanceMonitor.getMetrics();
-    
-    if (metrics.length === 0) {
-      Alert.alert('Metriche Performance', 'Nessuna metrica disponibile');
-      return;
-    }
-
-    const summary = metrics
-      .filter(m => m.duration !== undefined)
-      .map(m => `${m.name}: ${m.duration}ms`)
-      .join('\n');
-
-    Alert.alert('Metriche Performance', summary, [{ text: 'OK' }]);
+    const report = performanceMonitor.generateReport();
+    Alert.alert('Metriche Performance', report, [{ text: 'OK' }]);
   };
 
   const shareTestReport = async () => {
-    if (testResults.length === 0) {
+    if (results.length === 0) {
       Alert.alert('Nessun Risultato', 'Esegui prima alcuni test');
       return;
     }
 
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const report = generateTestReport(results);
+    
     try {
-      const report = generateTestReport(testResults);
-      const passed = testResults.filter(r => r.success).length;
-      const failed = testResults.filter(r => !r.success).length;
-      const readyForDeployment = failed === 0;
-      
-      const deploymentStatus = readyForDeployment
-        ? '✅ APP PRONTA PER DEPLOYMENT'
-        : '⚠️ APP NON PRONTA - Risolvere i problemi evidenziati';
-      
       await Share.share({
-        message: `${deploymentStatus}\n\n${report}`,
-        title: 'Drop Zone - Test Report',
+        message: report,
+        title: 'Report Test App',
       });
     } catch (error) {
       console.error('Error sharing report:', error);
-      Alert.alert('Errore', 'Impossibile condividere il report');
     }
   };
 
   const clearResults = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setTestResults([]);
-    performanceMonitor.clear();
+    setResults([]);
+  };
+
+  const handleCreateTestData = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    
+    Alert.alert(
+      'Crea Dati di Test',
+      'Questo creerà un fornitore di test con una lista di 5 prodotti. Vuoi continuare?',
+      [
+        { text: 'Annulla', style: 'cancel' },
+        {
+          text: 'Crea',
+          onPress: async () => {
+            setTestDataLoading(true);
+            try {
+              const result = await createCompleteTestData();
+              
+              if (result.success) {
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                Alert.alert('Successo', result.message);
+              } else {
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+                Alert.alert('Errore', result.message);
+              }
+            } catch (error) {
+              console.error('Error creating test data:', error);
+              Alert.alert('Errore', 'Errore imprevisto durante la creazione dei dati');
+            } finally {
+              setTestDataLoading(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleDeleteTestData = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    
+    Alert.alert(
+      'Elimina Dati di Test',
+      'Questo eliminerà TUTTI i prodotti, liste fornitori e interessi utente dal database. Sei sicuro?',
+      [
+        { text: 'Annulla', style: 'cancel' },
+        {
+          text: 'Elimina',
+          style: 'destructive',
+          onPress: async () => {
+            setTestDataLoading(true);
+            try {
+              const result = await deleteAllTestData();
+              
+              if (result.success) {
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                Alert.alert('Successo', result.message);
+              } else {
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+                Alert.alert('Errore', result.message);
+              }
+            } catch (error) {
+              console.error('Error deleting test data:', error);
+              Alert.alert('Errore', 'Errore imprevisto durante l\'eliminazione dei dati');
+            } finally {
+              setTestDataLoading(false);
+            }
+          },
+        },
+      ]
+    );
   };
 
   const getDeploymentReadiness = () => {
-    if (testResults.length === 0) return null;
-    
-    const passed = testResults.filter(r => r.success).length;
-    const failed = testResults.filter(r => !r.success).length;
-    const percentage = (passed / testResults.length) * 100;
-    
-    return {
-      passed,
-      failed,
-      percentage,
-      ready: failed === 0,
-    };
+    if (results.length === 0) return 0;
+    const passedTests = results.filter(r => r.passed).length;
+    return Math.round((passedTests / results.length) * 100);
   };
 
   const readiness = getDeploymentReadiness();
 
   return (
-    <>
+    <SafeAreaView style={styles.container} edges={['top']}>
       <Stack.Screen
         options={{
+          title: 'Testing Dashboard',
           headerShown: true,
-          title: 'Testing & Deployment',
-          headerBackTitle: 'Dashboard',
+          headerStyle: { backgroundColor: colors.card },
+          headerTintColor: colors.text,
         }}
       />
-      <SafeAreaView style={styles.container} edges={['bottom']}>
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-        >
-          {/* Deployment Readiness Banner */}
-          {readiness && (
-            <View style={[
-              styles.readinessBanner,
-              readiness.ready ? styles.readyBanner : styles.notReadyBanner
-            ]}>
-              <IconSymbol
-                ios_icon_name={readiness.ready ? "checkmark.seal.fill" : "exclamationmark.triangle.fill"}
-                android_material_icon_name={readiness.ready ? "verified" : "warning"}
-                size={32}
-                color="#fff"
-              />
-              <View style={styles.readinessContent}>
-                <Text style={styles.readinessTitle}>
-                  {readiness.ready ? 'APP PRONTA PER DEPLOYMENT' : 'APP NON PRONTA'}
-                </Text>
-                <Text style={styles.readinessSubtitle}>
-                  {readiness.passed} test passati, {readiness.failed} falliti ({readiness.percentage.toFixed(0)}%)
-                </Text>
-              </View>
+      
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.content}>
+        {/* Deployment Readiness */}
+        {results.length > 0 && (
+          <View style={styles.readinessCard}>
+            <Text style={styles.readinessTitle}>Pronto per il Deploy</Text>
+            <View style={styles.readinessBar}>
+              <View style={[styles.readinessFill, { width: `${readiness}%` }]} />
             </View>
-          )}
+            <Text style={styles.readinessText}>{readiness}% Test Passati</Text>
+          </View>
+        )}
 
-          {/* Quick Actions */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Azioni Rapide</Text>
-            
+        {/* Test Data Management */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Gestione Dati di Test</Text>
+          <Text style={styles.sectionDescription}>
+            Crea o elimina dati di test per sviluppo e testing
+          </Text>
+          
+          <View style={styles.buttonRow}>
             <Pressable
-              style={({ pressed }) => [
-                styles.actionButton,
-                styles.primaryButton,
-                pressed && styles.buttonPressed,
-              ]}
-              onPress={runAllTestsSuite}
-              disabled={testing}
+              style={[styles.testButton, styles.createButton]}
+              onPress={handleCreateTestData}
+              disabled={testDataLoading}
             >
-              {testing && !selectedTest ? (
-                <ActivityIndicator color="#fff" />
+              {testDataLoading ? (
+                <ActivityIndicator size="small" color="#FFF" />
               ) : (
                 <>
-                  <IconSymbol
-                    ios_icon_name="play.circle.fill"
-                    android_material_icon_name="play_circle"
-                    size={24}
-                    color="#fff"
-                  />
-                  <Text style={styles.primaryButtonText}>Esegui Test Completi</Text>
+                  <IconSymbol ios_icon_name="plus.circle.fill" android_material_icon_name="add_circle" size={20} color="#FFF" />
+                  <Text style={styles.testButtonText}>Crea Dati Test</Text>
                 </>
               )}
             </Pressable>
 
-            <View style={styles.buttonRow}>
-              <Pressable
-                style={({ pressed }) => [
-                  styles.actionButton,
-                  styles.secondaryButton,
-                  styles.halfButton,
-                  pressed && styles.buttonPressed,
-                ]}
-                onPress={showDeviceInfo}
-              >
-                <IconSymbol
-                  ios_icon_name="info.circle"
-                  android_material_icon_name="info"
-                  size={20}
-                  color={colors.primary}
-                />
-                <Text style={styles.secondaryButtonText}>Info Dispositivo</Text>
-              </Pressable>
+            <Pressable
+              style={[styles.testButton, styles.deleteButton]}
+              onPress={handleDeleteTestData}
+              disabled={testDataLoading}
+            >
+              {testDataLoading ? (
+                <ActivityIndicator size="small" color="#FFF" />
+              ) : (
+                <>
+                  <IconSymbol ios_icon_name="trash.fill" android_material_icon_name="delete" size={20} color="#FFF" />
+                  <Text style={styles.testButtonText}>Elimina Tutto</Text>
+                </>
+              )}
+            </Pressable>
+          </View>
+        </View>
 
-              <Pressable
-                style={({ pressed }) => [
-                  styles.actionButton,
-                  styles.secondaryButton,
-                  styles.halfButton,
-                  pressed && styles.buttonPressed,
-                ]}
-                onPress={showPerformanceMetrics}
-              >
-                <IconSymbol
-                  ios_icon_name="speedometer"
-                  android_material_icon_name="speed"
-                  size={20}
-                  color={colors.primary}
-                />
-                <Text style={styles.secondaryButtonText}>Performance</Text>
-              </Pressable>
-            </View>
-
-            {testResults.length > 0 && (
-              <Pressable
-                style={({ pressed }) => [
-                  styles.actionButton,
-                  styles.secondaryButton,
-                  pressed && styles.buttonPressed,
-                ]}
-                onPress={shareTestReport}
-              >
-                <IconSymbol
-                  ios_icon_name="square.and.arrow.up"
-                  android_material_icon_name="share"
-                  size={20}
-                  color={colors.primary}
-                />
-                <Text style={styles.secondaryButtonText}>Condividi Report Deployment</Text>
-              </Pressable>
+        {/* Quick Actions */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Azioni Rapide</Text>
+          
+          <Pressable
+            style={[styles.actionButton, loading && styles.actionButtonDisabled]}
+            onPress={runAllTestsSuite}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator size="small" color={colors.text} />
+            ) : (
+              <>
+                <IconSymbol ios_icon_name="play.circle.fill" android_material_icon_name="play_circle" size={24} color={colors.text} />
+                <Text style={styles.actionButtonText}>Esegui Tutti i Test</Text>
+              </>
             )}
-          </View>
+          </Pressable>
 
-          {/* Core Tests */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Test Core</Text>
+          <Pressable style={styles.actionButton} onPress={showDeviceInfo}>
+            <IconSymbol ios_icon_name="info.circle" android_material_icon_name="info" size={24} color={colors.text} />
+            <Text style={styles.actionButtonText}>Info Dispositivo</Text>
+          </Pressable>
 
-            <Pressable
-              style={({ pressed }) => [
-                styles.testButton,
-                pressed && styles.buttonPressed,
-              ]}
-              onPress={() => runTest('Database Performance', testDatabasePerformance)}
-              disabled={testing}
-            >
-              <View style={styles.testButtonContent}>
-                <IconSymbol
-                  ios_icon_name="cylinder.fill"
-                  android_material_icon_name="storage"
-                  size={20}
-                  color={colors.text}
-                />
-                <Text style={styles.testButtonText}>Performance Database</Text>
-              </View>
-              {testing && selectedTest === 'Database Performance' && (
-                <ActivityIndicator size="small" color={colors.primary} />
-              )}
-            </Pressable>
+          <Pressable style={styles.actionButton} onPress={showPerformanceMetrics}>
+            <IconSymbol ios_icon_name="chart.bar.fill" android_material_icon_name="bar_chart" size={24} color={colors.text} />
+            <Text style={styles.actionButtonText}>Metriche Performance</Text>
+          </Pressable>
 
-            <Pressable
-              style={({ pressed }) => [
-                styles.testButton,
-                pressed && styles.buttonPressed,
-              ]}
-              onPress={() => runTest('Product Browsing', testProductBrowsing)}
-              disabled={testing}
-            >
-              <View style={styles.testButtonContent}>
-                <IconSymbol
-                  ios_icon_name="square.grid.2x2.fill"
-                  android_material_icon_name="grid_view"
-                  size={20}
-                  color={colors.text}
-                />
-                <Text style={styles.testButtonText}>Navigazione Prodotti</Text>
-              </View>
-              {testing && selectedTest === 'Product Browsing' && (
-                <ActivityIndicator size="small" color={colors.primary} />
-              )}
-            </Pressable>
-
-            <Pressable
-              style={({ pressed }) => [
-                styles.testButton,
-                pressed && styles.buttonPressed,
-              ]}
-              onPress={() => runTest('Drop Functionality', testDropFunctionality)}
-              disabled={testing}
-            >
-              <View style={styles.testButtonContent}>
-                <IconSymbol
-                  ios_icon_name="flame.fill"
-                  android_material_icon_name="local_fire_department"
-                  size={20}
-                  color={colors.text}
-                />
-                <Text style={styles.testButtonText}>Funzionalità Drop</Text>
-              </View>
-              {testing && selectedTest === 'Drop Functionality' && (
-                <ActivityIndicator size="small" color={colors.primary} />
-              )}
-            </Pressable>
-
-            <Pressable
-              style={({ pressed }) => [
-                styles.testButton,
-                pressed && styles.buttonPressed,
-              ]}
-              onPress={() => runTest('RLS Policies', () => testRLSPolicies('profiles'))}
-              disabled={testing}
-            >
-              <View style={styles.testButtonContent}>
-                <IconSymbol
-                  ios_icon_name="lock.shield.fill"
-                  android_material_icon_name="security"
-                  size={20}
-                  color={colors.text}
-                />
-                <Text style={styles.testButtonText}>Sicurezza RLS</Text>
-              </View>
-              {testing && selectedTest === 'RLS Policies' && (
-                <ActivityIndicator size="small" color={colors.primary} />
-              )}
-            </Pressable>
-
-            <Pressable
-              style={({ pressed }) => [
-                styles.testButton,
-                pressed && styles.buttonPressed,
-              ]}
-              onPress={() => runTest('Real-time Subscriptions', testRealtimeSubscriptions)}
-              disabled={testing}
-            >
-              <View style={styles.testButtonContent}>
-                <IconSymbol
-                  ios_icon_name="antenna.radiowaves.left.and.right"
-                  android_material_icon_name="wifi"
-                  size={20}
-                  color={colors.text}
-                />
-                <Text style={styles.testButtonText}>Aggiornamenti Real-time</Text>
-              </View>
-              {testing && selectedTest === 'Real-time Subscriptions' && (
-                <ActivityIndicator size="small" color={colors.primary} />
-              )}
-            </Pressable>
-
-            <Pressable
-              style={({ pressed }) => [
-                styles.testButton,
-                pressed && styles.buttonPressed,
-              ]}
-              onPress={() => runTest('Image Loading', testImageLoading)}
-              disabled={testing}
-            >
-              <View style={styles.testButtonContent}>
-                <IconSymbol
-                  ios_icon_name="photo.fill"
-                  android_material_icon_name="image"
-                  size={20}
-                  color={colors.text}
-                />
-                <Text style={styles.testButtonText}>Caricamento Immagini</Text>
-              </View>
-              {testing && selectedTest === 'Image Loading' && (
-                <ActivityIndicator size="small" color={colors.primary} />
-              )}
-            </Pressable>
-          </View>
-
-          {/* Supplier Tests */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Test Fornitori</Text>
-
-            <Pressable
-              style={({ pressed }) => [
-                styles.testButton,
-                pressed && styles.buttonPressed,
-              ]}
-              onPress={() => runTest('Supplier List Validation', testSupplierListValidation)}
-              disabled={testing}
-            >
-              <View style={styles.testButtonContent}>
-                <IconSymbol
-                  ios_icon_name="checkmark.circle.fill"
-                  android_material_icon_name="check_circle"
-                  size={20}
-                  color={colors.text}
-                />
-                <Text style={styles.testButtonText}>Validazione Liste</Text>
-              </View>
-              {testing && selectedTest === 'Supplier List Validation' && (
-                <ActivityIndicator size="small" color={colors.primary} />
-              )}
-            </Pressable>
-
-            <Pressable
-              style={({ pressed }) => [
-                styles.testButton,
-                pressed && styles.buttonPressed,
-              ]}
-              onPress={() => runTest('Excel Parsing', testExcelParsing)}
-              disabled={testing}
-            >
-              <View style={styles.testButtonContent}>
-                <IconSymbol
-                  ios_icon_name="doc.text.fill"
-                  android_material_icon_name="description"
-                  size={20}
-                  color={colors.text}
-                />
-                <Text style={styles.testButtonText}>Parsing Excel</Text>
-              </View>
-              {testing && selectedTest === 'Excel Parsing' && (
-                <ActivityIndicator size="small" color={colors.primary} />
-              )}
-            </Pressable>
-          </View>
-
-          {/* Drop Management Tests */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Test Gestione Drop</Text>
-
-            <Pressable
-              style={({ pressed }) => [
-                styles.testButton,
-                pressed && styles.buttonPressed,
-              ]}
-              onPress={() => runTest('Drop Status Transitions', testDropStatusTransitions)}
-              disabled={testing}
-            >
-              <View style={styles.testButtonContent}>
-                <IconSymbol
-                  ios_icon_name="arrow.triangle.2.circlepath"
-                  android_material_icon_name="sync"
-                  size={20}
-                  color={colors.text}
-                />
-                <Text style={styles.testButtonText}>Transizioni Stato Drop</Text>
-              </View>
-              {testing && selectedTest === 'Drop Status Transitions' && (
-                <ActivityIndicator size="small" color={colors.primary} />
-              )}
-            </Pressable>
-          </View>
-
-          {/* Payment Tests */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Test Pagamenti</Text>
-
-            <Pressable
-              style={({ pressed }) => [
-                styles.testButton,
-                pressed && styles.buttonPressed,
-              ]}
-              onPress={() => runTest('Payment Method Validation', testPaymentMethodValidation)}
-              disabled={testing}
-            >
-              <View style={styles.testButtonContent}>
-                <IconSymbol
-                  ios_icon_name="creditcard.fill"
-                  android_material_icon_name="credit_card"
-                  size={20}
-                  color={colors.text}
-                />
-                <Text style={styles.testButtonText}>Validazione Metodi Pagamento</Text>
-              </View>
-              {testing && selectedTest === 'Payment Method Validation' && (
-                <ActivityIndicator size="small" color={colors.primary} />
-              )}
-            </Pressable>
-
-            <Pressable
-              style={({ pressed }) => [
-                styles.testButton,
-                pressed && styles.buttonPressed,
-              ]}
-              onPress={() => runTest('Payment Security', testPaymentSecurity)}
-              disabled={testing}
-            >
-              <View style={styles.testButtonContent}>
-                <IconSymbol
-                  ios_icon_name="lock.shield.fill"
-                  android_material_icon_name="verified_user"
-                  size={20}
-                  color={colors.text}
-                />
-                <Text style={styles.testButtonText}>Sicurezza Pagamenti</Text>
-              </View>
-              {testing && selectedTest === 'Payment Security' && (
-                <ActivityIndicator size="small" color={colors.primary} />
-              )}
-            </Pressable>
-
-            {user && (
-              <Pressable
-                style={({ pressed }) => [
-                  styles.testButton,
-                  pressed && styles.buttonPressed,
-                ]}
-                onPress={() => runTest('Payment Methods', () => testPaymentMethods(user.id))}
-                disabled={testing}
-              >
-                <View style={styles.testButtonContent}>
-                  <IconSymbol
-                    ios_icon_name="creditcard.and.123"
-                    android_material_icon_name="payment"
-                    size={20}
-                    color={colors.text}
-                  />
-                  <Text style={styles.testButtonText}>Metodi Pagamento Utente</Text>
-                </View>
-                {testing && selectedTest === 'Payment Methods' && (
-                  <ActivityIndicator size="small" color={colors.primary} />
-                )}
+          {results.length > 0 && (
+            <>
+              <Pressable style={styles.actionButton} onPress={shareTestReport}>
+                <IconSymbol ios_icon_name="square.and.arrow.up" android_material_icon_name="share" size={24} color={colors.text} />
+                <Text style={styles.actionButtonText}>Condividi Report</Text>
               </Pressable>
-            )}
-          </View>
 
-          {/* User Tests */}
-          {user && (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Test Utente</Text>
-
-              <Pressable
-                style={({ pressed }) => [
-                  styles.testButton,
-                  pressed && styles.buttonPressed,
-                ]}
-                onPress={() => runTest('User Interests', () => testUserInterests(user.id))}
-                disabled={testing}
-              >
-                <View style={styles.testButtonContent}>
-                  <IconSymbol
-                    ios_icon_name="heart.fill"
-                    android_material_icon_name="favorite"
-                    size={20}
-                    color={colors.text}
-                  />
-                  <Text style={styles.testButtonText}>Interessi Utente</Text>
-                </View>
-                {testing && selectedTest === 'User Interests' && (
-                  <ActivityIndicator size="small" color={colors.primary} />
-                )}
+              <Pressable style={styles.actionButton} onPress={clearResults}>
+                <IconSymbol ios_icon_name="trash" android_material_icon_name="delete" size={24} color={colors.text} />
+                <Text style={styles.actionButtonText}>Cancella Risultati</Text>
               </Pressable>
-            </View>
+            </>
           )}
+        </View>
 
-          {/* Test Results */}
-          {testResults.length > 0 && (
-            <View style={styles.section}>
-              <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>Risultati Test</Text>
-                <Pressable onPress={clearResults}>
-                  <Text style={styles.clearButton}>Pulisci</Text>
-                </Pressable>
-              </View>
+        {/* Individual Tests */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Test Individuali</Text>
+          
+          <Pressable
+            style={styles.testButton}
+            onPress={() => runTest('Product Browsing', testProductBrowsing)}
+            disabled={loading}
+          >
+            <IconSymbol ios_icon_name="square.grid.2x2" android_material_icon_name="grid_view" size={20} color="#FFF" />
+            <Text style={styles.testButtonText}>Test Navigazione Prodotti</Text>
+          </Pressable>
 
-              {testResults.map((result, index) => (
-                <View
-                  key={index}
-                  style={[
-                    styles.resultCard,
-                    result.success ? styles.resultSuccess : styles.resultFailure,
-                  ]}
-                >
-                  <View style={styles.resultHeader}>
-                    <IconSymbol
-                      ios_icon_name={result.success ? 'checkmark.circle.fill' : 'xmark.circle.fill'}
-                      android_material_icon_name={result.success ? 'check_circle' : 'cancel'}
-                      size={24}
-                      color={result.success ? '#34C759' : '#FF3B30'}
-                    />
-                    <View style={styles.resultMessageContainer}>
-                      <Text style={styles.resultMessage}>{result.message}</Text>
-                      {result.duration && (
-                        <Text style={styles.resultDuration}>{result.duration}ms</Text>
-                      )}
-                    </View>
-                  </View>
-                  {result.details && (
-                    <Text style={styles.resultDetails}>
-                      {JSON.stringify(result.details, null, 2)}
-                    </Text>
-                  )}
-                  <Text style={styles.resultTimestamp}>
-                    {result.timestamp.toLocaleTimeString('it-IT')}
-                  </Text>
+          <Pressable
+            style={styles.testButton}
+            onPress={() => runTest('Drop Functionality', testDropFunctionality)}
+            disabled={loading}
+          >
+            <IconSymbol ios_icon_name="bolt.fill" android_material_icon_name="flash_on" size={20} color="#FFF" />
+            <Text style={styles.testButtonText}>Test Funzionalità Drop</Text>
+          </Pressable>
+
+          <Pressable
+            style={styles.testButton}
+            onPress={() => runTest('Database Performance', testDatabasePerformance)}
+            disabled={loading}
+          >
+            <IconSymbol ios_icon_name="speedometer" android_material_icon_name="speed" size={20} color="#FFF" />
+            <Text style={styles.testButtonText}>Test Performance Database</Text>
+          </Pressable>
+
+          <Pressable
+            style={styles.testButton}
+            onPress={() => runTest('RLS Policies', () => testRLSPolicies('products'))}
+            disabled={loading}
+          >
+            <IconSymbol ios_icon_name="lock.shield" android_material_icon_name="security" size={20} color="#FFF" />
+            <Text style={styles.testButtonText}>Test Politiche RLS</Text>
+          </Pressable>
+
+          <Pressable
+            style={styles.testButton}
+            onPress={() => runTest('Realtime Subscriptions', testRealtimeSubscriptions)}
+            disabled={loading}
+          >
+            <IconSymbol ios_icon_name="antenna.radiowaves.left.and.right" android_material_icon_name="wifi" size={20} color="#FFF" />
+            <Text style={styles.testButtonText}>Test Realtime</Text>
+          </Pressable>
+
+          <Pressable
+            style={styles.testButton}
+            onPress={() => runTest('Image Loading', testImageLoading)}
+            disabled={loading}
+          >
+            <IconSymbol ios_icon_name="photo" android_material_icon_name="image" size={20} color="#FFF" />
+            <Text style={styles.testButtonText}>Test Caricamento Immagini</Text>
+          </Pressable>
+        </View>
+
+        {/* Test Results */}
+        {results.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Risultati Test</Text>
+            
+            {results.map((result, index) => (
+              <View
+                key={index}
+                style={[
+                  styles.resultCard,
+                  result.passed ? styles.resultCardSuccess : styles.resultCardError,
+                ]}
+              >
+                <View style={styles.resultHeader}>
+                  <IconSymbol
+                    ios_icon_name={result.passed ? 'checkmark.circle.fill' : 'xmark.circle.fill'}
+                    android_material_icon_name={result.passed ? 'check_circle' : 'cancel'}
+                    size={24}
+                    color={result.passed ? '#34C759' : '#FF3B30'}
+                  />
+                  <Text style={styles.resultTitle}>{result.testName}</Text>
                 </View>
-              ))}
-            </View>
-          )}
-
-          {/* Summary */}
-          {testResults.length > 0 && (
-            <View style={styles.summaryCard}>
-              <Text style={styles.summaryTitle}>Riepilogo Deployment</Text>
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Test Eseguiti:</Text>
-                <Text style={styles.summaryValue}>{testResults.length}</Text>
+                <Text style={styles.resultMessage}>{result.message}</Text>
+                {result.error && (
+                  <Text style={styles.resultError}>Errore: {result.error}</Text>
+                )}
+                {result.duration && (
+                  <Text style={styles.resultDuration}>Durata: {result.duration}ms</Text>
+                )}
               </View>
-              <View style={styles.summaryRow}>
-                <Text style={[styles.summaryLabel, { color: '#34C759' }]}>Passati:</Text>
-                <Text style={[styles.summaryValue, { color: '#34C759' }]}>
-                  {testResults.filter(r => r.success).length}
-                </Text>
-              </View>
-              <View style={styles.summaryRow}>
-                <Text style={[styles.summaryLabel, { color: '#FF3B30' }]}>Falliti:</Text>
-                <Text style={[styles.summaryValue, { color: '#FF3B30' }]}>
-                  {testResults.filter(r => !r.success).length}
-                </Text>
-              </View>
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Durata Totale:</Text>
-                <Text style={styles.summaryValue}>
-                  {testResults.reduce((sum, r) => sum + (r.duration || 0), 0)}ms
-                </Text>
-              </View>
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Successo:</Text>
-                <Text style={[
-                  styles.summaryValue,
-                  { color: testResults.filter(r => r.success).length === testResults.length ? '#34C759' : '#FFB800' }
-                ]}>
-                  {((testResults.filter(r => r.success).length / testResults.length) * 100).toFixed(1)}%
-                </Text>
-              </View>
-              <View style={[styles.summaryRow, { marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: colors.border }]}>
-                <Text style={[styles.summaryLabel, { fontSize: 16, fontWeight: '700' }]}>
-                  Stato Deployment:
-                </Text>
-                <Text style={[
-                  styles.summaryValue,
-                  { 
-                    fontSize: 16,
-                    fontWeight: '700',
-                    color: testResults.filter(r => !r.success).length === 0 ? '#34C759' : '#FF3B30'
-                  }
-                ]}>
-                  {testResults.filter(r => !r.success).length === 0 ? '✅ PRONTA' : '⚠️ NON PRONTA'}
-                </Text>
-              </View>
-            </View>
-          )}
-        </ScrollView>
-      </SafeAreaView>
-    </>
+            ))}
+          </View>
+        )}
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
@@ -744,191 +438,142 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  scrollContent: {
-    padding: 16,
+  scrollView: {
+    flex: 1,
+  },
+  content: {
+    padding: 20,
     paddingBottom: 100,
   },
-  readinessBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  readinessCard: {
+    backgroundColor: colors.card,
+    borderRadius: 12,
     padding: 20,
-    borderRadius: 16,
-    marginBottom: 24,
-    gap: 16,
-  },
-  readyBanner: {
-    backgroundColor: '#34C759',
-  },
-  notReadyBanner: {
-    backgroundColor: '#FF9500',
-  },
-  readinessContent: {
-    flex: 1,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   readinessTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#fff',
-    marginBottom: 4,
+    color: colors.text,
+    marginBottom: 12,
   },
-  readinessSubtitle: {
+  readinessBar: {
+    height: 8,
+    backgroundColor: colors.backgroundSecondary,
+    borderRadius: 4,
+    overflow: 'hidden',
+    marginBottom: 8,
+  },
+  readinessFill: {
+    height: '100%',
+    backgroundColor: '#34C759',
+    borderRadius: 4,
+  },
+  readinessText: {
     fontSize: 14,
-    color: '#fff',
-    opacity: 0.9,
+    fontWeight: '600',
+    color: colors.textSecondary,
   },
   section: {
     marginBottom: 24,
   },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
   sectionTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '700',
     color: colors.text,
-    marginBottom: 12,
+    marginBottom: 8,
   },
-  clearButton: {
+  sectionDescription: {
     fontSize: 14,
-    fontWeight: '600',
-    color: colors.primary,
-  },
-  actionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 16,
-    borderRadius: 12,
-    gap: 8,
-    marginBottom: 12,
-  },
-  primaryButton: {
-    backgroundColor: colors.primary,
-  },
-  secondaryButton: {
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
+    color: colors.textSecondary,
+    marginBottom: 16,
+    lineHeight: 20,
   },
   buttonRow: {
     flexDirection: 'row',
     gap: 12,
   },
-  halfButton: {
-    flex: 1,
+  actionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.card,
+    padding: 16,
+    borderRadius: 8,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: 12,
   },
-  buttonPressed: {
-    opacity: 0.7,
-    transform: [{ scale: 0.98 }],
+  actionButtonDisabled: {
+    opacity: 0.5,
   },
-  primaryButtonText: {
+  actionButtonText: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#fff',
-  },
-  secondaryButtonText: {
-    fontSize: 14,
     fontWeight: '600',
     color: colors.text,
   },
   testButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 8,
+    justifyContent: 'center',
+    backgroundColor: colors.text,
+    padding: 14,
+    borderRadius: 8,
+    marginBottom: 12,
+    gap: 8,
+    flex: 1,
   },
-  testButtonContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
+  createButton: {
+    backgroundColor: '#34C759',
+  },
+  deleteButton: {
+    backgroundColor: '#FF3B30',
   },
   testButtonText: {
     fontSize: 15,
-    fontWeight: '500',
-    color: colors.text,
+    fontWeight: '600',
+    color: '#FFF',
   },
   resultCard: {
-    backgroundColor: colors.card,
-    borderRadius: 12,
     padding: 16,
+    borderRadius: 8,
     marginBottom: 12,
-    borderWidth: 2,
+    borderWidth: 1,
   },
-  resultSuccess: {
+  resultCardSuccess: {
+    backgroundColor: '#F0FFF4',
     borderColor: '#34C759',
   },
-  resultFailure: {
+  resultCardError: {
+    backgroundColor: '#FFF5F5',
     borderColor: '#FF3B30',
   },
   resultHeader: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 12,
+    alignItems: 'center',
     marginBottom: 8,
+    gap: 8,
   },
-  resultMessageContainer: {
-    flex: 1,
+  resultTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
   },
   resultMessage: {
     fontSize: 14,
-    fontWeight: '600',
-    color: colors.text,
+    color: colors.textSecondary,
     marginBottom: 4,
+  },
+  resultError: {
+    fontSize: 12,
+    color: '#FF3B30',
+    marginTop: 4,
   },
   resultDuration: {
     fontSize: 12,
-    color: colors.textSecondary,
-    fontWeight: '500',
-  },
-  resultDetails: {
-    fontSize: 12,
-    fontFamily: 'monospace',
-    color: colors.textSecondary,
-    backgroundColor: colors.backgroundSecondary,
-    padding: 8,
-    borderRadius: 6,
-    marginTop: 8,
-  },
-  resultTimestamp: {
-    fontSize: 11,
     color: colors.textTertiary,
-    marginTop: 8,
-  },
-  summaryCard: {
-    backgroundColor: colors.card,
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  summaryTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: colors.text,
-    marginBottom: 12,
-  },
-  summaryRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 8,
-  },
-  summaryLabel: {
-    fontSize: 15,
-    fontWeight: '500',
-    color: colors.textSecondary,
-  },
-  summaryValue: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.text,
+    marginTop: 4,
   },
 });
