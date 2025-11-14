@@ -27,6 +27,62 @@ export default function AdminLayout() {
           headerShown: true,
         }}
       />
+      <Stack.Screen
+        name="drop-analytics"
+        options={{
+          title: 'Analytics Drop',
+          headerShown: true,
+        }}
+      />
+      <Stack.Screen
+        name="complete-drop"
+        options={{
+          title: 'Completa Drop',
+          headerShown: true,
+        }}
+      />
+      <Stack.Screen
+        name="users"
+        options={{
+          title: 'Gestisci Utenti',
+          headerShown: true,
+        }}
+      />
+      <Stack.Screen
+        name="suppliers"
+        options={{
+          title: 'Gestisci Fornitori',
+          headerShown: true,
+        }}
+      />
+      <Stack.Screen
+        name="products"
+        options={{
+          title: 'Gestisci Prodotti',
+          headerShown: true,
+        }}
+      />
+      <Stack.Screen
+        name="pickup-points"
+        options={{
+          title: 'Punti di Ritiro',
+          headerShown: true,
+        }}
+      />
+      <Stack.Screen
+        name="user-details"
+        options={{
+          title: 'Dettagli Utente',
+          headerShown: true,
+        }}
+      />
+      <Stack.Screen
+        name="supplier-details"
+        options={{
+          title: 'Dettagli Fornitore',
+          headerShown: true,
+        }}
+      />
     </Stack>
   );
 }

@@ -12,18 +12,79 @@ import {
   Alert,
 } from 'react-native';
 import { useAuth } from '@/contexts/AuthContext';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import * as Haptics from 'expo-haptics';
+import { supabase } from '@/app/integrations/supabase/client';
 
 export default function AdminDashboard() {
   const { logout } = useAuth();
-  const [stats] = useState({
-    pendingDrops: 3,
-    activeDrops: 5,
-    totalUsers: 1247,
-    totalSuppliers: 23,
-    totalPickupPoints: 8,
+  const [stats, setStats] = useState({
+    pendingDrops: 0,
+    activeDrops: 0,
+    totalUsers: 0,
+    totalSuppliers: 0,
+    totalPickupPoints: 0,
+    totalProducts: 0,
+    totalBookings: 0,
   });
+
+  useEffect(() => {
+    loadStats();
+  }, []);
+
+  const loadStats = async () => {
+    try {
+      // Load pending drops
+      const { count: pendingDrops } = await supabase
+        .from('drops')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'pending_approval');
+
+      // Load active drops
+      const { count: activeDrops } = await supabase
+        .from('drops')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'active');
+
+      // Load total users
+      const { count: totalUsers } = await supabase
+        .from('profiles')
+        .select('*', { count: 'exact', head: true });
+
+      // Load total suppliers
+      const { count: totalSuppliers } = await supabase
+        .from('profiles')
+        .select('*', { count: 'exact', head: true })
+        .eq('role', 'supplier');
+
+      // Load total pickup points
+      const { count: totalPickupPoints } = await supabase
+        .from('pickup_points')
+        .select('*', { count: 'exact', head: true });
+
+      // Load total products
+      const { count: totalProducts } = await supabase
+        .from('products')
+        .select('*', { count: 'exact', head: true });
+
+      // Load total bookings
+      const { count: totalBookings } = await supabase
+        .from('bookings')
+        .select('*', { count: 'exact', head: true });
+
+      setStats({
+        pendingDrops: pendingDrops || 0,
+        activeDrops: activeDrops || 0,
+        totalUsers: totalUsers || 0,
+        totalSuppliers: totalSuppliers || 0,
+        totalPickupPoints: totalPickupPoints || 0,
+        totalProducts: totalProducts || 0,
+        totalBookings: totalBookings || 0,
+      });
+    } catch (error) {
+      console.error('Error loading stats:', error);
+    }
+  };
 
   const handleLogout = () => {
     Alert.alert(
@@ -124,6 +185,28 @@ export default function AdminDashboard() {
               <Text style={styles.statValue}>{stats.totalSuppliers}</Text>
               <Text style={styles.statLabel}>Fornitori</Text>
             </View>
+
+            <View style={styles.statCard}>
+              <IconSymbol
+                ios_icon_name="cube.box.fill"
+                android_material_icon_name="inventory"
+                size={32}
+                color={colors.info}
+              />
+              <Text style={styles.statValue}>{stats.totalProducts}</Text>
+              <Text style={styles.statLabel}>Prodotti</Text>
+            </View>
+
+            <View style={styles.statCard}>
+              <IconSymbol
+                ios_icon_name="cart.fill"
+                android_material_icon_name="shopping_cart"
+                size={32}
+                color={colors.warning}
+              />
+              <Text style={styles.statValue}>{stats.totalBookings}</Text>
+              <Text style={styles.statLabel}>Prenotazioni</Text>
+            </View>
           </View>
 
           <View style={styles.section}>
@@ -165,7 +248,7 @@ export default function AdminDashboard() {
               ]}
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                Alert.alert('In arrivo', 'Funzionalità in sviluppo');
+                router.push('/admin/users');
               }}
             >
               <View style={styles.actionIconContainer}>
@@ -197,7 +280,7 @@ export default function AdminDashboard() {
               ]}
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                Alert.alert('In arrivo', 'Funzionalità in sviluppo');
+                router.push('/admin/suppliers');
               }}
             >
               <View style={styles.actionIconContainer}>
@@ -229,7 +312,39 @@ export default function AdminDashboard() {
               ]}
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                Alert.alert('In arrivo', 'Funzionalità in sviluppo');
+                router.push('/admin/products');
+              }}
+            >
+              <View style={styles.actionIconContainer}>
+                <IconSymbol
+                  ios_icon_name="cube.box.fill"
+                  android_material_icon_name="inventory"
+                  size={24}
+                  color={colors.info}
+                />
+              </View>
+              <View style={styles.actionContent}>
+                <Text style={styles.actionTitle}>Gestisci Prodotti</Text>
+                <Text style={styles.actionDescription}>
+                  Visualizza e modifica i prodotti
+                </Text>
+              </View>
+              <IconSymbol
+                ios_icon_name="chevron.right"
+                android_material_icon_name="chevron_right"
+                size={20}
+                color={colors.textTertiary}
+              />
+            </Pressable>
+
+            <Pressable
+              style={({ pressed }) => [
+                styles.actionCard,
+                pressed && styles.actionCardPressed,
+              ]}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.push('/admin/pickup-points');
               }}
             >
               <View style={styles.actionIconContainer}>
