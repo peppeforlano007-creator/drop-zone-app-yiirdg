@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -38,11 +38,7 @@ export default function RegisterConsumerScreen() {
   const [loading, setLoading] = useState(false);
   const [loadingPickupPoints, setLoadingPickupPoints] = useState(true);
 
-  React.useEffect(() => {
-    loadPickupPoints();
-  }, []);
-
-  const loadPickupPoints = async () => {
+  const loadPickupPoints = useCallback(async () => {
     try {
       console.log('Loading pickup points...');
       const { data, error } = await supabase
@@ -69,7 +65,11 @@ export default function RegisterConsumerScreen() {
     } finally {
       setLoadingPickupPoints(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    loadPickupPoints();
+  }, [loadPickupPoints]);
 
   const handleRegister = async () => {
     console.log('=== REGISTRATION START ===');

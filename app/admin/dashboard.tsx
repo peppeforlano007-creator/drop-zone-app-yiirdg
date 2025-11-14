@@ -12,7 +12,7 @@ import {
   Alert,
 } from 'react-native';
 import { useAuth } from '@/contexts/AuthContext';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import * as Haptics from 'expo-haptics';
 import { supabase } from '@/app/integrations/supabase/client';
 
@@ -28,11 +28,7 @@ export default function AdminDashboard() {
     totalBookings: 0,
   });
 
-  useEffect(() => {
-    loadStats();
-  }, []);
-
-  const loadStats = async () => {
+  const loadStats = useCallback(async () => {
     try {
       // Load pending drops
       const { count: pendingDrops } = await supabase
@@ -84,7 +80,11 @@ export default function AdminDashboard() {
     } catch (error) {
       console.error('Error loading stats:', error);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    loadStats();
+  }, [loadStats]);
 
   const handleLogout = () => {
     Alert.alert(

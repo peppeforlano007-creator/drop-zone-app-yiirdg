@@ -376,7 +376,7 @@ export default function HomeScreen() {
       <>
         <Stack.Screen options={{ headerShown: false }} />
         <View style={[styles.container, styles.centerContent]}>
-          <IconSymbol name="tray" size={64} color={colors.textTertiary} />
+          <IconSymbol ios_icon_name="tray" android_material_icon_name="inbox" size={64} color={colors.textTertiary} />
           <Text style={styles.emptyTitle}>Nessun prodotto disponibile</Text>
           <Text style={styles.emptyText}>
             I fornitori non hanno ancora caricato prodotti
@@ -410,12 +410,12 @@ export default function HomeScreen() {
         {/* Top Bar */}
         <View style={styles.topBar}>
           <View style={styles.pickupPointBadge}>
-            <IconSymbol name="mappin.circle.fill" size={16} color={colors.text} />
+            <IconSymbol ios_icon_name="mappin.circle.fill" android_material_icon_name="location_on" size={16} color={colors.text} />
             <Text style={styles.pickupPointText}>{user?.pickupPoint || 'Nessun punto'}</Text>
           </View>
           
           <Pressable onPress={handleLogout} style={styles.logoutButton}>
-            <IconSymbol name="rectangle.portrait.and.arrow.right" size={24} color={colors.text} />
+            <IconSymbol ios_icon_name="rectangle.portrait.and.arrow.right" android_material_icon_name="logout" size={24} color={colors.text} />
           </Pressable>
         </View>
 
@@ -424,7 +424,7 @@ export default function HomeScreen() {
           <View style={styles.listInfoCard}>
             <View style={styles.listInfoHeader}>
               <View style={styles.supplierBadge}>
-                <IconSymbol name="building.2" size={14} color={colors.text} />
+                <IconSymbol ios_icon_name="building.2" android_material_icon_name="store" size={14} color={colors.text} />
                 <Text style={styles.supplierName}>{currentList?.supplierName}</Text>
               </View>
               <View style={styles.listCounter}>
@@ -457,7 +457,7 @@ export default function HomeScreen() {
             {/* Interest Stats */}
             {interestedInCurrentList > 0 && (
               <View style={styles.interestStats}>
-                <IconSymbol name="heart.fill" size={14} color="#FF3B30" />
+                <IconSymbol ios_icon_name="heart.fill" android_material_icon_name="favorite" size={14} color="#FF3B30" />
                 <Text style={styles.interestStatsText}>
                   {interestedInCurrentList} {interestedInCurrentList === 1 ? 'articolo interessato' : 'articoli interessati'} in questa lista
                 </Text>
@@ -479,7 +479,7 @@ export default function HomeScreen() {
             style={styles.navButtonLeft}
             onPress={handlePreviousList}
           >
-            <IconSymbol name="chevron.left" size={20} color="#000" />
+            <IconSymbol ios_icon_name="chevron.left" android_material_icon_name="chevron_left" size={20} color="#000" />
           </Pressable>
         )}
 
@@ -488,7 +488,7 @@ export default function HomeScreen() {
             style={styles.navButtonRight}
             onPress={handleNextList}
           >
-            <IconSymbol name="chevron.right" size={20} color="#000" />
+            <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="chevron_right" size={20} color="#000" />
           </Pressable>
         )}
 
@@ -496,7 +496,7 @@ export default function HomeScreen() {
         {interestedInCurrentList > 1 && (
           <View style={styles.hintContainer}>
             <View style={styles.hintCard}>
-              <IconSymbol name="lightbulb.fill" size={18} color="#FFB800" />
+              <IconSymbol ios_icon_name="lightbulb.fill" android_material_icon_name="lightbulb" size={18} color="#FFB800" />
               <Text style={styles.hintText}>
                 Ottimo! Più articoli della stessa lista aumentano le probabilità di attivare un drop!
               </Text>
