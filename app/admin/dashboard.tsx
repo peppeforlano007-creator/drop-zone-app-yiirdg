@@ -95,9 +95,10 @@ export default function AdminDashboard() {
         {
           text: 'Esci',
           style: 'destructive',
-          onPress: () => {
+          onPress: async () => {
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-            logout();
+            await logout();
+            router.replace('/login');
           },
         },
       ]
@@ -561,6 +562,24 @@ export default function AdminDashboard() {
               />
             </Pressable>
           </View>
+
+          <View style={styles.logoutSection}>
+            <Pressable
+              style={({ pressed }) => [
+                styles.logoutButton,
+                pressed && styles.logoutButtonPressed,
+              ]}
+              onPress={handleLogout}
+            >
+              <IconSymbol
+                ios_icon_name="rectangle.portrait.and.arrow.right"
+                android_material_icon_name="logout"
+                size={24}
+                color="#FFFFFF"
+              />
+              <Text style={styles.logoutButtonText}>Esci dall&apos;Account</Text>
+            </Pressable>
+          </View>
         </ScrollView>
       </SafeAreaView>
     </>
@@ -674,5 +693,28 @@ const styles = StyleSheet.create({
   actionDescription: {
     fontSize: 13,
     color: colors.textSecondary,
+  },
+  logoutSection: {
+    paddingHorizontal: 20,
+    marginTop: 32,
+    marginBottom: 20,
+  },
+  logoutButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.error,
+    borderRadius: 12,
+    padding: 16,
+    gap: 12,
+  },
+  logoutButtonPressed: {
+    opacity: 0.8,
+    transform: [{ scale: 0.98 }],
+  },
+  logoutButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
 });
