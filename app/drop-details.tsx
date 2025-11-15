@@ -239,6 +239,23 @@ export default function DropDetailsScreen() {
     return Math.round(newDiscount * 100) / 100;
   };
 
+  const isAtRiskOfUnderfunding = (): boolean => {
+    if (!drop) return false;
+    
+    const now = new Date().getTime();
+    const endTime = new Date(drop.end_time).getTime();
+    const timeLeft = endTime - now;
+    const hoursLeft = timeLeft / (1000 * 60 * 60);
+    
+    // Show warning if less than 24 hours left and below minimum value
+    return hoursLeft < 24 && drop.current_value < drop.supplier_lists.min_reservation_value;
+  };
+
+  const getUnderfundingProgress = (): number => {
+    if (!drop) return 0;
+    return (drop.current_value / drop.supplier_lists.min_reservation_value) * 100;
+  };
+
   const handleBook = async (productId: string) => {
     if (!user) {
       Alert.alert('Accesso richiesto', 'Devi effettuare l\'accesso per prenotare');
@@ -350,7 +367,12 @@ export default function DropDetailsScreen() {
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
-    const message = `🔥 Drop attivo: ${drop.name}!\n\n💰 Sconto attuale: ${drop.current_discount.toFixed(1)}%\n⏰ Tempo rimanente: ${timeRemaining}\n\n🎯 Più persone prenotano, più lo sconto aumenta!\n\nUnisciti ora! 👇`;
+    const atRisk = isAtRiskOfUnderfunding();
+    const urgencyMessage = atRisk 
+      ? '\n\n⚠️ URGENTE: Mancano meno di 24 ore e non abbiamo ancora raggiunto l\'ordine minimo! Se non raggiungiamo l\'obiettivo, il drop verrà annullato e i fondi rilasciati.'
+      : '';
+
+    const message = `🔥 Drop attivo: ${drop.name}!\n\n💰 Sconto attuale: ${drop.current_discount.toFixed(1)}%\n⏰ Tempo rimanente: ${timeRemaining}\n\n🎯 Più persone prenotano, più lo sconto aumenta!${urgencyMessage}\n\nUnisciti ora! 👇`;
 
     const url = `whatsapp://send?text=${encodeURIComponent(message)}`;
 
@@ -416,6 +438,9 @@ export default function DropDetailsScreen() {
     );
   }
 
+  const atRisk = isAtRiskOfUnderfunding();
+  const underfundingProgress = getUnderfundingProgress();
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <Stack.Screen options={{ headerShown: false }} />
@@ -451,6 +476,52 @@ export default function DropDetailsScreen() {
           </Animated.View>
         </Pressable>
       </View>
+
+      {/* Underfunding Warning */}
+      {atRisk && (
+        <View style={styles.underfundingWarning}>
+          <IconSymbol
+            ios_icon_name="exclamationmark.triangle.fill"
+            android_material_icon_name="warning"
+            size={24}
+            color="#FF6B35"
+          />
+          <View style={styles.underfundingContent}>
+            <Text style={styles.underfundingTitle}>⚠️ Drop a Rischio!</Text>
+            <Text style={styles.underfundingText}>
+              Abbiamo raggiunto solo €{drop.current_value.toFixed(0)} su €{drop.supplier_lists.min_reservation_value} richiesti.
+            </Text>
+            <Text style={styles.underfundingText}>
+              Se non raggiungiamo l'ordine minimo entro la scadenza, il drop verrà annullato e i fondi rilasciati.
+            </Text>
+            <View style={styles.underfundingProgressBar}>
+              <View 
+                style={[
+                  styles.underfundingProgressFill, 
+                  { width: `${Math.min(underfundingProgress, 100)}%` }
+                ]} 
+              />
+            </View>
+            <Text style={styles.underfundingProgressText}>
+              {underfundingProgress.toFixed(0)}% dell'ordine minimo
+            </Text>
+            <Pressable
+              style={styles.shareUrgentButton}
+              onPress={handleShareWhatsApp}
+            >
+              <IconSymbol
+                ios_icon_name="square.and.arrow.up.fill"
+                android_material_icon_name="share"
+                size={18}
+                color="#fff"
+              />
+              <Text style={styles.shareUrgentButtonText}>
+                Condividi Ora con Amici!
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+      )}
 
       {/* Drop Info Bar */}
       <View style={styles.infoBar}>
@@ -604,6 +675,66 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  underfundingWarning: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#FF6B3520',
+    padding: 16,
+    gap: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#FF6B35',
+  },
+  underfundingContent: {
+    flex: 1,
+  },
+  underfundingTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#FF6B35',
+    marginBottom: 8,
+    fontFamily: 'System',
+  },
+  underfundingText: {
+    fontSize: 14,
+    color: colors.text,
+    marginBottom: 6,
+    fontFamily: 'System',
+  },
+  underfundingProgressBar: {
+    height: 8,
+    backgroundColor: colors.border,
+    borderRadius: 4,
+    overflow: 'hidden',
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  underfundingProgressFill: {
+    height: '100%',
+    backgroundColor: '#FF6B35',
+    borderRadius: 4,
+  },
+  underfundingProgressText: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginBottom: 12,
+    fontFamily: 'System',
+  },
+  shareUrgentButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FF6B35',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    gap: 8,
+  },
+  shareUrgentButtonText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#fff',
+    fontFamily: 'System',
   },
   infoBar: {
     flexDirection: 'row',

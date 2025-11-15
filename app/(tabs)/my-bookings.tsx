@@ -1,5 +1,12 @@
 
+import { colors } from '@/styles/commonStyles';
 import React, { useEffect, useState, useCallback } from 'react';
+import { IconSymbol } from '@/components/IconSymbol';
+import { supabase } from '@/app/integrations/supabase/client';
+import * as Haptics from 'expo-haptics';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Stack } from 'expo-router';
+import { useAuth } from '@/contexts/AuthContext';
 import {
   View,
   Text,
@@ -11,13 +18,6 @@ import {
   RefreshControl,
   ActivityIndicator,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Stack } from 'expo-router';
-import { colors } from '@/styles/commonStyles';
-import { IconSymbol } from '@/components/IconSymbol';
-import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/app/integrations/supabase/client';
-import * as Haptics from 'expo-haptics';
 
 interface Booking {
   id: string;
@@ -48,29 +48,25 @@ interface Booking {
 }
 
 export default function MyBookingsScreen() {
-  const { user } = useAuth();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const { user } = useAuth();
 
   const loadBookings = useCallback(async () => {
-    try {
-      console.log('Loading bookings for user:', user?.id);
+    if (!user) {
+      console.log('No user, skipping bookings load');
+      setLoading(false);
+      return;
+    }
 
+    try {
+      console.log('Loading bookings for user:', user.id);
+      
       const { data, error } = await supabase
         .from('bookings')
         .select(`
-          id,
-          product_id,
-          drop_id,
-          original_price,
-          authorized_amount,
-          discount_percentage,
-          final_price,
-          payment_status,
-          status,
-          created_at,
-          updated_at,
+          *,
           products (
             name,
             image_url
@@ -86,23 +82,25 @@ export default function MyBookingsScreen() {
             )
           )
         `)
-        .eq('user_id', user?.id)
+        .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 
       if (error) {
         console.error('Error loading bookings:', error);
+        Alert.alert('Errore', 'Impossibile caricare le prenotazioni');
         return;
       }
 
-      console.log('Bookings loaded:', data?.length || 0);
+      console.log('Bookings loaded:', data?.length);
       setBookings(data || []);
     } catch (error) {
       console.error('Error in loadBookings:', error);
+      Alert.alert('Errore', 'Si è verificato un errore');
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [user?.id]);
+  }, [user]);
 
   useEffect(() => {
     loadBookings();
@@ -114,17 +112,18 @@ export default function MyBookingsScreen() {
   };
 
   const handleCancelBooking = (bookingId: string, productName: string) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     Alert.alert(
       'Annulla Prenotazione',
-      `Sei sicuro di voler annullare la prenotazione per ${productName}?`,
+      `Sei sicuro di voler annullare la prenotazione per "${productName}"?\n\nL'importo bloccato verrà rilasciato.`,
       [
         { text: 'No', style: 'cancel' },
         {
-          text: 'Sì, Annulla',
+          text: 'Sì, annulla',
           style: 'destructive',
           onPress: async () => {
             try {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
               const { error } = await supabase
                 .from('bookings')
                 .update({
@@ -136,12 +135,12 @@ export default function MyBookingsScreen() {
 
               if (error) {
                 console.error('Error cancelling booking:', error);
-                Alert.alert('Errore', 'Non è stato possibile annullare la prenotazione');
+                Alert.alert('Errore', 'Impossibile annullare la prenotazione');
                 return;
               }
 
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-              Alert.alert('Prenotazione Annullata', 'La prenotazione è stata annullata con successo');
+              Alert.alert('Successo', 'Prenotazione annullata. L\'importo verrà rilasciato.');
               loadBookings();
             } catch (error) {
               console.error('Error in handleCancelBooking:', error);
@@ -155,15 +154,14 @@ export default function MyBookingsScreen() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'authorized':
-        return '#FF9800';
-      case 'captured':
-        return '#4CAF50';
+      case 'active':
+        return colors.success;
+      case 'confirmed':
+        return colors.primary;
       case 'cancelled':
-      case 'refunded':
-        return '#9E9E9E';
-      case 'failed':
-        return '#F44336';
+        return colors.error;
+      case 'completed':
+        return colors.info;
       default:
         return colors.textSecondary;
     }
@@ -171,396 +169,318 @@ export default function MyBookingsScreen() {
 
   const getStatusText = (status: string) => {
     switch (status) {
-      case 'authorized':
-        return 'In Attesa';
-      case 'captured':
-        return 'Pagato';
+      case 'active':
+        return 'Attiva';
+      case 'confirmed':
+        return 'Confermata';
       case 'cancelled':
-        return 'Annullato';
-      case 'refunded':
-        return 'Rimborsato';
-      case 'failed':
-        return 'Fallito';
+        return 'Annullata';
+      case 'completed':
+        return 'Completata';
       default:
         return status;
     }
   };
 
-  const activeBookings = bookings.filter(
-    b => b.payment_status === 'authorized' && b.status === 'active'
-  );
-  
-  const completedBookings = bookings.filter(
-    b => b.payment_status === 'captured' || b.status === 'cancelled'
-  );
+  const getPaymentStatusColor = (status: string) => {
+    switch (status) {
+      case 'pending':
+        return colors.warning;
+      case 'authorized':
+        return colors.info;
+      case 'captured':
+        return colors.success;
+      case 'failed':
+        return colors.error;
+      case 'refunded':
+        return colors.textSecondary;
+      default:
+        return colors.textSecondary;
+    }
+  };
+
+  const getPaymentStatusText = (status: string) => {
+    switch (status) {
+      case 'pending':
+        return 'In Attesa';
+      case 'authorized':
+        return 'Autorizzato';
+      case 'captured':
+        return 'Addebitato';
+      case 'failed':
+        return 'Fallito';
+      case 'refunded':
+        return 'Rimborsato';
+      default:
+        return status;
+    }
+  };
+
+  const getDropStatusMessage = (drop: any) => {
+    if (drop.status === 'underfunded') {
+      return {
+        text: '⚠️ Drop non finanziato - Fondi rilasciati',
+        color: '#FF6B35',
+        description: 'Questo drop non ha raggiunto l\'ordine minimo. L\'importo bloccato è stato rilasciato sulla tua carta.',
+      };
+    }
+    if (drop.status === 'expired') {
+      return {
+        text: '⏰ Drop scaduto',
+        color: colors.error,
+        description: 'Questo drop è scaduto senza raggiungere l\'obiettivo.',
+      };
+    }
+    if (drop.status === 'cancelled') {
+      return {
+        text: '❌ Drop annullato',
+        color: colors.error,
+        description: 'Questo drop è stato annullato.',
+      };
+    }
+    return null;
+  };
 
   if (loading) {
     return (
-      <>
+      <SafeAreaView style={styles.container}>
         <Stack.Screen
           options={{
             title: 'Le Mie Prenotazioni',
-            headerStyle: { backgroundColor: colors.background },
-            headerTintColor: colors.text,
+            headerShown: true,
           }}
         />
-        <SafeAreaView style={styles.safeArea} edges={['bottom']}>
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={colors.text} />
-            <Text style={styles.loadingText}>Caricamento prenotazioni...</Text>
-          </View>
-        </SafeAreaView>
-      </>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={styles.loadingText}>Caricamento prenotazioni...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (!user) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <Stack.Screen
+          options={{
+            title: 'Le Mie Prenotazioni',
+            headerShown: true,
+          }}
+        />
+        <View style={styles.emptyContainer}>
+          <IconSymbol ios_icon_name="person.crop.circle.badge.exclamationmark" android_material_icon_name="account_circle" size={64} color={colors.textSecondary} />
+          <Text style={styles.emptyTitle}>Accesso richiesto</Text>
+          <Text style={styles.emptyText}>
+            Effettua l'accesso per visualizzare le tue prenotazioni
+          </Text>
+        </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <>
+    <SafeAreaView style={styles.container} edges={['bottom']}>
       <Stack.Screen
         options={{
           title: 'Le Mie Prenotazioni',
-          headerStyle: {
-            backgroundColor: colors.background,
-          },
-          headerTintColor: colors.text,
+          headerShown: true,
         }}
       />
-      <SafeAreaView style={styles.safeArea} edges={['bottom']}>
+
+      {bookings.length === 0 ? (
+        <View style={styles.emptyContainer}>
+          <IconSymbol ios_icon_name="bag" android_material_icon_name="shopping_bag" size={64} color={colors.textSecondary} />
+          <Text style={styles.emptyTitle}>Nessuna prenotazione</Text>
+          <Text style={styles.emptyText}>
+            Le tue prenotazioni appariranno qui quando prenoti un prodotto in un drop attivo
+          </Text>
+        </View>
+      ) : (
         <ScrollView
-          style={styles.container}
-          contentContainerStyle={[
-            styles.contentContainer,
-            Platform.OS !== 'ios' && styles.contentContainerWithTabBar,
-          ]}
+          style={styles.scrollView}
+          contentContainerStyle={styles.contentContainer}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
               onRefresh={handleRefresh}
-              tintColor={colors.text}
+              tintColor={colors.primary}
+              colors={[colors.primary]}
             />
           }
         >
-          <View style={styles.header}>
-            <Text style={styles.headerTitle}>Le Mie Prenotazioni</Text>
-            <Text style={styles.headerSubtitle}>
-              Gestisci le tue prenotazioni attive
-            </Text>
-          </View>
+          {bookings.map((booking) => {
+            const dropStatusMessage = getDropStatusMessage(booking.drops);
+            const canCancel = booking.status === 'active' && booking.payment_status === 'authorized';
+            const isRefunded = booking.payment_status === 'refunded';
 
-          {activeBookings.length > 0 && (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Prenotazioni Attive</Text>
-              {activeBookings.map(booking => {
-                const timeRemaining = new Date(booking.drops.end_time).getTime() - Date.now();
-                const daysRemaining = Math.ceil(timeRemaining / (1000 * 60 * 60 * 24));
-                const currentPrice = Number(booking.original_price) * (1 - booking.drops.current_discount / 100);
-                const minPossiblePrice = Number(booking.original_price) * (1 - booking.drops.supplier_lists.max_discount / 100);
-
-                return (
-                  <View key={booking.id} style={styles.bookingCard}>
-                    <View style={styles.bookingHeader}>
-                      <View style={styles.bookingInfo}>
-                        <Text style={styles.productName}>{booking.products.name}</Text>
-                        <Text style={styles.supplierName}>{booking.drops.supplier_lists.name}</Text>
-                      </View>
-                      <View
-                        style={[
-                          styles.statusBadge,
-                          { backgroundColor: getStatusColor(booking.payment_status) + '20' },
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.statusText,
-                            { color: getStatusColor(booking.payment_status) },
-                          ]}
-                        >
-                          {getStatusText(booking.payment_status)}
-                        </Text>
-                      </View>
-                    </View>
-
-                    <View style={styles.bookingDetails}>
-                      <View style={styles.detailRow}>
-                        <IconSymbol 
-                          ios_icon_name="clock" 
-                          android_material_icon_name="schedule" 
-                          size={16} 
-                          color={colors.textSecondary} 
-                        />
-                        <Text style={styles.detailText}>
-                          {daysRemaining > 0
-                            ? `${daysRemaining} giorni rimanenti`
-                            : 'Drop terminato'}
-                        </Text>
-                      </View>
-                      <View style={styles.detailRow}>
-                        <IconSymbol 
-                          ios_icon_name="percent" 
-                          android_material_icon_name="percent" 
-                          size={16} 
-                          color={colors.textSecondary} 
-                        />
-                        <Text style={styles.detailText}>
-                          Sconto attuale: {booking.drops.current_discount.toFixed(0)}%
-                        </Text>
-                      </View>
-                      <View style={styles.detailRow}>
-                        <IconSymbol 
-                          ios_icon_name="lock.fill" 
-                          android_material_icon_name="lock" 
-                          size={16} 
-                          color={colors.textSecondary} 
-                        />
-                        <Text style={styles.detailText}>
-                          Bloccato: €{Number(booking.authorized_amount).toFixed(2)}
-                        </Text>
-                      </View>
-                    </View>
-
-                    <View style={styles.priceInfo}>
-                      <View>
-                        <Text style={styles.priceLabel}>Prezzo Attuale</Text>
-                        <Text style={styles.currentPrice}>
-                          €{currentPrice.toFixed(2)}
-                        </Text>
-                        <Text style={styles.priceSubtext}>
-                          (Sconto {booking.drops.current_discount.toFixed(0)}%)
-                        </Text>
-                      </View>
-                      <View style={styles.priceRange}>
-                        <Text style={styles.priceRangeLabel}>Prezzo Minimo</Text>
-                        <Text style={styles.priceRangeText}>
-                          €{minPossiblePrice.toFixed(2)}
-                        </Text>
-                        <Text style={styles.priceSubtext}>
-                          (Max {booking.drops.supplier_lists.max_discount}%)
-                        </Text>
-                      </View>
-                    </View>
-
-                    <View style={styles.savingsInfo}>
-                      <IconSymbol 
-                        ios_icon_name="checkmark.circle.fill" 
-                        android_material_icon_name="check_circle" 
-                        size={16} 
-                        color="#4CAF50" 
-                      />
-                      <Text style={styles.savingsText}>
-                        Alla fine del drop, pagherai solo il prezzo finale con lo sconto raggiunto
-                      </Text>
-                    </View>
-
-                    {booking.status === 'active' && (
-                      <Pressable
-                        style={styles.cancelButton}
-                        onPress={() => handleCancelBooking(booking.id, booking.products.name)}
-                      >
-                        <IconSymbol 
-                          ios_icon_name="xmark.circle" 
-                          android_material_icon_name="cancel" 
-                          size={20} 
-                          color="#ef4444" 
-                        />
-                        <Text style={styles.cancelButtonText}>Annulla Prenotazione</Text>
-                      </Pressable>
-                    )}
-                  </View>
-                );
-              })}
-            </View>
-          )}
-
-          {completedBookings.length > 0 && (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Storico</Text>
-              {completedBookings.map(booking => {
-                const authorizedAmount = Number(booking.authorized_amount);
-                const finalPrice = Number(booking.final_price);
-                const savings = authorizedAmount - finalPrice;
-
-                return (
-                  <View key={booking.id} style={styles.bookingCard}>
-                    <View style={styles.bookingHeader}>
-                      <View style={styles.bookingInfo}>
-                        <Text style={styles.productName}>{booking.products.name}</Text>
-                        <Text style={styles.supplierName}>{booking.drops.supplier_lists.name}</Text>
-                      </View>
-                      <View
-                        style={[
-                          styles.statusBadge,
-                          { backgroundColor: getStatusColor(booking.payment_status) + '20' },
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.statusText,
-                            { color: getStatusColor(booking.payment_status) },
-                          ]}
-                        >
-                          {getStatusText(booking.payment_status)}
-                        </Text>
-                      </View>
-                    </View>
-
-                    {booking.payment_status === 'captured' && (
-                      <>
-                        <View style={styles.finalPriceInfo}>
-                          <View style={styles.priceRow}>
-                            <Text style={styles.finalPriceLabel}>Importo Bloccato</Text>
-                            <Text style={styles.authorizedAmountText}>
-                              €{authorizedAmount.toFixed(2)}
-                            </Text>
-                          </View>
-                          <View style={styles.priceRow}>
-                            <Text style={styles.finalPriceLabel}>Importo Pagato</Text>
-                            <Text style={styles.finalPrice}>
-                              €{finalPrice.toFixed(2)}
-                            </Text>
-                          </View>
-                          {savings > 0 && (
-                            <View style={styles.savingsRow}>
-                              <IconSymbol 
-                                ios_icon_name="checkmark.circle.fill" 
-                                android_material_icon_name="check_circle" 
-                                size={16} 
-                                color="#4CAF50" 
-                              />
-                              <Text style={styles.savingsAmount}>
-                                Hai risparmiato €{savings.toFixed(2)}!
-                              </Text>
-                            </View>
-                          )}
-                          <Text style={styles.finalDiscount}>
-                            Sconto finale: {booking.discount_percentage.toFixed(0)}%
-                          </Text>
-                        </View>
-                      </>
-                    )}
-
-                    <Text style={styles.dateText}>
-                      {booking.payment_status === 'captured'
-                        ? `Pagato il ${new Date(booking.updated_at).toLocaleDateString('it-IT')}`
-                        : `Prenotato il ${new Date(booking.created_at).toLocaleDateString('it-IT')}`}
+            return (
+              <View key={booking.id} style={styles.bookingCard}>
+                <View style={styles.bookingHeader}>
+                  <View style={styles.bookingInfo}>
+                    <Text style={styles.productName}>{booking.products.name}</Text>
+                    <Text style={styles.dropName}>
+                      Drop: {booking.drops.name}
+                    </Text>
+                    <Text style={styles.supplierName}>
+                      {booking.drops.supplier_lists.name}
                     </Text>
                   </View>
-                );
-              })}
-            </View>
-          )}
+                  <View style={styles.statusBadges}>
+                    <View style={[styles.statusBadge, { backgroundColor: getStatusColor(booking.status) + '20' }]}>
+                      <Text style={[styles.statusText, { color: getStatusColor(booking.status) }]}>
+                        {getStatusText(booking.status)}
+                      </Text>
+                    </View>
+                    <View style={[styles.statusBadge, { backgroundColor: getPaymentStatusColor(booking.payment_status) + '20' }]}>
+                      <Text style={[styles.statusText, { color: getPaymentStatusColor(booking.payment_status) }]}>
+                        {getPaymentStatusText(booking.payment_status)}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
 
-          {bookings.length === 0 && (
-            <View style={styles.emptyState}>
-              <IconSymbol 
-                ios_icon_name="cart" 
-                android_material_icon_name="shopping_cart" 
-                size={64} 
-                color={colors.textTertiary} 
-              />
-              <Text style={styles.emptyTitle}>Nessuna Prenotazione</Text>
-              <Text style={styles.emptyText}>
-                Le tue prenotazioni appariranno qui quando prenoti prodotti nei drop attivi
-              </Text>
-            </View>
-          )}
+                {dropStatusMessage && (
+                  <View style={[styles.dropStatusMessage, { backgroundColor: dropStatusMessage.color + '20' }]}>
+                    <Text style={[styles.dropStatusText, { color: dropStatusMessage.color }]}>
+                      {dropStatusMessage.text}
+                    </Text>
+                    <Text style={styles.dropStatusDescription}>
+                      {dropStatusMessage.description}
+                    </Text>
+                  </View>
+                )}
 
-          <View style={styles.infoCard}>
-            <Text style={styles.infoTitle}>Come funziona il pagamento?</Text>
-            <View style={styles.infoList}>
-              <View style={styles.infoItem}>
-                <Text style={styles.infoBullet}>1.</Text>
-                <Text style={styles.infoText}>
-                  Quando prenoti, blocchiamo sulla tua carta l&apos;importo al prezzo scontato attuale
+                <View style={styles.priceInfo}>
+                  <View style={styles.priceRow}>
+                    <Text style={styles.priceLabel}>Prezzo originale:</Text>
+                    <Text style={styles.priceValue}>€{booking.original_price.toFixed(2)}</Text>
+                  </View>
+                  <View style={styles.priceRow}>
+                    <Text style={styles.priceLabel}>Sconto prenotazione:</Text>
+                    <Text style={styles.discountValue}>{booking.discount_percentage.toFixed(1)}%</Text>
+                  </View>
+                  <View style={styles.priceRow}>
+                    <Text style={styles.priceLabel}>Importo bloccato:</Text>
+                    <Text style={[styles.priceValue, isRefunded && styles.refundedAmount]}>
+                      €{booking.authorized_amount.toFixed(2)}
+                      {isRefunded && ' (Rilasciato)'}
+                    </Text>
+                  </View>
+                  {booking.final_price > 0 && (
+                    <View style={[styles.priceRow, styles.finalPriceRow]}>
+                      <Text style={styles.finalPriceLabel}>Importo finale:</Text>
+                      <Text style={styles.finalPriceValue}>€{booking.final_price.toFixed(2)}</Text>
+                    </View>
+                  )}
+                </View>
+
+                {booking.drops.status === 'active' && (
+                  <View style={styles.discountProgress}>
+                    <Text style={styles.discountProgressLabel}>
+                      Sconto attuale: {booking.drops.current_discount.toFixed(1)}% 
+                      {' '}(max {booking.drops.supplier_lists.max_discount}%)
+                    </Text>
+                    <View style={styles.progressBar}>
+                      <View 
+                        style={[
+                          styles.progressFill, 
+                          { width: `${(booking.drops.current_discount / booking.drops.supplier_lists.max_discount) * 100}%` }
+                        ]} 
+                      />
+                    </View>
+                    <Text style={styles.discountHint}>
+                      💡 Condividi il drop per aumentare lo sconto!
+                    </Text>
+                  </View>
+                )}
+
+                {canCancel && (
+                  <Pressable
+                    style={({ pressed }) => [
+                      styles.cancelButton,
+                      pressed && styles.cancelButtonPressed,
+                    ]}
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      handleCancelBooking(booking.id, booking.products.name);
+                    }}
+                  >
+                    <IconSymbol
+                      ios_icon_name="xmark.circle"
+                      android_material_icon_name="cancel"
+                      size={18}
+                      color={colors.error}
+                    />
+                    <Text style={styles.cancelButtonText}>Annulla Prenotazione</Text>
+                  </Pressable>
+                )}
+
+                <Text style={styles.bookingDate}>
+                  Prenotato il {new Date(booking.created_at).toLocaleDateString('it-IT', {
+                    day: 'numeric',
+                    month: 'long',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
                 </Text>
               </View>
-              <View style={styles.infoItem}>
-                <Text style={styles.infoBullet}>2.</Text>
-                <Text style={styles.infoText}>
-                  Durante il drop, lo sconto aumenta man mano che più persone prenotano
-                </Text>
-              </View>
-              <View style={styles.infoItem}>
-                <Text style={styles.infoBullet}>3.</Text>
-                <Text style={styles.infoText}>
-                  Alla fine del drop, addebitiamo solo l&apos;importo finale con lo sconto raggiunto
-                </Text>
-              </View>
-              <View style={styles.infoItem}>
-                <Text style={styles.infoBullet}>4.</Text>
-                <Text style={styles.infoText}>
-                  Se il prezzo finale è inferiore all&apos;importo bloccato, paghi meno! 🎉
-                </Text>
-              </View>
-              <View style={styles.infoItem}>
-                <Text style={styles.infoBullet}>5.</Text>
-                <Text style={styles.infoText}>
-                  Puoi annullare la prenotazione in qualsiasi momento prima della fine del drop
-                </Text>
-              </View>
-            </View>
-          </View>
+            );
+          })}
         </ScrollView>
-      </SafeAreaView>
-    </>
+      )}
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
   container: {
     flex: 1,
-  },
-  contentContainer: {
-    paddingTop: 20,
-    paddingBottom: 40,
-  },
-  contentContainerWithTabBar: {
-    paddingBottom: 120,
+    backgroundColor: colors.background,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 16,
   },
   loadingText: {
-    fontSize: 14,
+    marginTop: 16,
+    fontSize: 16,
     color: colors.textSecondary,
+    fontFamily: 'System',
   },
-  header: {
-    paddingHorizontal: 20,
-    marginBottom: 24,
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 32,
   },
-  headerTitle: {
-    fontSize: 28,
+  emptyTitle: {
+    fontSize: 20,
     fontWeight: '700',
     color: colors.text,
-    marginBottom: 4,
-    letterSpacing: -0.5,
+    marginTop: 16,
+    fontFamily: 'System',
   },
-  headerSubtitle: {
-    fontSize: 14,
+  emptyText: {
+    fontSize: 16,
     color: colors.textSecondary,
+    textAlign: 'center',
+    marginTop: 8,
+    fontFamily: 'System',
   },
-  section: {
-    marginBottom: 24,
+  scrollView: {
+    flex: 1,
   },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: colors.text,
-    paddingHorizontal: 20,
-    marginBottom: 12,
+  contentContainer: {
+    padding: 16,
+    paddingBottom: 100,
   },
   bookingCard: {
     backgroundColor: colors.card,
     borderRadius: 12,
-    padding: 20,
-    marginHorizontal: 16,
-    marginBottom: 12,
+    padding: 16,
+    marginBottom: 16,
     borderWidth: 1,
     borderColor: colors.border,
   },
@@ -568,215 +488,165 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 16,
+    marginBottom: 12,
   },
   bookingInfo: {
     flex: 1,
+    marginRight: 12,
   },
   productName: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '700',
     color: colors.text,
     marginBottom: 4,
+    fontFamily: 'System',
+  },
+  dropName: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginBottom: 2,
+    fontFamily: 'System',
   },
   supplierName: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    fontSize: 13,
+    color: colors.textTertiary,
+    fontFamily: 'System',
+  },
+  statusBadges: {
+    gap: 6,
   },
   statusBadge: {
     paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 4,
+    paddingVertical: 6,
+    borderRadius: 12,
   },
   statusText: {
-    fontSize: 11,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  bookingDetails: {
-    gap: 8,
-    marginBottom: 16,
-  },
-  detailRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  detailText: {
-    fontSize: 13,
-    color: colors.textSecondary,
-  },
-  priceInfo: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    marginBottom: 12,
-  },
-  priceLabel: {
     fontSize: 12,
-    color: colors.textSecondary,
-    marginBottom: 4,
+    fontWeight: '600',
+    fontFamily: 'System',
   },
-  currentPrice: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: colors.text,
-  },
-  priceSubtext: {
-    fontSize: 11,
-    color: colors.textSecondary,
-    marginTop: 2,
-  },
-  priceRange: {
-    alignItems: 'flex-end',
-  },
-  priceRangeLabel: {
-    fontSize: 11,
-    color: colors.textSecondary,
-    marginBottom: 2,
-  },
-  priceRangeText: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#4CAF50',
-  },
-  savingsInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: colors.backgroundSecondary,
+  dropStatusMessage: {
     padding: 12,
     borderRadius: 8,
     marginBottom: 12,
   },
-  savingsText: {
-    flex: 1,
-    fontSize: 12,
-    color: colors.textSecondary,
-    lineHeight: 16,
-  },
-  cancelButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#ef4444',
-  },
-  cancelButtonText: {
+  dropStatusText: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#ef4444',
+    fontWeight: '700',
+    marginBottom: 4,
+    fontFamily: 'System',
   },
-  finalPriceInfo: {
-    backgroundColor: colors.backgroundSecondary,
-    padding: 16,
+  dropStatusDescription: {
+    fontSize: 13,
+    color: colors.text,
+    fontFamily: 'System',
+  },
+  priceInfo: {
+    backgroundColor: colors.background,
     borderRadius: 8,
+    padding: 12,
     marginBottom: 12,
-    gap: 8,
   },
   priceRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-  },
-  finalPriceLabel: {
-    fontSize: 12,
-    color: colors.textSecondary,
-  },
-  authorizedAmountText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.textSecondary,
-    textDecorationLine: 'line-through',
-  },
-  finalPrice: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#4CAF50',
-  },
-  savingsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
-  savingsAmount: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#4CAF50',
-  },
-  finalDiscount: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    textAlign: 'center',
-  },
-  dateText: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    textAlign: 'center',
-  },
-  emptyState: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 40,
-    paddingVertical: 60,
-  },
-  emptyTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: colors.text,
-    marginTop: 16,
     marginBottom: 8,
   },
-  emptyText: {
+  priceLabel: {
     fontSize: 14,
     color: colors.textSecondary,
-    textAlign: 'center',
-    lineHeight: 20,
+    fontFamily: 'System',
   },
-  infoCard: {
-    backgroundColor: colors.card,
-    borderRadius: 12,
-    padding: 20,
-    marginHorizontal: 16,
-    marginTop: 12,
-    borderWidth: 1,
-    borderColor: colors.border,
+  priceValue: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.text,
+    fontFamily: 'System',
   },
-  infoTitle: {
+  discountValue: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.success,
+    fontFamily: 'System',
+  },
+  refundedAmount: {
+    color: colors.textTertiary,
+    textDecorationLine: 'line-through',
+  },
+  finalPriceRow: {
+    marginTop: 8,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    marginBottom: 0,
+  },
+  finalPriceLabel: {
     fontSize: 16,
     fontWeight: '700',
     color: colors.text,
-    marginBottom: 16,
+    fontFamily: 'System',
   },
-  infoList: {
-    gap: 12,
+  finalPriceValue: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: colors.primary,
+    fontFamily: 'System',
   },
-  infoItem: {
-    flexDirection: 'row',
-    gap: 12,
+  discountProgress: {
+    backgroundColor: colors.background,
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 12,
   },
-  infoBullet: {
+  discountProgressLabel: {
     fontSize: 13,
-    fontWeight: '700',
     color: colors.text,
-    width: 20,
+    marginBottom: 8,
+    fontFamily: 'System',
   },
-  infoText: {
-    flex: 1,
-    fontSize: 13,
+  progressBar: {
+    height: 8,
+    backgroundColor: colors.border,
+    borderRadius: 4,
+    overflow: 'hidden',
+    marginBottom: 8,
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: colors.primary,
+    borderRadius: 4,
+  },
+  discountHint: {
+    fontSize: 12,
     color: colors.textSecondary,
-    lineHeight: 20,
+    fontStyle: 'italic',
+    fontFamily: 'System',
+  },
+  cancelButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.error + '20',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    marginBottom: 12,
+    gap: 8,
+  },
+  cancelButtonPressed: {
+    opacity: 0.7,
+  },
+  cancelButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.error,
+    fontFamily: 'System',
+  },
+  bookingDate: {
+    fontSize: 12,
+    color: colors.textTertiary,
+    textAlign: 'center',
+    fontFamily: 'System',
   },
 });
