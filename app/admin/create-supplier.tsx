@@ -90,7 +90,38 @@ export default function CreateSupplierScreen() {
         return;
       }
 
-      console.log('Supplier created successfully:', authData.user.id);
+      console.log('Supplier auth created successfully:', authData.user.id);
+
+      // Wait a moment for the trigger to create the profile
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      // Verify the profile was created
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('user_id', authData.user.id)
+        .single();
+
+      console.log('Profile verification:', { profile, error: profileError });
+
+      if (profileError || !profile) {
+        console.error('Profile not found after creation:', profileError);
+        Alert.alert(
+          'Attenzione',
+          'Il fornitore è stato creato ma il profilo potrebbe non essere immediatamente visibile. Ricarica la lista fornitori.',
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                router.back();
+              },
+            },
+          ]
+        );
+        return;
+      }
+
+      console.log('Supplier created successfully with profile:', profile);
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert(
@@ -100,6 +131,7 @@ export default function CreateSupplierScreen() {
           {
             text: 'OK',
             onPress: () => {
+              // Navigate back to suppliers list
               router.back();
             },
           },

@@ -42,6 +42,8 @@ export default function SuppliersScreen() {
     try {
       setLoading(true);
       
+      console.log('Loading suppliers...');
+      
       // Get all supplier profiles
       const { data: profiles, error: profilesError } = await supabase
         .from('profiles')
@@ -49,15 +51,25 @@ export default function SuppliersScreen() {
         .eq('role', 'supplier')
         .order('created_at', { ascending: false });
 
+      console.log('Profiles query result:', { profiles, error: profilesError });
+
       if (profilesError) {
         console.error('Error loading suppliers:', profilesError);
-        Alert.alert('Errore', 'Impossibile caricare i fornitori');
+        Alert.alert('Errore', `Impossibile caricare i fornitori: ${profilesError.message}`);
         return;
       }
 
+      if (!profiles || profiles.length === 0) {
+        console.log('No suppliers found in database');
+        setSuppliers([]);
+        return;
+      }
+
+      console.log(`Found ${profiles.length} supplier(s)`);
+
       // Get counts for each supplier
       const suppliersWithCounts = await Promise.all(
-        (profiles || []).map(async (profile) => {
+        profiles.map(async (profile) => {
           // Count lists
           const { count: listsCount } = await supabase
             .from('supplier_lists')
@@ -95,10 +107,11 @@ export default function SuppliersScreen() {
         })
       );
 
+      console.log('Suppliers with counts:', suppliersWithCounts);
       setSuppliers(suppliersWithCounts);
     } catch (error) {
-      console.error('Error loading suppliers:', error);
-      Alert.alert('Errore', 'Si è verificato un errore');
+      console.error('Exception loading suppliers:', error);
+      Alert.alert('Errore', 'Si è verificato un errore durante il caricamento dei fornitori');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -258,7 +271,8 @@ export default function SuppliersScreen() {
               />
               <Text style={styles.emptyTitle}>Nessun fornitore trovato</Text>
               <Text style={styles.emptyText}>
-                I fornitori registrati appariranno qui
+                I fornitori creati appariranno qui.{'\n'}
+                Premi "Nuovo" per creare un fornitore.
               </Text>
             </View>
           )}
@@ -410,5 +424,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.textSecondary,
     textAlign: 'center',
+    lineHeight: 20,
   },
 });
