@@ -49,6 +49,12 @@ interface ManualProduct {
   stock: string;
 }
 
+interface ValidationError {
+  row: number;
+  productName: string;
+  errors: string[];
+}
+
 export default function ImportListScreen() {
   const { user } = useAuth();
   const params = useLocalSearchParams();
@@ -68,6 +74,8 @@ export default function ImportListScreen() {
   const [products, setProducts] = useState<ExcelProduct[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
+  const [showValidationErrors, setShowValidationErrors] = useState(false);
   
   // Manual entry fields
   const [manualProducts, setManualProducts] = useState<ManualProduct[]>([]);
@@ -122,9 +130,74 @@ export default function ImportListScreen() {
     }
   };
 
+  const validateProduct = (row: any, index: number): { product: ExcelProduct | null; errors: string[] } => {
+    const errors: string[] = [];
+    
+    // Check for nome/name
+    const nome = row.nome || row.Nome || row.name || row.Name || '';
+    if (!nome || String(nome).trim() === '') {
+      errors.push('❌ Colonna "nome": mancante o vuota');
+    }
+    
+    // Check for foto/image
+    const foto = row.foto || row.Foto || row.photo || row.Photo || row.image || row.Image || '';
+    if (!foto || String(foto).trim() === '') {
+      errors.push('❌ Colonna "foto": mancante o vuota (deve contenere un URL valido)');
+    } else if (!String(foto).startsWith('http')) {
+      errors.push('❌ Colonna "foto": deve essere un URL valido (inizia con http:// o https://)');
+    }
+    
+    // Check for prezzoListino/price
+    const prezzoListino = row.prezzoListino || row.PrezzoListino || row.prezzo || row.Prezzo || row.price || row.Price || 0;
+    const parsedPrice = parseFloat(String(prezzoListino).replace(',', '.'));
+    if (isNaN(parsedPrice) || parsedPrice <= 0) {
+      errors.push(`❌ Colonna "prezzoListino": mancante, non valido o <= 0 (valore trovato: "${prezzoListino}")`);
+    }
+    
+    // Check for condizione
+    const conditionValue = String(row.condizione || row.Condizione || row.condition || row.Condition || 'nuovo').toLowerCase().trim();
+    let condition: ProductCondition = 'nuovo';
+    
+    if (conditionValue.includes('reso') || conditionValue.includes('cliente')) {
+      condition = 'reso da cliente';
+    } else if (conditionValue.includes('packaging') || conditionValue.includes('rovinato')) {
+      condition = 'packaging rovinato';
+    } else if (conditionValue !== 'nuovo' && conditionValue !== '') {
+      errors.push(`⚠️ Colonna "condizione": valore "${conditionValue}" non riconosciuto (valori accettati: "nuovo", "reso da cliente", "packaging rovinato"). Impostato come "nuovo".`);
+    }
+    
+    // Check for stock
+    const stock = row.stock || row.Stock || row.quantita || row.Quantita || row.quantity || row.Quantity || 1;
+    const parsedStock = parseInt(String(stock));
+    if (isNaN(parsedStock) || parsedStock < 1) {
+      errors.push(`⚠️ Colonna "stock": non valido o < 1 (valore trovato: "${stock}"). Impostato a 1.`);
+    }
+    
+    // If critical errors exist, return null product
+    if (errors.some(e => e.startsWith('❌'))) {
+      return { product: null, errors };
+    }
+    
+    // Create product
+    const product: ExcelProduct = {
+      nome: String(nome).trim(),
+      descrizione: String(row.descrizione || row.Descrizione || row.description || row.Description || '').trim(),
+      foto: String(foto).trim(),
+      prezzoListino: parsedPrice,
+      taglie: String(row.taglie || row.Taglie || row.sizes || row.Sizes || row.size || row.Size || '').trim(),
+      colori: String(row.colori || row.Colori || row.colors || row.Colors || row.color || row.Color || '').trim(),
+      condizione: condition,
+      categoria: String(row.categoria || row.Categoria || row.category || row.Category || 'Generale').trim(),
+      stock: parsedStock,
+    };
+    
+    return { product, errors };
+  };
+
   const parseExcelFile = async (uri: string) => {
     try {
       setIsLoading(true);
+      setValidationErrors([]);
       
       const response = await fetch(uri);
       const arrayBuffer = await response.arrayBuffer();
@@ -137,83 +210,97 @@ export default function ImportListScreen() {
       const jsonData = XLSX.utils.sheet_to_json(worksheet) as any[];
       
       console.log('Parsed Excel data:', jsonData);
+      console.log('Total rows found:', jsonData.length);
       
       if (jsonData.length === 0) {
-        Alert.alert('Errore', 'Il file Excel è vuoto o non contiene dati validi');
-        setIsLoading(false);
-        return;
-      }
-      
-      const parsedProducts: ExcelProduct[] = jsonData.map((row, index) => {
-        let condition: ProductCondition = 'nuovo';
-        const conditionValue = String(row.condizione || row.Condizione || '').toLowerCase().trim();
-        
-        if (conditionValue.includes('reso') || conditionValue.includes('cliente')) {
-          condition = 'reso da cliente';
-        } else if (conditionValue.includes('packaging') || conditionValue.includes('rovinato')) {
-          condition = 'packaging rovinato';
-        }
-        
-        return {
-          nome: row.nome || row.Nome || row.name || `Prodotto ${index + 1}`,
-          descrizione: row.descrizione || row.Descrizione || row.description || '',
-          foto: row.foto || row.Foto || row.photo || row.image || '',
-          prezzoListino: parseFloat(row.prezzoListino || row.PrezzoListino || row.prezzo || row.Prezzo || row.price || 0),
-          taglie: row.taglie || row.Taglie || row.sizes || row.size || '',
-          colori: row.colori || row.Colori || row.colors || row.color || '',
-          condizione: condition,
-          categoria: row.categoria || row.Categoria || row.category || 'Generale',
-          stock: parseInt(row.stock || row.Stock || row.quantita || row.Quantita || '1'),
-        };
-      });
-      
-      // Validate products
-      const validProducts = parsedProducts.filter(p => {
-        if (!p.nome || p.nome.trim() === '') {
-          console.warn('Product without name:', p);
-          return false;
-        }
-        if (!p.foto || p.foto.trim() === '') {
-          console.warn('Product without image:', p.nome);
-          return false;
-        }
-        if (!p.prezzoListino || p.prezzoListino <= 0) {
-          console.warn('Product with invalid price:', p.nome);
-          return false;
-        }
-        return true;
-      });
-      
-      if (validProducts.length === 0) {
         Alert.alert(
-          'Errore',
-          'Nessun prodotto valido trovato nel file. Assicurati che ogni prodotto abbia almeno nome, foto e prezzo.'
+          'File Vuoto',
+          'Il file Excel non contiene dati.\n\n' +
+          '📋 Assicurati che:\n' +
+          '- Il file contenga almeno una riga di dati (oltre all\'intestazione)\n' +
+          '- I dati siano nel primo foglio del file Excel'
         );
         setIsLoading(false);
         return;
       }
       
-      if (validProducts.length < parsedProducts.length) {
+      // Log the first row to show what columns were found
+      console.log('First row columns:', Object.keys(jsonData[0]));
+      console.log('First row data:', jsonData[0]);
+      
+      const validProducts: ExcelProduct[] = [];
+      const errors: ValidationError[] = [];
+      
+      jsonData.forEach((row, index) => {
+        const { product, errors: rowErrors } = validateProduct(row, index);
+        
+        if (product) {
+          validProducts.push(product);
+        }
+        
+        if (rowErrors.length > 0) {
+          errors.push({
+            row: index + 2, // +2 because Excel rows start at 1 and we have a header row
+            productName: String(row.nome || row.Nome || row.name || row.Name || `Riga ${index + 2}`),
+            errors: rowErrors,
+          });
+        }
+      });
+      
+      console.log('Valid products:', validProducts.length);
+      console.log('Products with errors:', errors.length);
+      
+      if (validProducts.length === 0) {
+        setValidationErrors(errors);
+        setShowValidationErrors(true);
+        
         Alert.alert(
-          'Attenzione',
-          `${parsedProducts.length - validProducts.length} prodotti sono stati scartati perché mancavano dati obbligatori (nome, foto o prezzo).`
+          '❌ Nessun Prodotto Valido',
+          `Tutti i ${jsonData.length} prodotti nel file hanno errori di validazione.\n\n` +
+          'Clicca su "Visualizza Errori" per vedere i dettagli di ogni problema.',
+          [
+            { text: 'Visualizza Errori', onPress: () => setShowValidationErrors(true) },
+            { text: 'Chiudi', style: 'cancel' }
+          ]
+        );
+        setIsLoading(false);
+        return;
+      }
+      
+      if (errors.length > 0) {
+        setValidationErrors(errors);
+        
+        Alert.alert(
+          '⚠️ Alcuni Prodotti Hanno Errori',
+          `✅ ${validProducts.length} prodotti validi caricati\n` +
+          `❌ ${errors.length} prodotti scartati per errori\n\n` +
+          'Vuoi visualizzare i dettagli degli errori?',
+          [
+            { text: 'Visualizza Errori', onPress: () => setShowValidationErrors(true) },
+            { text: 'Continua', style: 'default' }
+          ]
+        );
+      } else {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        Alert.alert(
+          '✅ Successo',
+          `${validProducts.length} prodotti caricati correttamente dal file Excel!`,
+          [{ text: 'OK' }]
         );
       }
       
       setProducts(validProducts);
       
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert(
-        'Successo',
-        `${validProducts.length} prodotti caricati dal file Excel`,
-        [{ text: 'OK' }]
-      );
-      
     } catch (error) {
       console.error('Error parsing Excel file:', error);
       Alert.alert(
-        'Errore',
-        'Impossibile leggere il file Excel. Assicurati che il formato sia corretto.'
+        'Errore Lettura File',
+        'Impossibile leggere il file Excel.\n\n' +
+        '📋 Possibili cause:\n' +
+        '- Il file è corrotto\n' +
+        '- Il formato non è supportato\n' +
+        '- Il file è protetto da password\n\n' +
+        'Prova a salvare il file come .xlsx e riprova.'
       );
     } finally {
       setIsLoading(false);
@@ -626,6 +713,32 @@ export default function ImportListScreen() {
                   </View>
                 )}
 
+                {validationErrors.length > 0 && (
+                  <Pressable
+                    style={styles.errorButton}
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      setShowValidationErrors(true);
+                    }}
+                  >
+                    <IconSymbol 
+                      ios_icon_name="exclamationmark.triangle.fill" 
+                      android_material_icon_name="warning" 
+                      size={20} 
+                      color="#FF9800" 
+                    />
+                    <Text style={styles.errorButtonText}>
+                      {validationErrors.length} prodotti con errori - Visualizza dettagli
+                    </Text>
+                    <IconSymbol 
+                      ios_icon_name="chevron.right" 
+                      android_material_icon_name="chevron_right" 
+                      size={18} 
+                      color={colors.textSecondary} 
+                    />
+                  </Pressable>
+                )}
+
                 <Pressable 
                   style={styles.guideButton}
                   onPress={() => {
@@ -890,6 +1003,83 @@ export default function ImportListScreen() {
         </SafeAreaView>
       </Modal>
 
+      {/* Validation Errors Modal */}
+      <Modal
+        visible={showValidationErrors}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowValidationErrors(false)}
+      >
+        <SafeAreaView style={styles.modalContainer} edges={['top', 'bottom']}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Errori di Validazione</Text>
+            <Pressable
+              style={styles.closeButton}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setShowValidationErrors(false);
+              }}
+            >
+              <IconSymbol 
+                ios_icon_name="xmark.circle.fill" 
+                android_material_icon_name="close" 
+                size={28} 
+                color={colors.textSecondary} 
+              />
+            </Pressable>
+          </View>
+          
+          <ScrollView
+            style={styles.scrollView}
+            contentContainerStyle={styles.errorScrollContent}
+            showsVerticalScrollIndicator={true}
+          >
+            <View style={styles.errorSummary}>
+              <IconSymbol 
+                ios_icon_name="exclamationmark.triangle.fill" 
+                android_material_icon_name="warning" 
+                size={32} 
+                color="#FF9800" 
+              />
+              <Text style={styles.errorSummaryTitle}>
+                {validationErrors.length} Prodotti con Errori
+              </Text>
+              <Text style={styles.errorSummaryText}>
+                Correggi questi errori nel file Excel e ricaricalo per importare tutti i prodotti.
+              </Text>
+            </View>
+
+            {validationErrors.map((error, index) => (
+              <View key={index} style={styles.errorCard}>
+                <View style={styles.errorCardHeader}>
+                  <Text style={styles.errorCardRow}>Riga Excel: {error.row}</Text>
+                  <Text style={styles.errorCardProduct}>{error.productName}</Text>
+                </View>
+                <View style={styles.errorCardBody}>
+                  {error.errors.map((err, errIndex) => (
+                    <Text key={errIndex} style={styles.errorCardText}>
+                      {err}
+                    </Text>
+                  ))}
+                </View>
+              </View>
+            ))}
+
+            <View style={styles.errorFooter}>
+              <IconSymbol 
+                ios_icon_name="lightbulb.fill" 
+                android_material_icon_name="lightbulb" 
+                size={20} 
+                color="#FFC107" 
+              />
+              <Text style={styles.errorFooterText}>
+                Suggerimento: Usa la "Guida Formato Excel" per vedere esempi di dati corretti
+              </Text>
+            </View>
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
+
       {/* Manual Product Form Modal */}
       <Modal
         visible={showManualForm}
@@ -1115,6 +1305,10 @@ const styles = StyleSheet.create({
     padding: 24,
     paddingBottom: 100,
   },
+  errorScrollContent: {
+    padding: 20,
+    paddingBottom: 100,
+  },
   modeSelectionContainer: {
     padding: 24,
     paddingBottom: 100,
@@ -1291,6 +1485,23 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.textSecondary,
   },
+  errorButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF3E0',
+    borderWidth: 1,
+    borderColor: '#FF9800',
+    borderRadius: 8,
+    padding: 14,
+    gap: 10,
+    marginBottom: 12,
+  },
+  errorButtonText: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#E65100',
+  },
   guideButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1464,5 +1675,73 @@ const styles = StyleSheet.create({
   },
   closeButton: {
     padding: 4,
+  },
+  errorSummary: {
+    alignItems: 'center',
+    backgroundColor: colors.backgroundSecondary,
+    padding: 24,
+    borderRadius: 12,
+    marginBottom: 20,
+  },
+  errorSummaryTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: colors.text,
+    marginTop: 12,
+    marginBottom: 8,
+  },
+  errorSummaryText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  errorCard: {
+    backgroundColor: colors.card,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderLeftWidth: 4,
+    borderLeftColor: '#FF9800',
+  },
+  errorCardHeader: {
+    marginBottom: 12,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  errorCardRow: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#FF9800',
+    marginBottom: 4,
+  },
+  errorCardProduct: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  errorCardBody: {
+    gap: 8,
+  },
+  errorCardText: {
+    fontSize: 14,
+    color: colors.text,
+    lineHeight: 20,
+  },
+  errorFooter: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#FFF9C4',
+    padding: 16,
+    borderRadius: 12,
+    gap: 12,
+    marginTop: 8,
+  },
+  errorFooterText: {
+    flex: 1,
+    fontSize: 14,
+    color: '#F57F17',
+    lineHeight: 20,
   },
 });
