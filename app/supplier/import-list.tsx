@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -14,7 +14,7 @@ import {
   Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Stack, router } from 'expo-router';
+import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 import * as Haptics from 'expo-haptics';
@@ -51,7 +51,10 @@ interface ManualProduct {
 
 export default function ImportListScreen() {
   const { user } = useAuth();
-  const [importMode, setImportMode] = useState<'excel' | 'manual' | null>(null);
+  const params = useLocalSearchParams();
+  const modeFromParams = params.mode as 'excel' | 'manual' | undefined;
+  
+  const [importMode, setImportMode] = useState<'excel' | 'manual' | null>(modeFromParams || null);
   
   // Common fields
   const [listName, setListName] = useState('');
@@ -80,6 +83,14 @@ export default function ImportListScreen() {
     category: '',
     stock: '1',
   });
+
+  // Update importMode when params change
+  useEffect(() => {
+    console.log('Params changed, mode:', modeFromParams);
+    if (modeFromParams && modeFromParams !== importMode) {
+      setImportMode(modeFromParams);
+    }
+  }, [modeFromParams]);
 
   const handlePickDocument = async () => {
     try {
@@ -418,31 +429,23 @@ export default function ImportListScreen() {
 
   const handleSelectExcelMode = () => {
     console.log('=== EXCEL MODE BUTTON PRESSED ===');
-    console.log('Current importMode:', importMode);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    
-    // Use setTimeout to ensure state update happens after current render cycle
-    setTimeout(() => {
-      console.log('Setting importMode to excel');
-      setImportMode('excel');
-      console.log('importMode should now be: excel');
-    }, 0);
+    router.setParams({ mode: 'excel' });
   };
 
   const handleSelectManualMode = () => {
     console.log('=== MANUAL MODE BUTTON PRESSED ===');
-    console.log('Current importMode:', importMode);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    
-    // Use setTimeout to ensure state update happens after current render cycle
-    setTimeout(() => {
-      console.log('Setting importMode to manual');
-      setImportMode('manual');
-      console.log('importMode should now be: manual');
-    }, 0);
+    router.setParams({ mode: 'manual' });
   };
 
-  console.log('ImportListScreen render - importMode:', importMode);
+  const handleBackToModeSelection = () => {
+    console.log('Back button pressed - resetting mode');
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.setParams({ mode: undefined });
+  };
+
+  console.log('ImportListScreen render - importMode:', importMode, 'params.mode:', modeFromParams);
 
   // Mode selection screen
   if (!importMode) {
@@ -480,12 +483,7 @@ export default function ImportListScreen() {
                   styles.modeCard,
                   pressed && styles.modeCardPressed
                 ]}
-                onPress={() => {
-                  console.log('Excel card pressed via onPress');
-                  handleSelectExcelMode();
-                }}
-                onPressIn={() => console.log('Excel button press started (onPressIn)')}
-                onPressOut={() => console.log('Excel button press ended (onPressOut)')}
+                onPress={handleSelectExcelMode}
               >
                 <View style={styles.modeIconContainer}>
                   <IconSymbol 
@@ -509,12 +507,7 @@ export default function ImportListScreen() {
                   styles.modeCard,
                   pressed && styles.modeCardPressed
                 ]}
-                onPress={() => {
-                  console.log('Manual card pressed via onPress');
-                  handleSelectManualMode();
-                }}
-                onPressIn={() => console.log('Manual button press started (onPressIn)')}
-                onPressOut={() => console.log('Manual button press ended (onPressOut)')}
+                onPress={handleSelectManualMode}
               >
                 <View style={styles.modeIconContainer}>
                   <IconSymbol 
@@ -532,13 +525,6 @@ export default function ImportListScreen() {
                   <Text style={styles.modeBadgeText}>Preciso</Text>
                 </View>
               </Pressable>
-            </View>
-
-            {/* Debug info */}
-            <View style={styles.debugInfo}>
-              <Text style={styles.debugText}>
-                Debug: importMode = {importMode || 'null'}
-              </Text>
             </View>
           </ScrollView>
         </SafeAreaView>
@@ -569,11 +555,7 @@ export default function ImportListScreen() {
             {/* Back to mode selection */}
             <Pressable
               style={styles.backButton}
-              onPress={() => {
-                console.log('Back button pressed - resetting importMode to null');
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                setImportMode(null);
-              }}
+              onPress={handleBackToModeSelection}
             >
               <IconSymbol 
                 ios_icon_name="chevron.left" 
@@ -1482,18 +1464,5 @@ const styles = StyleSheet.create({
   },
   closeButton: {
     padding: 4,
-  },
-  debugInfo: {
-    marginTop: 32,
-    padding: 16,
-    backgroundColor: colors.backgroundSecondary,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  debugText: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
   },
 });
