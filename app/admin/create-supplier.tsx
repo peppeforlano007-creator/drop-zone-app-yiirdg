@@ -92,8 +92,8 @@ export default function CreateSupplierScreen() {
 
       console.log('Supplier auth created successfully:', authData.user.id);
 
-      // Wait a moment for the trigger to create the profile
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Wait for the trigger to create the profile
+      await new Promise(resolve => setTimeout(resolve, 1500));
 
       // Verify the profile was created
       const { data: profile, error: profileError } = await supabase
@@ -106,22 +106,34 @@ export default function CreateSupplierScreen() {
 
       if (profileError || !profile) {
         console.error('Profile not found after creation:', profileError);
-        Alert.alert(
-          'Attenzione',
-          'Il fornitore è stato creato ma il profilo potrebbe non essere immediatamente visibile. Ricarica la lista fornitori.',
-          [
-            {
-              text: 'OK',
-              onPress: () => {
-                router.back();
-              },
-            },
-          ]
-        );
-        return;
+        
+        // Try to create the profile manually as admin
+        console.log('Attempting to create profile manually...');
+        const { data: manualProfile, error: manualError } = await supabase
+          .from('profiles')
+          .insert({
+            user_id: authData.user.id,
+            email: email.trim().toLowerCase(),
+            full_name: fullName.trim(),
+            phone: phone.trim(),
+            role: 'supplier',
+          })
+          .select()
+          .single();
+
+        if (manualError) {
+          console.error('Manual profile creation failed:', manualError);
+          Alert.alert(
+            'Errore',
+            `Il fornitore è stato creato ma c'è stato un problema con il profilo: ${manualError.message}\n\nContatta il supporto tecnico.`
+          );
+          return;
+        }
+
+        console.log('Profile created manually:', manualProfile);
       }
 
-      console.log('Supplier created successfully with profile:', profile);
+      console.log('Supplier created successfully with profile');
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert(
@@ -140,7 +152,7 @@ export default function CreateSupplierScreen() {
     } catch (error) {
       console.error('Exception creating supplier:', error);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert('Errore', 'Si è verificato un errore imprevisto');
+      Alert.alert('Errore', 'Si è verificato un errore imprevisto. Riprova.');
     } finally {
       setLoading(false);
     }
