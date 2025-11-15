@@ -333,17 +333,18 @@ export default function ImportListScreen() {
   };
 
   const handleSelectExcelMode = () => {
-    console.log('Excel mode selected');
+    console.log('Excel mode button pressed - setting importMode to excel');
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setImportMode('excel');
   };
 
   const handleSelectManualMode = () => {
-    console.log('Manual mode selected');
+    console.log('Manual mode button pressed - setting importMode to manual');
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setImportMode('manual');
   };
 
+  // Mode selection screen
   if (!importMode) {
     return (
       <>
@@ -380,6 +381,8 @@ export default function ImportListScreen() {
                   pressed && styles.modeCardPressed
                 ]}
                 onPress={handleSelectExcelMode}
+                onPressIn={() => console.log('Excel button press started')}
+                onPressOut={() => console.log('Excel button press ended')}
               >
                 <View style={styles.modeIconContainer}>
                   <IconSymbol 
@@ -404,6 +407,8 @@ export default function ImportListScreen() {
                   pressed && styles.modeCardPressed
                 ]}
                 onPress={handleSelectManualMode}
+                onPressIn={() => console.log('Manual button press started')}
+                onPressOut={() => console.log('Manual button press ended')}
               >
                 <View style={styles.modeIconContainer}>
                   <IconSymbol 
@@ -428,6 +433,7 @@ export default function ImportListScreen() {
     );
   }
 
+  // Excel or Manual import screen
   return (
     <>
       <Stack.Screen
@@ -1011,9 +1017,11 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 24,
+    paddingBottom: 100,
   },
   modeSelectionContainer: {
     padding: 24,
+    paddingBottom: 100,
   },
   header: {
     alignItems: 'center',
