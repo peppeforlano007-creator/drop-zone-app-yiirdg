@@ -332,6 +332,18 @@ export default function ImportListScreen() {
     }
   };
 
+  const handleSelectExcelMode = () => {
+    console.log('Excel mode selected');
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setImportMode('excel');
+  };
+
+  const handleSelectManualMode = () => {
+    console.log('Manual mode selected');
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setImportMode('manual');
+  };
+
   if (!importMode) {
     return (
       <>
@@ -343,7 +355,11 @@ export default function ImportListScreen() {
           }}
         />
         <SafeAreaView style={styles.container} edges={['bottom']}>
-          <View style={styles.modeSelectionContainer}>
+          <ScrollView 
+            style={styles.scrollView}
+            contentContainerStyle={styles.modeSelectionContainer}
+            showsVerticalScrollIndicator={false}
+          >
             <View style={styles.header}>
               <IconSymbol 
                 ios_icon_name="doc.badge.plus" 
@@ -359,11 +375,11 @@ export default function ImportListScreen() {
 
             <View style={styles.modeOptions}>
               <Pressable
-                style={styles.modeCard}
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  setImportMode('excel');
-                }}
+                style={({ pressed }) => [
+                  styles.modeCard,
+                  pressed && styles.modeCardPressed
+                ]}
+                onPress={handleSelectExcelMode}
               >
                 <View style={styles.modeIconContainer}>
                   <IconSymbol 
@@ -383,11 +399,11 @@ export default function ImportListScreen() {
               </Pressable>
 
               <Pressable
-                style={styles.modeCard}
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  setImportMode('manual');
-                }}
+                style={({ pressed }) => [
+                  styles.modeCard,
+                  pressed && styles.modeCardPressed
+                ]}
+                onPress={handleSelectManualMode}
               >
                 <View style={styles.modeIconContainer}>
                   <IconSymbol 
@@ -406,7 +422,7 @@ export default function ImportListScreen() {
                 </View>
               </Pressable>
             </View>
-          </View>
+          </ScrollView>
         </SafeAreaView>
       </>
     );
@@ -997,7 +1013,6 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   modeSelectionContainer: {
-    flex: 1,
     padding: 24,
   },
   header: {
@@ -1026,6 +1041,10 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: colors.border,
     alignItems: 'center',
+  },
+  modeCardPressed: {
+    opacity: 0.7,
+    transform: [{ scale: 0.98 }],
   },
   modeIconContainer: {
     width: 80,
