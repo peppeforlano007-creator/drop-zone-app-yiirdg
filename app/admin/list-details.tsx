@@ -66,12 +66,14 @@ export default function ListDetailsScreen() {
     try {
       setLoading(true);
 
+      console.log('Loading list details for listId:', listId);
+
       // Load list details with supplier info
       const { data: listData, error: listError } = await supabase
         .from('supplier_lists')
         .select(`
           *,
-          profiles:supplier_id (
+          profiles!supplier_id (
             full_name,
             email
           )
@@ -81,10 +83,14 @@ export default function ListDetailsScreen() {
 
       if (listError) {
         console.error('Error loading list details:', listError);
-        Alert.alert('Errore', 'Impossibile caricare i dettagli della lista');
+        Alert.alert(
+          'Errore',
+          `Impossibile caricare i dettagli della lista: ${listError.message}\n\nCodice: ${listError.code}`
+        );
         return;
       }
 
+      console.log('List data loaded:', listData);
       setList(listData);
 
       // Load products for this list
