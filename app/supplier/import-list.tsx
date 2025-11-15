@@ -249,20 +249,30 @@ export default function ImportListScreen() {
       
       console.log('Valid products:', validProducts.length);
       console.log('Products with errors:', errors.length);
+      console.log('Validation errors array:', errors);
       
       if (validProducts.length === 0) {
         setValidationErrors(errors);
-        setShowValidationErrors(true);
         
-        Alert.alert(
-          '❌ Nessun Prodotto Valido',
-          `Tutti i ${jsonData.length} prodotti nel file hanno errori di validazione.\n\n` +
-          'Clicca su "Visualizza Errori" per vedere i dettagli di ogni problema.',
-          [
-            { text: 'Visualizza Errori', onPress: () => setShowValidationErrors(true) },
-            { text: 'Chiudi', style: 'cancel' }
-          ]
-        );
+        // Use setTimeout to ensure state is updated before showing alert
+        setTimeout(() => {
+          Alert.alert(
+            '❌ Nessun Prodotto Valido',
+            `Tutti i ${jsonData.length} prodotti nel file hanno errori di validazione.\n\n` +
+            'Clicca su "Visualizza Errori" per vedere i dettagli di ogni problema.',
+            [
+              { 
+                text: 'Visualizza Errori', 
+                onPress: () => {
+                  console.log('Opening validation errors modal, errors count:', errors.length);
+                  setShowValidationErrors(true);
+                }
+              },
+              { text: 'Chiudi', style: 'cancel' }
+            ]
+          );
+        }, 100);
+        
         setIsLoading(false);
         return;
       }
@@ -270,16 +280,25 @@ export default function ImportListScreen() {
       if (errors.length > 0) {
         setValidationErrors(errors);
         
-        Alert.alert(
-          '⚠️ Alcuni Prodotti Hanno Errori',
-          `✅ ${validProducts.length} prodotti validi caricati\n` +
-          `❌ ${errors.length} prodotti scartati per errori\n\n` +
-          'Vuoi visualizzare i dettagli degli errori?',
-          [
-            { text: 'Visualizza Errori', onPress: () => setShowValidationErrors(true) },
-            { text: 'Continua', style: 'default' }
-          ]
-        );
+        // Use setTimeout to ensure state is updated before showing alert
+        setTimeout(() => {
+          Alert.alert(
+            '⚠️ Alcuni Prodotti Hanno Errori',
+            `✅ ${validProducts.length} prodotti validi caricati\n` +
+            `❌ ${errors.length} prodotti scartati per errori\n\n` +
+            'Vuoi visualizzare i dettagli degli errori?',
+            [
+              { 
+                text: 'Visualizza Errori', 
+                onPress: () => {
+                  console.log('Opening validation errors modal, errors count:', errors.length);
+                  setShowValidationErrors(true);
+                }
+              },
+              { text: 'Continua', style: 'default' }
+            ]
+          );
+        }, 100);
       } else {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         Alert.alert(
@@ -533,6 +552,8 @@ export default function ImportListScreen() {
   };
 
   console.log('ImportListScreen render - importMode:', importMode, 'params.mode:', modeFromParams);
+  console.log('Current validation errors count:', validationErrors.length);
+  console.log('Show validation errors modal:', showValidationErrors);
 
   // Mode selection screen
   if (!importMode) {
@@ -717,6 +738,7 @@ export default function ImportListScreen() {
                   <Pressable
                     style={styles.errorButton}
                     onPress={() => {
+                      console.log('Error button pressed, opening modal with', validationErrors.length, 'errors');
                       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                       setShowValidationErrors(true);
                     }}
@@ -1008,14 +1030,18 @@ export default function ImportListScreen() {
         visible={showValidationErrors}
         animationType="slide"
         presentationStyle="pageSheet"
-        onRequestClose={() => setShowValidationErrors(false)}
+        onRequestClose={() => {
+          console.log('Modal close requested');
+          setShowValidationErrors(false);
+        }}
       >
         <SafeAreaView style={styles.modalContainer} edges={['top', 'bottom']}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Errori di Validazione</Text>
+            <Text style={styles.modalTitle}>Errori di Validazione ({validationErrors.length})</Text>
             <Pressable
               style={styles.closeButton}
               onPress={() => {
+                console.log('Close button pressed');
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                 setShowValidationErrors(false);
               }}
@@ -1034,48 +1060,67 @@ export default function ImportListScreen() {
             contentContainerStyle={styles.errorScrollContent}
             showsVerticalScrollIndicator={true}
           >
-            <View style={styles.errorSummary}>
-              <IconSymbol 
-                ios_icon_name="exclamationmark.triangle.fill" 
-                android_material_icon_name="warning" 
-                size={32} 
-                color="#FF9800" 
-              />
-              <Text style={styles.errorSummaryTitle}>
-                {validationErrors.length} Prodotti con Errori
-              </Text>
-              <Text style={styles.errorSummaryText}>
-                Correggi questi errori nel file Excel e ricaricalo per importare tutti i prodotti.
-              </Text>
-            </View>
-
-            {validationErrors.map((error, index) => (
-              <View key={index} style={styles.errorCard}>
-                <View style={styles.errorCardHeader}>
-                  <Text style={styles.errorCardRow}>Riga Excel: {error.row}</Text>
-                  <Text style={styles.errorCardProduct}>{error.productName}</Text>
-                </View>
-                <View style={styles.errorCardBody}>
-                  {error.errors.map((err, errIndex) => (
-                    <Text key={errIndex} style={styles.errorCardText}>
-                      {err}
-                    </Text>
-                  ))}
-                </View>
+            {validationErrors.length === 0 ? (
+              <View style={styles.errorSummary}>
+                <IconSymbol 
+                  ios_icon_name="checkmark.circle.fill" 
+                  android_material_icon_name="check_circle" 
+                  size={32} 
+                  color="#4CAF50" 
+                />
+                <Text style={styles.errorSummaryTitle}>
+                  Nessun Errore
+                </Text>
+                <Text style={styles.errorSummaryText}>
+                  Tutti i prodotti sono stati validati correttamente!
+                </Text>
               </View>
-            ))}
+            ) : (
+              <>
+                <View style={styles.errorSummary}>
+                  <IconSymbol 
+                    ios_icon_name="exclamationmark.triangle.fill" 
+                    android_material_icon_name="warning" 
+                    size={32} 
+                    color="#FF9800" 
+                  />
+                  <Text style={styles.errorSummaryTitle}>
+                    {validationErrors.length} Prodotti con Errori
+                  </Text>
+                  <Text style={styles.errorSummaryText}>
+                    Correggi questi errori nel file Excel e ricaricalo per importare tutti i prodotti.
+                  </Text>
+                </View>
 
-            <View style={styles.errorFooter}>
-              <IconSymbol 
-                ios_icon_name="lightbulb.fill" 
-                android_material_icon_name="lightbulb" 
-                size={20} 
-                color="#FFC107" 
-              />
-              <Text style={styles.errorFooterText}>
-                Suggerimento: Usa la "Guida Formato Excel" per vedere esempi di dati corretti
-              </Text>
-            </View>
+                {validationErrors.map((error, index) => (
+                  <View key={index} style={styles.errorCard}>
+                    <View style={styles.errorCardHeader}>
+                      <Text style={styles.errorCardRow}>Riga Excel: {error.row}</Text>
+                      <Text style={styles.errorCardProduct}>{error.productName}</Text>
+                    </View>
+                    <View style={styles.errorCardBody}>
+                      {error.errors.map((err, errIndex) => (
+                        <Text key={errIndex} style={styles.errorCardText}>
+                          {err}
+                        </Text>
+                      ))}
+                    </View>
+                  </View>
+                ))}
+
+                <View style={styles.errorFooter}>
+                  <IconSymbol 
+                    ios_icon_name="lightbulb.fill" 
+                    android_material_icon_name="lightbulb" 
+                    size={20} 
+                    color="#FFC107" 
+                  />
+                  <Text style={styles.errorFooterText}>
+                    Suggerimento: Usa la &quot;Guida Formato Excel&quot; per vedere esempi di dati corretti
+                  </Text>
+                </View>
+              </>
+            )}
           </ScrollView>
         </SafeAreaView>
       </Modal>
