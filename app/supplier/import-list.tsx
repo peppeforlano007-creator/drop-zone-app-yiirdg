@@ -248,6 +248,10 @@ export default function ImportListScreen() {
 
     try {
       setIsLoading(true);
+      console.log('Starting import process...');
+      console.log('User ID:', user.id);
+      console.log('List name:', listName);
+      console.log('Product count:', productCount);
 
       // Create supplier list
       const { data: listData, error: listError } = await supabase
@@ -266,10 +270,10 @@ export default function ImportListScreen() {
 
       if (listError) {
         console.error('Error creating supplier list:', listError);
-        throw new Error('Impossibile creare la lista');
+        throw new Error(`Impossibile creare la lista: ${listError.message}`);
       }
 
-      console.log('Supplier list created:', listData);
+      console.log('Supplier list created successfully:', listData.id);
 
       // Prepare products for insertion
       const productsToInsert = importMode === 'excel'
@@ -302,31 +306,48 @@ export default function ImportListScreen() {
             status: 'active',
           }));
 
+      console.log('Inserting products:', productsToInsert.length);
+
       // Insert products
-      const { error: productsError } = await supabase
+      const { data: insertedProducts, error: productsError } = await supabase
         .from('products')
-        .insert(productsToInsert);
+        .insert(productsToInsert)
+        .select();
 
       if (productsError) {
         console.error('Error creating products:', productsError);
-        throw new Error('Impossibile creare i prodotti');
+        throw new Error(`Impossibile creare i prodotti: ${productsError.message}`);
       }
 
+      console.log('Products inserted successfully:', insertedProducts?.length);
+
+      // Success!
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      
       Alert.alert(
-        'Successo',
-        `Lista "${listName}" creata con successo!\n\n${productCount} prodotti aggiunti.`,
+        '✅ Import Completato!',
+        `La lista "${listName}" è stata creata con successo!\n\n` +
+        `📦 ${productCount} prodotti aggiunti\n` +
+        `💰 Sconto: ${minDiscountNum}% - ${maxDiscountNum}%\n` +
+        `🎯 Valore ordine: €${minOrderValueNum.toLocaleString()} - €${maxOrderValueNum.toLocaleString()}\n\n` +
+        `I tuoi prodotti sono ora visibili ai consumatori nel feed principale!`,
         [
           {
-            text: 'OK',
-            onPress: () => router.back(),
+            text: 'Perfetto!',
+            onPress: () => {
+              console.log('Import completed successfully, navigating back');
+              router.back();
+            },
           },
         ]
       );
 
     } catch (error) {
       console.error('Error importing list:', error);
-      Alert.alert('Errore', error instanceof Error ? error.message : 'Impossibile importare la lista');
+      Alert.alert(
+        'Errore Import',
+        error instanceof Error ? error.message : 'Impossibile importare la lista. Riprova.'
+      );
     } finally {
       setIsLoading(false);
     }
