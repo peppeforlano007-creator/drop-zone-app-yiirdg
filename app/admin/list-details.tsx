@@ -457,6 +457,30 @@ export default function ListDetailsScreen() {
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Prodotti</Text>
               <Text style={styles.sectionCount}>({products.length})</Text>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.addProductButton,
+                  pressed && styles.addProductButtonPressed,
+                ]}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  router.push({
+                    pathname: '/admin/add-product',
+                    params: { 
+                      listId,
+                      supplierId: list.supplier_id,
+                    },
+                  });
+                }}
+              >
+                <IconSymbol
+                  ios_icon_name="plus.circle.fill"
+                  android_material_icon_name="add_circle"
+                  size={20}
+                  color="#FFFFFF"
+                />
+                <Text style={styles.addProductButtonText}>Aggiungi</Text>
+              </Pressable>
             </View>
 
             {products.length > 0 ? (
@@ -629,6 +653,24 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: colors.textSecondary,
     marginLeft: 8,
+    flex: 1,
+  },
+  addProductButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.primary,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
+    gap: 6,
+  },
+  addProductButtonPressed: {
+    opacity: 0.7,
+  },
+  addProductButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
   productCard: {
     backgroundColor: colors.card,

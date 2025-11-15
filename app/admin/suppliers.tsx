@@ -226,6 +226,24 @@ export default function SuppliersScreen() {
             <Text style={styles.statsText}>
               {suppliers.length} fornitor{suppliers.length === 1 ? 'e' : 'i'}
             </Text>
+            <Pressable
+              style={({ pressed }) => [
+                styles.createButton,
+                pressed && styles.createButtonPressed,
+              ]}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.push('/admin/create-supplier');
+              }}
+            >
+              <IconSymbol
+                ios_icon_name="plus.circle.fill"
+                android_material_icon_name="add_circle"
+                size={20}
+                color="#FFFFFF"
+              />
+              <Text style={styles.createButtonText}>Nuovo</Text>
+            </Pressable>
           </View>
 
           {suppliers.length > 0 ? (
@@ -274,12 +292,32 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
   },
   statsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 16,
   },
   statsText: {
     fontSize: 14,
     fontWeight: '600',
     color: colors.textSecondary,
+  },
+  createButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.primary,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    gap: 6,
+  },
+  createButtonPressed: {
+    opacity: 0.7,
+  },
+  createButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
   supplierCard: {
     backgroundColor: colors.card,

@@ -308,6 +308,27 @@ export default function SupplierDetailsScreen() {
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Liste Prodotti</Text>
               <Text style={styles.sectionCount}>({lists.length})</Text>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.createListButton,
+                  pressed && styles.createListButtonPressed,
+                ]}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  router.push({
+                    pathname: '/admin/create-list',
+                    params: { supplierId },
+                  });
+                }}
+              >
+                <IconSymbol
+                  ios_icon_name="plus.circle.fill"
+                  android_material_icon_name="add_circle"
+                  size={20}
+                  color="#FFFFFF"
+                />
+                <Text style={styles.createListButtonText}>Nuova Lista</Text>
+              </Pressable>
             </View>
 
             {lists.length > 0 ? (
@@ -447,6 +468,24 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: colors.textSecondary,
     marginLeft: 8,
+    flex: 1,
+  },
+  createListButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.primary,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
+    gap: 6,
+  },
+  createListButtonPressed: {
+    opacity: 0.7,
+  },
+  createListButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
   listCard: {
     backgroundColor: colors.card,

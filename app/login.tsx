@@ -35,7 +35,19 @@ export default function LoginScreen() {
       if (user.role === 'consumer') {
         router.replace('/(tabs)/(home)');
       } else if (user.role === 'supplier') {
-        router.replace('/supplier/dashboard');
+        // Suppliers no longer have access to the app
+        Alert.alert(
+          'Accesso Negato',
+          'I fornitori non hanno più accesso diretto all\'app. Contatta l\'amministratore per assistenza.',
+          [
+            {
+              text: 'OK',
+              onPress: async () => {
+                await supabase.auth.signOut();
+              }
+            }
+          ]
+        );
       } else if (user.role === 'pickup_point') {
         router.replace('/pickup-point/dashboard');
       } else if (user.role === 'admin') {
@@ -170,11 +182,6 @@ export default function LoginScreen() {
     router.push('/register/consumer');
   };
 
-  const handleRegisterSupplier = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    router.push('/register/supplier');
-  };
-
   const handleRegisterPickupPoint = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push('/pickup-point/register');
@@ -305,36 +312,6 @@ export default function LoginScreen() {
                   <Text style={styles.registerCardTitle}>Consumatore</Text>
                   <Text style={styles.registerCardDescription}>
                     Prenota prodotti e partecipa ai drop
-                  </Text>
-                </View>
-                <IconSymbol
-                  ios_icon_name="chevron.right"
-                  android_material_icon_name="chevron_right"
-                  size={20}
-                  color={colors.textSecondary}
-                />
-              </Pressable>
-
-              <Pressable
-                style={({ pressed }) => [
-                  styles.registerCard,
-                  pressed && styles.registerCardPressed,
-                ]}
-                onPress={handleRegisterSupplier}
-                disabled={loading || resendingEmail}
-              >
-                <View style={styles.registerCardIcon}>
-                  <IconSymbol
-                    ios_icon_name="building.2.fill"
-                    android_material_icon_name="store"
-                    size={28}
-                    color={colors.primary}
-                  />
-                </View>
-                <View style={styles.registerCardContent}>
-                  <Text style={styles.registerCardTitle}>Fornitore</Text>
-                  <Text style={styles.registerCardDescription}>
-                    Carica prodotti e gestisci ordini
                   </Text>
                 </View>
                 <IconSymbol
