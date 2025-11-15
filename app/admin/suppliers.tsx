@@ -136,79 +136,178 @@ export default function SuppliersScreen() {
     });
   };
 
+  const handleDeleteSupplier = (supplier: SupplierData) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    
+    Alert.alert(
+      'Elimina Fornitore',
+      `Sei sicuro di voler eliminare il fornitore "${supplier.full_name}"?\n\nQuesta azione eliminerà anche:\n- ${supplier.lists_count} liste\n- ${supplier.products_count} prodotti\n\nQuesta azione non può essere annullata.`,
+      [
+        {
+          text: 'Annulla',
+          style: 'cancel',
+        },
+        {
+          text: 'Elimina',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setLoading(true);
+              
+              console.log('Deleting supplier:', supplier.user_id);
+              
+              // Delete products first
+              const { error: productsError } = await supabase
+                .from('products')
+                .delete()
+                .eq('supplier_id', supplier.user_id);
+              
+              if (productsError) {
+                console.error('Error deleting products:', productsError);
+                Alert.alert('Errore', `Impossibile eliminare i prodotti: ${productsError.message}`);
+                return;
+              }
+              
+              // Delete supplier lists
+              const { error: listsError } = await supabase
+                .from('supplier_lists')
+                .delete()
+                .eq('supplier_id', supplier.user_id);
+              
+              if (listsError) {
+                console.error('Error deleting lists:', listsError);
+                Alert.alert('Errore', `Impossibile eliminare le liste: ${listsError.message}`);
+                return;
+              }
+              
+              // Delete profile
+              const { error: profileError } = await supabase
+                .from('profiles')
+                .delete()
+                .eq('user_id', supplier.user_id);
+              
+              if (profileError) {
+                console.error('Error deleting profile:', profileError);
+                Alert.alert('Errore', `Impossibile eliminare il profilo: ${profileError.message}`);
+                return;
+              }
+              
+              // Delete auth user (this will cascade delete everything else)
+              const { error: authError } = await supabase.auth.admin.deleteUser(supplier.user_id);
+              
+              if (authError) {
+                console.error('Error deleting auth user:', authError);
+                // Don't show error if profile was already deleted
+              }
+              
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              Alert.alert('Successo', 'Fornitore eliminato con successo');
+              
+              // Reload suppliers
+              loadSuppliers();
+            } catch (error) {
+              console.error('Exception deleting supplier:', error);
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+              Alert.alert('Errore', 'Si è verificato un errore durante l\'eliminazione');
+            } finally {
+              setLoading(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const renderSupplier = (supplier: SupplierData) => {
     return (
-      <Pressable
-        key={supplier.id}
-        style={({ pressed }) => [
-          styles.supplierCard,
-          pressed && styles.supplierCardPressed,
-        ]}
-        onPress={() => handleViewSupplier(supplier.user_id)}
-      >
-        <View style={styles.supplierHeader}>
-          <View style={styles.supplierIconContainer}>
+      <View key={supplier.id} style={styles.supplierCard}>
+        <Pressable
+          style={({ pressed }) => [
+            styles.supplierContent,
+            pressed && styles.supplierContentPressed,
+          ]}
+          onPress={() => handleViewSupplier(supplier.user_id)}
+        >
+          <View style={styles.supplierHeader}>
+            <View style={styles.supplierIconContainer}>
+              <IconSymbol
+                ios_icon_name="building.2.fill"
+                android_material_icon_name="store"
+                size={24}
+                color={colors.primary}
+              />
+            </View>
+            <View style={styles.supplierInfo}>
+              <Text style={styles.supplierName}>{supplier.full_name || 'N/A'}</Text>
+              <Text style={styles.supplierEmail}>{supplier.email}</Text>
+              {supplier.phone && (
+                <Text style={styles.supplierPhone}>{supplier.phone}</Text>
+              )}
+            </View>
             <IconSymbol
-              ios_icon_name="building.2.fill"
-              android_material_icon_name="store"
-              size={24}
-              color={colors.primary}
+              ios_icon_name="chevron.right"
+              android_material_icon_name="chevron_right"
+              size={20}
+              color={colors.textTertiary}
             />
           </View>
-          <View style={styles.supplierInfo}>
-            <Text style={styles.supplierName}>{supplier.full_name || 'N/A'}</Text>
-            <Text style={styles.supplierEmail}>{supplier.email}</Text>
-            {supplier.phone && (
-              <Text style={styles.supplierPhone}>{supplier.phone}</Text>
-            )}
+
+          <View style={styles.supplierStats}>
+            <View style={styles.statItem}>
+              <IconSymbol
+                ios_icon_name="list.bullet"
+                android_material_icon_name="list"
+                size={16}
+                color={colors.info}
+              />
+              <Text style={styles.statValue}>{supplier.lists_count}</Text>
+              <Text style={styles.statLabel}>Liste</Text>
+            </View>
+            <View style={styles.statItem}>
+              <IconSymbol
+                ios_icon_name="cube.box.fill"
+                android_material_icon_name="inventory"
+                size={16}
+                color={colors.success}
+              />
+              <Text style={styles.statValue}>{supplier.products_count}</Text>
+              <Text style={styles.statLabel}>Prodotti</Text>
+            </View>
+            <View style={styles.statItem}>
+              <IconSymbol
+                ios_icon_name="bolt.circle.fill"
+                android_material_icon_name="flash_on"
+                size={16}
+                color={colors.warning}
+              />
+              <Text style={styles.statValue}>{supplier.active_drops_count}</Text>
+              <Text style={styles.statLabel}>Drop Attivi</Text>
+            </View>
           </View>
+
+          <View style={styles.supplierFooter}>
+            <Text style={styles.supplierDate}>
+              Registrato: {new Date(supplier.created_at).toLocaleDateString('it-IT')}
+            </Text>
+          </View>
+        </Pressable>
+        
+        <Pressable
+          style={({ pressed }) => [
+            styles.deleteButton,
+            pressed && styles.deleteButtonPressed,
+          ]}
+          onPress={() => handleDeleteSupplier(supplier)}
+        >
           <IconSymbol
-            ios_icon_name="chevron.right"
-            android_material_icon_name="chevron_right"
+            ios_icon_name="trash.fill"
+            android_material_icon_name="delete"
             size={20}
-            color={colors.textTertiary}
+            color="#FF3B30"
           />
-        </View>
-
-        <View style={styles.supplierStats}>
-          <View style={styles.statItem}>
-            <IconSymbol
-              ios_icon_name="list.bullet"
-              android_material_icon_name="list"
-              size={16}
-              color={colors.info}
-            />
-            <Text style={styles.statValue}>{supplier.lists_count}</Text>
-            <Text style={styles.statLabel}>Liste</Text>
-          </View>
-          <View style={styles.statItem}>
-            <IconSymbol
-              ios_icon_name="cube.box.fill"
-              android_material_icon_name="inventory"
-              size={16}
-              color={colors.success}
-            />
-            <Text style={styles.statValue}>{supplier.products_count}</Text>
-            <Text style={styles.statLabel}>Prodotti</Text>
-          </View>
-          <View style={styles.statItem}>
-            <IconSymbol
-              ios_icon_name="bolt.circle.fill"
-              android_material_icon_name="flash_on"
-              size={16}
-              color={colors.warning}
-            />
-            <Text style={styles.statValue}>{supplier.active_drops_count}</Text>
-            <Text style={styles.statLabel}>Drop Attivi</Text>
-          </View>
-        </View>
-
-        <View style={styles.supplierFooter}>
-          <Text style={styles.supplierDate}>
-            Registrato: {new Date(supplier.created_at).toLocaleDateString('it-IT')}
-          </Text>
-        </View>
-      </Pressable>
+          <Text style={styles.deleteButtonText}>Elimina</Text>
+        </Pressable>
+      </View>
     );
   };
 
@@ -341,14 +440,16 @@ const styles = StyleSheet.create({
   supplierCard: {
     backgroundColor: colors.card,
     borderRadius: 12,
-    padding: 16,
     marginBottom: 12,
     borderWidth: 1,
     borderColor: colors.border,
+    overflow: 'hidden',
   },
-  supplierCardPressed: {
+  supplierContent: {
+    padding: 16,
+  },
+  supplierContentPressed: {
     opacity: 0.7,
-    transform: [{ scale: 0.98 }],
   },
   supplierHeader: {
     flexDirection: 'row',
@@ -412,6 +513,25 @@ const styles = StyleSheet.create({
   supplierDate: {
     fontSize: 12,
     color: colors.textTertiary,
+  },
+  deleteButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFF1F0',
+    paddingVertical: 12,
+    gap: 8,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  deleteButtonPressed: {
+    opacity: 0.7,
+    backgroundColor: '#FFE5E3',
+  },
+  deleteButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FF3B30',
   },
   emptyState: {
     alignItems: 'center',

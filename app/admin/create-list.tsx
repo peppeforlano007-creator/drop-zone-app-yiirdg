@@ -18,11 +18,25 @@ import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 import * as Haptics from 'expo-haptics';
 import { supabase } from '@/app/integrations/supabase/client';
+import * as DocumentPicker from 'expo-document-picker';
+import * as XLSX from 'xlsx';
 
 interface Supplier {
   user_id: string;
   full_name: string;
   email: string;
+}
+
+interface ExcelProduct {
+  nome: string;
+  descrizione?: string;
+  immagine_url: string;
+  prezzo: number;
+  taglie?: string;
+  colori?: string;
+  condizione: 'nuovo' | 'reso da cliente' | 'packaging rovinato';
+  categoria?: string;
+  stock: number;
 }
 
 export default function CreateListScreen() {
@@ -36,6 +50,8 @@ export default function CreateListScreen() {
   const [maxReservationValue, setMaxReservationValue] = useState('30000');
   const [loading, setLoading] = useState(false);
   const [loadingSuppliers, setLoadingSuppliers] = useState(true);
+  const [importMode, setImportMode] = useState<'manual' | 'excel'>('manual');
+  const [excelProducts, setExcelProducts] = useState<ExcelProduct[]>([]);
 
   useEffect(() => {
     loadSuppliers();
@@ -62,6 +78,116 @@ export default function CreateListScreen() {
       Alert.alert('Errore', 'Si è verificato un errore');
     } finally {
       setLoadingSuppliers(false);
+    }
+  };
+
+  const handlePickExcelFile = async () => {
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      
+      const result = await DocumentPicker.getDocumentAsync({
+        type: [
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'application/vnd.ms-excel',
+        ],
+        copyToCacheDirectory: true,
+      });
+
+      if (result.canceled) {
+        return;
+      }
+
+      const file = result.assets[0];
+      console.log('Selected file:', file);
+
+      // Read the file
+      const response = await fetch(file.uri);
+      const arrayBuffer = await response.arrayBuffer();
+      const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+      
+      // Get first sheet
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+      
+      // Convert to JSON
+      const jsonData = XLSX.utils.sheet_to_json(worksheet) as any[];
+      
+      console.log('Parsed Excel data:', jsonData);
+
+      if (jsonData.length === 0) {
+        Alert.alert('Errore', 'Il file Excel è vuoto');
+        return;
+      }
+
+      // Validate and transform data
+      const products: ExcelProduct[] = [];
+      const errors: string[] = [];
+
+      jsonData.forEach((row, index) => {
+        const rowNum = index + 2; // +2 because Excel rows start at 1 and we have a header
+        
+        // Required fields
+        if (!row.nome || !row.immagine_url || !row.prezzo) {
+          errors.push(`Riga ${rowNum}: Campi obbligatori mancanti (nome, immagine_url, prezzo)`);
+          return;
+        }
+
+        const price = parseFloat(row.prezzo);
+        if (isNaN(price) || price <= 0) {
+          errors.push(`Riga ${rowNum}: Prezzo non valido`);
+          return;
+        }
+
+        const stock = parseInt(row.stock || '1');
+        if (isNaN(stock) || stock < 0) {
+          errors.push(`Riga ${rowNum}: Stock non valido`);
+          return;
+        }
+
+        const condition = row.condizione || 'nuovo';
+        if (!['nuovo', 'reso da cliente', 'packaging rovinato'].includes(condition)) {
+          errors.push(`Riga ${rowNum}: Condizione non valida (deve essere: nuovo, reso da cliente, o packaging rovinato)`);
+          return;
+        }
+
+        products.push({
+          nome: row.nome,
+          descrizione: row.descrizione || '',
+          immagine_url: row.immagine_url,
+          prezzo: price,
+          taglie: row.taglie || '',
+          colori: row.colori || '',
+          condizione: condition as 'nuovo' | 'reso da cliente' | 'packaging rovinato',
+          categoria: row.categoria || '',
+          stock: stock,
+        });
+      });
+
+      if (errors.length > 0) {
+        Alert.alert(
+          'Errori nel File',
+          `Trovati ${errors.length} errori:\n\n${errors.slice(0, 5).join('\n')}${errors.length > 5 ? '\n...' : ''}`,
+          [
+            { text: 'OK' }
+          ]
+        );
+        return;
+      }
+
+      if (products.length === 0) {
+        Alert.alert('Errore', 'Nessun prodotto valido trovato nel file');
+        return;
+      }
+
+      setExcelProducts(products);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert(
+        'File Caricato',
+        `${products.length} prodott${products.length === 1 ? 'o' : 'i'} caricato con successo!\n\nCompila i campi della lista e clicca "Crea Lista con Prodotti" per procedere.`
+      );
+    } catch (error) {
+      console.error('Error reading Excel file:', error);
+      Alert.alert('Errore', 'Impossibile leggere il file Excel. Assicurati che sia un file .xlsx o .xls valido.');
     }
   };
 
@@ -141,29 +267,94 @@ export default function CreateListScreen() {
 
       console.log('List created successfully:', data.id);
 
+      // If we have Excel products, import them
+      if (importMode === 'excel' && excelProducts.length > 0) {
+        console.log(`Importing ${excelProducts.length} products from Excel...`);
+        
+        const productsToInsert = excelProducts.map(product => ({
+          supplier_list_id: data.id,
+          supplier_id: selectedSupplierId,
+          name: product.nome,
+          description: product.descrizione || null,
+          image_url: product.immagine_url,
+          original_price: product.prezzo,
+          available_sizes: product.taglie ? product.taglie.split(',').map(s => s.trim()).filter(s => s) : null,
+          available_colors: product.colori ? product.colori.split(',').map(c => c.trim()).filter(c => c) : null,
+          condition: product.condizione,
+          category: product.categoria || null,
+          stock: product.stock,
+          status: 'active',
+        }));
+
+        const { error: productsError } = await supabase
+          .from('products')
+          .insert(productsToInsert);
+
+        if (productsError) {
+          console.error('Error importing products:', productsError);
+          Alert.alert(
+            'Attenzione',
+            `Lista creata ma errore nell'importazione dei prodotti: ${productsError.message}\n\nPuoi aggiungere i prodotti manualmente.`,
+            [
+              {
+                text: 'OK',
+                onPress: () => {
+                  router.replace({
+                    pathname: '/admin/list-details',
+                    params: { listId: data.id },
+                  });
+                },
+              },
+            ]
+          );
+          return;
+        }
+
+        console.log('Products imported successfully');
+      }
+
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert(
-        'Lista Creata!',
-        `La lista "${listName}" è stata creata con successo.\n\nPuoi ora aggiungere prodotti a questa lista.`,
-        [
-          {
-            text: 'Aggiungi Prodotti',
-            onPress: () => {
-              router.replace({
-                pathname: '/admin/list-details',
-                params: { listId: data.id },
-              });
+      
+      if (importMode === 'excel' && excelProducts.length > 0) {
+        Alert.alert(
+          'Lista Creata!',
+          `La lista "${listName}" è stata creata con successo con ${excelProducts.length} prodott${excelProducts.length === 1 ? 'o' : 'i'}!`,
+          [
+            {
+              text: 'Visualizza Lista',
+              onPress: () => {
+                router.replace({
+                  pathname: '/admin/list-details',
+                  params: { listId: data.id },
+                });
+              },
             },
-          },
-          {
-            text: 'Torna Indietro',
-            style: 'cancel',
-            onPress: () => {
-              router.back();
+          ]
+        );
+      } else {
+        Alert.alert(
+          'Lista Creata!',
+          `La lista "${listName}" è stata creata con successo.\n\nPuoi ora aggiungere prodotti a questa lista.`,
+          [
+            {
+              text: 'Aggiungi Prodotti',
+              onPress: () => {
+                router.replace({
+                  pathname: '/admin/list-details',
+                  params: { listId: data.id },
+                });
+              },
             },
-          },
-        ]
-      );
+            {
+              text: 'Torna Indietro',
+              style: 'cancel',
+              onPress: () => {
+                router.back();
+              },
+            },
+          ]
+        );
+      }
     } catch (error) {
       console.error('Exception creating list:', error);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -256,6 +447,97 @@ export default function CreateListScreen() {
             </View>
 
             <View style={styles.form}>
+              {/* Import Mode Selection */}
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>Modalità Importazione</Text>
+                <View style={styles.modeSelector}>
+                  <Pressable
+                    style={({ pressed }) => [
+                      styles.modeButton,
+                      importMode === 'manual' && styles.modeButtonSelected,
+                      pressed && styles.modeButtonPressed,
+                    ]}
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      setImportMode('manual');
+                      setExcelProducts([]);
+                    }}
+                    disabled={loading}
+                  >
+                    <IconSymbol
+                      ios_icon_name="hand.draw.fill"
+                      android_material_icon_name="edit"
+                      size={20}
+                      color={importMode === 'manual' ? colors.primary : colors.textSecondary}
+                    />
+                    <Text style={[
+                      styles.modeButtonText,
+                      importMode === 'manual' && styles.modeButtonTextSelected,
+                    ]}>
+                      Manuale
+                    </Text>
+                  </Pressable>
+                  
+                  <Pressable
+                    style={({ pressed }) => [
+                      styles.modeButton,
+                      importMode === 'excel' && styles.modeButtonSelected,
+                      pressed && styles.modeButtonPressed,
+                    ]}
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      setImportMode('excel');
+                    }}
+                    disabled={loading}
+                  >
+                    <IconSymbol
+                      ios_icon_name="doc.fill"
+                      android_material_icon_name="description"
+                      size={20}
+                      color={importMode === 'excel' ? colors.primary : colors.textSecondary}
+                    />
+                    <Text style={[
+                      styles.modeButtonText,
+                      importMode === 'excel' && styles.modeButtonTextSelected,
+                    ]}>
+                      Excel
+                    </Text>
+                  </Pressable>
+                </View>
+              </View>
+
+              {/* Excel Import Section */}
+              {importMode === 'excel' && (
+                <View style={styles.excelSection}>
+                  <Pressable
+                    style={({ pressed }) => [
+                      styles.excelButton,
+                      pressed && styles.excelButtonPressed,
+                    ]}
+                    onPress={handlePickExcelFile}
+                    disabled={loading}
+                  >
+                    <IconSymbol
+                      ios_icon_name="arrow.down.doc.fill"
+                      android_material_icon_name="file_download"
+                      size={24}
+                      color="#FFFFFF"
+                    />
+                    <Text style={styles.excelButtonText}>
+                      {excelProducts.length > 0 
+                        ? `${excelProducts.length} Prodotti Caricati` 
+                        : 'Carica File Excel'}
+                    </Text>
+                  </Pressable>
+                  
+                  <Text style={styles.excelHint}>
+                    Il file Excel deve contenere le colonne:{'\n'}
+                    nome, immagine_url, prezzo (obbligatori){'\n'}
+                    descrizione, taglie, colori, condizione, categoria, stock (opzionali)
+                  </Text>
+                </View>
+              )}
+
               <View style={styles.inputContainer}>
                 <Text style={styles.inputLabel}>Fornitore *</Text>
                 <ScrollView 
@@ -382,7 +664,11 @@ export default function CreateListScreen() {
                       size={24}
                       color="#FFFFFF"
                     />
-                    <Text style={styles.createButtonText}>Crea Lista</Text>
+                    <Text style={styles.createButtonText}>
+                      {importMode === 'excel' && excelProducts.length > 0 
+                        ? 'Crea Lista con Prodotti' 
+                        : 'Crea Lista'}
+                    </Text>
                   </>
                 )}
               </Pressable>
@@ -509,6 +795,68 @@ const styles = StyleSheet.create({
     padding: 16,
     fontSize: 16,
     color: colors.text,
+  },
+  modeSelector: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  modeButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 8,
+    paddingVertical: 14,
+    gap: 8,
+  },
+  modeButtonSelected: {
+    backgroundColor: colors.primary + '15',
+    borderColor: colors.primary,
+  },
+  modeButtonPressed: {
+    opacity: 0.7,
+  },
+  modeButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.textSecondary,
+  },
+  modeButtonTextSelected: {
+    color: colors.primary,
+  },
+  excelSection: {
+    marginBottom: 20,
+    padding: 16,
+    backgroundColor: colors.card,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  excelButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primary,
+    paddingVertical: 14,
+    borderRadius: 8,
+    gap: 8,
+    marginBottom: 12,
+  },
+  excelButtonPressed: {
+    opacity: 0.7,
+  },
+  excelButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  excelHint: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    lineHeight: 18,
   },
   supplierList: {
     maxHeight: 200,
