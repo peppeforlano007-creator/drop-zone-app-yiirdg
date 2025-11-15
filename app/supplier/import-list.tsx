@@ -127,6 +127,12 @@ export default function ImportListScreen() {
       
       console.log('Parsed Excel data:', jsonData);
       
+      if (jsonData.length === 0) {
+        Alert.alert('Errore', 'Il file Excel è vuoto o non contiene dati validi');
+        setIsLoading(false);
+        return;
+      }
+      
       const parsedProducts: ExcelProduct[] = jsonData.map((row, index) => {
         let condition: ProductCondition = 'nuovo';
         const conditionValue = String(row.condizione || row.Condizione || '').toLowerCase().trim();
@@ -150,12 +156,45 @@ export default function ImportListScreen() {
         };
       });
       
-      setProducts(parsedProducts);
+      // Validate products
+      const validProducts = parsedProducts.filter(p => {
+        if (!p.nome || p.nome.trim() === '') {
+          console.warn('Product without name:', p);
+          return false;
+        }
+        if (!p.foto || p.foto.trim() === '') {
+          console.warn('Product without image:', p.nome);
+          return false;
+        }
+        if (!p.prezzoListino || p.prezzoListino <= 0) {
+          console.warn('Product with invalid price:', p.nome);
+          return false;
+        }
+        return true;
+      });
+      
+      if (validProducts.length === 0) {
+        Alert.alert(
+          'Errore',
+          'Nessun prodotto valido trovato nel file. Assicurati che ogni prodotto abbia almeno nome, foto e prezzo.'
+        );
+        setIsLoading(false);
+        return;
+      }
+      
+      if (validProducts.length < parsedProducts.length) {
+        Alert.alert(
+          'Attenzione',
+          `${parsedProducts.length - validProducts.length} prodotti sono stati scartati perché mancavano dati obbligatori (nome, foto o prezzo).`
+        );
+      }
+      
+      setProducts(validProducts);
       
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert(
         'Successo',
-        `${parsedProducts.length} prodotti caricati dal file Excel`,
+        `${validProducts.length} prodotti caricati dal file Excel`,
         [{ text: 'OK' }]
       );
       
@@ -284,8 +323,8 @@ export default function ImportListScreen() {
             description: p.descrizione || '',
             image_url: p.foto,
             original_price: p.prezzoListino,
-            available_sizes: p.taglie ? p.taglie.split(',').map(s => s.trim()) : [],
-            available_colors: p.colori ? p.colori.split(',').map(c => c.trim()) : [],
+            available_sizes: p.taglie ? p.taglie.split(',').map(s => s.trim()).filter(s => s) : [],
+            available_colors: p.colori ? p.colori.split(',').map(c => c.trim()).filter(c => c) : [],
             condition: p.condizione,
             category: p.categoria || 'Generale',
             stock: p.stock || 1,
@@ -298,8 +337,8 @@ export default function ImportListScreen() {
             description: p.description,
             image_url: p.imageUrl,
             original_price: parseFloat(p.originalPrice),
-            available_sizes: p.sizes ? p.sizes.split(',').map(s => s.trim()) : [],
-            available_colors: p.colors ? p.colors.split(',').map(c => c.trim()) : [],
+            available_sizes: p.sizes ? p.sizes.split(',').map(s => s.trim()).filter(s => s) : [],
+            available_colors: p.colors ? p.colors.split(',').map(c => c.trim()).filter(c => c) : [],
             condition: p.condition,
             category: p.category || 'Generale',
             stock: parseInt(p.stock),
@@ -307,6 +346,17 @@ export default function ImportListScreen() {
           }));
 
       console.log('Inserting products:', productsToInsert.length);
+      console.log('First product sample:', JSON.stringify(productsToInsert[0], null, 2));
+
+      // Validate products before insertion
+      const invalidProducts = productsToInsert.filter(p => 
+        !p.name || !p.image_url || !p.original_price || p.original_price <= 0
+      );
+
+      if (invalidProducts.length > 0) {
+        console.error('Invalid products found:', invalidProducts);
+        throw new Error(`${invalidProducts.length} prodotti hanno dati non validi`);
+      }
 
       // Insert products
       const { data: insertedProducts, error: productsError } = await supabase
@@ -316,10 +366,23 @@ export default function ImportListScreen() {
 
       if (productsError) {
         console.error('Error creating products:', productsError);
+        console.error('Products error details:', JSON.stringify(productsError, null, 2));
         throw new Error(`Impossibile creare i prodotti: ${productsError.message}`);
       }
 
       console.log('Products inserted successfully:', insertedProducts?.length);
+
+      // Verify products were actually inserted
+      const { count, error: countError } = await supabase
+        .from('products')
+        .select('*', { count: 'exact', head: true })
+        .eq('supplier_list_id', listData.id);
+
+      if (countError) {
+        console.error('Error verifying product count:', countError);
+      } else {
+        console.log('Verified product count in database:', count);
+      }
 
       // Success!
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -327,7 +390,7 @@ export default function ImportListScreen() {
       Alert.alert(
         '✅ Import Completato!',
         `La lista "${listName}" è stata creata con successo!\n\n` +
-        `📦 ${productCount} prodotti aggiunti\n` +
+        `📦 ${insertedProducts?.length || productCount} prodotti aggiunti\n` +
         `💰 Sconto: ${minDiscountNum}% - ${maxDiscountNum}%\n` +
         `🎯 Valore ordine: €${minOrderValueNum.toLocaleString()} - €${maxOrderValueNum.toLocaleString()}\n\n` +
         `I tuoi prodotti sono ora visibili ai consumatori nel feed principale!`,
