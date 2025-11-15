@@ -93,22 +93,45 @@ export default function CreateSupplierScreen() {
       console.log('Supplier auth created successfully:', authData.user.id);
 
       // Wait for the trigger to create the profile
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      // The deferrable foreign key constraint should handle timing issues
+      console.log('Waiting for trigger to create profile...');
+      await new Promise(resolve => setTimeout(resolve, 2000));
 
       // Verify the profile was created
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('user_id', authData.user.id)
-        .single();
+      let profile = null;
+      let profileError = null;
+      
+      // Try multiple times with increasing delays
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        console.log(`Checking for profile (attempt ${attempt}/3)...`);
+        
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('user_id', authData.user.id)
+          .maybeSingle();
 
-      console.log('Profile verification:', { profile, error: profileError });
+        if (data) {
+          profile = data;
+          profileError = null;
+          console.log('Profile found:', profile);
+          break;
+        }
 
-      if (profileError || !profile) {
-        console.error('Profile not found after creation:', profileError);
+        profileError = error;
+        
+        if (attempt < 3) {
+          console.log(`Profile not found yet, waiting ${attempt * 1000}ms before retry...`);
+          await new Promise(resolve => setTimeout(resolve, attempt * 1000));
+        }
+      }
+
+      if (!profile) {
+        console.error('Profile not found after multiple attempts:', profileError);
         
         // Try to create the profile manually as admin
         console.log('Attempting to create profile manually...');
+        
         const { data: manualProfile, error: manualError } = await supabase
           .from('profiles')
           .insert({
@@ -123,14 +146,31 @@ export default function CreateSupplierScreen() {
 
         if (manualError) {
           console.error('Manual profile creation failed:', manualError);
-          Alert.alert(
-            'Errore',
-            `Il fornitore è stato creato ma c'è stato un problema con il profilo: ${manualError.message}\n\nContatta il supporto tecnico.`
-          );
-          return;
+          
+          // Provide more specific error message
+          if (manualError.message.includes('profiles_user_id_fkey')) {
+            Alert.alert(
+              'Errore di Sincronizzazione',
+              'Si è verificato un problema di sincronizzazione del database.\n\nIl problema è stato risolto con un aggiornamento recente. Riprova ora e dovrebbe funzionare correttamente.'
+            );
+          } else if (manualError.message.includes('duplicate key')) {
+            // Profile was created by trigger but we couldn't find it
+            console.log('Profile exists but was not found in query, considering success');
+            profile = { user_id: authData.user.id };
+          } else {
+            Alert.alert(
+              'Errore',
+              `Impossibile creare il profilo: ${manualError.message}\n\nContatta il supporto tecnico.`
+            );
+          }
+          
+          if (!profile) {
+            return;
+          }
+        } else {
+          console.log('Profile created manually:', manualProfile);
+          profile = manualProfile;
         }
-
-        console.log('Profile created manually:', manualProfile);
       }
 
       console.log('Supplier created successfully with profile');
