@@ -417,16 +417,32 @@ export default function ImportListScreen() {
   };
 
   const handleSelectExcelMode = () => {
-    console.log('Excel mode button pressed - setting importMode to excel');
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setImportMode('excel');
+    console.log('=== EXCEL MODE BUTTON PRESSED ===');
+    console.log('Current importMode:', importMode);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    
+    // Use setTimeout to ensure state update happens after current render cycle
+    setTimeout(() => {
+      console.log('Setting importMode to excel');
+      setImportMode('excel');
+      console.log('importMode should now be: excel');
+    }, 0);
   };
 
   const handleSelectManualMode = () => {
-    console.log('Manual mode button pressed - setting importMode to manual');
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setImportMode('manual');
+    console.log('=== MANUAL MODE BUTTON PRESSED ===');
+    console.log('Current importMode:', importMode);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    
+    // Use setTimeout to ensure state update happens after current render cycle
+    setTimeout(() => {
+      console.log('Setting importMode to manual');
+      setImportMode('manual');
+      console.log('importMode should now be: manual');
+    }, 0);
   };
+
+  console.log('ImportListScreen render - importMode:', importMode);
 
   // Mode selection screen
   if (!importMode) {
@@ -464,9 +480,12 @@ export default function ImportListScreen() {
                   styles.modeCard,
                   pressed && styles.modeCardPressed
                 ]}
-                onPress={handleSelectExcelMode}
-                onPressIn={() => console.log('Excel button press started')}
-                onPressOut={() => console.log('Excel button press ended')}
+                onPress={() => {
+                  console.log('Excel card pressed via onPress');
+                  handleSelectExcelMode();
+                }}
+                onPressIn={() => console.log('Excel button press started (onPressIn)')}
+                onPressOut={() => console.log('Excel button press ended (onPressOut)')}
               >
                 <View style={styles.modeIconContainer}>
                   <IconSymbol 
@@ -490,9 +509,12 @@ export default function ImportListScreen() {
                   styles.modeCard,
                   pressed && styles.modeCardPressed
                 ]}
-                onPress={handleSelectManualMode}
-                onPressIn={() => console.log('Manual button press started')}
-                onPressOut={() => console.log('Manual button press ended')}
+                onPress={() => {
+                  console.log('Manual card pressed via onPress');
+                  handleSelectManualMode();
+                }}
+                onPressIn={() => console.log('Manual button press started (onPressIn)')}
+                onPressOut={() => console.log('Manual button press ended (onPressOut)')}
               >
                 <View style={styles.modeIconContainer}>
                   <IconSymbol 
@@ -510,6 +532,13 @@ export default function ImportListScreen() {
                   <Text style={styles.modeBadgeText}>Preciso</Text>
                 </View>
               </Pressable>
+            </View>
+
+            {/* Debug info */}
+            <View style={styles.debugInfo}>
+              <Text style={styles.debugText}>
+                Debug: importMode = {importMode || 'null'}
+              </Text>
             </View>
           </ScrollView>
         </SafeAreaView>
@@ -541,6 +570,7 @@ export default function ImportListScreen() {
             <Pressable
               style={styles.backButton}
               onPress={() => {
+                console.log('Back button pressed - resetting importMode to null');
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                 setImportMode(null);
               }}
@@ -1452,5 +1482,18 @@ const styles = StyleSheet.create({
   },
   closeButton: {
     padding: 4,
+  },
+  debugInfo: {
+    marginTop: 32,
+    padding: 16,
+    backgroundColor: colors.backgroundSecondary,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  debugText: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
   },
 });
