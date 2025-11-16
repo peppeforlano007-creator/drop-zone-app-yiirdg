@@ -525,11 +525,12 @@ const styles = StyleSheet.create({
   },
   scrollContentContainer: {
     flexGrow: 1,
-    paddingBottom: 90,
+    paddingBottom: 16,
   },
   content: {
     paddingTop: 20,
     paddingHorizontal: 20,
+    gap: 12,
   },
   productName: {
     fontSize: 22,
@@ -537,13 +538,11 @@ const styles = StyleSheet.create({
     color: colors.text,
     letterSpacing: -0.5,
     lineHeight: 26,
-    marginBottom: 12,
   },
   priceRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 12,
   },
   priceInfo: {
     flexDirection: 'row',
@@ -578,7 +577,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     flexWrap: 'wrap',
-    marginBottom: 12,
   },
   detailBadge: {
     flexDirection: 'row',
@@ -610,7 +608,6 @@ const styles = StyleSheet.create({
   },
   descriptionContainer: {
     gap: 4,
-    marginBottom: 12,
   },
   descriptionLabel: {
     fontSize: 13,
