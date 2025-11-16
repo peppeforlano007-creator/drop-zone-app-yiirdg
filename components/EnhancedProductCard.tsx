@@ -352,7 +352,7 @@ export default function EnhancedProductCard({
               </View>
             )}
 
-            {/* Stock Info - Only show if stock data exists - NO MARGIN BOTTOM */}
+            {/* Stock Info - Only show if stock data exists */}
             {hasStock && (
               <View style={styles.stockContainer}>
                 <IconSymbol 
@@ -372,7 +372,7 @@ export default function EnhancedProductCard({
           </Animated.View>
         </ScrollView>
 
-        {/* Fixed Action Button at Bottom - Outside ScrollView - REDUCED PADDING */}
+        {/* Fixed Action Button at Bottom - Outside ScrollView */}
         {isInDrop ? (
           <View style={styles.fixedButtonContainer}>
             <Animated.View 
@@ -531,11 +531,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContentContainer: {
-    paddingBottom: 10,
+    paddingBottom: 0,
   },
   content: {
-    padding: 20,
-    paddingBottom: 5,
+    paddingTop: 20,
+    paddingHorizontal: 20,
+    paddingBottom: 0,
     gap: 12,
   },
   productName: {
@@ -631,7 +632,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginBottom: 0,
   },
   stockText: {
     fontSize: 12,
@@ -643,7 +643,8 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     paddingHorizontal: 20,
-    paddingVertical: 8,
+    paddingTop: 8,
+    paddingBottom: 8,
     backgroundColor: colors.background,
     borderTopWidth: 1,
     borderTopColor: colors.border + '40',
