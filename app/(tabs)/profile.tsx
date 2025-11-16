@@ -5,7 +5,6 @@ import { colors, commonStyles } from '@/styles/commonStyles';
 import React, { useState, useEffect } from 'react';
 import { IconSymbol } from '@/components/IconSymbol';
 import { Stack, router } from 'expo-router';
-import { PICKUP_POINTS } from '@/data/mockData';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/app/integrations/supabase/client';
 import * as Haptics from 'expo-haptics';
@@ -143,8 +142,8 @@ export default function ProfileScreen() {
               <View style={styles.avatar}>
                 <IconSymbol ios_icon_name="person.fill" android_material_icon_name="person" size={48} color={colors.text} />
               </View>
-              <Text style={styles.userName}>{user?.name || mockUser.name}</Text>
-              <Text style={styles.userEmail}>{mockUser.email}</Text>
+              <Text style={styles.userName}>{user?.name || 'Utente'}</Text>
+              <Text style={styles.userEmail}>{user?.email || 'Email non disponibile'}</Text>
               {user?.role && (
                 <View style={styles.roleBadge}>
                   <Text style={styles.roleText}>{user.role.toUpperCase()}</Text>
