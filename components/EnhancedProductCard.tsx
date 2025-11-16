@@ -335,16 +335,6 @@ export default function EnhancedProductCard({
               </View>
             )}
 
-            {/* Description if available */}
-            {hasDescription && (
-              <View style={styles.descriptionContainer}>
-                <Text style={styles.descriptionLabel}>Descrizione</Text>
-                <Text style={styles.descriptionText} numberOfLines={3}>
-                  {product.description}
-                </Text>
-              </View>
-            )}
-
             {/* Stock Info - Only show if stock data exists */}
             {hasStock && (
               <View style={styles.stockContainer}>
@@ -359,6 +349,16 @@ export default function EnhancedProductCard({
                   { color: product.stock > 10 ? colors.success : colors.warning }
                 ]}>
                   {product.stock > 10 ? 'Disponibile' : `Solo ${product.stock} disponibili`}
+                </Text>
+              </View>
+            )}
+
+            {/* Description if available */}
+            {hasDescription && (
+              <View style={styles.descriptionContainer}>
+                <Text style={styles.descriptionLabel}>Descrizione</Text>
+                <Text style={styles.descriptionText} numberOfLines={3}>
+                  {product.description}
                 </Text>
               </View>
             )}
@@ -525,49 +525,51 @@ const styles = StyleSheet.create({
   },
   scrollContentContainer: {
     flexGrow: 1,
-    paddingBottom: 16,
+    paddingBottom: 8,
   },
   content: {
-    paddingTop: 20,
+    paddingTop: 16,
     paddingHorizontal: 20,
-    gap: 12,
+    gap: 8,
   },
   productName: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: '800',
     color: colors.text,
     letterSpacing: -0.5,
-    lineHeight: 26,
+    lineHeight: 24,
+    marginBottom: 0,
   },
   priceRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    marginTop: 0,
   },
   priceInfo: {
     flexDirection: 'row',
     alignItems: 'baseline',
-    gap: 10,
+    gap: 8,
   },
   originalPrice: {
-    fontSize: 16,
+    fontSize: 14,
     color: colors.textSecondary,
     textDecorationLine: 'line-through',
   },
   discountBadge: {
     backgroundColor: colors.text,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
     borderRadius: 8,
   },
   discountText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '800',
     color: colors.background,
     letterSpacing: 0.5,
   },
   discountedPrice: {
-    fontSize: 32,
+    fontSize: 28,
     fontWeight: '900',
     color: colors.text,
     letterSpacing: -1,
@@ -575,42 +577,44 @@ const styles = StyleSheet.create({
   detailsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
     flexWrap: 'wrap',
+    marginTop: 0,
   },
   detailBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
+    gap: 4,
     backgroundColor: colors.backgroundSecondary,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
   },
   detailText: {
-    fontSize: 12,
+    fontSize: 11,
     color: colors.textSecondary,
     fontWeight: '600',
   },
   conditionBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
   },
   conditionText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '700',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   descriptionContainer: {
     gap: 4,
+    marginTop: 4,
   },
   descriptionLabel: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '700',
     color: colors.text,
     textTransform: 'uppercase',
@@ -624,10 +628,11 @@ const styles = StyleSheet.create({
   stockContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 5,
+    marginTop: 0,
   },
   stockText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
   },
   fixedButtonContainer: {
