@@ -531,7 +531,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContentContainer: {
-    paddingBottom: 100,
+    paddingBottom: 20,
   },
   content: {
     padding: 20,
@@ -631,7 +631,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    paddingVertical: 2,
   },
   stockText: {
     fontSize: 12,

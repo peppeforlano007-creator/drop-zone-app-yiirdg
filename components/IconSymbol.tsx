@@ -193,24 +193,41 @@ export type IconSymbolName = keyof typeof MAPPING;
  * An icon component that uses native SFSymbols on iOS, and MaterialIcons on Android and web. This ensures a consistent look across platforms, and optimal resource usage.
  *
  * Icon `name`s are based on SFSymbols and require manual mapping to MaterialIcons.
+ * 
+ * Usage:
+ * - For iOS-specific code: <IconSymbol name="house.fill" size={24} color="#000" />
+ * - For cross-platform code: <IconSymbol ios_icon_name="house.fill" android_material_icon_name="home" size={24} color="#000" />
  */
 export function IconSymbol({
   name,
+  ios_icon_name,
+  android_material_icon_name,
   size = 24,
   color,
   style,
 }: {
-  name: IconSymbolName;
+  name?: IconSymbolName;
+  ios_icon_name?: string;
+  android_material_icon_name?: string;
   size?: number;
   color: string | OpaqueColorValue;
   style?: StyleProp<ViewStyle>;
   weight?: SymbolWeight;
 }) {
+  // Support both naming conventions for cross-platform compatibility
+  const iconName = name || ios_icon_name;
+  const materialIconName = android_material_icon_name || (iconName ? MAPPING[iconName as IconSymbolName] : undefined);
+
+  if (!materialIconName) {
+    console.warn(`IconSymbol: No mapping found for icon "${iconName}"`);
+    return null;
+  }
+
   return (
     <MaterialIcons
       color={color}
       size={size}
-      name={MAPPING[name]}
+      name={materialIconName}
       style={style as StyleProp<TextStyle>}
     />
   );
