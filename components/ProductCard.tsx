@@ -38,6 +38,12 @@ export default function ProductCard({
   // Animation values
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
+  // Safe value extraction with defaults
+  const originalPrice = product.originalPrice ?? 0;
+  const minDiscount = product.minDiscount ?? 0;
+  const discount = currentDiscount ?? minDiscount;
+  const discountedPrice = originalPrice * (1 - discount / 100);
+
   const handleImagePress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setGalleryVisible(true);
@@ -81,12 +87,9 @@ export default function ProductCard({
         return;
       }
 
-      const discount = currentDiscount || product.minDiscount;
-      const discountedPrice = product.originalPrice * (1 - discount / 100);
-
       Alert.alert(
         'Conferma Prenotazione',
-        `Vuoi prenotare ${product.name}?\n\nPrezzo attuale: €${discountedPrice.toFixed(2)} (-${discount}%)\n\nBlocchiamo €${product.originalPrice.toFixed(2)} sulla tua carta ${defaultPaymentMethod.brand} •••• ${defaultPaymentMethod.last4}.\n\nAlla fine del drop, addebiteremo solo l'importo finale con lo sconto raggiunto.`,
+        `Vuoi prenotare ${product.name}?\n\nPrezzo attuale: €${discountedPrice.toFixed(2)} (-${discount.toFixed(1)}%)\n\nBlocchiamo €${originalPrice.toFixed(2)} sulla tua carta ${defaultPaymentMethod.brand} •••• ${defaultPaymentMethod.last4}.\n\nAlla fine del drop, addebiteremo solo l'importo finale con lo sconto raggiunto.`,
         [
           { text: 'Annulla', style: 'cancel' },
           {
@@ -96,7 +99,7 @@ export default function ProductCard({
               try {
                 const authId = await authorizePayment(
                   product.id,
-                  product.originalPrice,
+                  originalPrice,
                   defaultPaymentMethod.id
                 );
                 console.log('Payment authorized:', authId);
@@ -132,8 +135,6 @@ export default function ProductCard({
     console.log('Selected color:', color);
   };
 
-  const discount = currentDiscount || product.minDiscount;
-  const discountedPrice = product.originalPrice * (1 - discount / 100);
   const hasMultipleImages = product.imageUrls && product.imageUrls.length > 1;
   const isFashionItem = product.category === 'Fashion';
 
@@ -205,11 +206,11 @@ export default function ProductCard({
         {/* Top badges overlay on image */}
         <View style={styles.topBadgesContainer}>
           <View style={styles.supplierBadge}>
-            <Text style={styles.supplierText}>{product.supplierName}</Text>
+            <Text style={styles.supplierText}>{product.supplierName ?? 'Fornitore'}</Text>
           </View>
           {isInDrop && currentDiscount && (
             <View style={styles.dropBadge}>
-              <Text style={styles.dropBadgeText}>Drop -{currentDiscount}%</Text>
+              <Text style={styles.dropBadgeText}>Drop -{currentDiscount.toFixed(1)}%</Text>
             </View>
           )}
         </View>
@@ -217,7 +218,7 @@ export default function ProductCard({
 
       <View style={styles.overlay}>
         <View style={styles.content}>
-          <Text style={styles.productName} numberOfLines={1}>{product.name}</Text>
+          <Text style={styles.productName} numberOfLines={1}>{product.name ?? 'Prodotto'}</Text>
 
           {/* Product Details Row: Sizes, Colors, and Condition - Compact */}
           {(product.sizes || product.colors || product.condition) && (
@@ -282,10 +283,10 @@ export default function ProductCard({
           <View style={styles.priceRow}>
             <View style={styles.priceInfo}>
               <Text style={styles.discountedPrice}>€{discountedPrice.toFixed(2)}</Text>
-              <Text style={styles.originalPrice}>€{product.originalPrice.toFixed(2)}</Text>
+              <Text style={styles.originalPrice}>€{originalPrice.toFixed(2)}</Text>
             </View>
             <View style={styles.discountBadge}>
-              <Text style={styles.discountText}>-{discount}%</Text>
+              <Text style={styles.discountText}>-{discount.toFixed(0)}%</Text>
             </View>
           </View>
 

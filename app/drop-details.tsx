@@ -1,16 +1,16 @@
 
-import { usePayment } from '@/contexts/PaymentContext';
-import { IconSymbol } from '@/components/IconSymbol';
-import * as Haptics from 'expo-haptics';
-import { supabase } from '@/app/integrations/supabase/client';
-import ProductCard from '@/components/ProductCard';
-import { colors } from '@/styles/commonStyles';
-import { useAuth } from '@/contexts/AuthContext';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { supabase } from '@/app/integrations/supabase/client';
+import { IconSymbol } from '@/components/IconSymbol';
 import { Stack, useLocalSearchParams, router } from 'expo-router';
-import { View, Text, StyleSheet, FlatList, Dimensions, Pressable, Alert, Linking, Animated, ActivityIndicator } from 'react-native';
 import { useRealtimeDrop } from '@/hooks/useRealtimeDrop';
+import { usePayment } from '@/contexts/PaymentContext';
+import { colors } from '@/styles/commonStyles';
+import { View, Text, StyleSheet, FlatList, Dimensions, Pressable, Alert, Linking, Animated, ActivityIndicator } from 'react-native';
+import { useAuth } from '@/contexts/AuthContext';
+import ProductCard from '@/components/ProductCard';
+import * as Haptics from 'expo-haptics';
 
 const { width, height } = Dimensions.get('window');
 
@@ -160,9 +160,9 @@ export default function DropDetailsScreen() {
       
       return {
         ...prevDrop,
-        current_discount: updatedDrop.current_discount,
-        current_value: updatedDrop.current_value,
-        status: updatedDrop.status,
+        current_discount: updatedDrop.current_discount ?? prevDrop.current_discount,
+        current_value: updatedDrop.current_value ?? prevDrop.current_value,
+        status: updatedDrop.status ?? prevDrop.status,
         updated_at: updatedDrop.updated_at,
       };
     });

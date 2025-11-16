@@ -63,6 +63,8 @@ export default function DropCard({ drop }: DropCardProps) {
   const maxValue = drop.supplier_lists?.max_reservation_value ?? 0;
   const minDiscount = drop.supplier_lists?.min_discount ?? 0;
   const maxDiscount = drop.supplier_lists?.max_discount ?? 0;
+  
+  // current_value now represents only card bookings (not user interests)
   const currentValue = drop.current_value ?? 0;
   const currentDiscount = drop.current_discount ?? 0;
 
@@ -119,7 +121,7 @@ export default function DropCard({ drop }: DropCardProps) {
 
       <View style={styles.valueContainer}>
         <View style={styles.valueRow}>
-          <Text style={styles.valueLabel}>Valore prenotato</Text>
+          <Text style={styles.valueLabel}>Valore prenotato con carta</Text>
           <Text style={styles.valueText}>
             €{currentValue.toLocaleString('it-IT', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
           </Text>
