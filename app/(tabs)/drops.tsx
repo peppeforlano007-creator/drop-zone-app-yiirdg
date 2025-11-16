@@ -34,6 +34,8 @@ interface Drop {
     name: string;
     min_discount: number;
     max_discount: number;
+    min_reservation_value: number;
+    max_reservation_value: number;
   };
 }
 
@@ -72,7 +74,9 @@ export default function DropsScreen() {
           supplier_lists (
             name,
             min_discount,
-            max_discount
+            max_discount,
+            min_reservation_value,
+            max_reservation_value
           )
         `)
         .eq('status', 'active')

@@ -333,9 +333,12 @@ export default function DropDetailsScreen() {
 
       setUserBookings(prev => new Set([...prev, productId]));
 
+      const discountValue = drop.current_discount ?? 0;
+      const priceValue = currentDiscountedPrice ?? 0;
+
       Alert.alert(
         'Prenotazione confermata!',
-        `Hai prenotato ${product.name} con uno sconto del ${drop.current_discount.toFixed(1)}%.\n\nImporto bloccato: €${currentDiscountedPrice.toFixed(2)}\n\nL'importo finale verrà addebitato alla chiusura del drop in base allo sconto raggiunto.`,
+        `Hai prenotato ${product.name} con uno sconto del ${discountValue.toFixed(1)}%.\n\nImporto bloccato: €${priceValue.toFixed(2)}\n\nL'importo finale verrà addebitato alla chiusura del drop in base allo sconto raggiunto.`,
         [{ text: 'OK' }]
       );
 
@@ -372,7 +375,8 @@ export default function DropDetailsScreen() {
       ? '\n\n⚠️ URGENTE: Mancano meno di 24 ore e non abbiamo ancora raggiunto l\'ordine minimo! Se non raggiungiamo l\'obiettivo, il drop verrà annullato e i fondi rilasciati.'
       : '';
 
-    const message = `🔥 Drop attivo: ${drop.name}!\n\n💰 Sconto attuale: ${drop.current_discount.toFixed(1)}%\n⏰ Tempo rimanente: ${timeRemaining}\n\n🎯 Più persone prenotano, più lo sconto aumenta!${urgencyMessage}\n\nUnisciti ora! 👇`;
+    const discountValue = drop.current_discount ?? 0;
+    const message = `🔥 Drop attivo: ${drop.name}!\n\n💰 Sconto attuale: ${discountValue.toFixed(1)}%\n⏰ Tempo rimanente: ${timeRemaining}\n\n🎯 Più persone prenotano, più lo sconto aumenta!${urgencyMessage}\n\nUnisciti ora! 👇`;
 
     const url = `whatsapp://send?text=${encodeURIComponent(message)}`;
 
@@ -441,6 +445,12 @@ export default function DropDetailsScreen() {
   const atRisk = isAtRiskOfUnderfunding();
   const underfundingProgress = getUnderfundingProgress();
 
+  // Safe value extraction with defaults
+  const currentValue = drop.current_value ?? 0;
+  const targetValue = drop.target_value ?? 0;
+  const currentDiscount = drop.current_discount ?? 0;
+  const minReservationValue = drop.supplier_lists?.min_reservation_value ?? 0;
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <Stack.Screen options={{ headerShown: false }} />
@@ -489,7 +499,7 @@ export default function DropDetailsScreen() {
           <View style={styles.underfundingContent}>
             <Text style={styles.underfundingTitle}>⚠️ Drop a Rischio!</Text>
             <Text style={styles.underfundingText}>
-              Abbiamo raggiunto solo €{drop.current_value.toFixed(0)} su €{drop.supplier_lists.min_reservation_value} richiesti.
+              Abbiamo raggiunto solo €{currentValue.toFixed(0)} su €{minReservationValue.toFixed(0)} richiesti.
             </Text>
             <Text style={styles.underfundingText}>
               Se non raggiungiamo l'ordine minimo entro la scadenza, il drop verrà annullato e i fondi rilasciati.
@@ -528,7 +538,7 @@ export default function DropDetailsScreen() {
         <View style={styles.infoItem}>
           <Text style={styles.infoLabel}>Sconto attuale</Text>
           <Animated.View style={{ transform: [{ scale: bounceAnim }] }}>
-            <Text style={styles.discountText}>{drop.current_discount.toFixed(1)}%</Text>
+            <Text style={styles.discountText}>{currentDiscount.toFixed(1)}%</Text>
           </Animated.View>
         </View>
 
@@ -544,7 +554,7 @@ export default function DropDetailsScreen() {
         <View style={styles.infoItem}>
           <Text style={styles.infoLabel}>Progresso</Text>
           <Text style={styles.progressText}>
-            €{drop.current_value.toFixed(0)} / €{drop.target_value.toFixed(0)}
+            €{currentValue.toFixed(0)} / €{targetValue.toFixed(0)}
           </Text>
         </View>
       </View>
@@ -563,12 +573,12 @@ export default function DropDetailsScreen() {
           <View
             style={[
               styles.progressBarFill,
-              { width: `${Math.min((drop.current_value / drop.target_value) * 100, 100)}%` }
+              { width: `${Math.min((currentValue / targetValue) * 100, 100)}%` }
             ]}
           />
         </View>
         <Text style={styles.progressLabel}>
-          {Math.min(Math.round((drop.current_value / drop.target_value) * 100), 100)}% dell'obiettivo
+          {Math.min(Math.round((currentValue / targetValue) * 100), 100)}% dell'obiettivo
         </Text>
       </View>
 
