@@ -58,13 +58,22 @@ export default function DropCard({ drop }: DropCardProps) {
     return () => clearInterval(interval);
   }, [drop.end_time]);
 
-  const minValue = drop.supplier_lists.min_reservation_value;
-  const maxValue = drop.supplier_lists.max_reservation_value;
-  const minDiscount = drop.supplier_lists.min_discount;
-  const maxDiscount = drop.supplier_lists.max_discount;
+  // Safe value extraction with defaults
+  const minValue = drop.supplier_lists?.min_reservation_value ?? 0;
+  const maxValue = drop.supplier_lists?.max_reservation_value ?? 0;
+  const minDiscount = drop.supplier_lists?.min_discount ?? 0;
+  const maxDiscount = drop.supplier_lists?.max_discount ?? 0;
+  const currentValue = drop.current_value ?? 0;
+  const currentDiscount = drop.current_discount ?? 0;
 
-  const progressPercentage = ((drop.current_value - minValue) / (maxValue - minValue)) * 100;
-  const discountProgress = ((drop.current_discount - minDiscount) / (maxDiscount - minDiscount)) * 100;
+  // Calculate progress percentages with safe division
+  const progressPercentage = maxValue > minValue 
+    ? ((currentValue - minValue) / (maxValue - minValue)) * 100 
+    : 0;
+  
+  const discountProgress = maxDiscount > minDiscount 
+    ? ((currentDiscount - minDiscount) / (maxDiscount - minDiscount)) * 100 
+    : 0;
 
   const handlePress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -84,23 +93,23 @@ export default function DropCard({ drop }: DropCardProps) {
             size={14} 
             color={colors.text} 
           />
-          <Text style={styles.locationText}>{drop.pickup_points.city}</Text>
+          <Text style={styles.locationText}>{drop.pickup_points?.city ?? 'N/A'}</Text>
         </View>
         <View style={styles.timerBadge}>
           <Text style={styles.timerText}>{timeRemaining}</Text>
         </View>
       </View>
 
-      <Text style={styles.supplierName}>{drop.supplier_lists.name}</Text>
+      <Text style={styles.supplierName}>{drop.supplier_lists?.name ?? 'Fornitore'}</Text>
       <Text style={styles.dropName}>{drop.name}</Text>
 
       <View style={styles.discountContainer}>
         <View style={styles.discountRow}>
           <Text style={styles.discountLabel}>Sconto attuale</Text>
-          <Text style={styles.discountValue}>{drop.current_discount}%</Text>
+          <Text style={styles.discountValue}>{currentDiscount}%</Text>
         </View>
         <View style={styles.progressBar}>
-          <View style={[styles.progressFill, { width: `${Math.min(discountProgress, 100)}%` }]} />
+          <View style={[styles.progressFill, { width: `${Math.min(Math.max(discountProgress, 0), 100)}%` }]} />
         </View>
         <View style={styles.discountRange}>
           <Text style={styles.rangeText}>{minDiscount}%</Text>
@@ -111,11 +120,11 @@ export default function DropCard({ drop }: DropCardProps) {
       <View style={styles.valueContainer}>
         <View style={styles.valueRow}>
           <Text style={styles.valueText}>
-            €{drop.current_value.toLocaleString()} / €{maxValue.toLocaleString()}
+            €{currentValue.toLocaleString('it-IT', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} / €{maxValue.toLocaleString('it-IT', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
           </Text>
         </View>
         <View style={styles.progressBar}>
-          <View style={[styles.progressFill, { width: `${Math.min(progressPercentage, 100)}%` }]} />
+          <View style={[styles.progressFill, { width: `${Math.min(Math.max(progressPercentage, 0), 100)}%` }]} />
         </View>
       </View>
 
