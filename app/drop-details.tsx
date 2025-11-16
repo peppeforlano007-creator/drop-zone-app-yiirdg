@@ -221,20 +221,23 @@ export default function DropDetailsScreen() {
   const calculateNewDiscount = (newValue: number): number => {
     if (!drop || !drop.supplier_lists) return 0;
 
-    const { min_discount, max_discount, min_reservation_value, max_reservation_value } = drop.supplier_lists;
+    const minDiscount = drop.supplier_lists.min_discount ?? 0;
+    const maxDiscount = drop.supplier_lists.max_discount ?? 0;
+    const minReservationValue = drop.supplier_lists.min_reservation_value ?? 0;
+    const maxReservationValue = drop.supplier_lists.max_reservation_value ?? 0;
 
-    if (newValue <= min_reservation_value) {
-      return min_discount;
+    if (newValue <= minReservationValue) {
+      return minDiscount;
     }
 
-    if (newValue >= max_reservation_value) {
-      return max_discount;
+    if (newValue >= maxReservationValue) {
+      return maxDiscount;
     }
 
-    const valueRange = max_reservation_value - min_reservation_value;
-    const discountRange = max_discount - min_discount;
-    const valueProgress = (newValue - min_reservation_value) / valueRange;
-    const newDiscount = min_discount + (discountRange * valueProgress);
+    const valueRange = maxReservationValue - minReservationValue;
+    const discountRange = maxDiscount - minDiscount;
+    const valueProgress = (newValue - minReservationValue) / valueRange;
+    const newDiscount = minDiscount + (discountRange * valueProgress);
 
     return Math.round(newDiscount * 100) / 100;
   };
@@ -247,8 +250,11 @@ export default function DropDetailsScreen() {
     const timeLeft = endTime - now;
     const hoursLeft = timeLeft / (1000 * 60 * 60);
     
+    const currentValue = drop.current_value ?? 0;
+    const minReservationValue = drop.supplier_lists.min_reservation_value ?? 0;
+    
     // Show warning if less than 24 hours left and below minimum value
-    return hoursLeft < 24 && (drop.current_value ?? 0) < (drop.supplier_lists.min_reservation_value ?? 0);
+    return hoursLeft < 24 && currentValue < minReservationValue;
   };
 
   const getUnderfundingProgress = (): number => {
@@ -508,7 +514,7 @@ export default function DropDetailsScreen() {
               Abbiamo raggiunto solo €{currentValue.toFixed(0)} su €{minReservationValue.toFixed(0)} richiesti.
             </Text>
             <Text style={styles.underfundingText}>
-              Se non raggiungiamo l'ordine minimo entro la scadenza, il drop verrà annullato e i fondi rilasciati.
+              Se non raggiungiamo l&apos;ordine minimo entro la scadenza, il drop verrà annullato e i fondi rilasciati.
             </Text>
             <View style={styles.underfundingProgressBar}>
               <View 
@@ -519,7 +525,7 @@ export default function DropDetailsScreen() {
               />
             </View>
             <Text style={styles.underfundingProgressText}>
-              {underfundingProgress.toFixed(0)}% dell'ordine minimo
+              {underfundingProgress.toFixed(0)}% dell&apos;ordine minimo
             </Text>
             <Pressable
               style={styles.shareUrgentButton}
@@ -584,7 +590,7 @@ export default function DropDetailsScreen() {
           />
         </View>
         <Text style={styles.progressLabel}>
-          {Math.min(Math.round((currentValue / maxReservationValue) * 100), 100)}% dell'obiettivo massimo
+          {Math.min(Math.round((currentValue / maxReservationValue) * 100), 100)}% dell&apos;obiettivo massimo
         </Text>
       </View>
 

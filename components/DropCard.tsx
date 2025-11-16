@@ -106,19 +106,20 @@ export default function DropCard({ drop }: DropCardProps) {
       <View style={styles.discountContainer}>
         <View style={styles.discountRow}>
           <Text style={styles.discountLabel}>Sconto attuale</Text>
-          <Text style={styles.discountValue}>{currentDiscount}%</Text>
+          <Text style={styles.discountValue}>{currentDiscount.toFixed(0)}%</Text>
         </View>
         <View style={styles.progressBar}>
           <View style={[styles.progressFill, { width: `${Math.min(Math.max(discountProgress, 0), 100)}%` }]} />
         </View>
         <View style={styles.discountRange}>
-          <Text style={styles.rangeText}>{minDiscount}%</Text>
-          <Text style={styles.rangeText}>{maxDiscount}%</Text>
+          <Text style={styles.rangeText}>{minDiscount.toFixed(0)}%</Text>
+          <Text style={styles.rangeText}>{maxDiscount.toFixed(0)}%</Text>
         </View>
       </View>
 
       <View style={styles.valueContainer}>
         <View style={styles.valueRow}>
+          <Text style={styles.valueLabel}>Valore prenotato</Text>
           <Text style={styles.valueText}>
             €{currentValue.toLocaleString('it-IT', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
           </Text>
@@ -248,11 +249,18 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   valueRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 8,
   },
+  valueLabel: {
+    fontSize: 13,
+    color: colors.textSecondary,
+  },
   valueText: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 16,
+    fontWeight: '700',
     color: colors.text,
   },
   valueRange: {
