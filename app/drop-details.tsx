@@ -617,19 +617,37 @@ export default function DropDetailsScreen() {
             </View>
           )}
 
-          {/* Progress Bar Section - Collapsible */}
+          {/* Progress Bar Section - Collapsible with Timer */}
           <Animated.View 
             style={[
               styles.progressSection,
               {
                 maxHeight: progressHeightAnim.interpolate({
                   inputRange: [0, 1],
-                  outputRange: [0, 200],
+                  outputRange: [0, 250],
                 }),
                 opacity: progressHeightAnim,
               }
             ]}
           >
+            {/* Timer Section - Now inside collapsible area */}
+            <View style={styles.timerSection}>
+              <View style={styles.timerLabelRow}>
+                <IconSymbol 
+                  ios_icon_name="clock.fill" 
+                  android_material_icon_name="schedule" 
+                  size={12} 
+                  color={colors.primary} 
+                />
+                <Text style={styles.timerLabel}>Tempo Rimanente</Text>
+              </View>
+              <Text style={styles.timerText}>{timeRemaining}</Text>
+            </View>
+
+            {/* Divider */}
+            <View style={styles.sectionDivider} />
+
+            {/* Progress Section */}
             <View style={styles.progressRow}>
               <View style={styles.progressLabelRow}>
                 <IconSymbol 
@@ -673,14 +691,6 @@ export default function DropDetailsScreen() {
               </View>
             </View>
           </Animated.View>
-
-          {/* Drop Info Bar - COMPACT with Toggle Icon */}
-          <View style={styles.infoBar}>
-            <View style={styles.infoItem}>
-              <Text style={styles.infoLabel}>Tempo Rimanente</Text>
-              <Text style={styles.timerText}>{timeRemaining}</Text>
-            </View>
-          </View>
 
           {/* Toggle Icon for Progress Bar */}
           <Pressable 
@@ -872,6 +882,36 @@ const styles = StyleSheet.create({
     borderBottomColor: 'rgba(0, 0, 0, 0.06)',
     overflow: 'hidden',
   },
+  timerSection: {
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  timerLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 6,
+  },
+  timerLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.text,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    fontFamily: 'System',
+  },
+  timerText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: colors.primary,
+    fontFamily: 'System',
+    textAlign: 'center',
+  },
+  sectionDivider: {
+    height: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.08)',
+    marginVertical: 12,
+  },
   progressRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -944,29 +984,6 @@ const styles = StyleSheet.create({
     height: 30,
     backgroundColor: 'rgba(0, 0, 0, 0.08)',
     marginHorizontal: 8,
-  },
-  infoBar: {
-    flexDirection: 'row',
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    justifyContent: 'center',
-  },
-  infoItem: {
-    alignItems: 'center',
-  },
-  infoLabel: {
-    fontSize: 10,
-    color: '#999',
-    marginBottom: 4,
-    fontFamily: 'System',
-    fontWeight: '600',
-  },
-  timerText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#000',
-    fontFamily: 'System',
-    textAlign: 'center',
   },
   toggleButton: {
     alignItems: 'center',
