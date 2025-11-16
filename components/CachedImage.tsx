@@ -1,9 +1,8 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState } from 'react';
 import { Image, ImageProps, View, StyleSheet, ActivityIndicator } from 'react-native';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from './IconSymbol';
-import { useImageCache } from '@/hooks/useImageCache';
 
 interface CachedImageProps extends Omit<ImageProps, 'source'> {
   uri: string;
@@ -13,43 +12,18 @@ interface CachedImageProps extends Omit<ImageProps, 'source'> {
 export default function CachedImage({ uri, showPlaceholder = true, style, ...props }: CachedImageProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
-  const [imageUri, setImageUri] = useState<string>(uri);
-  const { getCachedImage, cacheImage } = useImageCache();
 
-  const loadImage = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(false);
-
-      // Check cache first
-      const cachedUri = await getCachedImage(uri);
-      if (cachedUri) {
-        setImageUri(cachedUri);
-        setLoading(false);
-        return;
-      }
-
-      // Use original URI and cache it
-      setImageUri(uri);
-      await cacheImage(uri);
-    } catch (err) {
-      console.error('Error loading image:', err);
-      setError(true);
-    } finally {
-      setLoading(false);
-    }
-  }, [uri, getCachedImage, cacheImage]);
-
-  useEffect(() => {
-    loadImage();
-  }, [loadImage]);
+  const handleLoadStart = () => {
+    setLoading(true);
+    setError(false);
+  };
 
   const handleLoadEnd = () => {
     setLoading(false);
   };
 
-  const handleError = () => {
-    console.error('Image load error:', uri);
+  const handleError = (e: any) => {
+    console.error('Image load error:', uri, e.nativeEvent?.error);
     setError(true);
     setLoading(false);
   };
@@ -58,13 +32,15 @@ export default function CachedImage({ uri, showPlaceholder = true, style, ...pro
     <View style={[styles.container, style]}>
       <Image
         {...props}
-        source={{ uri: imageUri }}
+        source={{ uri }}
         style={[styles.image, style]}
+        onLoadStart={handleLoadStart}
         onLoadEnd={handleLoadEnd}
         onError={handleError}
+        resizeMode={props.resizeMode || 'cover'}
       />
       
-      {loading && showPlaceholder && (
+      {loading && !error && showPlaceholder && (
         <View style={styles.placeholder}>
           <ActivityIndicator size="large" color={colors.primary} />
         </View>
@@ -87,6 +63,7 @@ export default function CachedImage({ uri, showPlaceholder = true, style, ...pro
 const styles = StyleSheet.create({
   container: {
     position: 'relative',
+    backgroundColor: colors.backgroundSecondary,
   },
   image: {
     width: '100%',

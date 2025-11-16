@@ -158,6 +158,13 @@ export default function EnhancedProductCard({
   const discountedPrice = product.originalPrice * (1 - discount / 100);
   const hasMultipleImages = product.imageUrls && product.imageUrls.length > 1;
 
+  // Helper functions to check if data exists
+  const hasDescription = product.description && product.description.trim().length > 0;
+  const hasSizes = product.availableSizes && product.availableSizes.length > 0;
+  const hasColors = product.availableColors && product.availableColors.length > 0;
+  const hasCondition = product.condition && product.condition.trim().length > 0;
+  const hasStock = product.stock !== undefined && product.stock !== null;
+
   const getConditionColor = (condition?: string) => {
     switch (condition) {
       case 'nuovo':
@@ -278,28 +285,30 @@ export default function EnhancedProductCard({
               </Animated.View>
             </View>
 
-            {/* Product Details Row */}
-            {product.condition && (
+            {/* Product Details Row - Only show if there's data */}
+            {(hasCondition || hasSizes || hasColors) && (
               <View style={styles.detailsRow}>
-                <View style={[
-                  styles.conditionBadge,
-                  { backgroundColor: getConditionColor(product.condition) + '20' }
-                ]}>
-                  <IconSymbol 
-                    ios_icon_name={conditionIcon.ios} 
-                    android_material_icon_name={conditionIcon.android} 
-                    size={12} 
-                    color={getConditionColor(product.condition)} 
-                  />
-                  <Text style={[
-                    styles.conditionText,
-                    { color: getConditionColor(product.condition) }
+                {hasCondition && (
+                  <View style={[
+                    styles.conditionBadge,
+                    { backgroundColor: getConditionColor(product.condition) + '20' }
                   ]}>
-                    {product.condition}
-                  </Text>
-                </View>
+                    <IconSymbol 
+                      ios_icon_name={conditionIcon.ios} 
+                      android_material_icon_name={conditionIcon.android} 
+                      size={12} 
+                      color={getConditionColor(product.condition)} 
+                    />
+                    <Text style={[
+                      styles.conditionText,
+                      { color: getConditionColor(product.condition) }
+                    ]}>
+                      {product.condition}
+                    </Text>
+                  </View>
+                )}
                 
-                {product.sizes && product.sizes.length > 0 && (
+                {hasSizes && (
                   <View style={styles.detailBadge}>
                     <IconSymbol 
                       ios_icon_name="ruler" 
@@ -308,14 +317,14 @@ export default function EnhancedProductCard({
                       color={colors.textSecondary} 
                     />
                     <Text style={styles.detailText} numberOfLines={1}>
-                      {Array.isArray(product.sizes) 
-                        ? product.sizes.slice(0, 3).join(', ') 
-                        : product.sizes}
+                      {Array.isArray(product.availableSizes) 
+                        ? product.availableSizes.slice(0, 3).join(', ') 
+                        : product.availableSizes}
                     </Text>
                   </View>
                 )}
                 
-                {product.colors && product.colors.length > 0 && (
+                {hasColors && (
                   <View style={styles.detailBadge}>
                     <IconSymbol 
                       ios_icon_name="paintpalette" 
@@ -324,9 +333,9 @@ export default function EnhancedProductCard({
                       color={colors.textSecondary} 
                     />
                     <Text style={styles.detailText} numberOfLines={1}>
-                      {Array.isArray(product.colors) 
-                        ? product.colors.slice(0, 2).join(', ') 
-                        : product.colors}
+                      {Array.isArray(product.availableColors) 
+                        ? product.availableColors.slice(0, 2).join(', ') 
+                        : product.availableColors}
                     </Text>
                   </View>
                 )}
@@ -334,7 +343,7 @@ export default function EnhancedProductCard({
             )}
 
             {/* Description if available */}
-            {product.description && (
+            {hasDescription && (
               <View style={styles.descriptionContainer}>
                 <Text style={styles.descriptionLabel}>Descrizione</Text>
                 <Text style={styles.descriptionText} numberOfLines={3}>
@@ -343,8 +352,8 @@ export default function EnhancedProductCard({
               </View>
             )}
 
-            {/* Stock Info */}
-            {product.stock && (
+            {/* Stock Info - Only show if stock data exists */}
+            {hasStock && (
               <View style={styles.stockContainer}>
                 <IconSymbol 
                   ios_icon_name="cube.box" 

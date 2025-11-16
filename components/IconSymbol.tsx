@@ -1,3 +1,4 @@
+
 // This file is a fallback for using MaterialIcons on Android and web.
 
 import React from "react";
@@ -69,7 +70,9 @@ const MAPPING = {
 
   // Media & Content
   "photo.fill": "image",
-  "photo": "image-outlined",
+  "photo": "image",
+  "photo": "broken-image",
+  "photo.stack": "collections",
   "camera.fill": "camera-alt",
   "camera": "camera-alt",
   "video.fill": "videocam",
@@ -101,6 +104,8 @@ const MAPPING = {
   "star": "star-border",
   "bookmark.fill": "bookmark",
   "bookmark": "bookmark-border",
+  "sparkles": "star",
+  "tray": "inbox",
 
   // Technology & Code
   "chevron.left.forwardslash.chevron.right": "code",
@@ -120,10 +125,13 @@ const MAPPING = {
   "dollarsign.circle.fill": "monetization-on",
   "bag.fill": "shopping-bag",
   "bag": "shopping-bag",
+  "cube.box": "inventory-2",
 
   // Location & Maps
   "location.fill": "location-on",
   "location": "location-on",
+  "mappin.circle.fill": "location-on",
+  "mappin.circle": "location-on",
   "map.fill": "map",
   "map": "map",
   "compass.drawing": "explore",
@@ -143,9 +151,11 @@ const MAPPING = {
   "person.circle": "account-circle",
   "person.crop.circle.fill": "account-circle",
   "person.crop.circle": "account-circle",
+  "rectangle.portrait.and.arrow.right": "logout",
 
   // Sharing & Export
   "square.and.arrow.up": "share",
+  "square.and.arrow.up.fill": "share",
   "square.and.arrow.down": "download",
   "arrow.up.doc.fill": "upload-file",
   "link": "link",
@@ -159,8 +169,17 @@ const MAPPING = {
   "eye.fill": "visibility",
   "eye.slash.fill": "visibility-off",
   "lightbulb.fill": "lightbulb",
+  "lightbulb": "lightbulb",
   "moon.fill": "dark-mode",
   "sun.max.fill": "light-mode",
+
+  // Product & Inventory
+  "ruler": "straighten",
+  "paintpalette": "palette",
+  "arrow.uturn.backward": "keyboard-return",
+  "tag": "label",
+  "building.2": "store",
+  "wrench.and.screwdriver.fill": "build",
 } as Partial<
   Record<
     import("expo-symbols").SymbolViewProps["name"],
