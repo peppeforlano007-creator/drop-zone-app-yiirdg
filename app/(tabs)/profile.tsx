@@ -1,22 +1,85 @@
 
-import { View, Text, StyleSheet, ScrollView, Platform, Pressable, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Platform, Pressable, Alert, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, commonStyles } from '@/styles/commonStyles';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { IconSymbol } from '@/components/IconSymbol';
 import { Stack, router } from 'expo-router';
-import { mockUser, PICKUP_POINTS } from '@/data/mockData';
+import { PICKUP_POINTS } from '@/data/mockData';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/app/integrations/supabase/client';
 import * as Haptics from 'expo-haptics';
 
 export default function ProfileScreen() {
-  const { user, logout } = useAuth();
-  const [selectedPickupPoint, setSelectedPickupPoint] = useState(mockUser.pickupPoint);
+  const { user, logout, updatePickupPoint } = useAuth();
+  const [selectedPickupPoint, setSelectedPickupPoint] = useState(user?.pickupPoint || '');
+  const [pickupPoints, setPickupPoints] = useState<Array<{ id: string; city: string }>>([]);
+  const [loadingPoints, setLoadingPoints] = useState(true);
+  const [updatingPoint, setUpdatingPoint] = useState(false);
 
-  const handlePickupPointChange = (point: string) => {
+  useEffect(() => {
+    loadPickupPoints();
+  }, []);
+
+  useEffect(() => {
+    if (user?.pickupPoint) {
+      setSelectedPickupPoint(user.pickupPoint);
+    }
+  }, [user?.pickupPoint]);
+
+  const loadPickupPoints = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('pickup_points')
+        .select('id, city')
+        .eq('status', 'active')
+        .order('city');
+
+      if (error) {
+        console.error('Error loading pickup points:', error);
+        Alert.alert('Errore', 'Impossibile caricare i punti di ritiro');
+        return;
+      }
+
+      setPickupPoints(data || []);
+    } catch (error) {
+      console.error('Exception loading pickup points:', error);
+    } finally {
+      setLoadingPoints(false);
+    }
+  };
+
+  const handlePickupPointChange = async (pointId: string, pointCity: string) => {
+    if (!user) return;
+    
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setSelectedPickupPoint(point);
-    console.log('Pickup point changed to:', point);
+    setUpdatingPoint(true);
+    
+    try {
+      // Update in database
+      const { error } = await supabase
+        .from('profiles')
+        .update({ pickup_point_id: pointId })
+        .eq('user_id', user.id);
+
+      if (error) {
+        console.error('Error updating pickup point:', error);
+        Alert.alert('Errore', 'Impossibile aggiornare il punto di ritiro');
+        return;
+      }
+
+      // Update in context (this will update the UI immediately)
+      updatePickupPoint(pointId, pointCity);
+      setSelectedPickupPoint(pointCity);
+      
+      console.log('Pickup point updated to:', pointCity);
+      Alert.alert('Successo', `Punto di ritiro aggiornato a ${pointCity}`);
+    } catch (error) {
+      console.error('Exception updating pickup point:', error);
+      Alert.alert('Errore', 'Errore imprevisto durante l\'aggiornamento');
+    } finally {
+      setUpdatingPoint(false);
+    }
   };
 
   const handleLogout = () => {
@@ -60,7 +123,7 @@ export default function ProfileScreen() {
           headerTintColor: colors.text,
           headerRight: () => (
             <Pressable onPress={handleLogout} style={{ marginRight: 8 }}>
-              <IconSymbol name="rectangle.portrait.and.arrow.right" size={24} color={colors.text} />
+              <IconSymbol ios_icon_name="rectangle.portrait.and.arrow.right" android_material_icon_name="logout" size={24} color={colors.text} />
             </Pressable>
           ),
         }}
@@ -78,7 +141,7 @@ export default function ProfileScreen() {
           <View style={styles.section}>
             <View style={styles.avatarContainer}>
               <View style={styles.avatar}>
-                <IconSymbol name="person.fill" size={48} color={colors.text} />
+                <IconSymbol ios_icon_name="person.fill" android_material_icon_name="person" size={48} color={colors.text} />
               </View>
               <Text style={styles.userName}>{user?.name || mockUser.name}</Text>
               <Text style={styles.userEmail}>{mockUser.email}</Text>
@@ -98,13 +161,13 @@ export default function ProfileScreen() {
                 onPress={handleAdminPanel}
               >
                 <View style={styles.adminButtonContent}>
-                  <IconSymbol name="gear.circle.fill" size={24} color={colors.background} />
+                  <IconSymbol ios_icon_name="gear.circle.fill" android_material_icon_name="settings" size={24} color={colors.background} />
                   <View style={styles.adminButtonTextContainer}>
                     <Text style={styles.adminButtonTitle}>Pannello Amministratore</Text>
                     <Text style={styles.adminButtonSubtitle}>Gestisci utenti, fornitori, prodotti e drop</Text>
                   </View>
                 </View>
-                <IconSymbol name="chevron.right" size={24} color={colors.background} />
+                <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="chevron_right" size={24} color={colors.background} />
               </Pressable>
             </View>
           )}
@@ -116,37 +179,54 @@ export default function ProfileScreen() {
               Seleziona il punto di ritiro più vicino a te
             </Text>
             
-            <View style={styles.pickupPointsContainer}>
-              {PICKUP_POINTS.map((point) => (
-                <Pressable
-                  key={point}
-                  style={[
-                    styles.pickupPointCard,
-                    selectedPickupPoint === point && styles.pickupPointCardSelected,
-                  ]}
-                  onPress={() => handlePickupPointChange(point)}
-                >
-                  <View style={styles.pickupPointContent}>
-                    <IconSymbol
-                      name="mappin.circle.fill"
-                      size={24}
-                      color={selectedPickupPoint === point ? colors.background : colors.text}
-                    />
-                    <Text
-                      style={[
-                        styles.pickupPointText,
-                        selectedPickupPoint === point && styles.pickupPointTextSelected,
-                      ]}
-                    >
-                      {point}
-                    </Text>
-                  </View>
-                  {selectedPickupPoint === point && (
-                    <IconSymbol name="checkmark.circle.fill" size={24} color={colors.background} />
-                  )}
-                </Pressable>
-              ))}
-            </View>
+            {loadingPoints ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="small" color={colors.text} />
+                <Text style={styles.loadingText}>Caricamento punti di ritiro...</Text>
+              </View>
+            ) : (
+              <View style={styles.pickupPointsContainer}>
+                {pickupPoints.map((point) => (
+                  <Pressable
+                    key={point.id}
+                    style={[
+                      styles.pickupPointCard,
+                      selectedPickupPoint === point.city && styles.pickupPointCardSelected,
+                    ]}
+                    onPress={() => handlePickupPointChange(point.id, point.city)}
+                    disabled={updatingPoint}
+                  >
+                    <View style={styles.pickupPointContent}>
+                      <IconSymbol
+                        ios_icon_name="mappin.circle.fill"
+                        android_material_icon_name="location_on"
+                        size={24}
+                        color={selectedPickupPoint === point.city ? colors.background : colors.text}
+                      />
+                      <Text
+                        style={[
+                          styles.pickupPointText,
+                          selectedPickupPoint === point.city && styles.pickupPointTextSelected,
+                        ]}
+                      >
+                        {point.city}
+                      </Text>
+                    </View>
+                    {selectedPickupPoint === point.city && (
+                      <IconSymbol 
+                        ios_icon_name="checkmark.circle.fill" 
+                        android_material_icon_name="check_circle" 
+                        size={24} 
+                        color={colors.background} 
+                      />
+                    )}
+                    {updatingPoint && selectedPickupPoint === point.city && (
+                      <ActivityIndicator size="small" color={colors.background} />
+                    )}
+                  </Pressable>
+                ))}
+              </View>
+            )}
           </View>
 
           {/* Stats */}
@@ -155,13 +235,13 @@ export default function ProfileScreen() {
             
             <View style={styles.statsContainer}>
               <View style={styles.statCard}>
-                <IconSymbol name="heart.fill" size={32} color={colors.text} />
+                <IconSymbol ios_icon_name="heart.fill" android_material_icon_name="favorite" size={32} color={colors.text} />
                 <Text style={styles.statValue}>12</Text>
                 <Text style={styles.statLabel}>Prodotti Interessati</Text>
               </View>
               
               <View style={styles.statCard}>
-                <IconSymbol name="cart.fill" size={32} color={colors.text} />
+                <IconSymbol ios_icon_name="cart.fill" android_material_icon_name="shopping_cart" size={32} color={colors.text} />
                 <Text style={styles.statValue}>5</Text>
                 <Text style={styles.statLabel}>Ordini Completati</Text>
               </View>
@@ -174,26 +254,26 @@ export default function ProfileScreen() {
             
             <Pressable style={styles.settingItem} onPress={handleViewBookings}>
               <View style={styles.settingContent}>
-                <IconSymbol name="cart.fill" size={20} color={colors.text} />
+                <IconSymbol ios_icon_name="cart.fill" android_material_icon_name="shopping_cart" size={20} color={colors.text} />
                 <Text style={styles.settingText}>Le Mie Prenotazioni</Text>
               </View>
-              <IconSymbol name="chevron.right" size={20} color={colors.textSecondary} />
+              <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="chevron_right" size={20} color={colors.textSecondary} />
             </Pressable>
 
             <Pressable style={styles.settingItem}>
               <View style={styles.settingContent}>
-                <IconSymbol name="bell.fill" size={20} color={colors.text} />
+                <IconSymbol ios_icon_name="bell.fill" android_material_icon_name="notifications" size={20} color={colors.text} />
                 <Text style={styles.settingText}>Notifiche</Text>
               </View>
-              <IconSymbol name="chevron.right" size={20} color={colors.textSecondary} />
+              <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="chevron_right" size={20} color={colors.textSecondary} />
             </Pressable>
 
             <Pressable style={styles.settingItem}>
               <View style={styles.settingContent}>
-                <IconSymbol name="questionmark.circle.fill" size={20} color={colors.text} />
+                <IconSymbol ios_icon_name="questionmark.circle.fill" android_material_icon_name="help" size={20} color={colors.text} />
                 <Text style={styles.settingText}>Aiuto e Supporto</Text>
               </View>
-              <IconSymbol name="chevron.right" size={20} color={colors.textSecondary} />
+              <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="chevron_right" size={20} color={colors.textSecondary} />
             </Pressable>
           </View>
         </ScrollView>
@@ -328,6 +408,17 @@ const styles = StyleSheet.create({
   },
   pickupPointTextSelected: {
     color: colors.background,
+  },
+  loadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 20,
+    gap: 12,
+  },
+  loadingText: {
+    fontSize: 14,
+    color: colors.textSecondary,
   },
   statsContainer: {
     flexDirection: 'row',

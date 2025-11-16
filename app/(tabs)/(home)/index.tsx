@@ -1,6 +1,7 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { View, StyleSheet, FlatList, Dimensions, Platform, Text, Pressable, Alert, Animated, ActivityIndicator } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Stack, router } from 'expo-router';
 import { colors } from '@/styles/commonStyles';
 import ProductCard from '@/components/ProductCard';
@@ -31,6 +32,8 @@ export default function HomeScreen() {
   const [productLists, setProductLists] = useState<ProductList[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [bannerDismissed, setBannerDismissed] = useState(false);
+  const [bannerSessionKey, setBannerSessionKey] = useState<string>('');
   const listFlatListRef = useRef<FlatList>(null);
   const productFlatListRef = useRef<FlatList>(null);
   const progressAnim = useRef(new Animated.Value(0)).current;
@@ -204,6 +207,30 @@ export default function HomeScreen() {
   const totalProductsInList = currentList?.products.length || 0;
   const interestedInCurrentList = currentList?.products.filter(p => interestedProducts.has(p.id)).length || 0;
 
+  // Load banner state from AsyncStorage
+  useEffect(() => {
+    const loadBannerState = async () => {
+      if (!currentList) return;
+      
+      const sessionKey = `banner_dismissed_${currentList.listId}`;
+      setBannerSessionKey(sessionKey);
+      
+      try {
+        const dismissed = await AsyncStorage.getItem(sessionKey);
+        setBannerDismissed(dismissed === 'true');
+      } catch (error) {
+        console.error('Error loading banner state:', error);
+      }
+    };
+    
+    loadBannerState();
+  }, [currentList?.listId]);
+
+  // Reset banner when navigating to a new list
+  useEffect(() => {
+    setBannerDismissed(false);
+  }, [currentListIndex]);
+
   useEffect(() => {
     // Animate progress bar
     Animated.timing(progressAnim, {
@@ -335,6 +362,21 @@ export default function HomeScreen() {
   const handleGoToAdmin = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     router.push('/admin/testing');
+  };
+
+  const handleDismissBanner = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setBannerDismissed(true);
+    
+    // Save to AsyncStorage for this session
+    if (bannerSessionKey) {
+      try {
+        await AsyncStorage.setItem(bannerSessionKey, 'true');
+        console.log('Banner dismissed for list:', currentList?.listId);
+      } catch (error) {
+        console.error('Error saving banner state:', error);
+      }
+    }
   };
 
   const renderList = ({ item, index }: { item: ProductList; index: number }) => {
@@ -524,13 +566,11 @@ export default function HomeScreen() {
           </Pressable>
         </View>
 
-        {/* Compact Supplier Bar - Minimized to give more space to product card */}
+        {/* List Name Bar - Shows only list name */}
         <View style={styles.supplierBarContainer}>
           <View style={styles.supplierBar}>
             <View style={styles.supplierInfo}>
-              <IconSymbol ios_icon_name="building.2" android_material_icon_name="store" size={12} color={colors.textSecondary} />
-              <Text style={styles.supplierName}>{currentList?.supplierName}</Text>
-              <Text style={styles.listSeparator}>•</Text>
+              <IconSymbol ios_icon_name="list.bullet.rectangle" android_material_icon_name="list" size={14} color={colors.text} />
               <Text style={styles.listName}>{currentList?.listName}</Text>
             </View>
             <View style={styles.listCounter}>
@@ -580,14 +620,17 @@ export default function HomeScreen() {
           </Pressable>
         )}
 
-        {/* Hint Message */}
-        {interestedInCurrentList > 1 && (
+        {/* Hint Message with Close Button */}
+        {interestedInCurrentList > 1 && !bannerDismissed && (
           <View style={styles.hintContainer}>
             <View style={styles.hintCard}>
               <IconSymbol ios_icon_name="lightbulb.fill" android_material_icon_name="lightbulb" size={18} color="#FFB800" />
               <Text style={styles.hintText}>
                 Ottimo! Più articoli della stessa lista aumentano le probabilità di attivare un drop!
               </Text>
+              <Pressable onPress={handleDismissBanner} style={styles.closeBannerButton}>
+                <IconSymbol ios_icon_name="xmark" android_material_icon_name="close" size={16} color="#8B6914" />
+              </Pressable>
             </View>
           </View>
         )}
@@ -786,25 +829,14 @@ const styles = StyleSheet.create({
   supplierInfo: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 8,
     flex: 1,
   },
-  supplierName: {
-    fontSize: 11,
+  listName: {
+    fontSize: 13,
     fontWeight: '700',
     color: colors.text,
-    letterSpacing: 0.2,
-  },
-  listSeparator: {
-    fontSize: 11,
-    color: colors.textTertiary,
-    marginHorizontal: 2,
-  },
-  listName: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: colors.textSecondary,
-    letterSpacing: 0.2,
+    letterSpacing: 0.3,
     flex: 1,
   },
   listCounter: {
@@ -913,5 +945,9 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#8B6914',
     lineHeight: 16,
+  },
+  closeBannerButton: {
+    padding: 4,
+    marginLeft: 4,
   },
 });

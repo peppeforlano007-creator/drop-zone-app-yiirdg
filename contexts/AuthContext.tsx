@@ -12,6 +12,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<{ success: boolean; message?: string }>;
   register: (email: string, password: string, fullName: string, phone: string, role: UserRole, pickupPointId?: string) => Promise<{ success: boolean; message?: string }>;
   logout: () => Promise<void>;
+  updatePickupPoint: (pickupPointId: string, pickupPointCity: string) => void;
   isAuthenticated: boolean;
 }
 
@@ -280,6 +281,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const updatePickupPoint = (pickupPointId: string, pickupPointCity: string) => {
+    if (user) {
+      console.log('AuthProvider: Updating pickup point to:', pickupPointCity);
+      setUser({
+        ...user,
+        pickupPointId,
+        pickupPoint: pickupPointCity,
+      });
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -289,6 +301,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         login,
         register,
         logout,
+        updatePickupPoint,
         isAuthenticated: !!user && !!session,
       }}
     >
