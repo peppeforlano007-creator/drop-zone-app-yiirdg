@@ -531,11 +531,11 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContentContainer: {
-    paddingBottom: 20,
+    paddingBottom: 100,
   },
   content: {
     padding: 20,
-    paddingBottom: 0,
+    paddingBottom: 10,
     gap: 12,
   },
   productName: {
@@ -643,7 +643,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingVertical: 12,
     backgroundColor: colors.background,
     borderTopWidth: 1,
     borderTopColor: colors.border + '40',

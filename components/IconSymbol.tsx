@@ -71,7 +71,6 @@ const MAPPING = {
   // Media & Content
   "photo.fill": "image",
   "photo": "image",
-  "photo": "broken-image",
   "photo.stack": "collections",
   "camera.fill": "camera-alt",
   "camera": "camera-alt",
@@ -130,8 +129,9 @@ const MAPPING = {
   // Location & Maps
   "location.fill": "location-on",
   "location": "location-on",
-  "mappin.circle.fill": "location-on",
+  "mappin": "location-on",
   "mappin.circle": "location-on",
+  "mappin.circle.fill": "location-on",
   "map.fill": "map",
   "map": "map",
   "compass.drawing": "explore",
