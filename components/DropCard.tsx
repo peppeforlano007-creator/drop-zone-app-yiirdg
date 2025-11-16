@@ -120,11 +120,19 @@ export default function DropCard({ drop }: DropCardProps) {
       <View style={styles.valueContainer}>
         <View style={styles.valueRow}>
           <Text style={styles.valueText}>
-            €{currentValue.toLocaleString('it-IT', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} / €{maxValue.toLocaleString('it-IT', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+            €{currentValue.toLocaleString('it-IT', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
           </Text>
         </View>
         <View style={styles.progressBar}>
           <View style={[styles.progressFill, { width: `${Math.min(Math.max(progressPercentage, 0), 100)}%` }]} />
+        </View>
+        <View style={styles.valueRange}>
+          <Text style={styles.rangeText}>
+            €{minValue.toLocaleString('it-IT', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+          </Text>
+          <Text style={styles.rangeText}>
+            €{maxValue.toLocaleString('it-IT', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+          </Text>
         </View>
       </View>
 
@@ -246,6 +254,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: colors.text,
+  },
+  valueRange: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
   },
   footer: {
     flexDirection: 'row',

@@ -219,7 +219,7 @@ export default function DropDetailsScreen() {
   }, [drop]);
 
   const calculateNewDiscount = (newValue: number): number => {
-    if (!drop) return 0;
+    if (!drop || !drop.supplier_lists) return 0;
 
     const { min_discount, max_discount, min_reservation_value, max_reservation_value } = drop.supplier_lists;
 
@@ -240,7 +240,7 @@ export default function DropDetailsScreen() {
   };
 
   const isAtRiskOfUnderfunding = (): boolean => {
-    if (!drop) return false;
+    if (!drop || !drop.supplier_lists) return false;
     
     const now = new Date().getTime();
     const endTime = new Date(drop.end_time).getTime();
@@ -248,12 +248,14 @@ export default function DropDetailsScreen() {
     const hoursLeft = timeLeft / (1000 * 60 * 60);
     
     // Show warning if less than 24 hours left and below minimum value
-    return hoursLeft < 24 && drop.current_value < drop.supplier_lists.min_reservation_value;
+    return hoursLeft < 24 && (drop.current_value ?? 0) < (drop.supplier_lists.min_reservation_value ?? 0);
   };
 
   const getUnderfundingProgress = (): number => {
-    if (!drop) return 0;
-    return (drop.current_value / drop.supplier_lists.min_reservation_value) * 100;
+    if (!drop || !drop.supplier_lists) return 0;
+    const currentValue = drop.current_value ?? 0;
+    const minValue = drop.supplier_lists.min_reservation_value ?? 1;
+    return (currentValue / minValue) * 100;
   };
 
   const handleBook = async (productId: string) => {
@@ -289,7 +291,9 @@ export default function DropDetailsScreen() {
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-      const currentDiscountedPrice = product.original_price * (1 - drop.current_discount / 100);
+      const currentDiscount = drop.current_discount ?? 0;
+      const originalPrice = product.original_price ?? 0;
+      const currentDiscountedPrice = originalPrice * (1 - currentDiscount / 100);
 
       const { data: booking, error: bookingError } = await supabase
         .from('bookings')
@@ -298,8 +302,8 @@ export default function DropDetailsScreen() {
           product_id: productId,
           drop_id: drop.id,
           pickup_point_id: drop.pickup_point_id,
-          original_price: product.original_price,
-          discount_percentage: drop.current_discount,
+          original_price: originalPrice,
+          discount_percentage: currentDiscount,
           authorized_amount: currentDiscountedPrice,
           payment_status: 'authorized',
           status: 'active',
@@ -315,7 +319,8 @@ export default function DropDetailsScreen() {
 
       console.log('Booking created:', booking);
 
-      const newValue = drop.current_value + currentDiscountedPrice;
+      const currentValue = drop.current_value ?? 0;
+      const newValue = currentValue + currentDiscountedPrice;
       const newDiscount = calculateNewDiscount(newValue);
 
       const { error: updateError } = await supabase
@@ -333,12 +338,9 @@ export default function DropDetailsScreen() {
 
       setUserBookings(prev => new Set([...prev, productId]));
 
-      const discountValue = drop.current_discount ?? 0;
-      const priceValue = currentDiscountedPrice ?? 0;
-
       Alert.alert(
         'Prenotazione confermata!',
-        `Hai prenotato ${product.name} con uno sconto del ${discountValue.toFixed(1)}%.\n\nImporto bloccato: €${priceValue.toFixed(2)}\n\nL'importo finale verrà addebitato alla chiusura del drop in base allo sconto raggiunto.`,
+        `Hai prenotato ${product.name} con uno sconto del ${currentDiscount.toFixed(1)}%.\n\nImporto bloccato: €${currentDiscountedPrice.toFixed(2)}\n\nL'importo finale verrà addebitato alla chiusura del drop in base allo sconto raggiunto.`,
         [{ text: 'OK' }]
       );
 
@@ -371,12 +373,15 @@ export default function DropDetailsScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
     const atRisk = isAtRiskOfUnderfunding();
+    const currentDiscount = drop.current_discount ?? 0;
+    const currentValue = drop.current_value ?? 0;
+    const minReservationValue = drop.supplier_lists?.min_reservation_value ?? 0;
+    
     const urgencyMessage = atRisk 
-      ? '\n\n⚠️ URGENTE: Mancano meno di 24 ore e non abbiamo ancora raggiunto l\'ordine minimo! Se non raggiungiamo l\'obiettivo, il drop verrà annullato e i fondi rilasciati.'
+      ? `\n\n⚠️ URGENTE: Mancano meno di 24 ore e non abbiamo ancora raggiunto l'ordine minimo! Se non raggiungiamo l'obiettivo (€${minReservationValue.toFixed(0)}), il drop verrà annullato e i fondi rilasciati.`
       : '';
 
-    const discountValue = drop.current_discount ?? 0;
-    const message = `🔥 Drop attivo: ${drop.name}!\n\n💰 Sconto attuale: ${discountValue.toFixed(1)}%\n⏰ Tempo rimanente: ${timeRemaining}\n\n🎯 Più persone prenotano, più lo sconto aumenta!${urgencyMessage}\n\nUnisciti ora! 👇`;
+    const message = `🔥 Drop attivo: ${drop.name}!\n\n💰 Sconto attuale: ${currentDiscount.toFixed(1)}%\n⏰ Tempo rimanente: ${timeRemaining}\n\n🎯 Più persone prenotano, più lo sconto aumenta!${urgencyMessage}\n\nUnisciti ora! 👇`;
 
     const url = `whatsapp://send?text=${encodeURIComponent(message)}`;
 
@@ -450,6 +455,7 @@ export default function DropDetailsScreen() {
   const targetValue = drop.target_value ?? 0;
   const currentDiscount = drop.current_discount ?? 0;
   const minReservationValue = drop.supplier_lists?.min_reservation_value ?? 0;
+  const maxReservationValue = drop.supplier_lists?.max_reservation_value ?? 0;
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -471,7 +477,7 @@ export default function DropDetailsScreen() {
           <Text style={styles.dropName}>{drop.name}</Text>
           <Text style={styles.pickupPoint}>
             <IconSymbol ios_icon_name="location.fill" android_material_icon_name="location_on" size={14} color={colors.textSecondary} />
-            {' '}{drop.pickup_points.name}
+            {' '}{drop.pickup_points?.name ?? 'N/A'}
           </Text>
         </View>
 
@@ -554,7 +560,7 @@ export default function DropDetailsScreen() {
         <View style={styles.infoItem}>
           <Text style={styles.infoLabel}>Progresso</Text>
           <Text style={styles.progressText}>
-            €{currentValue.toFixed(0)} / €{targetValue.toFixed(0)}
+            €{currentValue.toFixed(0)} / €{maxReservationValue.toFixed(0)}
           </Text>
         </View>
       </View>
@@ -573,12 +579,12 @@ export default function DropDetailsScreen() {
           <View
             style={[
               styles.progressBarFill,
-              { width: `${Math.min((currentValue / targetValue) * 100, 100)}%` }
+              { width: `${Math.min((currentValue / maxReservationValue) * 100, 100)}%` }
             ]}
           />
         </View>
         <Text style={styles.progressLabel}>
-          {Math.min(Math.round((currentValue / targetValue) * 100), 100)}% dell'obiettivo
+          {Math.min(Math.round((currentValue / maxReservationValue) * 100), 100)}% dell'obiettivo massimo
         </Text>
       </View>
 
