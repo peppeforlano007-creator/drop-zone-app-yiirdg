@@ -196,7 +196,7 @@ export default function EnhancedProductCard({
         },
       ]}
     >
-      {/* Image Section - Top 50% */}
+      {/* Image Section - Top 45% */}
       <Pressable 
         style={styles.imageWrapper}
         onPress={handleImagePress}
@@ -240,13 +240,14 @@ export default function EnhancedProductCard({
         </View>
       </Pressable>
 
-      {/* Content Section - Bottom 50% with ScrollView */}
+      {/* Content Section - Bottom 55% */}
       <View style={styles.contentWrapper}>
         <ScrollView 
           style={styles.scrollContent}
           contentContainerStyle={styles.scrollContentContainer}
           showsVerticalScrollIndicator={false}
           bounces={true}
+          scrollEventThrottle={16}
         >
           <Animated.View 
             style={[
@@ -359,77 +360,81 @@ export default function EnhancedProductCard({
                 </Text>
               </View>
             )}
-
-            {/* Action Button */}
-            {isInDrop ? (
-              <Animated.View 
-                style={[
-                  styles.bookButtonWrapper,
-                  {
-                    transform: [{ scale: scaleAnim }],
-                  },
-                ]}
-              >
-                <Pressable
-                  onPress={handlePress}
-                  onPressIn={handlePressIn}
-                  onPressOut={handlePressOut}
-                  disabled={isProcessing}
-                  style={styles.bookButton}
-                >
-                  {isProcessing ? (
-                    <ActivityIndicator color="#333" size="small" />
-                  ) : (
-                    <>
-                      <View style={styles.bookButtonIconContainer}>
-                        <IconSymbol 
-                          ios_icon_name="creditcard.fill" 
-                          android_material_icon_name="credit_card" 
-                          size={22} 
-                          color="#333" 
-                        />
-                      </View>
-                      <View style={styles.bookButtonTextContainer}>
-                        <Text style={styles.bookButtonTitle}>PRENOTA CON CARTA</Text>
-                        <Text style={styles.bookButtonSubtitle}>
-                          Blocco temporaneo • Addebito finale
-                        </Text>
-                      </View>
-                      <View style={styles.bookButtonArrow}>
-                        <IconSymbol 
-                          ios_icon_name="chevron.right" 
-                          android_material_icon_name="chevron_right" 
-                          size={22} 
-                          color="#333" 
-                        />
-                      </View>
-                    </>
-                  )}
-                </Pressable>
-              </Animated.View>
-            ) : (
-              <Pressable
-                style={[
-                  styles.actionButton,
-                  isInterested && styles.interestedButton,
-                  isProcessing && styles.actionButtonDisabled,
-                ]}
-                onPress={handlePress}
-                disabled={isProcessing}
-              >
-                {isProcessing ? (
-                  <ActivityIndicator color={colors.background} />
-                ) : (
-                  <Text style={styles.actionButtonText}>
-                    {isInterested
-                      ? 'INTERESSATO ✓'
-                      : 'VORRÒ PARTECIPARE AL DROP'}
-                  </Text>
-                )}
-              </Pressable>
-            )}
           </Animated.View>
         </ScrollView>
+
+        {/* Fixed Action Button at Bottom - Outside ScrollView */}
+        {isInDrop ? (
+          <View style={styles.fixedButtonContainer}>
+            <Animated.View 
+              style={[
+                styles.bookButtonWrapper,
+                {
+                  transform: [{ scale: scaleAnim }],
+                },
+              ]}
+            >
+              <Pressable
+                onPress={handlePress}
+                onPressIn={handlePressIn}
+                onPressOut={handlePressOut}
+                disabled={isProcessing}
+                style={styles.bookButton}
+              >
+                {isProcessing ? (
+                  <ActivityIndicator color="#333" size="small" />
+                ) : (
+                  <>
+                    <View style={styles.bookButtonIconContainer}>
+                      <IconSymbol 
+                        ios_icon_name="creditcard.fill" 
+                        android_material_icon_name="credit_card" 
+                        size={22} 
+                        color="#333" 
+                      />
+                    </View>
+                    <View style={styles.bookButtonTextContainer}>
+                      <Text style={styles.bookButtonTitle}>PRENOTA CON CARTA</Text>
+                      <Text style={styles.bookButtonSubtitle}>
+                        Blocco temporaneo • Addebito finale
+                      </Text>
+                    </View>
+                    <View style={styles.bookButtonArrow}>
+                      <IconSymbol 
+                        ios_icon_name="chevron.right" 
+                        android_material_icon_name="chevron_right" 
+                        size={22} 
+                        color="#333" 
+                      />
+                    </View>
+                  </>
+                )}
+              </Pressable>
+            </Animated.View>
+          </View>
+        ) : (
+          <View style={styles.fixedButtonContainer}>
+            <Pressable
+              style={[
+                styles.actionButton,
+                isInterested && styles.interestedButton,
+                isProcessing && styles.actionButtonDisabled,
+              ]}
+              onPress={handlePress}
+              disabled={isProcessing}
+            >
+              {isProcessing ? (
+                <ActivityIndicator color={colors.background} />
+              ) : (
+                <Text style={styles.actionButtonText}>
+                  {isInterested
+                    ? 'INTERESSATO ✓'
+                    : 'VORRÒ PARTECIPARE AL DROP'}
+                </Text>
+              )}
+            </Pressable>
+          </View>
+        )}
       </View>
 
       <ImageGallery
@@ -450,7 +455,7 @@ const styles = StyleSheet.create({
   },
   imageWrapper: {
     width: '100%',
-    height: SCREEN_HEIGHT * 0.5,
+    height: SCREEN_HEIGHT * 0.45,
     position: 'relative',
   },
   image: {
@@ -510,25 +515,26 @@ const styles = StyleSheet.create({
     letterSpacing: 0.6,
   },
   contentWrapper: {
-    height: SCREEN_HEIGHT * 0.5,
+    height: SCREEN_HEIGHT * 0.55,
     backgroundColor: colors.background,
   },
   scrollContent: {
     flex: 1,
   },
   scrollContentContainer: {
-    paddingBottom: 100,
+    paddingBottom: 20,
   },
   content: {
     padding: 20,
-    gap: 14,
+    paddingBottom: 0,
+    gap: 12,
   },
   productName: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: '800',
     color: colors.text,
     letterSpacing: -0.5,
-    lineHeight: 28,
+    lineHeight: 26,
   },
   priceRow: {
     flexDirection: 'row',
@@ -538,27 +544,27 @@ const styles = StyleSheet.create({
   priceInfo: {
     flexDirection: 'row',
     alignItems: 'baseline',
-    gap: 12,
+    gap: 10,
   },
   originalPrice: {
-    fontSize: 18,
+    fontSize: 16,
     color: colors.textSecondary,
     textDecorationLine: 'line-through',
   },
   discountBadge: {
     backgroundColor: colors.text,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
   },
   discountText: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '800',
     color: colors.background,
     letterSpacing: 0.5,
   },
   discountedPrice: {
-    fontSize: 36,
+    fontSize: 32,
     fontWeight: '900',
     color: colors.text,
     letterSpacing: -1,
@@ -574,12 +580,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 5,
     backgroundColor: colors.backgroundSecondary,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     borderRadius: 8,
   },
   detailText: {
-    fontSize: 13,
+    fontSize: 12,
     color: colors.textSecondary,
     fontWeight: '600',
   },
@@ -587,65 +593,76 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     borderRadius: 8,
   },
   conditionText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '700',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   descriptionContainer: {
-    gap: 6,
+    gap: 4,
   },
   descriptionLabel: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '700',
     color: colors.text,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   descriptionText: {
-    fontSize: 14,
+    fontSize: 13,
     color: colors.textSecondary,
-    lineHeight: 20,
+    lineHeight: 18,
   },
   stockContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    paddingVertical: 4,
+    paddingVertical: 2,
   },
   stockText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '600',
   },
+  fixedButtonContainer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    backgroundColor: colors.background,
+    borderTopWidth: 1,
+    borderTopColor: colors.border + '40',
+    zIndex: 1000,
+  },
   bookButtonWrapper: {
-    marginTop: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
     shadowRadius: 12,
-    elevation: 6,
+    elevation: 8,
   },
   bookButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 18,
-    paddingHorizontal: 20,
-    gap: 14,
+    paddingVertical: 16,
+    paddingHorizontal: 18,
+    gap: 12,
     backgroundColor: '#FFF',
-    borderRadius: 16,
+    borderRadius: 14,
     borderWidth: 2.5,
     borderColor: '#333',
   },
   bookButtonIconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: '#F5F5F5',
     justifyContent: 'center',
     alignItems: 'center',
@@ -654,17 +671,17 @@ const styles = StyleSheet.create({
   },
   bookButtonTextContainer: {
     flex: 1,
-    gap: 3,
+    gap: 2,
   },
   bookButtonTitle: {
     color: '#000',
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '800',
     letterSpacing: 0.3,
   },
   bookButtonSubtitle: {
     color: '#666',
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '500',
     letterSpacing: 0.2,
   },
@@ -672,12 +689,11 @@ const styles = StyleSheet.create({
     opacity: 0.8,
   },
   actionButton: {
-    paddingVertical: 18,
+    paddingVertical: 16,
     borderRadius: 14,
     backgroundColor: colors.text,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 8,
   },
   interestedButton: {
     backgroundColor: colors.secondary,
@@ -687,7 +703,7 @@ const styles = StyleSheet.create({
   },
   actionButtonText: {
     color: colors.background,
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '800',
     letterSpacing: 1,
   },
