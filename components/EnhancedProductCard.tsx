@@ -178,7 +178,7 @@ export default function EnhancedProductCard({
           <Image
             source={{ uri: product.imageUrl }}
             style={styles.image}
-            resizeMode="cover"
+            resizeMode="contain"
             onLoadStart={() => {
               setImageLoaded(false);
               setImageError(false);
@@ -223,7 +223,7 @@ export default function EnhancedProductCard({
           </View>
         )}
 
-        {/* Top badges overlay on image - Removed supplier badge to save space */}
+        {/* Top badges overlay on image */}
         <View style={styles.topBadgesContainer}>
           {isInDrop && currentDiscount && (
             <View style={styles.dropBadge}>
@@ -449,8 +449,9 @@ const styles = StyleSheet.create({
   },
   imageWrapper: {
     width: '100%',
-    height: '100%',
+    height: '65%',
     position: 'absolute',
+    top: 0,
   },
   image: {
     width: '100%',

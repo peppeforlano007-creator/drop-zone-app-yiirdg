@@ -477,6 +477,17 @@ export default function DropDetailsScreen() {
   const currentDiscount = drop.current_discount ?? 0;
   const minReservationValue = drop.supplier_lists?.min_reservation_value ?? 0;
   const maxReservationValue = drop.supplier_lists?.max_reservation_value ?? 0;
+  const minDiscount = drop.supplier_lists?.min_discount ?? 0;
+  const maxDiscount = drop.supplier_lists?.max_discount ?? 0;
+
+  // Calculate progress percentages
+  const valueProgress = maxReservationValue > 0 
+    ? Math.min((currentValue / maxReservationValue) * 100, 100) 
+    : 0;
+  
+  const discountProgress = maxDiscount > minDiscount
+    ? ((currentDiscount - minDiscount) / (maxDiscount - minDiscount)) * 100
+    : 0;
 
   return (
     <View style={styles.container}>
@@ -503,7 +514,7 @@ export default function DropDetailsScreen() {
         })}
       />
 
-      {/* Overlay Header - Positioned absolutely on top - MORE COMPACT */}
+      {/* Overlay Header - Positioned absolutely on top */}
       <View style={styles.overlayHeaderContainer} pointerEvents="box-none">
         <SafeAreaView edges={['top']} style={styles.headerSafeArea}>
           <View style={styles.header}>
@@ -567,33 +578,61 @@ export default function DropDetailsScreen() {
             </View>
           )}
 
-          {/* Drop Info Bar - MUCH MORE COMPACT */}
-          <View style={styles.infoBar}>
-            <View style={styles.infoItem}>
-              <Text style={styles.infoLabel}>Sconto</Text>
-              <Animated.View style={{ transform: [{ scale: bounceAnim }] }}>
-                <Text style={styles.discountText}>{currentDiscount.toFixed(0)}%</Text>
-              </Animated.View>
+          {/* Progress Bar Section - NEW */}
+          <View style={styles.progressSection}>
+            <View style={styles.progressRow}>
+              <View style={styles.progressLabelRow}>
+                <IconSymbol 
+                  ios_icon_name="chart.bar.fill" 
+                  android_material_icon_name="trending_up" 
+                  size={12} 
+                  color={colors.primary} 
+                />
+                <Text style={styles.progressLabel}>Obiettivo</Text>
+              </View>
+              <Text style={styles.progressValue}>
+                €{currentValue.toFixed(0)} / €{maxReservationValue.toFixed(0)}
+              </Text>
+            </View>
+            
+            {/* Progress Bar */}
+            <View style={styles.progressBarContainer}>
+              <View style={[styles.progressBarFill, { width: `${valueProgress}%` }]} />
             </View>
 
-            <View style={styles.divider} />
+            <View style={styles.progressStatsRow}>
+              <View style={styles.progressStat}>
+                <Text style={styles.progressStatLabel}>Sconto Attuale</Text>
+                <Animated.View style={{ transform: [{ scale: bounceAnim }] }}>
+                  <Text style={styles.progressStatValue}>{currentDiscount.toFixed(0)}%</Text>
+                </Animated.View>
+              </View>
+              
+              <View style={styles.progressDivider} />
+              
+              <View style={styles.progressStat}>
+                <Text style={styles.progressStatLabel}>Sconto Max</Text>
+                <Text style={styles.progressStatValueMax}>{maxDiscount.toFixed(0)}%</Text>
+              </View>
+              
+              <View style={styles.progressDivider} />
+              
+              <View style={styles.progressStat}>
+                <Text style={styles.progressStatLabel}>Progresso</Text>
+                <Text style={styles.progressStatValue}>{valueProgress.toFixed(0)}%</Text>
+              </View>
+            </View>
+          </View>
 
+          {/* Drop Info Bar - COMPACT */}
+          <View style={styles.infoBar}>
             <View style={styles.infoItem}>
               <Text style={styles.infoLabel}>Tempo</Text>
               <Text style={styles.timerText}>{timeRemaining.split(' ').slice(0, 2).join(' ')}</Text>
             </View>
-
-            <View style={styles.divider} />
-
-            <View style={styles.infoItem}>
-              <Text style={styles.infoLabel}>Valore</Text>
-              <Text style={styles.progressText}>
-                €{currentValue.toFixed(0)}
-              </Text>
-            </View>
           </View>
 
-          {/* Real-time connection indicator - More compact */}
+          {/* Real-time connection indicator */}
           {isConnected && (
             <View style={styles.realtimeIndicator}>
               <View style={styles.realtimeDot} />
@@ -759,13 +798,94 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontFamily: 'System',
   },
+  // NEW: Progress Section Styles
+  progressSection: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.98)',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0, 0, 0, 0.06)',
+  },
+  progressRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  progressLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  progressLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.text,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    fontFamily: 'System',
+  },
+  progressValue: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: colors.primary,
+    fontFamily: 'System',
+  },
+  progressBarContainer: {
+    height: 8,
+    backgroundColor: 'rgba(0, 0, 0, 0.08)',
+    borderRadius: 4,
+    overflow: 'hidden',
+    marginBottom: 10,
+  },
+  progressBarFill: {
+    height: '100%',
+    backgroundColor: colors.primary,
+    borderRadius: 4,
+  },
+  progressStatsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  progressStat: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  progressStatLabel: {
+    fontSize: 9,
+    color: '#999',
+    marginBottom: 2,
+    fontFamily: 'System',
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+  },
+  progressStatValue: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: colors.primary,
+    fontFamily: 'System',
+  },
+  progressStatValueMax: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#666',
+    fontFamily: 'System',
+  },
+  progressDivider: {
+    width: 1,
+    height: 30,
+    backgroundColor: 'rgba(0, 0, 0, 0.08)',
+    marginHorizontal: 8,
+  },
   infoBar: {
     flexDirection: 'row',
-    paddingVertical: 10,
+    paddingVertical: 8,
     paddingHorizontal: 12,
+    justifyContent: 'center',
   },
   infoItem: {
-    flex: 1,
     alignItems: 'center',
   },
   infoLabel: {
@@ -775,28 +895,11 @@ const styles = StyleSheet.create({
     fontFamily: 'System',
     fontWeight: '600',
   },
-  discountText: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: colors.primary,
-    fontFamily: 'System',
-  },
   timerText: {
     fontSize: 11,
     fontWeight: '700',
     color: '#000',
     fontFamily: 'System',
-  },
-  progressText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#000',
-    fontFamily: 'System',
-  },
-  divider: {
-    width: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.08)',
-    marginHorizontal: 8,
   },
   realtimeIndicator: {
     flexDirection: 'row',
