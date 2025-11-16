@@ -1,262 +1,176 @@
 
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from './IconSymbol';
+import * as Haptics from 'expo-haptics';
 
-export default function ExcelFormatGuide() {
+interface ExcelFormatGuideProps {
+  onClose: () => void;
+}
+
+export default function ExcelFormatGuide({ onClose }: ExcelFormatGuideProps) {
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+    <View style={styles.container}>
       <View style={styles.header}>
-        <IconSymbol 
-          ios_icon_name="doc.text.magnifyingglass" 
-          android_material_icon_name="description" 
-          size={32} 
-          color={colors.text} 
-        />
-        <Text style={styles.title}>Guida Formato File Excel</Text>
-        <Text style={styles.subtitle}>
-          Segui questa guida per creare il file Excel perfetto per l&apos;importazione
-        </Text>
-      </View>
-
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>📋 Colonne Richieste</Text>
-        <Text style={styles.description}>
-          Il file Excel deve contenere le seguenti colonne (l&apos;ordine non è importante):
-        </Text>
-
-        <View style={styles.columnList}>
-          <View style={styles.columnItem}>
-            <View style={styles.columnBadge}>
-              <Text style={styles.columnBadgeText}>nome</Text>
-            </View>
-            <Text style={styles.columnDescription}>Nome del prodotto</Text>
-          </View>
-
-          <View style={styles.columnItem}>
-            <View style={styles.columnBadge}>
-              <Text style={styles.columnBadgeText}>foto</Text>
-            </View>
-            <Text style={styles.columnDescription}>URL dell&apos;immagine del prodotto</Text>
-          </View>
-
-          <View style={styles.columnItem}>
-            <View style={styles.columnBadge}>
-              <Text style={styles.columnBadgeText}>prezzoListino</Text>
-            </View>
-            <Text style={styles.columnDescription}>Prezzo di listino (numero)</Text>
-          </View>
-
-          <View style={styles.columnItem}>
-            <View style={styles.columnBadge}>
-              <Text style={styles.columnBadgeText}>taglie</Text>
-            </View>
-            <Text style={styles.columnDescription}>Taglie disponibili separate da virgola (es. S, M, L, XL)</Text>
-          </View>
-
-          <View style={styles.columnItem}>
-            <View style={styles.columnBadge}>
-              <Text style={styles.columnBadgeText}>colori</Text>
-            </View>
-            <Text style={styles.columnDescription}>Colori disponibili separati da virgola (es. Nero, Bianco, Rosso)</Text>
-          </View>
-
-          <View style={styles.columnItem}>
-            <View style={styles.columnBadge}>
-              <Text style={styles.columnBadgeText}>condizione</Text>
-            </View>
-            <Text style={styles.columnDescription}>Condizione del prodotto (vedi sotto)</Text>
-          </View>
-        </View>
-      </View>
-
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>📦 Colonne Opzionali</Text>
-        
-        <View style={styles.columnList}>
-          <View style={styles.columnItem}>
-            <View style={[styles.columnBadge, styles.optionalBadge]}>
-              <Text style={styles.columnBadgeText}>descrizione</Text>
-            </View>
-            <Text style={styles.columnDescription}>Descrizione dettagliata del prodotto</Text>
-          </View>
-
-          <View style={styles.columnItem}>
-            <View style={[styles.columnBadge, styles.optionalBadge]}>
-              <Text style={styles.columnBadgeText}>categoria</Text>
-            </View>
-            <Text style={styles.columnDescription}>Categoria del prodotto (es. Fashion, Electronics)</Text>
-          </View>
-
-          <View style={styles.columnItem}>
-            <View style={[styles.columnBadge, styles.optionalBadge]}>
-              <Text style={styles.columnBadgeText}>stock</Text>
-            </View>
-            <Text style={styles.columnDescription}>Quantità disponibile in magazzino</Text>
-          </View>
-        </View>
-      </View>
-
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>✨ Valori Condizione</Text>
-        <Text style={styles.description}>
-          La colonna &quot;condizione&quot; deve contenere uno dei seguenti valori:
-        </Text>
-
-        <View style={styles.conditionList}>
-          <View style={styles.conditionItem}>
-            <IconSymbol 
-              ios_icon_name="sparkles" 
-              android_material_icon_name="star" 
-              size={16} 
-              color="#4CAF50" 
-            />
-            <Text style={[styles.conditionText, { color: '#4CAF50' }]}>nuovo</Text>
-            <Text style={styles.conditionDescription}>Prodotto nuovo di zecca</Text>
-          </View>
-
-          <View style={styles.conditionItem}>
-            <IconSymbol 
-              ios_icon_name="arrow.uturn.backward" 
-              android_material_icon_name="keyboard_return" 
-              size={16} 
-              color="#FF9800" 
-            />
-            <Text style={[styles.conditionText, { color: '#FF9800' }]}>reso da cliente</Text>
-            <Text style={styles.conditionDescription}>Prodotto restituito dal cliente</Text>
-          </View>
-
-          <View style={styles.conditionItem}>
-            <IconSymbol 
-              ios_icon_name="exclamationmark.triangle" 
-              android_material_icon_name="warning" 
-              size={16} 
-              color="#F44336" 
-            />
-            <Text style={[styles.conditionText, { color: '#F44336' }]}>packaging rovinato</Text>
-            <Text style={styles.conditionDescription}>Confezione danneggiata</Text>
-          </View>
-        </View>
-      </View>
-
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>🎨 Come Specificare Taglie e Colori</Text>
-        
-        <View style={styles.tipBox}>
-          <IconSymbol 
-            ios_icon_name="lightbulb.fill" 
-            android_material_icon_name="lightbulb" 
-            size={20} 
-            color="#FFC107" 
+        <Text style={styles.title}>Formato File Excel</Text>
+        <Pressable
+          style={styles.closeButton}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            onClose();
+          }}
+        >
+          <IconSymbol
+            ios_icon_name="xmark.circle.fill"
+            android_material_icon_name="cancel"
+            size={28}
+            color={colors.textSecondary}
           />
-          <View style={styles.tipContent}>
-            <Text style={styles.tipTitle}>Taglie</Text>
-            <Text style={styles.tipText}>
-              Inserisci le taglie separate da virgola. Esempi:{'\n'}
-              • S, M, L, XL{'\n'}
-              • 38, 40, 42, 44{'\n'}
-              • Unica
-            </Text>
-          </View>
-        </View>
-
-        <View style={styles.tipBox}>
-          <IconSymbol 
-            ios_icon_name="paintpalette.fill" 
-            android_material_icon_name="palette" 
-            size={20} 
-            color="#2196F3" 
-          />
-          <View style={styles.tipContent}>
-            <Text style={styles.tipTitle}>Colori</Text>
-            <Text style={styles.tipText}>
-              Inserisci i colori separati da virgola. Esempi:{'\n'}
-              • Nero, Bianco, Rosso{'\n'}
-              • Blu Navy, Grigio, Beige{'\n'}
-              • Multicolore
-            </Text>
-          </View>
-        </View>
+        </Pressable>
       </View>
 
-      <View style={styles.exampleSection}>
-        <Text style={styles.sectionTitle}>📊 Esempio Completo</Text>
-        <Text style={styles.description}>
-          Ecco come dovrebbe apparire il tuo file Excel:
-        </Text>
-        
-        <ScrollView horizontal showsHorizontalScrollIndicator={true} style={styles.tableScroll}>
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <IconSymbol
+              ios_icon_name="exclamationmark.circle.fill"
+              android_material_icon_name="error"
+              size={20}
+              color={colors.error}
+            />
+            <Text style={styles.sectionTitle}>Colonne Obbligatorie</Text>
+          </View>
+          <View style={styles.fieldList}>
+            <View style={styles.field}>
+              <Text style={styles.fieldName}>nome</Text>
+              <Text style={styles.fieldDescription}>Nome del prodotto</Text>
+              <Text style={styles.fieldExample}>Es: Scarpe Nike Air Max</Text>
+            </View>
+            <View style={styles.field}>
+              <Text style={styles.fieldName}>immagine_url</Text>
+              <Text style={styles.fieldDescription}>URL dell&apos;immagine principale</Text>
+              <Text style={styles.fieldExample}>Es: https://example.com/image.jpg</Text>
+            </View>
+            <View style={styles.field}>
+              <Text style={styles.fieldName}>prezzo</Text>
+              <Text style={styles.fieldDescription}>Prezzo di listino in euro</Text>
+              <Text style={styles.fieldExample}>Es: 129.99</Text>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <IconSymbol
+              ios_icon_name="info.circle.fill"
+              android_material_icon_name="info"
+              size={20}
+              color={colors.primary}
+            />
+            <Text style={styles.sectionTitle}>Colonne Opzionali</Text>
+          </View>
+          <View style={styles.fieldList}>
+            <View style={styles.field}>
+              <Text style={styles.fieldName}>descrizione</Text>
+              <Text style={styles.fieldDescription}>Descrizione dettagliata del prodotto</Text>
+              <Text style={styles.fieldExample}>Es: Scarpe sportive con suola ammortizzata</Text>
+            </View>
+            <View style={styles.field}>
+              <Text style={styles.fieldName}>immagini_aggiuntive</Text>
+              <Text style={styles.fieldDescription}>URL di immagini aggiuntive (separate da virgola)</Text>
+              <Text style={styles.fieldExample}>Es: https://ex.com/img1.jpg, https://ex.com/img2.jpg</Text>
+            </View>
+            <View style={styles.field}>
+              <Text style={styles.fieldName}>taglie</Text>
+              <Text style={styles.fieldDescription}>Taglie disponibili (separate da virgola)</Text>
+              <Text style={styles.fieldExample}>Es: 38, 39, 40, 41, 42</Text>
+            </View>
+            <View style={styles.field}>
+              <Text style={styles.fieldName}>colori</Text>
+              <Text style={styles.fieldDescription}>Colori disponibili (separate da virgola)</Text>
+              <Text style={styles.fieldExample}>Es: Nero, Bianco, Rosso</Text>
+            </View>
+            <View style={styles.field}>
+              <Text style={styles.fieldName}>condizione</Text>
+              <Text style={styles.fieldDescription}>Condizione del prodotto</Text>
+              <Text style={styles.fieldExample}>Valori: nuovo, reso da cliente, packaging rovinato</Text>
+            </View>
+            <View style={styles.field}>
+              <Text style={styles.fieldName}>categoria</Text>
+              <Text style={styles.fieldDescription}>Categoria del prodotto</Text>
+              <Text style={styles.fieldExample}>Es: Fashion, Elettronica, Casa</Text>
+            </View>
+            <View style={styles.field}>
+              <Text style={styles.fieldName}>stock</Text>
+              <Text style={styles.fieldDescription}>Quantità disponibile</Text>
+              <Text style={styles.fieldExample}>Es: 10 (default: 1)</Text>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.exampleSection}>
+          <Text style={styles.exampleTitle}>Esempio di Riga Excel:</Text>
           <View style={styles.exampleTable}>
-            <View style={styles.exampleHeader}>
-              <Text style={[styles.exampleHeaderText, styles.col1]}>nome</Text>
-              <Text style={[styles.exampleHeaderText, styles.col2]}>foto</Text>
-              <Text style={[styles.exampleHeaderText, styles.col3]}>prezzoListino</Text>
-              <Text style={[styles.exampleHeaderText, styles.col4]}>taglie</Text>
-              <Text style={[styles.exampleHeaderText, styles.col5]}>colori</Text>
-              <Text style={[styles.exampleHeaderText, styles.col6]}>condizione</Text>
+            <View style={styles.exampleRow}>
+              <Text style={styles.exampleCell}>nome</Text>
+              <Text style={styles.exampleCell}>Scarpe Nike Air Max</Text>
             </View>
             <View style={styles.exampleRow}>
-              <Text style={[styles.exampleCell, styles.col1]}>Giacca Pelle</Text>
-              <Text style={[styles.exampleCell, styles.col2]}>https://...</Text>
-              <Text style={[styles.exampleCell, styles.col3]}>450</Text>
-              <Text style={[styles.exampleCell, styles.col4]}>M, L, XL</Text>
-              <Text style={[styles.exampleCell, styles.col5]}>Nero, Marrone</Text>
-              <Text style={[styles.exampleCell, styles.col6]}>nuovo</Text>
+              <Text style={styles.exampleCell}>descrizione</Text>
+              <Text style={styles.exampleCell}>Scarpe sportive comode</Text>
             </View>
             <View style={styles.exampleRow}>
-              <Text style={[styles.exampleCell, styles.col1]}>Borsa Designer</Text>
-              <Text style={[styles.exampleCell, styles.col2]}>https://...</Text>
-              <Text style={[styles.exampleCell, styles.col3]}>320</Text>
-              <Text style={[styles.exampleCell, styles.col4]}>Unica</Text>
-              <Text style={[styles.exampleCell, styles.col5]}>Beige, Nero</Text>
-              <Text style={[styles.exampleCell, styles.col6]}>reso da cliente</Text>
+              <Text style={styles.exampleCell}>immagine_url</Text>
+              <Text style={styles.exampleCell}>https://example.com/nike.jpg</Text>
             </View>
             <View style={styles.exampleRow}>
-              <Text style={[styles.exampleCell, styles.col1]}>Sneakers Sport</Text>
-              <Text style={[styles.exampleCell, styles.col2]}>https://...</Text>
-              <Text style={[styles.exampleCell, styles.col3]}>180</Text>
-              <Text style={[styles.exampleCell, styles.col4]}>40, 41, 42, 43</Text>
-              <Text style={[styles.exampleCell, styles.col5]}>Bianco, Nero</Text>
-              <Text style={[styles.exampleCell, styles.col6]}>packaging rovinato</Text>
+              <Text style={styles.exampleCell}>prezzo</Text>
+              <Text style={styles.exampleCell}>129.99</Text>
+            </View>
+            <View style={styles.exampleRow}>
+              <Text style={styles.exampleCell}>taglie</Text>
+              <Text style={styles.exampleCell}>38, 39, 40, 41, 42</Text>
+            </View>
+            <View style={styles.exampleRow}>
+              <Text style={styles.exampleCell}>colori</Text>
+              <Text style={styles.exampleCell}>Nero, Bianco</Text>
+            </View>
+            <View style={styles.exampleRow}>
+              <Text style={styles.exampleCell}>condizione</Text>
+              <Text style={styles.exampleCell}>nuovo</Text>
+            </View>
+            <View style={styles.exampleRow}>
+              <Text style={styles.exampleCell}>categoria</Text>
+              <Text style={styles.exampleCell}>Fashion</Text>
+            </View>
+            <View style={styles.exampleRow}>
+              <Text style={styles.exampleCell}>stock</Text>
+              <Text style={styles.exampleCell}>15</Text>
             </View>
           </View>
-        </ScrollView>
-      </View>
-
-      <View style={styles.notesSection}>
-        <IconSymbol 
-          ios_icon_name="exclamationmark.circle.fill" 
-          android_material_icon_name="info" 
-          size={24} 
-          color={colors.text} 
-        />
-        <Text style={styles.notesTitle}>Note Importanti</Text>
-        <View style={styles.notesList}>
-          <Text style={styles.noteItem}>
-            • I nomi delle colonne non sono case-sensitive (puoi usare &quot;Nome&quot; o &quot;nome&quot;)
-          </Text>
-          <Text style={styles.noteItem}>
-            • Le URL delle foto devono essere complete e accessibili
-          </Text>
-          <Text style={styles.noteItem}>
-            • Il prezzo deve essere un numero senza simboli (es. 450, non €450)
-          </Text>
-          <Text style={styles.noteItem}>
-            • Se un prodotto non ha taglie o colori, lascia la cella vuota
-          </Text>
-          <Text style={styles.noteItem}>
-            • La condizione è obbligatoria per ogni prodotto
-          </Text>
         </View>
-      </View>
 
-      <View style={styles.footer}>
-        <Text style={styles.footerText}>
-          Seguendo questa guida, il tuo file Excel sarà perfettamente compatibile con il sistema di importazione! 🎉
-        </Text>
-      </View>
-    </ScrollView>
+        <View style={styles.tipsSection}>
+          <View style={styles.sectionHeader}>
+            <IconSymbol
+              ios_icon_name="lightbulb.fill"
+              android_material_icon_name="lightbulb"
+              size={20}
+              color="#FFA500"
+            />
+            <Text style={styles.sectionTitle}>Suggerimenti</Text>
+          </View>
+          <View style={styles.tipsList}>
+            <Text style={styles.tip}>• La prima riga deve contenere i nomi delle colonne</Text>
+            <Text style={styles.tip}>• Usa il punto (.) come separatore decimale per i prezzi</Text>
+            <Text style={styles.tip}>• Gli URL delle immagini devono essere completi e accessibili</Text>
+            <Text style={styles.tip}>• Per liste multiple (taglie, colori, immagini), usa la virgola come separatore</Text>
+            <Text style={styles.tip}>• Se una colonna opzionale è vuota, verrà ignorata</Text>
+          </View>
+        </View>
+      </ScrollView>
+    </View>
   );
 }
 
@@ -266,195 +180,102 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   header: {
+    flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 24,
-    paddingHorizontal: 20,
-    backgroundColor: colors.backgroundSecondary,
+    justifyContent: 'space-between',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
   title: {
     fontSize: 24,
     fontWeight: '700',
     color: colors.text,
-    marginTop: 12,
-    textAlign: 'center',
   },
-  subtitle: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    marginTop: 8,
-    textAlign: 'center',
-    lineHeight: 20,
+  closeButton: {
+    padding: 4,
+  },
+  content: {
+    flex: 1,
+    padding: 20,
   },
   section: {
-    paddingHorizontal: 20,
-    paddingVertical: 20,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
+    marginBottom: 24,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: '700',
     color: colors.text,
-    marginBottom: 12,
   },
-  description: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    lineHeight: 20,
-    marginBottom: 16,
+  fieldList: {
+    gap: 16,
   },
-  columnList: {
-    gap: 12,
-  },
-  columnItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  columnBadge: {
-    backgroundColor: colors.text,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 4,
-    minWidth: 120,
-  },
-  optionalBadge: {
-    backgroundColor: colors.textSecondary,
-  },
-  columnBadgeText: {
-    color: colors.background,
-    fontSize: 12,
-    fontWeight: '700',
-    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
-  },
-  columnDescription: {
-    flex: 1,
-    fontSize: 13,
-    color: colors.textSecondary,
-    lineHeight: 18,
-  },
-  conditionList: {
-    gap: 12,
-  },
-  conditionItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    backgroundColor: colors.backgroundSecondary,
-    padding: 14,
+  field: {
+    backgroundColor: colors.card,
+    padding: 12,
     borderRadius: 8,
-  },
-  conditionText: {
-    fontSize: 14,
-    fontWeight: '700',
-    minWidth: 140,
-  },
-  conditionDescription: {
-    flex: 1,
-    fontSize: 12,
-    color: colors.textSecondary,
-  },
-  tipBox: {
-    flexDirection: 'row',
-    gap: 12,
-    backgroundColor: colors.backgroundSecondary,
-    padding: 16,
-    borderRadius: 8,
-    marginBottom: 12,
     borderLeftWidth: 3,
-    borderLeftColor: '#FFC107',
+    borderLeftColor: colors.primary,
   },
-  tipContent: {
-    flex: 1,
-  },
-  tipTitle: {
-    fontSize: 15,
+  fieldName: {
+    fontSize: 14,
     fontWeight: '700',
-    color: colors.text,
-    marginBottom: 6,
+    color: colors.primary,
+    fontFamily: 'monospace',
+    marginBottom: 4,
   },
-  tipText: {
-    fontSize: 13,
+  fieldDescription: {
+    fontSize: 14,
+    color: colors.text,
+    marginBottom: 4,
+  },
+  fieldExample: {
+    fontSize: 12,
     color: colors.textSecondary,
-    lineHeight: 20,
+    fontStyle: 'italic',
   },
   exampleSection: {
-    paddingHorizontal: 20,
-    paddingVertical: 20,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
+    marginBottom: 24,
+    backgroundColor: colors.card,
+    padding: 16,
+    borderRadius: 8,
   },
-  tableScroll: {
-    marginTop: 12,
+  exampleTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: 12,
   },
   exampleTable: {
-    backgroundColor: colors.backgroundSecondary,
-    borderRadius: 8,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  exampleHeader: {
-    flexDirection: 'row',
-    backgroundColor: colors.text,
-    padding: 10,
-  },
-  exampleHeaderText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: colors.background,
-    paddingHorizontal: 8,
+    gap: 8,
   },
   exampleRow: {
     flexDirection: 'row',
-    padding: 10,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
+    paddingVertical: 8,
   },
   exampleCell: {
-    fontSize: 11,
-    color: colors.textSecondary,
-    paddingHorizontal: 8,
-  },
-  col1: { width: 100 },
-  col2: { width: 80 },
-  col3: { width: 80 },
-  col4: { width: 100 },
-  col5: { width: 100 },
-  col6: { width: 120 },
-  notesSection: {
-    paddingHorizontal: 20,
-    paddingVertical: 20,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    alignItems: 'center',
-  },
-  notesTitle: {
-    fontSize: 18,
-    fontWeight: '700',
+    flex: 1,
+    fontSize: 12,
     color: colors.text,
-    marginTop: 12,
-    marginBottom: 16,
+    fontFamily: 'monospace',
   },
-  notesList: {
-    gap: 10,
-    width: '100%',
+  tipsSection: {
+    marginBottom: 24,
   },
-  noteItem: {
-    fontSize: 13,
-    color: colors.textSecondary,
-    lineHeight: 20,
+  tipsList: {
+    gap: 8,
   },
-  footer: {
-    paddingHorizontal: 20,
-    paddingVertical: 24,
-    alignItems: 'center',
-  },
-  footerText: {
+  tip: {
     fontSize: 14,
-    color: colors.text,
-    textAlign: 'center',
+    color: colors.textSecondary,
     lineHeight: 20,
-    fontWeight: '600',
   },
 });

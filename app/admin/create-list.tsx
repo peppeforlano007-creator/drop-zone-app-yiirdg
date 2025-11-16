@@ -31,6 +31,7 @@ interface ExcelProduct {
   nome: string;
   descrizione?: string;
   immagine_url: string;
+  immagini_aggiuntive?: string;
   prezzo: number;
   taglie?: string;
   colori?: string;
@@ -113,6 +114,7 @@ export default function CreateListScreen() {
       const jsonData = XLSX.utils.sheet_to_json(worksheet) as any[];
       
       console.log('Parsed Excel data:', jsonData);
+      console.log('Sample row:', jsonData[0]);
 
       if (jsonData.length === 0) {
         Alert.alert('Errore', 'Il file Excel è vuoto');
@@ -122,6 +124,7 @@ export default function CreateListScreen() {
       // Validate and transform data
       const products: ExcelProduct[] = [];
       const errors: string[] = [];
+      const warnings: string[] = [];
 
       jsonData.forEach((row, index) => {
         const rowNum = index + 2; // +2 because Excel rows start at 1 and we have a header
@@ -150,10 +153,19 @@ export default function CreateListScreen() {
           return;
         }
 
+        // Check for optional fields and warn if missing
+        if (!row.descrizione) {
+          warnings.push(`Riga ${rowNum}: Descrizione mancante`);
+        }
+        if (!row.categoria) {
+          warnings.push(`Riga ${rowNum}: Categoria mancante`);
+        }
+
         products.push({
           nome: row.nome,
           descrizione: row.descrizione || '',
           immagine_url: row.immagine_url,
+          immagini_aggiuntive: row.immagini_aggiuntive || '',
           prezzo: price,
           taglie: row.taglie || '',
           colori: row.colori || '',
@@ -181,10 +193,16 @@ export default function CreateListScreen() {
 
       setExcelProducts(products);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert(
-        'File Caricato',
-        `${products.length} prodott${products.length === 1 ? 'o' : 'i'} caricato con successo!\n\nCompila i campi della lista e clicca "Crea Lista con Prodotti" per procedere.`
-      );
+      
+      let message = `${products.length} prodott${products.length === 1 ? 'o' : 'i'} caricato con successo!`;
+      
+      if (warnings.length > 0) {
+        message += `\n\n⚠️ Avvisi:\n${warnings.slice(0, 3).join('\n')}${warnings.length > 3 ? `\n...e altri ${warnings.length - 3}` : ''}`;
+      }
+      
+      message += '\n\nCompila i campi della lista e clicca "Crea Lista con Prodotti" per procedere.';
+      
+      Alert.alert('File Caricato', message);
     } catch (error) {
       console.error('Error reading Excel file:', error);
       Alert.alert('Errore', 'Impossibile leggere il file Excel. Assicurati che sia un file .xlsx o .xls valido.');
@@ -271,20 +289,39 @@ export default function CreateListScreen() {
       if (importMode === 'excel' && excelProducts.length > 0) {
         console.log(`Importing ${excelProducts.length} products from Excel...`);
         
-        const productsToInsert = excelProducts.map(product => ({
-          supplier_list_id: data.id,
-          supplier_id: selectedSupplierId,
-          name: product.nome,
-          description: product.descrizione || null,
-          image_url: product.immagine_url,
-          original_price: product.prezzo,
-          available_sizes: product.taglie ? product.taglie.split(',').map(s => s.trim()).filter(s => s) : null,
-          available_colors: product.colori ? product.colori.split(',').map(c => c.trim()).filter(c => c) : null,
-          condition: product.condizione,
-          category: product.categoria || null,
-          stock: product.stock,
-          status: 'active',
-        }));
+        const productsToInsert = excelProducts.map(product => {
+          // Parse additional images if provided
+          const additionalImages = product.immagini_aggiuntive 
+            ? product.immagini_aggiuntive.split(',').map(url => url.trim()).filter(url => url)
+            : [];
+          
+          // Parse sizes and colors
+          const sizes = product.taglie 
+            ? product.taglie.split(',').map(s => s.trim()).filter(s => s)
+            : [];
+          
+          const colors = product.colori 
+            ? product.colori.split(',').map(c => c.trim()).filter(c => c)
+            : [];
+
+          return {
+            supplier_list_id: data.id,
+            supplier_id: selectedSupplierId,
+            name: product.nome,
+            description: product.descrizione || null,
+            image_url: product.immagine_url,
+            additional_images: additionalImages.length > 0 ? additionalImages : null,
+            original_price: product.prezzo,
+            available_sizes: sizes.length > 0 ? sizes : null,
+            available_colors: colors.length > 0 ? colors : null,
+            condition: product.condizione,
+            category: product.categoria || null,
+            stock: product.stock,
+            status: 'active',
+          };
+        });
+
+        console.log('Sample product to insert:', productsToInsert[0]);
 
         const { error: productsError } = await supabase
           .from('products')
@@ -531,9 +568,13 @@ export default function CreateListScreen() {
                   </Pressable>
                   
                   <Text style={styles.excelHint}>
-                    Il file Excel deve contenere le colonne:{'\n'}
-                    nome, immagine_url, prezzo (obbligatori){'\n'}
-                    descrizione, taglie, colori, condizione, categoria, stock (opzionali)
+                    <Text style={styles.excelHintBold}>Colonne obbligatorie:</Text>{'\n'}
+                    • nome, immagine_url, prezzo{'\n\n'}
+                    <Text style={styles.excelHintBold}>Colonne opzionali:</Text>{'\n'}
+                    • descrizione, immagini_aggiuntive (separate da virgola){'\n'}
+                    • taglie (separate da virgola), colori (separate da virgola){'\n'}
+                    • condizione (nuovo/reso da cliente/packaging rovinato){'\n'}
+                    • categoria, stock
                   </Text>
                 </View>
               )}
@@ -857,6 +898,10 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.textSecondary,
     lineHeight: 18,
+  },
+  excelHintBold: {
+    fontWeight: '700',
+    color: colors.text,
   },
   supplierList: {
     maxHeight: 200,

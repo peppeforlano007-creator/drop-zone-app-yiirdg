@@ -9,7 +9,7 @@ import { usePayment } from '@/contexts/PaymentContext';
 import { colors } from '@/styles/commonStyles';
 import { View, Text, StyleSheet, FlatList, Dimensions, Pressable, Alert, Linking, Animated, ActivityIndicator } from 'react-native';
 import { useAuth } from '@/contexts/AuthContext';
-import ProductCard from '@/components/ProductCard';
+import EnhancedProductCard from '@/components/EnhancedProductCard';
 import * as Haptics from 'expo-haptics';
 
 const { width, height } = Dimensions.get('window');
@@ -17,14 +17,14 @@ const { width, height } = Dimensions.get('window');
 interface ProductData {
   id: string;
   name: string;
-  description: string;
+  description: string | null;
   image_url: string;
-  additional_images: string[];
+  additional_images: string[] | null;
   original_price: number;
-  available_sizes: string[];
-  available_colors: string[];
+  available_sizes: string[] | null;
+  available_colors: string[] | null;
   condition: string;
-  category: string;
+  category: string | null;
   stock: number;
 }
 
@@ -59,9 +59,11 @@ export default function DropDetailsScreen() {
   const [loading, setLoading] = useState(true);
   const [userBookings, setUserBookings] = useState<Set<string>>(new Set());
   const [timeRemaining, setTimeRemaining] = useState('');
+  const [headerHeight, setHeaderHeight] = useState(0);
   const bounceAnim = useRef(new Animated.Value(1)).current;
   const { hasPaymentMethod } = usePayment();
   const { user } = useAuth();
+  const flatListRef = useRef<FlatList>(null);
 
   const loadDropDetails = useCallback(async () => {
     if (!dropId) {
@@ -110,6 +112,7 @@ export default function DropDetailsScreen() {
         console.error('Error loading products:', productsError);
       } else {
         console.log('Products loaded:', productsData?.length);
+        console.log('Sample product data:', productsData?.[0]);
         setProducts(productsData || []);
       }
     } catch (error) {
@@ -407,10 +410,30 @@ export default function DropDetailsScreen() {
   const renderProduct = ({ item }: { item: ProductData }) => {
     const isBooked = userBookings.has(item.id);
     
+    // Transform product data to match Product type
+    const productForCard = {
+      id: item.id,
+      name: item.name,
+      description: item.description || '',
+      imageUrl: item.image_url,
+      imageUrls: item.additional_images || [item.image_url],
+      originalPrice: Number(item.original_price),
+      minDiscount: drop?.supplier_lists?.min_discount ?? 0,
+      maxDiscount: drop?.supplier_lists?.max_discount ?? 0,
+      sizes: item.available_sizes?.join(', ') || '',
+      colors: item.available_colors?.join(', ') || '',
+      availableSizes: item.available_sizes || [],
+      availableColors: item.available_colors || [],
+      condition: item.condition || 'nuovo',
+      category: item.category || '',
+      stock: item.stock,
+      supplierName: drop?.supplier_lists?.name || 'Fornitore',
+    };
+    
     return (
       <View style={styles.productContainer}>
-        <ProductCard
-          product={item}
+        <EnhancedProductCard
+          product={productForCard}
           isInDrop={true}
           currentDiscount={drop?.current_discount}
           onBook={isBooked ? undefined : handleBook}
@@ -419,12 +442,6 @@ export default function DropDetailsScreen() {
       </View>
     );
   };
-
-  const getItemLayout = (_: any, index: number) => ({
-    length: height,
-    offset: height * index,
-    index,
-  });
 
   if (loading) {
     return (
@@ -464,138 +481,147 @@ export default function DropDetailsScreen() {
   const maxReservationValue = drop.supplier_lists?.max_reservation_value ?? 0;
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <View style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
       
-      {/* Header */}
-      <View style={styles.header}>
-        <Pressable
-          style={styles.backBtn}
-          onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            router.back();
+      {/* Header - Fixed at top */}
+      <SafeAreaView edges={['top']} style={styles.headerSafeArea}>
+        <View 
+          style={styles.header}
+          onLayout={(event) => {
+            const { height } = event.nativeEvent.layout;
+            setHeaderHeight(height);
           }}
         >
-          <IconSymbol ios_icon_name="chevron.left" android_material_icon_name="arrow_back" size={24} color={colors.text} />
-        </Pressable>
+          <Pressable
+            style={styles.backBtn}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              router.back();
+            }}
+          >
+            <IconSymbol ios_icon_name="chevron.left" android_material_icon_name="arrow_back" size={24} color={colors.text} />
+          </Pressable>
 
-        <View style={styles.headerCenter}>
-          <Text style={styles.dropName}>{drop.name}</Text>
-          <Text style={styles.pickupPoint}>
-            <IconSymbol ios_icon_name="location.fill" android_material_icon_name="location_on" size={14} color={colors.textSecondary} />
-            {' '}{drop.pickup_points?.name ?? 'N/A'}
-          </Text>
+          <View style={styles.headerCenter}>
+            <Text style={styles.dropName}>{drop.name}</Text>
+            <Text style={styles.pickupPoint}>
+              <IconSymbol ios_icon_name="location.fill" android_material_icon_name="location_on" size={14} color={colors.textSecondary} />
+              {' '}{drop.pickup_points?.name ?? 'N/A'}
+            </Text>
+          </View>
+
+          <Pressable
+            style={styles.shareBtn}
+            onPress={handleShareWhatsApp}
+            onPressIn={handlePressIn}
+            onPressOut={handlePressOut}
+          >
+            <Animated.View style={{ transform: [{ scale: bounceAnim }] }}>
+              <IconSymbol ios_icon_name="square.and.arrow.up" android_material_icon_name="share" size={24} color={colors.text} />
+            </Animated.View>
+          </Pressable>
         </View>
 
-        <Pressable
-          style={styles.shareBtn}
-          onPress={handleShareWhatsApp}
-          onPressIn={handlePressIn}
-          onPressOut={handlePressOut}
-        >
-          <Animated.View style={{ transform: [{ scale: bounceAnim }] }}>
-            <IconSymbol ios_icon_name="square.and.arrow.up" android_material_icon_name="share" size={24} color={colors.text} />
-          </Animated.View>
-        </Pressable>
-      </View>
-
-      {/* Underfunding Warning */}
-      {atRisk && (
-        <View style={styles.underfundingWarning}>
-          <IconSymbol
-            ios_icon_name="exclamationmark.triangle.fill"
-            android_material_icon_name="warning"
-            size={24}
-            color="#FF6B35"
-          />
-          <View style={styles.underfundingContent}>
-            <Text style={styles.underfundingTitle}>⚠️ Drop a Rischio!</Text>
-            <Text style={styles.underfundingText}>
-              Abbiamo raggiunto solo €{currentValue.toFixed(0)} su €{minReservationValue.toFixed(0)} richiesti.
-            </Text>
-            <Text style={styles.underfundingText}>
-              Se non raggiungiamo l&apos;ordine minimo entro la scadenza, il drop verrà annullato e i fondi rilasciati.
-            </Text>
-            <View style={styles.underfundingProgressBar}>
-              <View 
-                style={[
-                  styles.underfundingProgressFill, 
-                  { width: `${Math.min(underfundingProgress, 100)}%` }
-                ]} 
-              />
-            </View>
-            <Text style={styles.underfundingProgressText}>
-              {underfundingProgress.toFixed(0)}% dell&apos;ordine minimo
-            </Text>
-            <Pressable
-              style={styles.shareUrgentButton}
-              onPress={handleShareWhatsApp}
-            >
-              <IconSymbol
-                ios_icon_name="square.and.arrow.up.fill"
-                android_material_icon_name="share"
-                size={18}
-                color="#fff"
-              />
-              <Text style={styles.shareUrgentButtonText}>
-                Condividi Ora con Amici!
+        {/* Underfunding Warning */}
+        {atRisk && (
+          <View style={styles.underfundingWarning}>
+            <IconSymbol
+              ios_icon_name="exclamationmark.triangle.fill"
+              android_material_icon_name="warning"
+              size={24}
+              color="#FF6B35"
+            />
+            <View style={styles.underfundingContent}>
+              <Text style={styles.underfundingTitle}>⚠️ Drop a Rischio!</Text>
+              <Text style={styles.underfundingText}>
+                Abbiamo raggiunto solo €{currentValue.toFixed(0)} su €{minReservationValue.toFixed(0)} richiesti.
               </Text>
-            </Pressable>
+              <Text style={styles.underfundingText}>
+                Se non raggiungiamo l&apos;ordine minimo entro la scadenza, il drop verrà annullato e i fondi rilasciati.
+              </Text>
+              <View style={styles.underfundingProgressBar}>
+                <View 
+                  style={[
+                    styles.underfundingProgressFill, 
+                    { width: `${Math.min(underfundingProgress, 100)}%` }
+                  ]} 
+                />
+              </View>
+              <Text style={styles.underfundingProgressText}>
+                {underfundingProgress.toFixed(0)}% dell&apos;ordine minimo
+              </Text>
+              <Pressable
+                style={styles.shareUrgentButton}
+                onPress={handleShareWhatsApp}
+              >
+                <IconSymbol
+                  ios_icon_name="square.and.arrow.up.fill"
+                  android_material_icon_name="share"
+                  size={18}
+                  color="#fff"
+                />
+                <Text style={styles.shareUrgentButtonText}>
+                  Condividi Ora con Amici!
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        )}
+
+        {/* Drop Info Bar */}
+        <View style={styles.infoBar}>
+          <View style={styles.infoItem}>
+            <Text style={styles.infoLabel}>Sconto attuale</Text>
+            <Animated.View style={{ transform: [{ scale: bounceAnim }] }}>
+              <Text style={styles.discountText}>{currentDiscount.toFixed(1)}%</Text>
+            </Animated.View>
+          </View>
+
+          <View style={styles.divider} />
+
+          <View style={styles.infoItem}>
+            <Text style={styles.infoLabel}>Tempo rimanente</Text>
+            <Text style={styles.timerText}>{timeRemaining}</Text>
+          </View>
+
+          <View style={styles.divider} />
+
+          <View style={styles.infoItem}>
+            <Text style={styles.infoLabel}>Progresso</Text>
+            <Text style={styles.progressText}>
+              €{currentValue.toFixed(0)} / €{maxReservationValue.toFixed(0)}
+            </Text>
           </View>
         </View>
-      )}
 
-      {/* Drop Info Bar */}
-      <View style={styles.infoBar}>
-        <View style={styles.infoItem}>
-          <Text style={styles.infoLabel}>Sconto attuale</Text>
-          <Animated.View style={{ transform: [{ scale: bounceAnim }] }}>
-            <Text style={styles.discountText}>{currentDiscount.toFixed(1)}%</Text>
-          </Animated.View>
-        </View>
+        {/* Real-time connection indicator */}
+        {isConnected && (
+          <View style={styles.realtimeIndicator}>
+            <View style={styles.realtimeDot} />
+            <Text style={styles.realtimeText}>Aggiornamenti in tempo reale attivi</Text>
+          </View>
+        )}
 
-        <View style={styles.divider} />
-
-        <View style={styles.infoItem}>
-          <Text style={styles.infoLabel}>Tempo rimanente</Text>
-          <Text style={styles.timerText}>{timeRemaining}</Text>
-        </View>
-
-        <View style={styles.divider} />
-
-        <View style={styles.infoItem}>
-          <Text style={styles.infoLabel}>Progresso</Text>
-          <Text style={styles.progressText}>
-            €{currentValue.toFixed(0)} / €{maxReservationValue.toFixed(0)}
+        {/* Progress Bar */}
+        <View style={styles.progressBarContainer}>
+          <View style={styles.progressBarBackground}>
+            <View
+              style={[
+                styles.progressBarFill,
+                { width: `${Math.min((currentValue / maxReservationValue) * 100, 100)}%` }
+              ]}
+            />
+          </View>
+          <Text style={styles.progressLabel}>
+            {Math.min(Math.round((currentValue / maxReservationValue) * 100), 100)}% dell&apos;obiettivo massimo
           </Text>
         </View>
-      </View>
+      </SafeAreaView>
 
-      {/* Real-time connection indicator */}
-      {isConnected && (
-        <View style={styles.realtimeIndicator}>
-          <View style={styles.realtimeDot} />
-          <Text style={styles.realtimeText}>Aggiornamenti in tempo reale attivi</Text>
-        </View>
-      )}
-
-      {/* Progress Bar */}
-      <View style={styles.progressBarContainer}>
-        <View style={styles.progressBarBackground}>
-          <View
-            style={[
-              styles.progressBarFill,
-              { width: `${Math.min((currentValue / maxReservationValue) * 100, 100)}%` }
-            ]}
-          />
-        </View>
-        <Text style={styles.progressLabel}>
-          {Math.min(Math.round((currentValue / maxReservationValue) * 100), 100)}% dell&apos;obiettivo massimo
-        </Text>
-      </View>
-
-      {/* Products List */}
+      {/* Products List - Full screen scrollable */}
       <FlatList
+        ref={flatListRef}
         data={products}
         renderItem={renderProduct}
         keyExtractor={(item) => item.id}
@@ -603,13 +629,17 @@ export default function DropDetailsScreen() {
         showsVerticalScrollIndicator={false}
         snapToInterval={height}
         decelerationRate="fast"
-        getItemLayout={getItemLayout}
         removeClippedSubviews={true}
         maxToRenderPerBatch={2}
         windowSize={3}
         initialNumToRender={1}
+        getItemLayout={(data, index) => ({
+          length: height,
+          offset: height * index,
+          index,
+        })}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -617,6 +647,11 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
+  },
+  headerSafeArea: {
+    backgroundColor: colors.card,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
   loadingContainer: {
     flex: 1,
@@ -662,8 +697,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     backgroundColor: colors.card,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
   },
   backBtn: {
     width: 40,
@@ -763,8 +796,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card,
     paddingVertical: 16,
     paddingHorizontal: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
   },
   infoItem: {
     flex: 1,
@@ -824,8 +855,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     backgroundColor: colors.card,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
   },
   progressBarBackground: {
     height: 8,
@@ -847,5 +876,6 @@ const styles = StyleSheet.create({
   },
   productContainer: {
     height: height,
+    width: width,
   },
 });
