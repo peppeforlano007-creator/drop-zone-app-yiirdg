@@ -210,7 +210,14 @@ export default function DropDetailsScreen() {
       const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
       const seconds = Math.floor((distance % (1000 * 60)) / 1000);
 
-      setTimeRemaining(`${days}g ${hours}h ${minutes}m ${seconds}s`);
+      // Format with full labels: giorni, ore, minuti, secondi
+      const parts = [];
+      if (days > 0) parts.push(`${days} ${days === 1 ? 'giorno' : 'giorni'}`);
+      if (hours > 0) parts.push(`${hours} ${hours === 1 ? 'ora' : 'ore'}`);
+      if (minutes > 0) parts.push(`${minutes} ${minutes === 1 ? 'minuto' : 'minuti'}`);
+      if (seconds >= 0) parts.push(`${seconds} ${seconds === 1 ? 'secondo' : 'secondi'}`);
+
+      setTimeRemaining(parts.join(', '));
     };
 
     updateTimer();
@@ -627,8 +634,8 @@ export default function DropDetailsScreen() {
           {/* Drop Info Bar - COMPACT */}
           <View style={styles.infoBar}>
             <View style={styles.infoItem}>
-              <Text style={styles.infoLabel}>Tempo</Text>
-              <Text style={styles.timerText}>{timeRemaining.split(' ').slice(0, 2).join(' ')}</Text>
+              <Text style={styles.infoLabel}>Tempo Rimanente</Text>
+              <Text style={styles.timerText}>{timeRemaining}</Text>
             </View>
           </View>
 
@@ -881,7 +888,7 @@ const styles = StyleSheet.create({
   },
   infoBar: {
     flexDirection: 'row',
-    paddingVertical: 8,
+    paddingVertical: 10,
     paddingHorizontal: 12,
     justifyContent: 'center',
   },
@@ -891,7 +898,7 @@ const styles = StyleSheet.create({
   infoLabel: {
     fontSize: 10,
     color: '#999',
-    marginBottom: 2,
+    marginBottom: 4,
     fontFamily: 'System',
     fontWeight: '600',
   },
@@ -900,6 +907,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#000',
     fontFamily: 'System',
+    textAlign: 'center',
   },
   realtimeIndicator: {
     flexDirection: 'row',
