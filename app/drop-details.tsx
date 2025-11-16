@@ -111,7 +111,6 @@ export default function DropDetailsScreen() {
         console.error('Error loading products:', productsError);
       } else {
         console.log('Products loaded:', productsData?.length);
-        console.log('Sample product data:', productsData?.[0]);
         setProducts(productsData || []);
       }
     } catch (error) {
@@ -158,7 +157,7 @@ export default function DropDetailsScreen() {
     console.log('Real-time drop update received:', updatedDrop);
     
     setDrop(prevDrop => {
-      if (!prevDrop) return prevDrop;
+      if (!prevDrop || prevDrop.id !== updatedDrop.id) return prevDrop;
       
       return {
         ...prevDrop,
@@ -220,7 +219,7 @@ export default function DropDetailsScreen() {
     return () => clearInterval(interval);
   }, [drop]);
 
-  const calculateNewDiscount = (newValue: number): number => {
+  const calculateNewDiscount = useCallback((newValue: number): number => {
     if (!drop || !drop.supplier_lists) return 0;
 
     const minDiscount = drop.supplier_lists.min_discount ?? 0;
@@ -242,9 +241,9 @@ export default function DropDetailsScreen() {
     const newDiscount = minDiscount + (discountRange * valueProgress);
 
     return Math.round(newDiscount * 100) / 100;
-  };
+  }, [drop]);
 
-  const isAtRiskOfUnderfunding = (): boolean => {
+  const isAtRiskOfUnderfunding = useCallback((): boolean => {
     if (!drop || !drop.supplier_lists) return false;
     
     const now = new Date().getTime();
@@ -257,14 +256,14 @@ export default function DropDetailsScreen() {
     
     // Show warning if less than 24 hours left and below minimum value
     return hoursLeft < 24 && currentValue < minReservationValue;
-  };
+  }, [drop]);
 
-  const getUnderfundingProgress = (): number => {
+  const getUnderfundingProgress = useCallback((): number => {
     if (!drop || !drop.supplier_lists) return 0;
     const currentValue = drop.current_value ?? 0;
     const minValue = drop.supplier_lists.min_reservation_value ?? 1;
     return (currentValue / minValue) * 100;
-  };
+  }, [drop]);
 
   const handleBook = async (productId: string) => {
     if (!user) {
@@ -406,7 +405,7 @@ export default function DropDetailsScreen() {
     }
   };
 
-  const renderProduct = ({ item }: { item: ProductData }) => {
+  const renderProduct = useCallback(({ item }: { item: ProductData }) => {
     const isBooked = userBookings.has(item.id);
     
     // Transform product data to match Product type
@@ -440,7 +439,7 @@ export default function DropDetailsScreen() {
         />
       </View>
     );
-  };
+  }, [drop, userBookings, handleBook]);
 
   if (loading) {
     return (
@@ -520,10 +519,10 @@ export default function DropDetailsScreen() {
 
             <View style={styles.headerCenter}>
               <Text style={styles.dropName}>{drop.name}</Text>
-              <Text style={styles.pickupPoint}>
-                <IconSymbol ios_icon_name="location.fill" android_material_icon_name="location_on" size={14} color="#666" />
-                {' '}{drop.pickup_points?.name ?? 'N/A'}
-              </Text>
+              <View style={styles.pickupPointRow}>
+                <IconSymbol ios_icon_name="mappin.circle.fill" android_material_icon_name="location_on" size={16} color="#666" />
+                <Text style={styles.pickupPoint}>{drop.pickup_points?.city ?? 'N/A'}</Text>
+              </View>
             </View>
 
             <Pressable
@@ -724,11 +723,17 @@ const styles = StyleSheet.create({
     color: '#000',
     fontFamily: 'System',
   },
+  pickupPointRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 2,
+  },
   pickupPoint: {
     fontSize: 14,
     color: '#666',
-    marginTop: 2,
     fontFamily: 'System',
+    fontWeight: '600',
   },
   shareBtn: {
     width: 40,

@@ -14,6 +14,7 @@ const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
 
 interface ProductList {
   listId: string;
+  listName: string;
   supplierName: string;
   products: Product[];
   minDiscount: number;
@@ -126,6 +127,7 @@ export default function HomeScreen() {
         if (!groupedLists.has(listId)) {
           groupedLists.set(listId, {
             listId: listId,
+            listName: listData.name || 'Lista',
             supplierName: listData.supplierName,
             products: [],
             minDiscount: listData.min_discount || 30,
@@ -427,7 +429,7 @@ export default function HomeScreen() {
         <View style={[styles.container, styles.centerContent]}>
           <View style={styles.topBar}>
             <View style={styles.pickupPointBadge}>
-              <IconSymbol ios_icon_name="mappin.circle.fill" android_material_icon_name="location_on" size={16} color={colors.text} />
+              <IconSymbol ios_icon_name="mappin.circle.fill" android_material_icon_name="location_on" size={18} color={colors.text} />
               <Text style={styles.pickupPointText}>{user?.pickupPoint || 'Nessun punto'}</Text>
             </View>
             
@@ -510,10 +512,10 @@ export default function HomeScreen() {
           removeClippedSubviews={Platform.OS === 'android'}
         />
         
-        {/* Top Bar */}
+        {/* Top Bar - More compact with better icons */}
         <View style={styles.topBar}>
           <View style={styles.pickupPointBadge}>
-            <IconSymbol ios_icon_name="mappin.circle.fill" android_material_icon_name="location_on" size={16} color={colors.text} />
+            <IconSymbol ios_icon_name="mappin.circle.fill" android_material_icon_name="location_on" size={18} color={colors.text} />
             <Text style={styles.pickupPointText}>{user?.pickupPoint || 'Nessun punto'}</Text>
           </View>
           
@@ -522,57 +524,40 @@ export default function HomeScreen() {
           </Pressable>
         </View>
 
-        {/* List Navigation Info */}
-        <View style={styles.listInfoContainer}>
-          <View style={styles.listInfoCard}>
-            <View style={styles.listInfoHeader}>
-              <View style={styles.supplierBadge}>
-                <IconSymbol ios_icon_name="building.2" android_material_icon_name="store" size={14} color={colors.text} />
-                <Text style={styles.supplierName}>{currentList?.supplierName}</Text>
-              </View>
-              <View style={styles.listCounter}>
-                <Text style={styles.listCounterText}>
-                  Lista {currentListIndex + 1}/{productLists.length}
-                </Text>
-              </View>
+        {/* Compact Supplier Bar - Minimized to give more space to product card */}
+        <View style={styles.supplierBarContainer}>
+          <View style={styles.supplierBar}>
+            <View style={styles.supplierInfo}>
+              <IconSymbol ios_icon_name="building.2" android_material_icon_name="store" size={12} color={colors.textSecondary} />
+              <Text style={styles.supplierName}>{currentList?.supplierName}</Text>
+              <Text style={styles.listSeparator}>•</Text>
+              <Text style={styles.listName}>{currentList?.listName}</Text>
             </View>
-
-            {/* Progress Bar */}
-            <View style={styles.progressContainer}>
-              <View style={styles.progressBar}>
-                <Animated.View 
-                  style={[
-                    styles.progressFill,
-                    {
-                      width: progressAnim.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: ['0%', '100%'],
-                      }),
-                    },
-                  ]} 
-                />
-              </View>
-              <Text style={styles.progressText}>
-                {currentProductIndex + 1}/{totalProductsInList}
+            <View style={styles.listCounter}>
+              <Text style={styles.listCounterText}>
+                {currentListIndex + 1}/{productLists.length}
               </Text>
             </View>
+          </View>
 
-            {/* Interest Stats */}
-            {interestedInCurrentList > 0 && (
-              <View style={styles.interestStats}>
-                <IconSymbol ios_icon_name="heart.fill" android_material_icon_name="favorite" size={14} color="#FF3B30" />
-                <Text style={styles.interestStatsText}>
-                  {interestedInCurrentList} {interestedInCurrentList === 1 ? 'articolo interessato' : 'articoli interessati'} in questa lista
-                </Text>
-              </View>
-            )}
-
-            {/* Discount Range */}
-            <View style={styles.discountRange}>
-              <Text style={styles.discountRangeText}>
-                Sconto: {currentList?.minDiscount}% → {currentList?.maxDiscount}%
-              </Text>
+          {/* Compact Progress Bar */}
+          <View style={styles.progressContainer}>
+            <View style={styles.progressBar}>
+              <Animated.View 
+                style={[
+                  styles.progressFill,
+                  {
+                    width: progressAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: ['0%', '100%'],
+                    }),
+                  },
+                ]} 
+              />
             </View>
+            <Text style={styles.progressText}>
+              {currentProductIndex + 1}/{totalProductsInList}
+            </Text>
           </View>
         </View>
 
@@ -742,130 +727,122 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.card,
-    paddingHorizontal: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    paddingHorizontal: 14,
     paddingVertical: 10,
-    borderRadius: 4,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: colors.border,
     gap: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   pickupPointText: {
     color: colors.text,
-    fontSize: 12,
-    fontWeight: '600',
-    letterSpacing: 1,
-    textTransform: 'uppercase',
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: 0.5,
   },
   logoutButton: {
-    backgroundColor: colors.card,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 4,
+    borderRadius: 8,
     padding: 10,
     justifyContent: 'center',
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
-  listInfoContainer: {
+  supplierBarContainer: {
     position: 'absolute',
-    top: 120,
+    top: 115,
     left: 20,
     right: 20,
     zIndex: 10,
   },
-  listInfoCard: {
-    backgroundColor: 'rgba(255, 255, 255, 0.97)',
-    borderRadius: 12,
-    padding: 14,
+  supplierBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: 'rgba(255, 255, 255, 0.92)',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     borderWidth: 1,
     borderColor: colors.border,
-    gap: 10,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
+    elevation: 2,
   },
-  listInfoHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  supplierBadge: {
+  supplierInfo: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
     flex: 1,
   },
   supplierName: {
-    fontSize: 14,
+    fontSize: 11,
     fontWeight: '700',
     color: colors.text,
-    letterSpacing: 0.3,
+    letterSpacing: 0.2,
+  },
+  listSeparator: {
+    fontSize: 11,
+    color: colors.textTertiary,
+    marginHorizontal: 2,
+  },
+  listName: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: colors.textSecondary,
+    letterSpacing: 0.2,
+    flex: 1,
   },
   listCounter: {
     backgroundColor: colors.backgroundSecondary,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
   },
   listCounterText: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '700',
     color: colors.textSecondary,
-    letterSpacing: 0.5,
+    letterSpacing: 0.3,
   },
   progressContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 8,
+    marginTop: 6,
   },
   progressBar: {
     flex: 1,
-    height: 6,
-    backgroundColor: colors.backgroundSecondary,
-    borderRadius: 3,
+    height: 4,
+    backgroundColor: 'rgba(0, 0, 0, 0.1)',
+    borderRadius: 2,
     overflow: 'hidden',
   },
   progressFill: {
     height: '100%',
     backgroundColor: colors.text,
-    borderRadius: 3,
+    borderRadius: 2,
   },
   progressText: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '700',
     color: colors.textSecondary,
-    minWidth: 40,
+    minWidth: 35,
     textAlign: 'right',
-  },
-  interestStats: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#FFF0F0',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 6,
-  },
-  interestStatsText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#FF3B30',
-    letterSpacing: 0.2,
-  },
-  discountRange: {
-    backgroundColor: colors.backgroundSecondary,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 6,
-    alignItems: 'center',
-  },
-  discountRangeText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: colors.textSecondary,
-    letterSpacing: 0.5,
   },
   navButtonLeft: {
     position: 'absolute',

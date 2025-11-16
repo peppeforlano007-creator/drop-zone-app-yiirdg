@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import { View, Text, Image, StyleSheet, Pressable, Dimensions, Alert, ActivityIndicator, Animated } from 'react-native';
 import { IconSymbol } from './IconSymbol';
 import { colors } from '@/styles/commonStyles';
@@ -29,6 +29,7 @@ export default function ProductCard({
   isInterested = false,
 }: ProductCardProps) {
   const [imageLoaded, setImageLoaded] = useState(false);
+  const [imageError, setImageError] = useState(false);
   const [galleryVisible, setGalleryVisible] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
@@ -173,21 +174,40 @@ export default function ProductCard({
         onPress={handleImagePress}
         activeOpacity={0.95}
       >
-        <Image
-          source={{ uri: product.imageUrl }}
-          style={styles.image}
-          resizeMode="cover"
-          onLoad={() => setImageLoaded(true)}
-        />
-        
-        {!imageLoaded && (
+        {!imageError ? (
+          <Image
+            source={{ uri: product.imageUrl }}
+            style={styles.image}
+            resizeMode="cover"
+            onLoadStart={() => {
+              setImageLoaded(false);
+              setImageError(false);
+            }}
+            onLoad={() => {
+              setImageLoaded(true);
+              setImageError(false);
+            }}
+            onError={() => {
+              console.error('Image load error:', product.imageUrl);
+              setImageError(true);
+              setImageLoaded(false);
+            }}
+          />
+        ) : (
           <View style={styles.imagePlaceholder}>
             <IconSymbol 
               ios_icon_name="photo" 
-              android_material_icon_name="image" 
+              android_material_icon_name="broken_image" 
               size={100} 
               color={colors.textTertiary} 
             />
+            <Text style={styles.imageErrorText}>Immagine non disponibile</Text>
+          </View>
+        )}
+        
+        {!imageLoaded && !imageError && (
+          <View style={styles.imageLoadingOverlay}>
+            <ActivityIndicator size="large" color={colors.text} />
           </View>
         )}
 
@@ -203,11 +223,8 @@ export default function ProductCard({
           </View>
         )}
 
-        {/* Top badges overlay on image */}
+        {/* Top badges overlay on image - Removed supplier badge to save space */}
         <View style={styles.topBadgesContainer}>
-          <View style={styles.supplierBadge}>
-            <Text style={styles.supplierText}>{product.supplierName ?? 'Fornitore'}</Text>
-          </View>
           {isInDrop && currentDiscount && (
             <View style={styles.dropBadge}>
               <Text style={styles.dropBadgeText}>Drop -{currentDiscount.toFixed(1)}%</Text>
@@ -469,6 +486,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: colors.backgroundSecondary,
   },
+  imageLoadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.1)',
+  },
+  imageErrorText: {
+    marginTop: 12,
+    fontSize: 14,
+    color: colors.textSecondary,
+    fontWeight: '500',
+  },
   imageIndicator: {
     position: 'absolute',
     top: 60,
@@ -493,21 +526,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-  },
-  supplierBadge: {
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(0, 0, 0, 0.1)',
-  },
-  supplierText: {
-    color: '#333',
-    fontSize: 11,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
   },
   dropBadge: {
     backgroundColor: 'rgba(0, 0, 0, 0.85)',

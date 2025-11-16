@@ -32,7 +32,6 @@ interface DropCardProps {
 
 export default function DropCard({ drop }: DropCardProps) {
   const [timeRemaining, setTimeRemaining] = useState('');
-  const [productCount, setProductCount] = useState(0);
 
   useEffect(() => {
     const updateTimer = () => {
@@ -90,9 +89,9 @@ export default function DropCard({ drop }: DropCardProps) {
       <View style={styles.header}>
         <View style={styles.locationBadge}>
           <IconSymbol 
-            ios_icon_name="location.fill" 
+            ios_icon_name="mappin.circle.fill" 
             android_material_icon_name="location_on" 
-            size={14} 
+            size={18} 
             color={colors.text} 
           />
           <Text style={styles.locationText}>{drop.pickup_points?.city ?? 'N/A'}</Text>
@@ -172,17 +171,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.backgroundSecondary,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 4,
-    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    gap: 8,
     borderWidth: 1,
     borderColor: colors.border,
   },
   locationText: {
     color: colors.text,
-    fontSize: 12,
-    fontWeight: '600',
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: 0.3,
   },
   timerBadge: {
     backgroundColor: colors.text,
