@@ -1,6 +1,6 @@
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { View, Text, StyleSheet, Pressable, Dimensions, Alert, ActivityIndicator, Animated, ScrollView } from 'react-native';
+import React, { useState, useRef } from 'react';
+import { View, Text, Image, StyleSheet, Pressable, Dimensions, Alert, ActivityIndicator, Animated } from 'react-native';
 import { IconSymbol } from './IconSymbol';
 import { colors } from '@/styles/commonStyles';
 import { Product } from '@/types/Product';
@@ -8,7 +8,6 @@ import { usePayment } from '@/contexts/PaymentContext';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import ImageGallery from './ImageGallery';
-import CachedImage from './CachedImage';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -29,36 +28,22 @@ export default function EnhancedProductCard({
   onBook,
   isInterested = false,
 }: EnhancedProductCardProps) {
+  const [imageLoaded, setImageLoaded] = useState(false);
+  const [imageError, setImageError] = useState(false);
   const [galleryVisible, setGalleryVisible] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
   const [selectedColor, setSelectedColor] = useState<string | null>(null);
   const { getDefaultPaymentMethod, authorizePayment } = usePayment();
   
-  // Enhanced animations
+  // Animation values
   const scaleAnim = useRef(new Animated.Value(1)).current;
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(50)).current;
 
-  const animateEntrance = useCallback(() => {
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 400,
-        useNativeDriver: true,
-      }),
-      Animated.spring(slideAnim, {
-        toValue: 0,
-        tension: 50,
-        friction: 7,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, [fadeAnim, slideAnim]);
-
-  useEffect(() => {
-    animateEntrance();
-  }, [animateEntrance]);
+  // Safe value extraction with defaults
+  const originalPrice = product.originalPrice ?? 0;
+  const minDiscount = product.minDiscount ?? 0;
+  const discount = currentDiscount ?? minDiscount;
+  const discountedPrice = originalPrice * (1 - discount / 100);
 
   const handleImagePress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -103,12 +88,9 @@ export default function EnhancedProductCard({
         return;
       }
 
-      const discount = currentDiscount || product.minDiscount;
-      const discountedPrice = product.originalPrice * (1 - discount / 100);
-
       Alert.alert(
         'Conferma Prenotazione',
-        `Vuoi prenotare ${product.name}?\n\nPrezzo attuale: €${discountedPrice.toFixed(2)} (-${discount}%)\n\nBlocchiamo €${product.originalPrice.toFixed(2)} sulla tua carta ${defaultPaymentMethod.brand} •••• ${defaultPaymentMethod.last4}.\n\nAlla fine del drop, addebiteremo solo l'importo finale con lo sconto raggiunto.`,
+        `Vuoi prenotare ${product.name}?\n\nPrezzo attuale: €${discountedPrice.toFixed(2)} (-${discount.toFixed(1)}%)\n\nBlocchiamo €${originalPrice.toFixed(2)} sulla tua carta ${defaultPaymentMethod.brand} •••• ${defaultPaymentMethod.last4}.\n\nAlla fine del drop, addebiteremo solo l'importo finale con lo sconto raggiunto.`,
         [
           { text: 'Annulla', style: 'cancel' },
           {
@@ -118,7 +100,7 @@ export default function EnhancedProductCard({
               try {
                 const authId = await authorizePayment(
                   product.id,
-                  product.originalPrice,
+                  originalPrice,
                   defaultPaymentMethod.id
                 );
                 console.log('Payment authorized:', authId);
@@ -154,16 +136,8 @@ export default function EnhancedProductCard({
     console.log('Selected color:', color);
   };
 
-  const discount = currentDiscount || product.minDiscount;
-  const discountedPrice = product.originalPrice * (1 - discount / 100);
   const hasMultipleImages = product.imageUrls && product.imageUrls.length > 1;
-
-  // Helper functions to check if data exists
-  const hasDescription = product.description && product.description.trim().length > 0;
-  const hasSizes = product.availableSizes && product.availableSizes.length > 0;
-  const hasColors = product.availableColors && product.availableColors.length > 0;
-  const hasCondition = product.condition && product.condition.trim().length > 0;
-  const hasStock = product.stock !== undefined && product.stock !== null;
+  const isFashionItem = product.category === 'Fashion';
 
   const getConditionColor = (condition?: string) => {
     switch (condition) {
@@ -194,249 +168,267 @@ export default function EnhancedProductCard({
   const conditionIcon = getConditionIcon(product.condition);
 
   return (
-    <Animated.View 
-      style={[
-        styles.container,
-        {
-          opacity: fadeAnim,
-          transform: [{ translateY: slideAnim }],
-        },
-      ]}
-    >
-      {/* Image Section - Top 45% */}
+    <View style={styles.container}>
       <Pressable 
         style={styles.imageWrapper}
         onPress={handleImagePress}
         activeOpacity={0.95}
       >
-        <CachedImage
-          uri={product.imageUrl}
-          style={styles.image}
-          resizeMode="cover"
-        />
+        {!imageError ? (
+          <Image
+            source={{ uri: product.imageUrl }}
+            style={styles.image}
+            resizeMode="cover"
+            onLoadStart={() => {
+              setImageLoaded(false);
+              setImageError(false);
+            }}
+            onLoad={() => {
+              setImageLoaded(true);
+              setImageError(false);
+            }}
+            onError={() => {
+              console.error('Image load error:', product.imageUrl);
+              setImageError(true);
+              setImageLoaded(false);
+            }}
+          />
+        ) : (
+          <View style={styles.imagePlaceholder}>
+            <IconSymbol 
+              ios_icon_name="photo" 
+              android_material_icon_name="broken_image" 
+              size={100} 
+              color={colors.textTertiary} 
+            />
+            <Text style={styles.imageErrorText}>Immagine non disponibile</Text>
+          </View>
+        )}
+        
+        {!imageLoaded && !imageError && (
+          <View style={styles.imageLoadingOverlay}>
+            <ActivityIndicator size="large" color={colors.text} />
+          </View>
+        )}
 
         {hasMultipleImages && (
           <View style={styles.imageIndicator}>
             <IconSymbol 
               ios_icon_name="photo.stack" 
               android_material_icon_name="collections" 
-              size={14} 
-              color="#FFFFFF" 
+              size={20} 
+              color={colors.background} 
             />
             <Text style={styles.imageCount}>{product.imageUrls.length}</Text>
           </View>
         )}
 
-        {/* Top badges overlay on image */}
+        {/* Top badges overlay on image - Removed supplier badge to save space */}
         <View style={styles.topBadgesContainer}>
-          <View style={styles.supplierBadge}>
-            <Text style={styles.supplierText}>{product.supplierName}</Text>
-          </View>
           {isInDrop && currentDiscount && (
-            <Animated.View 
-              style={[
-                styles.dropBadge,
-                {
-                  transform: [{ scale: scaleAnim }],
-                },
-              ]}
-            >
-              <Text style={styles.dropBadgeText}>Drop -{currentDiscount}%</Text>
-            </Animated.View>
+            <View style={styles.dropBadge}>
+              <Text style={styles.dropBadgeText}>Drop -{currentDiscount.toFixed(1)}%</Text>
+            </View>
           )}
         </View>
       </Pressable>
 
-      {/* Content Section - Bottom 55% */}
-      <View style={styles.contentWrapper}>
-        <ScrollView 
-          style={styles.scrollContent}
-          contentContainerStyle={styles.scrollContentContainer}
-          showsVerticalScrollIndicator={false}
-          bounces={true}
-          scrollEventThrottle={16}
-        >
-          <View style={styles.content}>
-            {/* Product Name */}
-            <Text style={styles.productName} numberOfLines={2}>{product.name}</Text>
+      <View style={styles.overlay}>
+        <View style={styles.content}>
+          <Text style={styles.productName} numberOfLines={1}>{product.name ?? 'Prodotto'}</Text>
 
-            {/* Price Row */}
-            <View style={styles.priceRow}>
-              <View style={styles.priceInfo}>
-                <Text style={styles.discountedPrice}>€{discountedPrice.toFixed(2)}</Text>
-                <Text style={styles.originalPrice}>€{product.originalPrice.toFixed(2)}</Text>
-              </View>
-              <Animated.View 
-                style={[
-                  styles.discountBadge,
-                  {
-                    transform: [{ scale: scaleAnim }],
-                  },
-                ]}
-              >
-                <Text style={styles.discountText}>-{discount}%</Text>
-              </Animated.View>
-            </View>
-
-            {/* Product Details Row - Only show if there's data */}
-            {(hasCondition || hasSizes || hasColors) && (
-              <View style={styles.detailsRow}>
-                {hasCondition && (
-                  <View style={[
-                    styles.conditionBadge,
-                    { backgroundColor: getConditionColor(product.condition) + '20' }
+          {/* Product Details Row: Sizes, Colors, and Condition - Compact */}
+          {(product.sizes || product.colors || product.condition) && (
+            <View style={styles.detailsRow}>
+              {/* Sizes */}
+              {product.sizes && product.sizes.length > 0 && (
+                <View style={styles.detailBadge}>
+                  <IconSymbol 
+                    ios_icon_name="ruler" 
+                    android_material_icon_name="straighten" 
+                    size={10} 
+                    color={colors.textSecondary} 
+                  />
+                  <Text style={styles.detailText} numberOfLines={1}>
+                    {Array.isArray(product.sizes) 
+                      ? product.sizes.slice(0, 3).join(', ') 
+                      : product.sizes}
+                  </Text>
+                </View>
+              )}
+              
+              {/* Colors */}
+              {product.colors && product.colors.length > 0 && (
+                <View style={styles.detailBadge}>
+                  <IconSymbol 
+                    ios_icon_name="paintpalette" 
+                    android_material_icon_name="palette" 
+                    size={10} 
+                    color={colors.textSecondary} 
+                  />
+                  <Text style={styles.detailText} numberOfLines={1}>
+                    {Array.isArray(product.colors) 
+                      ? product.colors.slice(0, 2).join(', ') 
+                      : product.colors}
+                  </Text>
+                </View>
+              )}
+              
+              {/* Condition */}
+              {product.condition && (
+                <View style={[
+                  styles.conditionBadge,
+                  { backgroundColor: getConditionColor(product.condition) + '20' }
+                ]}>
+                  <IconSymbol 
+                    ios_icon_name={conditionIcon.ios} 
+                    android_material_icon_name={conditionIcon.android} 
+                    size={10} 
+                    color={getConditionColor(product.condition)} 
+                  />
+                  <Text style={[
+                    styles.conditionText,
+                    { color: getConditionColor(product.condition) }
                   ]}>
-                    <IconSymbol 
-                      ios_icon_name={conditionIcon.ios} 
-                      android_material_icon_name={conditionIcon.android} 
-                      size={10} 
-                      color={getConditionColor(product.condition)} 
-                    />
-                    <Text style={[
-                      styles.conditionText,
-                      { color: getConditionColor(product.condition) }
-                    ]}>
-                      {product.condition}
-                    </Text>
-                  </View>
-                )}
-                
-                {hasSizes && (
-                  <View style={styles.detailBadge}>
+                    {product.condition}
+                  </Text>
+                </View>
+              )}
+            </View>
+          )}
+
+          <View style={styles.priceRow}>
+            <View style={styles.priceInfo}>
+              <Text style={styles.discountedPrice}>€{discountedPrice.toFixed(2)}</Text>
+              <Text style={styles.originalPrice}>€{originalPrice.toFixed(2)}</Text>
+            </View>
+            <View style={styles.discountBadge}>
+              <Text style={styles.discountText}>-{discount.toFixed(0)}%</Text>
+            </View>
+          </View>
+
+          {/* Size and Color Selection for Fashion Items - Compact */}
+          {isFashionItem && (product.availableSizes || product.availableColors) && (
+            <View style={styles.selectionContainer}>
+              {/* Size Selection */}
+              {product.availableSizes && product.availableSizes.length > 0 && (
+                <View style={styles.sizeColorSection}>
+                  <View style={styles.sectionHeader}>
                     <IconSymbol 
                       ios_icon_name="ruler" 
                       android_material_icon_name="straighten" 
-                      size={10} 
+                      size={12} 
                       color={colors.textSecondary} 
                     />
-                    <Text style={styles.detailText} numberOfLines={1}>
-                      {Array.isArray(product.availableSizes) 
-                        ? product.availableSizes.slice(0, 3).join(', ') 
-                        : product.availableSizes}
-                    </Text>
+                    <Text style={styles.sectionLabel}>Taglia</Text>
                   </View>
-                )}
-                
-                {hasColors && (
-                  <View style={styles.detailBadge}>
+                  <View style={styles.optionsRow}>
+                    {product.availableSizes.slice(0, 5).map((size, index) => (
+                      <Pressable
+                        key={index}
+                        style={[
+                          styles.sizeOption,
+                          selectedSize === size && styles.sizeOptionSelected,
+                        ]}
+                        onPress={() => handleSizeSelect(size)}
+                      >
+                        <Text
+                          style={[
+                            styles.sizeOptionText,
+                            selectedSize === size && styles.sizeOptionTextSelected,
+                          ]}
+                        >
+                          {size}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                </View>
+              )}
+
+              {/* Color Selection */}
+              {product.availableColors && product.availableColors.length > 0 && (
+                <View style={styles.sizeColorSection}>
+                  <View style={styles.sectionHeader}>
                     <IconSymbol 
                       ios_icon_name="paintpalette" 
                       android_material_icon_name="palette" 
-                      size={10} 
+                      size={12} 
                       color={colors.textSecondary} 
                     />
-                    <Text style={styles.detailText} numberOfLines={1}>
-                      {Array.isArray(product.availableColors) 
-                        ? product.availableColors.slice(0, 2).join(', ') 
-                        : product.availableColors}
-                    </Text>
+                    <Text style={styles.sectionLabel}>Colore</Text>
                   </View>
-                )}
-              </View>
-            )}
+                  <View style={styles.optionsRow}>
+                    {product.availableColors.slice(0, 5).map((color, index) => (
+                      <Pressable
+                        key={index}
+                        style={[
+                          styles.colorOption,
+                          selectedColor === color && styles.colorOptionSelected,
+                        ]}
+                        onPress={() => handleColorSelect(color)}
+                      >
+                        <View
+                          style={[
+                            styles.colorCircle,
+                            { backgroundColor: color },
+                          ]}
+                        />
+                      </Pressable>
+                    ))}
+                  </View>
+                </View>
+              )}
+            </View>
+          )}
 
-            {/* Stock Info - Only show if stock data exists */}
-            {hasStock && (
-              <View style={styles.stockContainer}>
-                <IconSymbol 
-                  ios_icon_name="cube.box" 
-                  android_material_icon_name="inventory_2" 
-                  size={12} 
-                  color={product.stock > 10 ? colors.success : colors.warning} 
-                />
-                <Text style={[
-                  styles.stockText,
-                  { color: product.stock > 10 ? colors.success : colors.warning }
-                ]}>
-                  {product.stock > 10 ? 'Disponibile' : `Solo ${product.stock} disponibili`}
-                </Text>
-              </View>
-            )}
-
-            {/* Description if available */}
-            {hasDescription && (
-              <View style={styles.descriptionContainer}>
-                <Text style={styles.descriptionLabel}>Descrizione</Text>
-                <Text style={styles.descriptionText} numberOfLines={3}>
-                  {product.description}
-                </Text>
-              </View>
-            )}
-          </View>
-        </ScrollView>
-
-        {/* Fixed Action Button at Bottom - Outside ScrollView */}
-        {isInDrop ? (
-          <View style={styles.fixedButtonContainer}>
-            <Animated.View 
-              style={[
-                styles.bookButtonWrapper,
-                {
-                  transform: [{ scale: scaleAnim }],
-                },
-              ]}
-            >
-              <Pressable
-                onPress={handlePress}
-                onPressIn={handlePressIn}
-                onPressOut={handlePressOut}
-                disabled={isProcessing}
-                style={styles.bookButton}
-              >
-                {isProcessing ? (
-                  <ActivityIndicator color="#333" size="small" />
-                ) : (
-                  <React.Fragment>
-                    <View style={styles.bookButtonIconContainer}>
-                      <IconSymbol 
-                        ios_icon_name="creditcard.fill" 
-                        android_material_icon_name="credit_card" 
-                        size={18} 
-                        color="#333" 
-                      />
-                    </View>
-                    <View style={styles.bookButtonTextContainer}>
-                      <Text style={styles.bookButtonTitle}>PRENOTA CON CARTA</Text>
-                      <Text style={styles.bookButtonSubtitle}>
-                        Blocco temporaneo • Addebito finale
-                      </Text>
-                    </View>
-                    <View style={styles.bookButtonArrow}>
-                      <IconSymbol 
-                        ios_icon_name="chevron.right" 
-                        android_material_icon_name="chevron_right" 
-                        size={18} 
-                        color="#333" 
-                      />
-                    </View>
-                  </React.Fragment>
-                )}
-              </Pressable>
-            </Animated.View>
-          </View>
-        ) : (
-          <View style={styles.fixedButtonContainer}>
+          {/* "PRENOTA CON CARTA" Button - Always shown in drop feed */}
+          <Animated.View 
+            style={[
+              styles.bookButtonWrapper,
+              {
+                transform: [{ scale: scaleAnim }],
+              },
+            ]}
+          >
             <Pressable
-              style={[
-                styles.actionButton,
-                isInterested && styles.interestedButton,
-                isProcessing && styles.actionButtonDisabled,
-              ]}
               onPress={handlePress}
+              onPressIn={handlePressIn}
+              onPressOut={handlePressOut}
               disabled={isProcessing}
+              style={styles.bookButton}
             >
               {isProcessing ? (
-                <ActivityIndicator color={colors.background} />
+                <ActivityIndicator color="#FFFFFF" size="small" />
               ) : (
-                <Text style={styles.actionButtonText}>
-                  {isInterested
-                    ? 'INTERESSATO ✓'
-                    : 'VORRÒ PARTECIPARE AL DROP'}
-                </Text>
+                <>
+                  <View style={styles.bookButtonIconContainer}>
+                    <IconSymbol 
+                      ios_icon_name="creditcard.fill" 
+                      android_material_icon_name="credit_card" 
+                      size={22} 
+                      color="#333" 
+                    />
+                  </View>
+                  <View style={styles.bookButtonTextContainer}>
+                    <Text style={styles.bookButtonTitle}>PRENOTA CON CARTA</Text>
+                    <Text style={styles.bookButtonSubtitle}>
+                      Blocco temporaneo • Addebito finale
+                    </Text>
+                  </View>
+                  <View style={styles.bookButtonArrow}>
+                    <IconSymbol 
+                      ios_icon_name="chevron.right" 
+                      android_material_icon_name="chevron_right" 
+                      size={20} 
+                      color="#333" 
+                    />
+                  </View>
+                </>
               )}
             </Pressable>
-          </View>
-        )}
+          </Animated.View>
+        </View>
       </View>
 
       <ImageGallery
@@ -445,7 +437,7 @@ export default function EnhancedProductCard({
         onClose={() => setGalleryVisible(false)}
         initialIndex={0}
       />
-    </Animated.View>
+    </View>
   );
 }
 
@@ -457,219 +449,259 @@ const styles = StyleSheet.create({
   },
   imageWrapper: {
     width: '100%',
-    height: SCREEN_HEIGHT * 0.45,
-    position: 'relative',
+    height: '100%',
+    position: 'absolute',
   },
   image: {
     width: '100%',
     height: '100%',
   },
+  imagePlaceholder: {
+    width: '100%',
+    height: '100%',
+    position: 'absolute',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: colors.backgroundSecondary,
+  },
+  imageLoadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.1)',
+  },
+  imageErrorText: {
+    marginTop: 12,
+    fontSize: 14,
+    color: colors.textSecondary,
+    fontWeight: '500',
+  },
   imageIndicator: {
     position: 'absolute',
     top: 60,
-    right: 16,
+    right: 20,
     backgroundColor: 'rgba(0, 0, 0, 0.75)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 20,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 5,
   },
   imageCount: {
-    color: '#FFFFFF',
-    fontSize: 11,
+    color: colors.background,
+    fontSize: 13,
     fontWeight: '700',
   },
   topBadgesContainer: {
     position: 'absolute',
     top: 60,
-    left: 16,
+    left: 20,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-  },
-  supplierBadge: {
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: 'rgba(0, 0, 0, 0.1)',
-  },
-  supplierText: {
-    color: '#333',
-    fontSize: 10,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    gap: 8,
   },
   dropBadge: {
     backgroundColor: 'rgba(0, 0, 0, 0.85)',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
   },
   dropBadgeText: {
     color: '#FFF',
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '700',
-    letterSpacing: 0.5,
+    letterSpacing: 0.8,
   },
-  contentWrapper: {
-    height: SCREEN_HEIGHT * 0.55,
-    backgroundColor: colors.background,
-  },
-  scrollContent: {
-    flex: 1,
-  },
-  scrollContentContainer: {
-    flexGrow: 1,
-    paddingBottom: 6,
+  overlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(255, 255, 255, 0.97)',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
   },
   content: {
-    paddingTop: 12,
-    paddingHorizontal: 16,
-    gap: 6,
+    padding: 16,
+    paddingBottom: 110,
   },
   productName: {
-    fontSize: 17,
+    fontSize: 20,
     fontWeight: '800',
     color: colors.text,
-    letterSpacing: -0.4,
-    lineHeight: 21,
-    marginBottom: 0,
-  },
-  priceRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 0,
-  },
-  priceInfo: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: 6,
-  },
-  originalPrice: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    textDecorationLine: 'line-through',
-  },
-  discountBadge: {
-    backgroundColor: colors.text,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  discountText: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: colors.background,
-    letterSpacing: 0.4,
-  },
-  discountedPrice: {
-    fontSize: 24,
-    fontWeight: '900',
-    color: colors.text,
-    letterSpacing: -0.8,
+    marginBottom: 6,
+    letterSpacing: -0.3,
+    lineHeight: 24,
   },
   detailsRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
+    marginBottom: 8,
     flexWrap: 'wrap',
-    marginTop: 0,
   },
   detailBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 3,
+    gap: 4,
     backgroundColor: colors.backgroundSecondary,
-    paddingHorizontal: 6,
+    paddingHorizontal: 7,
     paddingVertical: 3,
     borderRadius: 5,
+    maxWidth: 120,
   },
   detailText: {
-    fontSize: 10,
+    fontSize: 9,
     color: colors.textSecondary,
     fontWeight: '600',
   },
   conditionBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 3,
-    paddingHorizontal: 6,
+    gap: 4,
+    paddingHorizontal: 7,
     paddingVertical: 3,
     borderRadius: 5,
   },
   conditionText: {
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+  },
+  priceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  priceInfo: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 10,
+  },
+  originalPrice: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    textDecorationLine: 'line-through',
+  },
+  discountBadge: {
+    backgroundColor: colors.text,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 7,
+  },
+  discountText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.background,
+    letterSpacing: 0.4,
+  },
+  discountedPrice: {
+    fontSize: 26,
+    fontWeight: '900',
+    color: colors.text,
+    letterSpacing: -0.8,
+  },
+  // Size and Color Selection Styles - Compact
+  selectionContainer: {
+    marginBottom: 10,
+    gap: 8,
+  },
+  sizeColorSection: {
+    gap: 5,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  sectionLabel: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: colors.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
   },
-  descriptionContainer: {
-    gap: 3,
-    marginTop: 2,
+  optionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    flexWrap: 'wrap',
   },
-  descriptionLabel: {
+  sizeOption: {
+    minWidth: 34,
+    height: 34,
+    paddingHorizontal: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: colors.backgroundSecondary,
+    borderRadius: 7,
+    borderWidth: 1.5,
+    borderColor: 'transparent',
+  },
+  sizeOptionSelected: {
+    backgroundColor: colors.text,
+    borderColor: colors.text,
+  },
+  sizeOptionText: {
     fontSize: 11,
     fontWeight: '700',
     color: colors.text,
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
   },
-  descriptionText: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    lineHeight: 16,
+  sizeOptionTextSelected: {
+    color: colors.background,
   },
-  stockContainer: {
-    flexDirection: 'row',
+  colorOption: {
+    width: 34,
+    height: 34,
+    justifyContent: 'center',
     alignItems: 'center',
-    gap: 4,
-    marginTop: 0,
+    borderRadius: 17,
+    borderWidth: 2,
+    borderColor: 'transparent',
+    backgroundColor: colors.backgroundSecondary,
   },
-  stockText: {
-    fontSize: 10,
-    fontWeight: '600',
+  colorOptionSelected: {
+    borderColor: colors.text,
   },
-  fixedButtonContainer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    paddingHorizontal: 16,
-    paddingTop: 10,
-    paddingBottom: 10,
-    backgroundColor: colors.background,
-    borderTopWidth: 1,
-    borderTopColor: colors.border + '40',
+  colorCircle: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 0, 0, 0.1)',
   },
+  // "PRENOTA CON CARTA" button styles
   bookButtonWrapper: {
+    marginTop: 4,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.12,
-    shadowRadius: 8,
-    elevation: 6,
+    shadowRadius: 10,
+    elevation: 5,
   },
   bookButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    gap: 10,
+    paddingVertical: 16,
+    paddingHorizontal: 18,
+    gap: 12,
     backgroundColor: '#FFF',
-    borderRadius: 12,
+    borderRadius: 14,
     borderWidth: 2,
     borderColor: '#333',
   },
   bookButtonIconContainer: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 46,
+    height: 46,
+    borderRadius: 23,
     backgroundColor: '#F5F5F5',
     justifyContent: 'center',
     alignItems: 'center',
@@ -678,11 +710,11 @@ const styles = StyleSheet.create({
   },
   bookButtonTextContainer: {
     flex: 1,
-    gap: 1,
+    gap: 2,
   },
   bookButtonTitle: {
     color: '#000',
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '800',
     letterSpacing: 0.3,
   },
@@ -690,28 +722,9 @@ const styles = StyleSheet.create({
     color: '#666',
     fontSize: 10,
     fontWeight: '500',
-    letterSpacing: 0.2,
+    letterSpacing: 0.1,
   },
   bookButtonArrow: {
     opacity: 0.8,
-  },
-  actionButton: {
-    paddingVertical: 14,
-    borderRadius: 12,
-    backgroundColor: colors.text,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  interestedButton: {
-    backgroundColor: colors.secondary,
-  },
-  actionButtonDisabled: {
-    opacity: 0.6,
-  },
-  actionButtonText: {
-    color: colors.background,
-    fontSize: 13,
-    fontWeight: '800',
-    letterSpacing: 0.8,
   },
 });
