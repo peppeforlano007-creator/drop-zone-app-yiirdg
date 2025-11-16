@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { View, Text, StyleSheet, Pressable, Dimensions, Alert, ActivityIndicator, Animated } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Dimensions, Alert, ActivityIndicator, Animated, ScrollView } from 'react-native';
 import { IconSymbol } from './IconSymbol';
 import { colors } from '@/styles/commonStyles';
 import { Product } from '@/types/Product';
@@ -157,7 +157,6 @@ export default function EnhancedProductCard({
   const discount = currentDiscount || product.minDiscount;
   const discountedPrice = product.originalPrice * (1 - discount / 100);
   const hasMultipleImages = product.imageUrls && product.imageUrls.length > 1;
-  const isFashionItem = product.category === 'Fashion';
 
   const getConditionColor = (condition?: string) => {
     switch (condition) {
@@ -197,6 +196,7 @@ export default function EnhancedProductCard({
         },
       ]}
     >
+      {/* Image Section - Top 50% */}
       <Pressable 
         style={styles.imageWrapper}
         onPress={handleImagePress}
@@ -214,7 +214,7 @@ export default function EnhancedProductCard({
               ios_icon_name="photo.stack" 
               android_material_icon_name="collections" 
               size={16} 
-              color={colors.background} 
+              color="#FFFFFF" 
             />
             <Text style={styles.imageCount}>{product.imageUrls.length}</Text>
           </View>
@@ -240,159 +240,197 @@ export default function EnhancedProductCard({
         </View>
       </Pressable>
 
-      <Animated.View 
-        style={[
-          styles.overlay,
-          {
-            opacity: fadeAnim,
-          },
-        ]}
-      >
-        <View style={styles.content}>
-          <Text style={styles.productName} numberOfLines={2}>{product.name}</Text>
+      {/* Content Section - Bottom 50% with ScrollView */}
+      <View style={styles.contentWrapper}>
+        <ScrollView 
+          style={styles.scrollContent}
+          contentContainerStyle={styles.scrollContentContainer}
+          showsVerticalScrollIndicator={false}
+          bounces={true}
+        >
+          <Animated.View 
+            style={[
+              styles.content,
+              {
+                opacity: fadeAnim,
+              },
+            ]}
+          >
+            {/* Product Name */}
+            <Text style={styles.productName} numberOfLines={2}>{product.name}</Text>
 
-          <View style={styles.priceRow}>
-            <View style={styles.priceInfo}>
-              <Text style={styles.discountedPrice}>€{discountedPrice.toFixed(2)}</Text>
-              <Text style={styles.originalPrice}>€{product.originalPrice.toFixed(2)}</Text>
+            {/* Price Row */}
+            <View style={styles.priceRow}>
+              <View style={styles.priceInfo}>
+                <Text style={styles.discountedPrice}>€{discountedPrice.toFixed(2)}</Text>
+                <Text style={styles.originalPrice}>€{product.originalPrice.toFixed(2)}</Text>
+              </View>
+              <Animated.View 
+                style={[
+                  styles.discountBadge,
+                  {
+                    transform: [{ scale: scaleAnim }],
+                  },
+                ]}
+              >
+                <Text style={styles.discountText}>-{discount}%</Text>
+              </Animated.View>
             </View>
-            <Animated.View 
-              style={[
-                styles.discountBadge,
-                {
-                  transform: [{ scale: scaleAnim }],
-                },
-              ]}
-            >
-              <Text style={styles.discountText}>-{discount}%</Text>
-            </Animated.View>
-          </View>
 
-          {/* Product Details Row */}
-          {product.condition && (
-            <View style={styles.detailsRow}>
-              <View style={[
-                styles.conditionBadge,
-                { backgroundColor: getConditionColor(product.condition) + '20' }
-              ]}>
-                <IconSymbol 
-                  ios_icon_name={conditionIcon.ios} 
-                  android_material_icon_name={conditionIcon.android} 
-                  size={10} 
-                  color={getConditionColor(product.condition)} 
-                />
-                <Text style={[
-                  styles.conditionText,
-                  { color: getConditionColor(product.condition) }
+            {/* Product Details Row */}
+            {product.condition && (
+              <View style={styles.detailsRow}>
+                <View style={[
+                  styles.conditionBadge,
+                  { backgroundColor: getConditionColor(product.condition) + '20' }
                 ]}>
-                  {product.condition}
+                  <IconSymbol 
+                    ios_icon_name={conditionIcon.ios} 
+                    android_material_icon_name={conditionIcon.android} 
+                    size={12} 
+                    color={getConditionColor(product.condition)} 
+                  />
+                  <Text style={[
+                    styles.conditionText,
+                    { color: getConditionColor(product.condition) }
+                  ]}>
+                    {product.condition}
+                  </Text>
+                </View>
+                
+                {product.sizes && product.sizes.length > 0 && (
+                  <View style={styles.detailBadge}>
+                    <IconSymbol 
+                      ios_icon_name="ruler" 
+                      android_material_icon_name="straighten" 
+                      size={12} 
+                      color={colors.textSecondary} 
+                    />
+                    <Text style={styles.detailText} numberOfLines={1}>
+                      {Array.isArray(product.sizes) 
+                        ? product.sizes.slice(0, 3).join(', ') 
+                        : product.sizes}
+                    </Text>
+                  </View>
+                )}
+                
+                {product.colors && product.colors.length > 0 && (
+                  <View style={styles.detailBadge}>
+                    <IconSymbol 
+                      ios_icon_name="paintpalette" 
+                      android_material_icon_name="palette" 
+                      size={12} 
+                      color={colors.textSecondary} 
+                    />
+                    <Text style={styles.detailText} numberOfLines={1}>
+                      {Array.isArray(product.colors) 
+                        ? product.colors.slice(0, 2).join(', ') 
+                        : product.colors}
+                    </Text>
+                  </View>
+                )}
+              </View>
+            )}
+
+            {/* Description if available */}
+            {product.description && (
+              <View style={styles.descriptionContainer}>
+                <Text style={styles.descriptionLabel}>Descrizione</Text>
+                <Text style={styles.descriptionText} numberOfLines={3}>
+                  {product.description}
                 </Text>
               </View>
-              
-              {product.sizes && product.sizes.length > 0 && (
-                <View style={styles.detailBadge}>
-                  <IconSymbol 
-                    ios_icon_name="ruler" 
-                    android_material_icon_name="straighten" 
-                    size={10} 
-                    color={colors.textSecondary} 
-                  />
-                  <Text style={styles.detailText} numberOfLines={1}>
-                    {Array.isArray(product.sizes) 
-                      ? product.sizes.slice(0, 3).join(', ') 
-                      : product.sizes}
-                  </Text>
-                </View>
-              )}
-              
-              {product.colors && product.colors.length > 0 && (
-                <View style={styles.detailBadge}>
-                  <IconSymbol 
-                    ios_icon_name="paintpalette" 
-                    android_material_icon_name="palette" 
-                    size={10} 
-                    color={colors.textSecondary} 
-                  />
-                  <Text style={styles.detailText} numberOfLines={1}>
-                    {Array.isArray(product.colors) 
-                      ? product.colors.slice(0, 2).join(', ') 
-                      : product.colors}
-                  </Text>
-                </View>
-              )}
-            </View>
-          )}
+            )}
 
-          {/* Action Button - Moved higher */}
-          {isInDrop ? (
-            <Animated.View 
-              style={[
-                styles.bookButtonWrapper,
-                {
-                  transform: [{ scale: scaleAnim }],
-                },
-              ]}
-            >
+            {/* Stock Info */}
+            {product.stock && (
+              <View style={styles.stockContainer}>
+                <IconSymbol 
+                  ios_icon_name="cube.box" 
+                  android_material_icon_name="inventory_2" 
+                  size={14} 
+                  color={product.stock > 10 ? colors.success : colors.warning} 
+                />
+                <Text style={[
+                  styles.stockText,
+                  { color: product.stock > 10 ? colors.success : colors.warning }
+                ]}>
+                  {product.stock > 10 ? 'Disponibile' : `Solo ${product.stock} disponibili`}
+                </Text>
+              </View>
+            )}
+
+            {/* Action Button */}
+            {isInDrop ? (
+              <Animated.View 
+                style={[
+                  styles.bookButtonWrapper,
+                  {
+                    transform: [{ scale: scaleAnim }],
+                  },
+                ]}
+              >
+                <Pressable
+                  onPress={handlePress}
+                  onPressIn={handlePressIn}
+                  onPressOut={handlePressOut}
+                  disabled={isProcessing}
+                  style={styles.bookButton}
+                >
+                  {isProcessing ? (
+                    <ActivityIndicator color="#333" size="small" />
+                  ) : (
+                    <>
+                      <View style={styles.bookButtonIconContainer}>
+                        <IconSymbol 
+                          ios_icon_name="creditcard.fill" 
+                          android_material_icon_name="credit_card" 
+                          size={22} 
+                          color="#333" 
+                        />
+                      </View>
+                      <View style={styles.bookButtonTextContainer}>
+                        <Text style={styles.bookButtonTitle}>PRENOTA CON CARTA</Text>
+                        <Text style={styles.bookButtonSubtitle}>
+                          Blocco temporaneo • Addebito finale
+                        </Text>
+                      </View>
+                      <View style={styles.bookButtonArrow}>
+                        <IconSymbol 
+                          ios_icon_name="chevron.right" 
+                          android_material_icon_name="chevron_right" 
+                          size={22} 
+                          color="#333" 
+                        />
+                      </View>
+                    </>
+                  )}
+                </Pressable>
+              </Animated.View>
+            ) : (
               <Pressable
+                style={[
+                  styles.actionButton,
+                  isInterested && styles.interestedButton,
+                  isProcessing && styles.actionButtonDisabled,
+                ]}
                 onPress={handlePress}
-                onPressIn={handlePressIn}
-                onPressOut={handlePressOut}
                 disabled={isProcessing}
-                style={styles.bookButton}
               >
                 {isProcessing ? (
-                  <ActivityIndicator color="#FFFFFF" size="small" />
+                  <ActivityIndicator color={colors.background} />
                 ) : (
-                  <>
-                    <View style={styles.bookButtonIconContainer}>
-                      <IconSymbol 
-                        ios_icon_name="creditcard.fill" 
-                        android_material_icon_name="credit_card" 
-                        size={20} 
-                        color="#333" 
-                      />
-                    </View>
-                    <View style={styles.bookButtonTextContainer}>
-                      <Text style={styles.bookButtonTitle}>PRENOTA CON CARTA</Text>
-                      <Text style={styles.bookButtonSubtitle}>
-                        Blocco temporaneo • Addebito finale
-                      </Text>
-                    </View>
-                    <View style={styles.bookButtonArrow}>
-                      <IconSymbol 
-                        ios_icon_name="chevron.right" 
-                        android_material_icon_name="chevron_right" 
-                        size={20} 
-                        color="#333" 
-                      />
-                    </View>
-                  </>
+                  <Text style={styles.actionButtonText}>
+                    {isInterested
+                      ? 'INTERESSATO ✓'
+                      : 'VORRÒ PARTECIPARE AL DROP'}
+                  </Text>
                 )}
               </Pressable>
-            </Animated.View>
-          ) : (
-            <Pressable
-              style={[
-                styles.actionButton,
-                isInterested && styles.interestedButton,
-                isProcessing && styles.actionButtonDisabled,
-              ]}
-              onPress={handlePress}
-              disabled={isProcessing}
-            >
-              {isProcessing ? (
-                <ActivityIndicator color={colors.background} />
-              ) : (
-                <Text style={styles.actionButtonText}>
-                  {isInterested
-                    ? 'INTERESSATO ✓'
-                    : 'VORRÒ PARTECIPARE AL DROP'}
-                </Text>
-              )}
-            </Pressable>
-          )}
-        </View>
-      </Animated.View>
+            )}
+          </Animated.View>
+        </ScrollView>
+      </View>
 
       <ImageGallery
         images={product.imageUrls || [product.imageUrl]}
@@ -412,8 +450,8 @@ const styles = StyleSheet.create({
   },
   imageWrapper: {
     width: '100%',
-    height: SCREEN_HEIGHT * 0.48, // Reduced from 55% to 48%
-    position: 'absolute',
+    height: SCREEN_HEIGHT * 0.5,
+    position: 'relative',
   },
   image: {
     width: '100%',
@@ -424,16 +462,16 @@ const styles = StyleSheet.create({
     top: 60,
     right: 20,
     backgroundColor: 'rgba(0, 0, 0, 0.75)',
-    paddingHorizontal: 8,
-    paddingVertical: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     borderRadius: 16,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 5,
   },
   imageCount: {
-    color: colors.background,
-    fontSize: 11,
+    color: '#FFFFFF',
+    fontSize: 12,
     fontWeight: '700',
   },
   topBadgesContainer: {
@@ -446,52 +484,51 @@ const styles = StyleSheet.create({
   },
   supplierBadge: {
     backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 7,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: 'rgba(0, 0, 0, 0.1)',
   },
   supplierText: {
     color: '#333',
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '700',
     textTransform: 'uppercase',
     letterSpacing: 0.6,
   },
   dropBadge: {
     backgroundColor: 'rgba(0, 0, 0, 0.85)',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 7,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
   },
   dropBadgeText: {
     color: '#FFF',
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '700',
     letterSpacing: 0.6,
   },
-  overlay: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: 'rgba(255, 255, 255, 0.97)',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    paddingTop: SCREEN_HEIGHT * 0.48, // Start where image ends
+  contentWrapper: {
+    height: SCREEN_HEIGHT * 0.5,
+    backgroundColor: colors.background,
+  },
+  scrollContent: {
+    flex: 1,
+  },
+  scrollContentContainer: {
+    paddingBottom: 100,
   },
   content: {
     padding: 20,
-    paddingBottom: 140, // Extra padding for bottom navigation (80px) + safe area
-    gap: 12,
+    gap: 14,
   },
   productName: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: '800',
     color: colors.text,
     letterSpacing: -0.5,
-    lineHeight: 26,
+    lineHeight: 28,
   },
   priceRow: {
     flexDirection: 'row',
@@ -501,27 +538,27 @@ const styles = StyleSheet.create({
   priceInfo: {
     flexDirection: 'row',
     alignItems: 'baseline',
-    gap: 10,
+    gap: 12,
   },
   originalPrice: {
-    fontSize: 16,
+    fontSize: 18,
     color: colors.textSecondary,
     textDecorationLine: 'line-through',
   },
   discountBadge: {
     backgroundColor: colors.text,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 10,
   },
   discountText: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '800',
     color: colors.background,
     letterSpacing: 0.5,
   },
   discountedPrice: {
-    fontSize: 32,
+    fontSize: 36,
     fontWeight: '900',
     color: colors.text,
     letterSpacing: -1,
@@ -535,33 +572,58 @@ const styles = StyleSheet.create({
   detailBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 5,
     backgroundColor: colors.backgroundSecondary,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
     borderRadius: 8,
   },
   detailText: {
-    fontSize: 12,
+    fontSize: 13,
     color: colors.textSecondary,
     fontWeight: '600',
   },
   conditionBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
     borderRadius: 8,
   },
   conditionText: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '700',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
+  descriptionContainer: {
+    gap: 6,
+  },
+  descriptionLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.text,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  descriptionText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    lineHeight: 20,
+  },
+  stockContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 4,
+  },
+  stockText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
   bookButtonWrapper: {
-    marginTop: 4,
+    marginTop: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
@@ -572,18 +634,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 16,
-    paddingHorizontal: 18,
-    gap: 12,
+    paddingVertical: 18,
+    paddingHorizontal: 20,
+    gap: 14,
     backgroundColor: '#FFF',
     borderRadius: 16,
     borderWidth: 2.5,
     borderColor: '#333',
   },
   bookButtonIconContainer: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     backgroundColor: '#F5F5F5',
     justifyContent: 'center',
     alignItems: 'center',
@@ -592,17 +654,17 @@ const styles = StyleSheet.create({
   },
   bookButtonTextContainer: {
     flex: 1,
-    gap: 2,
+    gap: 3,
   },
   bookButtonTitle: {
     color: '#000',
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '800',
     letterSpacing: 0.3,
   },
   bookButtonSubtitle: {
     color: '#666',
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '500',
     letterSpacing: 0.2,
   },
@@ -610,11 +672,12 @@ const styles = StyleSheet.create({
     opacity: 0.8,
   },
   actionButton: {
-    paddingVertical: 16,
-    borderRadius: 12,
+    paddingVertical: 18,
+    borderRadius: 14,
     backgroundColor: colors.text,
     alignItems: 'center',
     justifyContent: 'center',
+    marginTop: 8,
   },
   interestedButton: {
     backgroundColor: colors.secondary,
@@ -624,7 +687,7 @@ const styles = StyleSheet.create({
   },
   actionButtonText: {
     color: colors.background,
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '800',
     letterSpacing: 1,
   },
