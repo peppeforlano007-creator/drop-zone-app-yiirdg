@@ -256,14 +256,7 @@ export default function EnhancedProductCard({
           bounces={true}
           scrollEventThrottle={16}
         >
-          <Animated.View 
-            style={[
-              styles.content,
-              {
-                opacity: fadeAnim,
-              },
-            ]}
-          >
+          <View style={styles.content}>
             {/* Product Name */}
             <Text style={styles.productName} numberOfLines={2}>{product.name}</Text>
 
@@ -352,7 +345,7 @@ export default function EnhancedProductCard({
               </View>
             )}
 
-            {/* Stock Info - Only show if stock data exists - NO MARGIN BOTTOM */}
+            {/* Stock Info - Only show if stock data exists */}
             {hasStock && (
               <View style={styles.stockContainer}>
                 <IconSymbol 
@@ -369,7 +362,7 @@ export default function EnhancedProductCard({
                 </Text>
               </View>
             )}
-          </Animated.View>
+          </View>
         </ScrollView>
 
         {/* Fixed Action Button at Bottom - Outside ScrollView */}
@@ -531,12 +524,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContentContainer: {
-    paddingBottom: 0,
+    flexGrow: 1,
+    paddingBottom: 90,
   },
   content: {
     paddingTop: 20,
     paddingHorizontal: 20,
-    paddingBottom: 0,
   },
   productName: {
     fontSize: 22,
@@ -635,8 +628,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginBottom: 0,
-    paddingBottom: 0,
   },
   stockText: {
     fontSize: 12,
@@ -648,12 +639,11 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     paddingHorizontal: 20,
-    paddingTop: 8,
-    paddingBottom: 8,
+    paddingTop: 12,
+    paddingBottom: 12,
     backgroundColor: colors.background,
     borderTopWidth: 1,
     borderTopColor: colors.border + '40',
-    zIndex: 1000,
   },
   bookButtonWrapper: {
     shadowColor: '#000',
