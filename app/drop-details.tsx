@@ -59,7 +59,10 @@ export default function DropDetailsScreen() {
   const [loading, setLoading] = useState(true);
   const [userBookings, setUserBookings] = useState<Set<string>>(new Set());
   const [timeRemaining, setTimeRemaining] = useState('');
+  const [isProgressExpanded, setIsProgressExpanded] = useState(true);
   const bounceAnim = useRef(new Animated.Value(1)).current;
+  const progressHeightAnim = useRef(new Animated.Value(1)).current;
+  const chevronRotateAnim = useRef(new Animated.Value(0)).current;
   const { hasPaymentMethod } = usePayment();
   const { user } = useAuth();
   const flatListRef = useRef<FlatList>(null);
@@ -271,6 +274,29 @@ export default function DropDetailsScreen() {
     const minValue = drop.supplier_lists.min_reservation_value ?? 1;
     return (currentValue / minValue) * 100;
   }, [drop]);
+
+  const toggleProgressBar = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    
+    const newExpandedState = !isProgressExpanded;
+    setIsProgressExpanded(newExpandedState);
+
+    // Animate height
+    Animated.spring(progressHeightAnim, {
+      toValue: newExpandedState ? 1 : 0,
+      useNativeDriver: false,
+      tension: 100,
+      friction: 10,
+    }).start();
+
+    // Animate chevron rotation
+    Animated.spring(chevronRotateAnim, {
+      toValue: newExpandedState ? 0 : 1,
+      useNativeDriver: true,
+      tension: 100,
+      friction: 10,
+    }).start();
+  };
 
   const handleBook = async (productId: string) => {
     if (!user) {
@@ -496,6 +522,12 @@ export default function DropDetailsScreen() {
     ? ((currentDiscount - minDiscount) / (maxDiscount - minDiscount)) * 100
     : 0;
 
+  // Interpolate chevron rotation
+  const chevronRotation = chevronRotateAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '180deg'],
+  });
+
   return (
     <View style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
@@ -585,8 +617,19 @@ export default function DropDetailsScreen() {
             </View>
           )}
 
-          {/* Progress Bar Section - NEW */}
-          <View style={styles.progressSection}>
+          {/* Progress Bar Section - Collapsible */}
+          <Animated.View 
+            style={[
+              styles.progressSection,
+              {
+                maxHeight: progressHeightAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0, 200],
+                }),
+                opacity: progressHeightAnim,
+              }
+            ]}
+          >
             <View style={styles.progressRow}>
               <View style={styles.progressLabelRow}>
                 <IconSymbol 
@@ -629,15 +672,31 @@ export default function DropDetailsScreen() {
                 <Text style={styles.progressStatValue}>{valueProgress.toFixed(0)}%</Text>
               </View>
             </View>
-          </View>
+          </Animated.View>
 
-          {/* Drop Info Bar - COMPACT */}
+          {/* Drop Info Bar - COMPACT with Toggle Icon */}
           <View style={styles.infoBar}>
             <View style={styles.infoItem}>
               <Text style={styles.infoLabel}>Tempo Rimanente</Text>
               <Text style={styles.timerText}>{timeRemaining}</Text>
             </View>
           </View>
+
+          {/* Toggle Icon for Progress Bar */}
+          <Pressable 
+            style={styles.toggleButton}
+            onPress={toggleProgressBar}
+            hitSlop={{ top: 10, bottom: 10, left: 20, right: 20 }}
+          >
+            <Animated.View style={{ transform: [{ rotate: chevronRotation }] }}>
+              <IconSymbol 
+                ios_icon_name="chevron.up" 
+                android_material_icon_name="keyboard_arrow_up" 
+                size={20} 
+                color="#666" 
+              />
+            </Animated.View>
+          </Pressable>
 
           {/* Real-time connection indicator */}
           {isConnected && (
@@ -805,13 +864,13 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontFamily: 'System',
   },
-  // NEW: Progress Section Styles
   progressSection: {
     paddingHorizontal: 16,
     paddingVertical: 12,
     backgroundColor: 'rgba(255, 255, 255, 0.98)',
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(0, 0, 0, 0.06)',
+    overflow: 'hidden',
   },
   progressRow: {
     flexDirection: 'row',
@@ -908,6 +967,14 @@ const styles = StyleSheet.create({
     color: '#000',
     fontFamily: 'System',
     textAlign: 'center',
+  },
+  toggleButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.98)',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0, 0, 0, 0.06)',
   },
   realtimeIndicator: {
     flexDirection: 'row',
