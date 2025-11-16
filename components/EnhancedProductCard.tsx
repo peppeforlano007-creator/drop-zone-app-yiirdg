@@ -220,7 +220,7 @@ export default function EnhancedProductCard({
             <IconSymbol 
               ios_icon_name="photo.stack" 
               android_material_icon_name="collections" 
-              size={16} 
+              size={14} 
               color="#FFFFFF" 
             />
             <Text style={styles.imageCount}>{product.imageUrls.length}</Text>
@@ -289,7 +289,7 @@ export default function EnhancedProductCard({
                     <IconSymbol 
                       ios_icon_name={conditionIcon.ios} 
                       android_material_icon_name={conditionIcon.android} 
-                      size={12} 
+                      size={10} 
                       color={getConditionColor(product.condition)} 
                     />
                     <Text style={[
@@ -306,7 +306,7 @@ export default function EnhancedProductCard({
                     <IconSymbol 
                       ios_icon_name="ruler" 
                       android_material_icon_name="straighten" 
-                      size={12} 
+                      size={10} 
                       color={colors.textSecondary} 
                     />
                     <Text style={styles.detailText} numberOfLines={1}>
@@ -322,7 +322,7 @@ export default function EnhancedProductCard({
                     <IconSymbol 
                       ios_icon_name="paintpalette" 
                       android_material_icon_name="palette" 
-                      size={12} 
+                      size={10} 
                       color={colors.textSecondary} 
                     />
                     <Text style={styles.detailText} numberOfLines={1}>
@@ -341,7 +341,7 @@ export default function EnhancedProductCard({
                 <IconSymbol 
                   ios_icon_name="cube.box" 
                   android_material_icon_name="inventory_2" 
-                  size={14} 
+                  size={12} 
                   color={product.stock > 10 ? colors.success : colors.warning} 
                 />
                 <Text style={[
@@ -391,7 +391,7 @@ export default function EnhancedProductCard({
                       <IconSymbol 
                         ios_icon_name="creditcard.fill" 
                         android_material_icon_name="credit_card" 
-                        size={22} 
+                        size={18} 
                         color="#333" 
                       />
                     </View>
@@ -405,7 +405,7 @@ export default function EnhancedProductCard({
                       <IconSymbol 
                         ios_icon_name="chevron.right" 
                         android_material_icon_name="chevron_right" 
-                        size={22} 
+                        size={18} 
                         color="#333" 
                       />
                     </View>
@@ -467,54 +467,54 @@ const styles = StyleSheet.create({
   imageIndicator: {
     position: 'absolute',
     top: 60,
-    right: 20,
+    right: 16,
     backgroundColor: 'rgba(0, 0, 0, 0.75)',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 16,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
+    gap: 4,
   },
   imageCount: {
     color: '#FFFFFF',
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '700',
   },
   topBadgesContainer: {
     position: 'absolute',
     top: 60,
-    left: 20,
+    left: 16,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
   },
   supplierBadge: {
     backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 6,
     borderWidth: 1,
     borderColor: 'rgba(0, 0, 0, 0.1)',
   },
   supplierText: {
     color: '#333',
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '700',
     textTransform: 'uppercase',
-    letterSpacing: 0.6,
+    letterSpacing: 0.5,
   },
   dropBadge: {
     backgroundColor: 'rgba(0, 0, 0, 0.85)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 6,
   },
   dropBadgeText: {
     color: '#FFF',
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '700',
-    letterSpacing: 0.6,
+    letterSpacing: 0.5,
   },
   contentWrapper: {
     height: SCREEN_HEIGHT * 0.55,
@@ -525,19 +525,19 @@ const styles = StyleSheet.create({
   },
   scrollContentContainer: {
     flexGrow: 1,
-    paddingBottom: 8,
+    paddingBottom: 6,
   },
   content: {
-    paddingTop: 16,
-    paddingHorizontal: 20,
-    gap: 8,
+    paddingTop: 12,
+    paddingHorizontal: 16,
+    gap: 6,
   },
   productName: {
-    fontSize: 20,
+    fontSize: 17,
     fontWeight: '800',
     color: colors.text,
-    letterSpacing: -0.5,
-    lineHeight: 24,
+    letterSpacing: -0.4,
+    lineHeight: 21,
     marginBottom: 0,
   },
   priceRow: {
@@ -549,90 +549,90 @@ const styles = StyleSheet.create({
   priceInfo: {
     flexDirection: 'row',
     alignItems: 'baseline',
-    gap: 8,
+    gap: 6,
   },
   originalPrice: {
-    fontSize: 14,
+    fontSize: 12,
     color: colors.textSecondary,
     textDecorationLine: 'line-through',
   },
   discountBadge: {
     backgroundColor: colors.text,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
   },
   discountText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '800',
     color: colors.background,
-    letterSpacing: 0.5,
+    letterSpacing: 0.4,
   },
   discountedPrice: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: '900',
     color: colors.text,
-    letterSpacing: -1,
+    letterSpacing: -0.8,
   },
   detailsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 5,
     flexWrap: 'wrap',
     marginTop: 0,
   },
   detailBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 3,
     backgroundColor: colors.backgroundSecondary,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 5,
   },
   detailText: {
-    fontSize: 11,
+    fontSize: 10,
     color: colors.textSecondary,
     fontWeight: '600',
   },
   conditionBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
+    gap: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 5,
   },
   conditionText: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '700',
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 0.4,
   },
   descriptionContainer: {
-    gap: 4,
-    marginTop: 4,
+    gap: 3,
+    marginTop: 2,
   },
   descriptionLabel: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '700',
     color: colors.text,
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 0.4,
   },
   descriptionText: {
-    fontSize: 13,
+    fontSize: 12,
     color: colors.textSecondary,
-    lineHeight: 18,
+    lineHeight: 16,
   },
   stockContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
+    gap: 4,
     marginTop: 0,
   },
   stockText: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '600',
   },
   fixedButtonContainer: {
@@ -640,36 +640,36 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 12,
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 10,
     backgroundColor: colors.background,
     borderTopWidth: 1,
     borderTopColor: colors.border + '40',
   },
   bookButtonWrapper: {
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 6,
   },
   bookButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 16,
-    paddingHorizontal: 18,
-    gap: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    gap: 10,
     backgroundColor: '#FFF',
-    borderRadius: 14,
-    borderWidth: 2.5,
+    borderRadius: 12,
+    borderWidth: 2,
     borderColor: '#333',
   },
   bookButtonIconContainer: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: '#F5F5F5',
     justifyContent: 'center',
     alignItems: 'center',
@@ -678,17 +678,17 @@ const styles = StyleSheet.create({
   },
   bookButtonTextContainer: {
     flex: 1,
-    gap: 2,
+    gap: 1,
   },
   bookButtonTitle: {
     color: '#000',
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '800',
     letterSpacing: 0.3,
   },
   bookButtonSubtitle: {
     color: '#666',
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '500',
     letterSpacing: 0.2,
   },
@@ -696,8 +696,8 @@ const styles = StyleSheet.create({
     opacity: 0.8,
   },
   actionButton: {
-    paddingVertical: 16,
-    borderRadius: 14,
+    paddingVertical: 14,
+    borderRadius: 12,
     backgroundColor: colors.text,
     alignItems: 'center',
     justifyContent: 'center',
@@ -710,8 +710,8 @@ const styles = StyleSheet.create({
   },
   actionButtonText: {
     color: colors.background,
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '800',
-    letterSpacing: 1,
+    letterSpacing: 0.8,
   },
 });
