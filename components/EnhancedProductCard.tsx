@@ -352,7 +352,7 @@ export default function EnhancedProductCard({
               </View>
             )}
 
-            {/* Stock Info - Only show if stock data exists */}
+            {/* Stock Info - Only show if stock data exists - NO MARGIN BOTTOM */}
             {hasStock && (
               <View style={styles.stockContainer}>
                 <IconSymbol 
@@ -372,7 +372,7 @@ export default function EnhancedProductCard({
           </Animated.View>
         </ScrollView>
 
-        {/* Fixed Action Button at Bottom - Outside ScrollView */}
+        {/* Fixed Action Button at Bottom - Outside ScrollView - REDUCED PADDING */}
         {isInDrop ? (
           <View style={styles.fixedButtonContainer}>
             <Animated.View 
@@ -393,7 +393,7 @@ export default function EnhancedProductCard({
                 {isProcessing ? (
                   <ActivityIndicator color="#333" size="small" />
                 ) : (
-                  <>
+                  <React.Fragment>
                     <View style={styles.bookButtonIconContainer}>
                       <IconSymbol 
                         ios_icon_name="creditcard.fill" 
@@ -416,7 +416,7 @@ export default function EnhancedProductCard({
                         color="#333" 
                       />
                     </View>
-                  </>
+                  </React.Fragment>
                 )}
               </Pressable>
             </Animated.View>
@@ -531,11 +531,11 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContentContainer: {
-    paddingBottom: 20,
+    paddingBottom: 10,
   },
   content: {
     padding: 20,
-    paddingBottom: 10,
+    paddingBottom: 5,
     gap: 12,
   },
   productName: {
@@ -631,6 +631,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+    marginBottom: 0,
   },
   stockText: {
     fontSize: 12,
@@ -642,7 +643,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     paddingHorizontal: 20,
-    paddingVertical: 12,
+    paddingVertical: 8,
     backgroundColor: colors.background,
     borderTopWidth: 1,
     borderTopColor: colors.border + '40',
