@@ -59,7 +59,6 @@ export default function DropDetailsScreen() {
   const [loading, setLoading] = useState(true);
   const [userBookings, setUserBookings] = useState<Set<string>>(new Set());
   const [timeRemaining, setTimeRemaining] = useState('');
-  const [headerHeight, setHeaderHeight] = useState(0);
   const bounceAnim = useRef(new Animated.Value(1)).current;
   const { hasPaymentMethod } = usePayment();
   const { user } = useAuth();
@@ -484,141 +483,6 @@ export default function DropDetailsScreen() {
     <View style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
       
-      {/* Header - Fixed at top */}
-      <SafeAreaView edges={['top']} style={styles.headerSafeArea}>
-        <View 
-          style={styles.header}
-          onLayout={(event) => {
-            const { height } = event.nativeEvent.layout;
-            setHeaderHeight(height);
-          }}
-        >
-          <Pressable
-            style={styles.backBtn}
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              router.back();
-            }}
-          >
-            <IconSymbol ios_icon_name="chevron.left" android_material_icon_name="arrow_back" size={24} color={colors.text} />
-          </Pressable>
-
-          <View style={styles.headerCenter}>
-            <Text style={styles.dropName}>{drop.name}</Text>
-            <Text style={styles.pickupPoint}>
-              <IconSymbol ios_icon_name="location.fill" android_material_icon_name="location_on" size={14} color={colors.textSecondary} />
-              {' '}{drop.pickup_points?.name ?? 'N/A'}
-            </Text>
-          </View>
-
-          <Pressable
-            style={styles.shareBtn}
-            onPress={handleShareWhatsApp}
-            onPressIn={handlePressIn}
-            onPressOut={handlePressOut}
-          >
-            <Animated.View style={{ transform: [{ scale: bounceAnim }] }}>
-              <IconSymbol ios_icon_name="square.and.arrow.up" android_material_icon_name="share" size={24} color={colors.text} />
-            </Animated.View>
-          </Pressable>
-        </View>
-
-        {/* Underfunding Warning */}
-        {atRisk && (
-          <View style={styles.underfundingWarning}>
-            <IconSymbol
-              ios_icon_name="exclamationmark.triangle.fill"
-              android_material_icon_name="warning"
-              size={24}
-              color="#FF6B35"
-            />
-            <View style={styles.underfundingContent}>
-              <Text style={styles.underfundingTitle}>⚠️ Drop a Rischio!</Text>
-              <Text style={styles.underfundingText}>
-                Abbiamo raggiunto solo €{currentValue.toFixed(0)} su €{minReservationValue.toFixed(0)} richiesti.
-              </Text>
-              <Text style={styles.underfundingText}>
-                Se non raggiungiamo l&apos;ordine minimo entro la scadenza, il drop verrà annullato e i fondi rilasciati.
-              </Text>
-              <View style={styles.underfundingProgressBar}>
-                <View 
-                  style={[
-                    styles.underfundingProgressFill, 
-                    { width: `${Math.min(underfundingProgress, 100)}%` }
-                  ]} 
-                />
-              </View>
-              <Text style={styles.underfundingProgressText}>
-                {underfundingProgress.toFixed(0)}% dell&apos;ordine minimo
-              </Text>
-              <Pressable
-                style={styles.shareUrgentButton}
-                onPress={handleShareWhatsApp}
-              >
-                <IconSymbol
-                  ios_icon_name="square.and.arrow.up.fill"
-                  android_material_icon_name="share"
-                  size={18}
-                  color="#fff"
-                />
-                <Text style={styles.shareUrgentButtonText}>
-                  Condividi Ora con Amici!
-                </Text>
-              </Pressable>
-            </View>
-          </View>
-        )}
-
-        {/* Drop Info Bar */}
-        <View style={styles.infoBar}>
-          <View style={styles.infoItem}>
-            <Text style={styles.infoLabel}>Sconto attuale</Text>
-            <Animated.View style={{ transform: [{ scale: bounceAnim }] }}>
-              <Text style={styles.discountText}>{currentDiscount.toFixed(1)}%</Text>
-            </Animated.View>
-          </View>
-
-          <View style={styles.divider} />
-
-          <View style={styles.infoItem}>
-            <Text style={styles.infoLabel}>Tempo rimanente</Text>
-            <Text style={styles.timerText}>{timeRemaining}</Text>
-          </View>
-
-          <View style={styles.divider} />
-
-          <View style={styles.infoItem}>
-            <Text style={styles.infoLabel}>Progresso</Text>
-            <Text style={styles.progressText}>
-              €{currentValue.toFixed(0)} / €{maxReservationValue.toFixed(0)}
-            </Text>
-          </View>
-        </View>
-
-        {/* Real-time connection indicator */}
-        {isConnected && (
-          <View style={styles.realtimeIndicator}>
-            <View style={styles.realtimeDot} />
-            <Text style={styles.realtimeText}>Aggiornamenti in tempo reale attivi</Text>
-          </View>
-        )}
-
-        {/* Progress Bar */}
-        <View style={styles.progressBarContainer}>
-          <View style={styles.progressBarBackground}>
-            <View
-              style={[
-                styles.progressBarFill,
-                { width: `${Math.min((currentValue / maxReservationValue) * 100, 100)}%` }
-              ]}
-            />
-          </View>
-          <Text style={styles.progressLabel}>
-            {Math.min(Math.round((currentValue / maxReservationValue) * 100), 100)}% dell&apos;obiettivo massimo
-          </Text>
-        </View>
-      </SafeAreaView>
-
       {/* Products List - Full screen scrollable */}
       <FlatList
         ref={flatListRef}
@@ -639,6 +503,137 @@ export default function DropDetailsScreen() {
           index,
         })}
       />
+
+      {/* Overlay Header - Positioned absolutely on top */}
+      <View style={styles.overlayHeaderContainer} pointerEvents="box-none">
+        <SafeAreaView edges={['top']} style={styles.headerSafeArea}>
+          <View style={styles.header}>
+            <Pressable
+              style={styles.backBtn}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.back();
+              }}
+            >
+              <IconSymbol ios_icon_name="chevron.left" android_material_icon_name="arrow_back" size={24} color="#000" />
+            </Pressable>
+
+            <View style={styles.headerCenter}>
+              <Text style={styles.dropName}>{drop.name}</Text>
+              <Text style={styles.pickupPoint}>
+                <IconSymbol ios_icon_name="location.fill" android_material_icon_name="location_on" size={14} color="#666" />
+                {' '}{drop.pickup_points?.name ?? 'N/A'}
+              </Text>
+            </View>
+
+            <Pressable
+              style={styles.shareBtn}
+              onPress={handleShareWhatsApp}
+              onPressIn={handlePressIn}
+              onPressOut={handlePressOut}
+            >
+              <Animated.View style={{ transform: [{ scale: bounceAnim }] }}>
+                <IconSymbol ios_icon_name="square.and.arrow.up" android_material_icon_name="share" size={24} color="#000" />
+              </Animated.View>
+            </Pressable>
+          </View>
+
+          {/* Underfunding Warning */}
+          {atRisk && (
+            <View style={styles.underfundingWarning}>
+              <IconSymbol
+                ios_icon_name="exclamationmark.triangle.fill"
+                android_material_icon_name="warning"
+                size={24}
+                color="#FF6B35"
+              />
+              <View style={styles.underfundingContent}>
+                <Text style={styles.underfundingTitle}>⚠️ Drop a Rischio!</Text>
+                <Text style={styles.underfundingText}>
+                  Abbiamo raggiunto solo €{currentValue.toFixed(0)} su €{minReservationValue.toFixed(0)} richiesti.
+                </Text>
+                <Text style={styles.underfundingText}>
+                  Se non raggiungiamo l&apos;ordine minimo entro la scadenza, il drop verrà annullato e i fondi rilasciati.
+                </Text>
+                <View style={styles.underfundingProgressBar}>
+                  <View 
+                    style={[
+                      styles.underfundingProgressFill, 
+                      { width: `${Math.min(underfundingProgress, 100)}%` }
+                    ]} 
+                  />
+                </View>
+                <Text style={styles.underfundingProgressText}>
+                  {underfundingProgress.toFixed(0)}% dell&apos;ordine minimo
+                </Text>
+                <Pressable
+                  style={styles.shareUrgentButton}
+                  onPress={handleShareWhatsApp}
+                >
+                  <IconSymbol
+                    ios_icon_name="square.and.arrow.up.fill"
+                    android_material_icon_name="share"
+                    size={18}
+                    color="#fff"
+                  />
+                  <Text style={styles.shareUrgentButtonText}>
+                    Condividi Ora con Amici!
+                  </Text>
+                </Pressable>
+              </View>
+            </View>
+          )}
+
+          {/* Drop Info Bar - Semi-transparent */}
+          <View style={styles.infoBar}>
+            <View style={styles.infoItem}>
+              <Text style={styles.infoLabel}>Sconto attuale</Text>
+              <Animated.View style={{ transform: [{ scale: bounceAnim }] }}>
+                <Text style={styles.discountText}>{currentDiscount.toFixed(1)}%</Text>
+              </Animated.View>
+            </View>
+
+            <View style={styles.divider} />
+
+            <View style={styles.infoItem}>
+              <Text style={styles.infoLabel}>Tempo rimanente</Text>
+              <Text style={styles.timerText}>{timeRemaining}</Text>
+            </View>
+
+            <View style={styles.divider} />
+
+            <View style={styles.infoItem}>
+              <Text style={styles.infoLabel}>Progresso</Text>
+              <Text style={styles.progressText}>
+                €{currentValue.toFixed(0)} / €{maxReservationValue.toFixed(0)}
+              </Text>
+            </View>
+          </View>
+
+          {/* Real-time connection indicator */}
+          {isConnected && (
+            <View style={styles.realtimeIndicator}>
+              <View style={styles.realtimeDot} />
+              <Text style={styles.realtimeText}>Aggiornamenti in tempo reale attivi</Text>
+            </View>
+          )}
+
+          {/* Progress Bar */}
+          <View style={styles.progressBarContainer}>
+            <View style={styles.progressBarBackground}>
+              <View
+                style={[
+                  styles.progressBarFill,
+                  { width: `${Math.min((currentValue / maxReservationValue) * 100, 100)}%` }
+                ]}
+              />
+            </View>
+            <Text style={styles.progressLabel}>
+              {Math.min(Math.round((currentValue / maxReservationValue) * 100), 100)}% dell&apos;obiettivo massimo
+            </Text>
+          </View>
+        </SafeAreaView>
+      </View>
     </View>
   );
 }
@@ -648,10 +643,18 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
+  overlayHeaderContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 1000,
+  },
   headerSafeArea: {
-    backgroundColor: colors.card,
+    backgroundColor: 'rgba(255, 255, 255, 0.85)',
+    backdropFilter: 'blur(20px)',
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: 'rgba(0, 0, 0, 0.1)',
   },
   loadingContainer: {
     flex: 1,
@@ -696,15 +699,19 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: colors.card,
   },
   backBtn: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: colors.background,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
     justifyContent: 'center',
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   headerCenter: {
     flex: 1,
@@ -714,12 +721,12 @@ const styles = StyleSheet.create({
   dropName: {
     fontSize: 18,
     fontWeight: '700',
-    color: colors.text,
+    color: '#000',
     fontFamily: 'System',
   },
   pickupPoint: {
     fontSize: 14,
-    color: colors.textSecondary,
+    color: '#666',
     marginTop: 2,
     fontFamily: 'System',
   },
@@ -727,18 +734,23 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: colors.background,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
     justifyContent: 'center',
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   underfundingWarning: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    backgroundColor: '#FF6B3520',
+    backgroundColor: 'rgba(255, 107, 53, 0.15)',
     padding: 16,
     gap: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#FF6B35',
+    borderBottomColor: 'rgba(255, 107, 53, 0.3)',
   },
   underfundingContent: {
     flex: 1,
@@ -752,13 +764,13 @@ const styles = StyleSheet.create({
   },
   underfundingText: {
     fontSize: 14,
-    color: colors.text,
+    color: '#000',
     marginBottom: 6,
     fontFamily: 'System',
   },
   underfundingProgressBar: {
     height: 8,
-    backgroundColor: colors.border,
+    backgroundColor: 'rgba(0, 0, 0, 0.1)',
     borderRadius: 4,
     overflow: 'hidden',
     marginTop: 8,
@@ -771,7 +783,7 @@ const styles = StyleSheet.create({
   },
   underfundingProgressText: {
     fontSize: 12,
-    color: colors.textSecondary,
+    color: '#666',
     marginBottom: 12,
     fontFamily: 'System',
   },
@@ -793,7 +805,6 @@ const styles = StyleSheet.create({
   },
   infoBar: {
     flexDirection: 'row',
-    backgroundColor: colors.card,
     paddingVertical: 16,
     paddingHorizontal: 12,
   },
@@ -803,7 +814,7 @@ const styles = StyleSheet.create({
   },
   infoLabel: {
     fontSize: 12,
-    color: colors.textSecondary,
+    color: '#666',
     marginBottom: 4,
     fontFamily: 'System',
   },
@@ -816,18 +827,18 @@ const styles = StyleSheet.create({
   timerText: {
     fontSize: 14,
     fontWeight: '600',
-    color: colors.text,
+    color: '#000',
     fontFamily: 'System',
   },
   progressText: {
     fontSize: 14,
     fontWeight: '600',
-    color: colors.text,
+    color: '#000',
     fontFamily: 'System',
   },
   divider: {
     width: 1,
-    backgroundColor: colors.border,
+    backgroundColor: 'rgba(0, 0, 0, 0.1)',
     marginHorizontal: 8,
   },
   realtimeIndicator: {
@@ -836,7 +847,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 8,
     paddingHorizontal: 12,
-    backgroundColor: colors.success + '20',
+    backgroundColor: 'rgba(76, 175, 80, 0.15)',
   },
   realtimeDot: {
     width: 8,
@@ -854,11 +865,10 @@ const styles = StyleSheet.create({
   progressBarContainer: {
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: colors.card,
   },
   progressBarBackground: {
     height: 8,
-    backgroundColor: colors.border,
+    backgroundColor: 'rgba(0, 0, 0, 0.1)',
     borderRadius: 4,
     overflow: 'hidden',
   },
@@ -869,7 +879,7 @@ const styles = StyleSheet.create({
   },
   progressLabel: {
     fontSize: 12,
-    color: colors.textSecondary,
+    color: '#666',
     marginTop: 8,
     textAlign: 'center',
     fontFamily: 'System',
