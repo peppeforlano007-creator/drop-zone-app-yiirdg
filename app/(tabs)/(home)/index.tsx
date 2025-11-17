@@ -554,50 +554,80 @@ export default function HomeScreen() {
           removeClippedSubviews={Platform.OS === 'android'}
         />
         
-        {/* Top Bar - More compact with better icons */}
-        <View style={styles.topBar}>
-          <View style={styles.pickupPointBadge}>
-            <IconSymbol ios_icon_name="mappin.circle.fill" android_material_icon_name="location_on" size={18} color={colors.text} />
-            <Text style={styles.pickupPointText}>{user?.pickupPoint || 'Nessun punto'}</Text>
-          </View>
-          
-          <Pressable onPress={handleLogout} style={styles.logoutButton}>
-            <IconSymbol ios_icon_name="rectangle.portrait.and.arrow.right" android_material_icon_name="logout" size={24} color={colors.text} />
-          </Pressable>
-        </View>
-
-        {/* List Name Bar - Shows only list name */}
-        <View style={styles.supplierBarContainer}>
-          <View style={styles.supplierBar}>
-            <View style={styles.supplierInfo}>
-              <IconSymbol ios_icon_name="list.bullet.rectangle" android_material_icon_name="list" size={14} color={colors.text} />
-              <Text style={styles.listName}>{currentList?.listName}</Text>
+        {/* TikTok-style Right Side Icons */}
+        <View style={styles.rightSideIcons}>
+          {/* Logout Button */}
+          <Pressable onPress={handleLogout} style={styles.iconButton}>
+            <View style={styles.iconCircle}>
+              <IconSymbol 
+                ios_icon_name="rectangle.portrait.and.arrow.right" 
+                android_material_icon_name="logout" 
+                size={20} 
+                color={colors.text} 
+              />
             </View>
-            <View style={styles.listCounter}>
-              <Text style={styles.listCounterText}>
+          </Pressable>
+
+          {/* Pickup Point */}
+          <View style={styles.iconButton}>
+            <View style={styles.iconCircle}>
+              <IconSymbol 
+                ios_icon_name="mappin.circle.fill" 
+                android_material_icon_name="location_on" 
+                size={20} 
+                color={colors.text} 
+              />
+            </View>
+            <Text style={styles.iconLabel} numberOfLines={1}>
+              {user?.pickupPoint || 'N/A'}
+            </Text>
+          </View>
+
+          {/* List Name */}
+          <View style={styles.iconButton}>
+            <View style={styles.iconCircle}>
+              <IconSymbol 
+                ios_icon_name="list.bullet.rectangle" 
+                android_material_icon_name="list" 
+                size={20} 
+                color={colors.text} 
+              />
+            </View>
+            <Text style={styles.iconLabel} numberOfLines={2}>
+              {currentList?.listName}
+            </Text>
+          </View>
+
+          {/* Progress Bar with Product Counter */}
+          <View style={styles.iconButton}>
+            <View style={styles.progressCircle}>
+              <View style={styles.progressCircleBackground}>
+                <Animated.View 
+                  style={[
+                    styles.progressCircleFill,
+                    {
+                      height: progressAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: ['0%', '100%'],
+                      }),
+                    },
+                  ]} 
+                />
+              </View>
+              <View style={styles.progressCircleContent}>
+                <Text style={styles.progressNumber}>{currentProductIndex + 1}</Text>
+                <Text style={styles.progressTotal}>/{totalProductsInList}</Text>
+              </View>
+            </View>
+          </View>
+
+          {/* List Counter */}
+          <View style={styles.iconButton}>
+            <View style={styles.iconCircle}>
+              <Text style={styles.listCounterIcon}>
                 {currentListIndex + 1}/{productLists.length}
               </Text>
             </View>
-          </View>
-
-          {/* Compact Progress Bar */}
-          <View style={styles.progressContainer}>
-            <View style={styles.progressBar}>
-              <Animated.View 
-                style={[
-                  styles.progressFill,
-                  {
-                    width: progressAnim.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: ['0%', '100%'],
-                    }),
-                  },
-                ]} 
-              />
-            </View>
-            <Text style={styles.progressText}>
-              {currentProductIndex + 1}/{totalProductsInList}
-            </Text>
           </View>
         </View>
 
@@ -803,78 +833,102 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
   },
-  supplierBarContainer: {
+  // TikTok-style Right Side Icons
+  rightSideIcons: {
     position: 'absolute',
-    top: 115,
-    left: 20,
-    right: 20,
+    right: 12,
+    top: '20%',
+    bottom: '25%',
+    justifyContent: 'space-evenly',
+    alignItems: 'center',
+    gap: 20,
     zIndex: 10,
   },
-  supplierBar: {
-    flexDirection: 'row',
+  iconButton: {
     alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: 'rgba(255, 255, 255, 0.92)',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    gap: 4,
+  },
+  iconCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: 'rgba(0, 0, 0, 0.1)',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 3,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
   },
-  supplierInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    flex: 1,
-  },
-  listName: {
-    fontSize: 13,
+  iconLabel: {
+    fontSize: 9,
     fontWeight: '700',
     color: colors.text,
-    letterSpacing: 0.3,
-    flex: 1,
-  },
-  listCounter: {
-    backgroundColor: colors.backgroundSecondary,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 10,
-  },
-  listCounterText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: colors.textSecondary,
-    letterSpacing: 0.3,
-  },
-  progressContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 6,
-  },
-  progressBar: {
-    flex: 1,
-    height: 4,
-    backgroundColor: 'rgba(0, 0, 0, 0.1)',
-    borderRadius: 2,
+    textAlign: 'center',
+    maxWidth: 60,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
     overflow: 'hidden',
   },
-  progressFill: {
-    height: '100%',
-    backgroundColor: colors.text,
-    borderRadius: 2,
-  },
-  progressText: {
+  listCounterIcon: {
     fontSize: 10,
+    fontWeight: '800',
+    color: colors.text,
+    letterSpacing: 0.2,
+  },
+  // Progress Circle
+  progressCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    position: 'relative',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  progressCircleBackground: {
+    position: 'absolute',
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    borderWidth: 1,
+    borderColor: 'rgba(0, 0, 0, 0.1)',
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  progressCircleFill: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: colors.text,
+    opacity: 0.2,
+  },
+  progressCircleContent: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 1,
+  },
+  progressNumber: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: colors.text,
+    lineHeight: 14,
+  },
+  progressTotal: {
+    fontSize: 8,
     fontWeight: '700',
     color: colors.textSecondary,
-    minWidth: 35,
-    textAlign: 'right',
+    lineHeight: 10,
   },
   navButtonLeft: {
     position: 'absolute',
@@ -920,7 +974,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 300,
     left: 20,
-    right: 20,
+    right: 80,
     zIndex: 10,
   },
   hintCard: {
