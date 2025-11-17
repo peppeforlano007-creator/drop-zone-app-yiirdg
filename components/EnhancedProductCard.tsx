@@ -223,14 +223,12 @@ export default function EnhancedProductCard({
           </View>
         )}
 
-        {/* Top badges overlay on image */}
-        <View style={styles.topBadgesContainer}>
-          {isInDrop && currentDiscount && (
-            <View style={styles.dropBadge}>
-              <Text style={styles.dropBadgeText}>Drop -{currentDiscount.toFixed(1)}%</Text>
-            </View>
-          )}
-        </View>
+        {/* Drop badge moved to bottom-left of image */}
+        {isInDrop && currentDiscount && (
+          <View style={styles.dropBadgeBottomLeft}>
+            <Text style={styles.dropBadgeText}>Drop -{currentDiscount.toFixed(1)}%</Text>
+          </View>
+        )}
       </Pressable>
 
       <View style={styles.overlay}>
@@ -301,9 +299,10 @@ export default function EnhancedProductCard({
             <View style={styles.priceInfo}>
               <Text style={styles.discountedPrice}>€{discountedPrice.toFixed(2)}</Text>
               <Text style={styles.originalPrice}>€{originalPrice.toFixed(2)}</Text>
-            </View>
-            <View style={styles.discountBadge}>
-              <Text style={styles.discountText}>-{discount.toFixed(0)}%</Text>
+              {/* Discount badge moved closer to the price */}
+              <View style={styles.discountBadge}>
+                <Text style={styles.discountText}>-{discount.toFixed(0)}%</Text>
+              </View>
             </View>
           </View>
 
@@ -498,15 +497,11 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
   },
-  topBadgesContainer: {
+  // Drop badge repositioned to bottom-left of image
+  dropBadgeBottomLeft: {
     position: 'absolute',
-    top: 60,
+    bottom: 20,
     left: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  dropBadge: {
     backgroundColor: 'rgba(0, 0, 0, 0.85)',
     paddingHorizontal: 12,
     paddingVertical: 6,
@@ -584,18 +579,20 @@ const styles = StyleSheet.create({
   priceInfo: {
     flexDirection: 'row',
     alignItems: 'baseline',
-    gap: 10,
+    gap: 8,
   },
   originalPrice: {
     fontSize: 13,
     color: colors.textSecondary,
     textDecorationLine: 'line-through',
   },
+  // Discount badge moved closer to the price (within priceInfo)
   discountBadge: {
     backgroundColor: colors.text,
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 7,
+    marginLeft: 4,
   },
   discountText: {
     fontSize: 12,
