@@ -323,6 +323,13 @@ export default function HomeScreen() {
     );
   };
 
+  const handleNotifications = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    // TODO: Navigate to notifications screen or show notifications modal
+    Alert.alert('Notifiche', 'Funzionalità notifiche in arrivo!');
+    console.log('Notifications button pressed');
+  };
+
   const handleNextList = () => {
     if (currentListIndex < productLists.length - 1) {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -469,16 +476,24 @@ export default function HomeScreen() {
       <>
         <Stack.Screen options={{ headerShown: false }} />
         <View style={[styles.container, styles.centerContent]}>
-          <View style={styles.topBar}>
-            <View style={styles.pickupPointBadge}>
-              <IconSymbol ios_icon_name="mappin.circle.fill" android_material_icon_name="location_on" size={18} color={colors.text} />
-              <Text style={styles.pickupPointText}>{user?.pickupPoint || 'Nessun punto'}</Text>
-            </View>
-            
-            <Pressable onPress={handleLogout} style={styles.logoutButton}>
-              <IconSymbol ios_icon_name="rectangle.portrait.and.arrow.right" android_material_icon_name="logout" size={24} color={colors.text} />
-            </Pressable>
-          </View>
+          {/* Top Buttons - Logout (Left) and Notifications (Right) */}
+          <Pressable onPress={handleLogout} style={styles.topLeftButton}>
+            <IconSymbol 
+              ios_icon_name="rectangle.portrait.and.arrow.right" 
+              android_material_icon_name="logout" 
+              size={24} 
+              color={colors.text} 
+            />
+          </Pressable>
+
+          <Pressable onPress={handleNotifications} style={styles.topRightButton}>
+            <IconSymbol 
+              ios_icon_name="bell.fill" 
+              android_material_icon_name="notifications" 
+              size={24} 
+              color={colors.text} 
+            />
+          </Pressable>
 
           <IconSymbol 
             ios_icon_name="tray" 
@@ -554,20 +569,27 @@ export default function HomeScreen() {
           removeClippedSubviews={Platform.OS === 'android'}
         />
         
+        {/* Top Buttons - Logout (Left) and Notifications (Right) with Transparent Background */}
+        <Pressable onPress={handleLogout} style={styles.topLeftButton}>
+          <IconSymbol 
+            ios_icon_name="rectangle.portrait.and.arrow.right" 
+            android_material_icon_name="logout" 
+            size={24} 
+            color={colors.text} 
+          />
+        </Pressable>
+
+        <Pressable onPress={handleNotifications} style={styles.topRightButton}>
+          <IconSymbol 
+            ios_icon_name="bell.fill" 
+            android_material_icon_name="notifications" 
+            size={24} 
+            color={colors.text} 
+          />
+        </Pressable>
+        
         {/* TikTok-style Right Side Icons */}
         <View style={styles.rightSideIcons}>
-          {/* Logout Button */}
-          <Pressable onPress={handleLogout} style={styles.iconButton}>
-            <View style={styles.iconCircle}>
-              <IconSymbol 
-                ios_icon_name="rectangle.portrait.and.arrow.right" 
-                android_material_icon_name="logout" 
-                size={20} 
-                color={colors.text} 
-              />
-            </View>
-          </Pressable>
-
           {/* Pickup Point */}
           <View style={styles.iconButton}>
             <View style={styles.iconCircle}>
@@ -785,53 +807,22 @@ const styles = StyleSheet.create({
     width: SCREEN_WIDTH,
     height: SCREEN_HEIGHT,
   },
-  topBar: {
+  // Top Buttons with Transparent Background
+  topLeftButton: {
     position: 'absolute',
-    top: 60,
+    top: Platform.OS === 'android' ? 48 : 60,
     left: 20,
+    backgroundColor: 'transparent',
+    padding: 12,
+    zIndex: 100,
+  },
+  topRightButton: {
+    position: 'absolute',
+    top: Platform.OS === 'android' ? 48 : 60,
     right: 20,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: 12,
-    zIndex: 10,
-  },
-  pickupPointBadge: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colors.border,
-    gap: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  pickupPointText: {
-    color: colors.text,
-    fontSize: 13,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-  },
-  logoutButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 8,
-    padding: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    backgroundColor: 'transparent',
+    padding: 12,
+    zIndex: 100,
   },
   // TikTok-style Right Side Icons
   rightSideIcons: {
