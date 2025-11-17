@@ -77,6 +77,11 @@ export default function ExcelFormatGuide({ onClose }: ExcelFormatGuideProps) {
               <Text style={styles.fieldExample}>Es: Scarpe sportive con suola ammortizzata</Text>
             </View>
             <View style={styles.field}>
+              <Text style={styles.fieldName}>brand</Text>
+              <Text style={styles.fieldDescription}>Marca o brand del prodotto</Text>
+              <Text style={styles.fieldExample}>Es: Nike, Adidas, Puma</Text>
+            </View>
+            <View style={styles.field}>
               <Text style={styles.fieldName}>immagini_aggiuntive</Text>
               <Text style={styles.fieldDescription}>URL di immagini aggiuntive (separate da virgola)</Text>
               <Text style={styles.fieldExample}>Es: https://ex.com/img1.jpg, https://ex.com/img2.jpg</Text>
@@ -121,6 +126,10 @@ export default function ExcelFormatGuide({ onClose }: ExcelFormatGuideProps) {
               <Text style={styles.exampleCell}>Scarpe sportive comode</Text>
             </View>
             <View style={styles.exampleRow}>
+              <Text style={styles.exampleCell}>brand</Text>
+              <Text style={styles.exampleCell}>Nike</Text>
+            </View>
+            <View style={styles.exampleRow}>
               <Text style={styles.exampleCell}>immagine_url</Text>
               <Text style={styles.exampleCell}>https://example.com/nike.jpg</Text>
             </View>
@@ -162,11 +171,12 @@ export default function ExcelFormatGuide({ onClose }: ExcelFormatGuideProps) {
             <Text style={styles.sectionTitle}>Suggerimenti</Text>
           </View>
           <View style={styles.tipsList}>
-            <Text style={styles.tip}>• La prima riga deve contenere i nomi delle colonne</Text>
-            <Text style={styles.tip}>• Usa il punto (.) come separatore decimale per i prezzi</Text>
-            <Text style={styles.tip}>• Gli URL delle immagini devono essere completi e accessibili</Text>
-            <Text style={styles.tip}>• Per liste multiple (taglie, colori, immagini), usa la virgola come separatore</Text>
-            <Text style={styles.tip}>• Se una colonna opzionale è vuota, verrà ignorata</Text>
+            <Text style={styles.tip}>- La prima riga deve contenere i nomi delle colonne</Text>
+            <Text style={styles.tip}>- Usa il punto (.) come separatore decimale per i prezzi</Text>
+            <Text style={styles.tip}>- Gli URL delle immagini devono essere completi e accessibili</Text>
+            <Text style={styles.tip}>- Per liste multiple (taglie, colori, immagini), usa la virgola come separatore</Text>
+            <Text style={styles.tip}>- Se una colonna opzionale è vuota, verrà ignorata</Text>
+            <Text style={styles.tip}>- Il campo brand è opzionale ma consigliato per una migliore organizzazione</Text>
           </View>
         </View>
       </ScrollView>

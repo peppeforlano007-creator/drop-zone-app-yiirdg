@@ -37,6 +37,7 @@ interface ExcelProduct {
   colori?: string;
   condizione: 'nuovo' | 'reso da cliente' | 'packaging rovinato';
   categoria?: string;
+  brand?: string;
   stock: number;
 }
 
@@ -171,6 +172,7 @@ export default function CreateListScreen() {
           colori: row.colori || '',
           condizione: condition as 'nuovo' | 'reso da cliente' | 'packaging rovinato',
           categoria: row.categoria || '',
+          brand: row.brand || '',
           stock: stock,
         });
       });
@@ -316,6 +318,7 @@ export default function CreateListScreen() {
             available_colors: colors.length > 0 ? colors : null,
             condition: product.condizione,
             category: product.categoria || null,
+            brand: product.brand || null,
             stock: product.stock,
             status: 'active',
           };
@@ -571,7 +574,7 @@ export default function CreateListScreen() {
                     <Text style={styles.excelHintBold}>Colonne obbligatorie:</Text>{'\n'}
                     • nome, immagine_url, prezzo{'\n\n'}
                     <Text style={styles.excelHintBold}>Colonne opzionali:</Text>{'\n'}
-                    • descrizione, immagini_aggiuntive (separate da virgola){'\n'}
+                    • descrizione, brand, immagini_aggiuntive (separate da virgola){'\n'}
                     • taglie (separate da virgola), colori (separate da virgola){'\n'}
                     • condizione (nuovo/reso da cliente/packaging rovinato){'\n'}
                     • categoria, stock
