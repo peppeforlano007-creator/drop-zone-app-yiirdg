@@ -43,7 +43,7 @@ interface ListDetails {
   status: string;
   created_at: string;
   supplier_id: string;
-  profiles?: {
+  supplier_profile?: {
     full_name: string;
     email: string;
   };
@@ -68,16 +68,10 @@ export default function ListDetailsScreen() {
 
       console.log('Loading list details for listId:', listId);
 
-      // Load list details with supplier info
+      // Load list details first
       const { data: listData, error: listError } = await supabase
         .from('supplier_lists')
-        .select(`
-          *,
-          profiles!supplier_id (
-            full_name,
-            email
-          )
-        `)
+        .select('*')
         .eq('id', listId)
         .single();
 
@@ -91,7 +85,23 @@ export default function ListDetailsScreen() {
       }
 
       console.log('List data loaded:', listData);
-      setList(listData);
+
+      // Load supplier profile separately
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('full_name, email')
+        .eq('user_id', listData.supplier_id)
+        .single();
+
+      if (profileError) {
+        console.error('Error loading supplier profile:', profileError);
+        // Don't fail the whole operation if profile loading fails
+      }
+
+      setList({
+        ...listData,
+        supplier_profile: profileData || undefined,
+      });
 
       // Load products for this list
       const { data: productsData, error: productsError } = await supabase
@@ -394,9 +404,9 @@ export default function ListDetailsScreen() {
               </View>
               <View style={styles.listInfo}>
                 <Text style={styles.listName}>{list.name}</Text>
-                {list.profiles && (
+                {list.supplier_profile && (
                   <Text style={styles.listSupplier}>
-                    Fornitore: {list.profiles.full_name}
+                    Fornitore: {list.supplier_profile.full_name}
                   </Text>
                 )}
               </View>
