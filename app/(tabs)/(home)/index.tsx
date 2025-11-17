@@ -140,17 +140,24 @@ export default function HomeScreen() {
 
       console.log('=== GROUPING PRODUCTS BY LIST ===');
       console.log(`Lists map size: ${listsMap.size}`);
+      console.log('Lists in map:');
+      listsMap.forEach((listData, listId) => {
+        console.log(`  - ${listId.substring(0, 8)}... "${listData.name}" by ${listData.supplierName}`);
+      });
       
       // Group products by supplier list
       const groupedLists = new Map<string, ProductList>();
       
       let skippedProducts = 0;
-      products.forEach((product: any) => {
+      let processedProducts = 0;
+      
+      console.log('→ Processing products...');
+      products.forEach((product: any, index: number) => {
         const listId = product.supplier_list_id;
         const listData = listsMap.get(listId);
         
         if (!listData) {
-          console.warn(`⚠ No active list data found for list ID: ${listId.substring(0, 8)}..., skipping product ${product.id.substring(0, 8)}...`);
+          console.warn(`⚠ Product ${index + 1}/${products.length}: No active list data found for list ID: ${listId.substring(0, 8)}..., skipping product ${product.id.substring(0, 8)}...`);
           skippedProducts++;
           return;
         }
@@ -217,9 +224,14 @@ export default function HomeScreen() {
         };
         
         groupedLists.get(listId)!.products.push(productData);
+        processedProducts++;
+        
+        if ((index + 1) % 500 === 0) {
+          console.log(`  Processed ${index + 1}/${products.length} products...`);
+        }
       });
       
-      console.log(`✓ Processed ${products.length - skippedProducts} products, skipped ${skippedProducts} products`);
+      console.log(`✓ Processed ${processedProducts} products, skipped ${skippedProducts} products`);
       console.log('=== FILTERING LISTS ===');
       console.log(`Total grouped lists before filtering: ${groupedLists.size}`);
       
@@ -242,6 +254,10 @@ export default function HomeScreen() {
         console.log('- Products fetched:', products.length);
         console.log('- Supplier lists fetched:', supplierLists?.length);
         console.log('- Grouped lists created:', groupedLists.size);
+        console.log('- Lists map entries:');
+        listsMap.forEach((data, id) => {
+          console.log(`  ${id}: ${data.name}`);
+        });
       }
       
       setProductLists(lists);

@@ -254,6 +254,38 @@ export default function AdminDashboard() {
               ]}
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.push('/admin/create-drop');
+              }}
+            >
+              <View style={styles.actionIconContainer}>
+                <IconSymbol
+                  ios_icon_name="plus.circle.fill"
+                  android_material_icon_name="add_circle"
+                  size={24}
+                  color="#10B981"
+                />
+              </View>
+              <View style={styles.actionContent}>
+                <Text style={styles.actionTitle}>Crea Drop Manuale</Text>
+                <Text style={styles.actionDescription}>
+                  Crea un drop senza attendere il valore minimo
+                </Text>
+              </View>
+              <IconSymbol
+                ios_icon_name="chevron.right"
+                android_material_icon_name="chevron_right"
+                size={20}
+                color={colors.textTertiary}
+              />
+            </Pressable>
+
+            <Pressable
+              style={({ pressed }) => [
+                styles.actionCard,
+                pressed && styles.actionCardPressed,
+              ]}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                 router.push('/admin/users');
               }}
             >
