@@ -16,7 +16,8 @@ export interface Product {
   supplierName: string;
   listId: string;
   name: string;
-  description: string;
+  description?: string;
+  brand?: string;
   imageUrl: string;
   imageUrls: string[];
   originalPrice: number;
@@ -24,8 +25,8 @@ export interface Product {
   maxDiscount: number;
   minReservationValue: number;
   maxReservationValue: number;
-  category: string;
-  stock: number;
+  category?: string;
+  stock?: number;
   sizes?: string[];
   colors?: string[];
   condition?: ProductCondition;

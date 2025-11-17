@@ -1,6 +1,6 @@
 
 import React, { useState, useRef } from 'react';
-import { View, Text, Image, StyleSheet, Pressable, Dimensions, Alert, ActivityIndicator, Animated } from 'react-native';
+import { View, Text, Image, StyleSheet, Pressable, Dimensions, Alert, ActivityIndicator, Animated, ScrollView } from 'react-native';
 import { IconSymbol } from './IconSymbol';
 import { colors } from '@/styles/commonStyles';
 import { Product } from '@/types/Product';
@@ -292,10 +292,53 @@ export default function ProductCard({
       </Pressable>
 
       <View style={styles.overlay}>
-        <View style={styles.content}>
-          <Text style={styles.productName} numberOfLines={1}>{product.name ?? 'Prodotto'}</Text>
+        <ScrollView 
+          style={styles.contentScroll}
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
+          bounces={false}
+        >
+          {/* Product Name */}
+          <Text style={styles.productName} numberOfLines={2}>{product.name ?? 'Prodotto'}</Text>
 
-          {/* Product Details Row: Sizes, Colors, and Condition - Compact */}
+          {/* Brand and Category Row */}
+          {(product.brand || product.category) && (
+            <View style={styles.brandCategoryRow}>
+              {product.brand && (
+                <View style={styles.brandBadge}>
+                  <IconSymbol 
+                    ios_icon_name="tag.fill" 
+                    android_material_icon_name="local_offer" 
+                    size={10} 
+                    color={colors.primary} 
+                  />
+                  <Text style={styles.brandText}>{product.brand}</Text>
+                </View>
+              )}
+              {product.category && (
+                <View style={styles.categoryBadge}>
+                  <IconSymbol 
+                    ios_icon_name="square.grid.2x2.fill" 
+                    android_material_icon_name="category" 
+                    size={10} 
+                    color={colors.textSecondary} 
+                  />
+                  <Text style={styles.categoryText}>{product.category}</Text>
+                </View>
+              )}
+            </View>
+          )}
+
+          {/* Description */}
+          {product.description && (
+            <View style={styles.descriptionContainer}>
+              <Text style={styles.descriptionText} numberOfLines={3}>
+                {product.description}
+              </Text>
+            </View>
+          )}
+
+          {/* Product Details Row: Sizes, Colors, and Condition */}
           {(product.sizes || product.colors || product.condition) && (
             <View style={styles.detailsRow}>
               {/* Sizes */}
@@ -355,6 +398,24 @@ export default function ProductCard({
             </View>
           )}
 
+          {/* Stock Information */}
+          {product.stock !== undefined && product.stock !== null && (
+            <View style={styles.stockContainer}>
+              <IconSymbol 
+                ios_icon_name="cube.box.fill" 
+                android_material_icon_name="inventory" 
+                size={12} 
+                color={product.stock > 0 ? colors.success : colors.error} 
+              />
+              <Text style={[
+                styles.stockText,
+                { color: product.stock > 0 ? colors.success : colors.error }
+              ]}>
+                {product.stock > 0 ? `${product.stock} disponibili` : 'Esaurito'}
+              </Text>
+            </View>
+          )}
+
           <View style={styles.priceRow}>
             <View style={styles.priceInfo}>
               <Text style={styles.discountedPrice}>€{discountedPrice.toFixed(2)}</Text>
@@ -365,7 +426,7 @@ export default function ProductCard({
             </View>
           </View>
 
-          {/* Size and Color Selection for Fashion Items - Compact */}
+          {/* Size and Color Selection for Fashion Items */}
           {isFashionItem && (product.availableSizes || product.availableColors) && (
             <View style={styles.selectionContainer}>
               {/* Size Selection */}
@@ -440,7 +501,7 @@ export default function ProductCard({
             </View>
           )}
 
-          {/* Compact "PRENOTA CON CARTA" Button */}
+          {/* Action Button */}
           {isInDrop ? (
             <Animated.View 
               style={[
@@ -508,7 +569,7 @@ export default function ProductCard({
               )}
             </Pressable>
           )}
-        </View>
+        </ScrollView>
       </View>
 
       {hasValidImage && (
@@ -531,7 +592,7 @@ const styles = StyleSheet.create({
   },
   imageWrapper: {
     width: '100%',
-    height: '65%',
+    height: '60%',
     position: 'absolute',
     top: 0,
   },
@@ -613,9 +674,13 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
+    height: '42%',
     backgroundColor: 'rgba(255, 255, 255, 0.97)',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
+  },
+  contentScroll: {
+    flex: 1,
   },
   content: {
     padding: 16,
@@ -628,6 +693,52 @@ const styles = StyleSheet.create({
     marginBottom: 6,
     letterSpacing: -0.3,
     lineHeight: 24,
+  },
+  brandCategoryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 8,
+    flexWrap: 'wrap',
+  },
+  brandBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: colors.primary + '15',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  brandText: {
+    fontSize: 10,
+    color: colors.primary,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+  },
+  categoryBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: colors.backgroundSecondary,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  categoryText: {
+    fontSize: 10,
+    color: colors.textSecondary,
+    fontWeight: '600',
+  },
+  descriptionContainer: {
+    marginBottom: 8,
+    paddingVertical: 6,
+  },
+  descriptionText: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    lineHeight: 17,
   },
   detailsRow: {
     flexDirection: 'row',
@@ -665,6 +776,16 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.3,
   },
+  stockContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginBottom: 8,
+  },
+  stockText: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
   priceRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -699,7 +820,6 @@ const styles = StyleSheet.create({
     color: colors.text,
     letterSpacing: -0.8,
   },
-  // Size and Color Selection Styles - Compact
   selectionContainer: {
     marginBottom: 10,
     gap: 8,
@@ -768,7 +888,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(0, 0, 0, 0.1)',
   },
-  // Compact "PRENOTA CON CARTA" button styles
   bookButtonWrapper: {
     marginTop: 4,
     shadowColor: '#000',
@@ -818,7 +937,6 @@ const styles = StyleSheet.create({
   bookButtonArrow: {
     opacity: 0.8,
   },
-  // Standard action button (for non-drop products)
   actionButton: {
     paddingVertical: 15,
     borderRadius: 6,

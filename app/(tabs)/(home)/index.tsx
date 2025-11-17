@@ -241,7 +241,8 @@ export default function HomeScreen() {
         const productData: Product = {
           id: product.id,
           name: product.name,
-          description: product.description || '',
+          description: product.description || undefined,
+          brand: product.brand || undefined,
           imageUrl: product.image_url || '',
           imageUrls: imageUrls,
           originalPrice: parseFloat(product.original_price),
@@ -250,7 +251,7 @@ export default function HomeScreen() {
           sizes: product.available_sizes || [],
           colors: product.available_colors || [],
           condition: product.condition as any,
-          category: product.category,
+          category: product.category || undefined,
           stock: product.stock,
           listId: listId,
           supplierId: product.supplier_id,
