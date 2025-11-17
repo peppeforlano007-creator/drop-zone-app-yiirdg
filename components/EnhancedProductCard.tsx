@@ -43,6 +43,7 @@ export default function EnhancedProductCard({
 }: EnhancedProductCardProps) {
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState(false);
+  const [imageLoadStarted, setImageLoadStarted] = useState(false);
   const [galleryVisible, setGalleryVisible] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
@@ -212,6 +213,9 @@ export default function EnhancedProductCard({
   // Get the main image URL (first in the array or empty string)
   const mainImageUrl = imageUrls[0] || '';
 
+  // Show loading spinner only if image loading has started but not completed and no error
+  const showLoadingSpinner = imageLoadStarted && !imageLoaded && !imageError && hasValidImage && mainImageUrl;
+
   return (
     <View style={styles.container}>
       <Pressable 
@@ -226,18 +230,22 @@ export default function EnhancedProductCard({
             style={styles.image}
             resizeMode="contain"
             onLoadStart={() => {
+              console.log('Image load started for product:', product.id);
+              setImageLoadStarted(true);
               setImageLoaded(false);
               setImageError(false);
             }}
             onLoad={() => {
+              console.log('Image loaded successfully for product:', product.id, 'URL:', mainImageUrl);
               setImageLoaded(true);
               setImageError(false);
-              console.log('Image loaded successfully:', mainImageUrl);
+              setImageLoadStarted(false);
             }}
             onError={(error) => {
               console.error('Image load error for product:', product.id, 'URL:', mainImageUrl, 'Error:', error.nativeEvent.error);
               setImageError(true);
               setImageLoaded(false);
+              setImageLoadStarted(false);
             }}
           />
         ) : (
@@ -255,7 +263,7 @@ export default function EnhancedProductCard({
           </View>
         )}
         
-        {!imageLoaded && !imageError && hasValidImage && mainImageUrl && (
+        {showLoadingSpinner && (
           <View style={styles.imageLoadingOverlay}>
             <ActivityIndicator size="large" color={colors.text} />
           </View>

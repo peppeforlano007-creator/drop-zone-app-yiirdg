@@ -34,6 +34,7 @@ export default function HomeScreen() {
   const [error, setError] = useState<string | null>(null);
   const [bannerDismissed, setBannerDismissed] = useState(false);
   const [bannerSessionKey, setBannerSessionKey] = useState<string>('');
+  const [processingInterests, setProcessingInterests] = useState<Set<string>>(new Set());
   const listFlatListRef = useRef<FlatList>(null);
   const productFlatListRef = useRef<FlatList>(null);
   const progressAnim = useRef(new Animated.Value(0)).current;
@@ -191,8 +192,10 @@ export default function HomeScreen() {
         groupedLists.get(listId)!.products.push(productData);
       });
       
-      const lists = Array.from(groupedLists.values());
-      console.log(`Loaded ${lists.length} product lists with ${products.length} total products`);
+      // Filter out lists with no products
+      const lists = Array.from(groupedLists.values()).filter(list => list.products.length > 0);
+      
+      console.log(`Loaded ${lists.length} product lists with products`);
       console.log('Lists:', lists.map(l => ({ id: l.listId, name: l.listName, productCount: l.products.length })));
       setProductLists(lists);
       setLoading(false);
@@ -275,12 +278,21 @@ export default function HomeScreen() {
       return;
     }
 
+    // Prevent multiple simultaneous requests for the same product
+    if (processingInterests.has(productId)) {
+      console.log('Already processing interest for product:', productId);
+      return;
+    }
+
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     
     const isCurrentlyInterested = interestedProducts.has(productId);
     const product = currentList?.products.find(p => p.id === productId);
     
     if (!product) return;
+
+    // Mark as processing
+    setProcessingInterests(prev => new Set(prev).add(productId));
 
     try {
       if (isCurrentlyInterested) {
@@ -293,7 +305,7 @@ export default function HomeScreen() {
 
         if (error) {
           console.error('Error removing interest:', error);
-          Alert.alert('Errore', 'Impossibile rimuovere l\'interesse');
+          Alert.alert('Errore', `Impossibile rimuovere l'interesse: ${error.message}`);
           return;
         }
 
@@ -304,32 +316,71 @@ export default function HomeScreen() {
         });
         console.log('Interest removed for product:', productId);
       } else {
-        // Add interest
-        const { error } = await supabase
-          .from('user_interests')
-          .insert({
-            user_id: user.id,
-            product_id: productId,
-            supplier_list_id: product.listId,
-            pickup_point_id: user.pickupPointId,
-          });
+        // Add interest with retry logic
+        let retryCount = 0;
+        const maxRetries = 2;
+        let success = false;
 
-        if (error) {
-          console.error('Error adding interest:', error);
-          Alert.alert('Errore', 'Impossibile aggiungere l\'interesse');
-          return;
+        while (retryCount <= maxRetries && !success) {
+          try {
+            const { error } = await supabase
+              .from('user_interests')
+              .insert({
+                user_id: user.id,
+                product_id: productId,
+                supplier_list_id: product.listId,
+                pickup_point_id: user.pickupPointId,
+              });
+
+            if (error) {
+              // Check if it's an RLS policy error (42501)
+              if (error.code === '42501') {
+                console.error('RLS policy error (42501) - insufficient privileges. Retrying...', retryCount + 1);
+                retryCount++;
+                if (retryCount <= maxRetries) {
+                  // Wait a bit before retrying
+                  await new Promise(resolve => setTimeout(resolve, 300 * retryCount));
+                  continue;
+                }
+              }
+              throw error;
+            }
+
+            success = true;
+            setInterestedProducts(prev => {
+              const newSet = new Set(prev);
+              newSet.add(productId);
+              return newSet;
+            });
+            console.log('Interest added for product:', productId);
+          } catch (innerError) {
+            if (retryCount >= maxRetries) {
+              throw innerError;
+            }
+            retryCount++;
+          }
         }
 
-        setInterestedProducts(prev => {
-          const newSet = new Set(prev);
-          newSet.add(productId);
-          return newSet;
-        });
-        console.log('Interest added for product:', productId);
+        if (!success) {
+          throw new Error('Failed to add interest after retries');
+        }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Exception handling interest:', error);
-      Alert.alert('Errore', 'Errore imprevisto');
+      const errorMessage = error?.message || 'Errore imprevisto';
+      const errorCode = error?.code || 'unknown';
+      
+      Alert.alert(
+        'Errore',
+        `Impossibile ${isCurrentlyInterested ? 'rimuovere' : 'aggiungere'} l'interesse.\n\nCodice: ${errorCode}\nMessaggio: ${errorMessage}\n\nRiprova tra qualche secondo.`
+      );
+    } finally {
+      // Remove from processing set
+      setProcessingInterests(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(productId);
+        return newSet;
+      });
     }
   };
 
