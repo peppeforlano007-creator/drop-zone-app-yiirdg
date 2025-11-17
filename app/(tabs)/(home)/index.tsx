@@ -59,7 +59,7 @@ export default function HomeScreen() {
         return;
       }
 
-      console.log(`Found ${products?.length || 0} products`);
+      console.log(`Found ${products?.length || 0} active products`);
 
       if (!products || products.length === 0) {
         console.log('No products found in database');
@@ -70,8 +70,9 @@ export default function HomeScreen() {
 
       // Get unique supplier list IDs
       const listIds = [...new Set(products.map(p => p.supplier_list_id))];
+      console.log(`Found ${listIds.length} unique supplier list IDs:`, listIds);
       
-      // Fetch supplier lists with supplier info
+      // Fetch supplier lists with supplier info - only active lists
       const { data: supplierLists, error: listsError } = await supabase
         .from('supplier_lists')
         .select(`
@@ -81,7 +82,8 @@ export default function HomeScreen() {
           max_discount,
           min_reservation_value,
           max_reservation_value,
-          supplier_id
+          supplier_id,
+          status
         `)
         .in('id', listIds)
         .eq('status', 'active');
@@ -92,6 +94,9 @@ export default function HomeScreen() {
         setLoading(false);
         return;
       }
+
+      console.log(`Found ${supplierLists?.length || 0} active supplier lists:`, 
+        supplierLists?.map(l => ({ id: l.id, name: l.name, status: l.status })));
 
       // Get supplier profiles
       const supplierIds = supplierLists?.map(list => list.supplier_id) || [];
@@ -125,7 +130,7 @@ export default function HomeScreen() {
         const listData = listsMap.get(listId);
         
         if (!listData) {
-          console.warn(`No list data found for list ID: ${listId}`);
+          console.warn(`No active list data found for list ID: ${listId}, skipping product ${product.id}`);
           return;
         }
 
@@ -195,8 +200,11 @@ export default function HomeScreen() {
       // Filter out lists with no products
       const lists = Array.from(groupedLists.values()).filter(list => list.products.length > 0);
       
-      console.log(`Loaded ${lists.length} product lists with products`);
-      console.log('Lists:', lists.map(l => ({ id: l.listId, name: l.listName, productCount: l.products.length })));
+      console.log(`Created ${lists.length} product lists with products:`);
+      lists.forEach((list, index) => {
+        console.log(`  ${index + 1}. "${list.listName}" by ${list.supplierName} - ${list.products.length} products (ID: ${list.listId})`);
+      });
+      
       setProductLists(lists);
       setLoading(false);
     } catch (error) {

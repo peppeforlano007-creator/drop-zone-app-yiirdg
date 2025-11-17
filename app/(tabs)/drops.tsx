@@ -63,6 +63,9 @@ export default function DropsScreen() {
         }
       }
 
+      // Include both 'active' and 'approved' drops
+      // 'approved' drops are waiting to be activated by admin
+      // 'active' drops are currently running
       const { data, error } = await supabase
         .from('drops')
         .select(`
@@ -79,7 +82,7 @@ export default function DropsScreen() {
             max_reservation_value
           )
         `)
-        .eq('status', 'active')
+        .in('status', ['active', 'approved'])
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -88,6 +91,7 @@ export default function DropsScreen() {
       }
 
       console.log('Drops loaded:', data?.length);
+      console.log('Drops details:', data?.map(d => ({ name: d.name, status: d.status, list: d.supplier_lists?.name })));
       setDrops(data || []);
     } catch (error) {
       console.error('Error in loadDrops:', error);
