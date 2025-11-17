@@ -59,10 +59,7 @@ export default function DropDetailsScreen() {
   const [loading, setLoading] = useState(true);
   const [userBookings, setUserBookings] = useState<Set<string>>(new Set());
   const [timeRemaining, setTimeRemaining] = useState('');
-  const [isProgressExpanded, setIsProgressExpanded] = useState(true);
   const bounceAnim = useRef(new Animated.Value(1)).current;
-  const bannerTranslateX = useRef(new Animated.Value(0)).current;
-  const chevronRotateAnim = useRef(new Animated.Value(0)).current;
   const { hasPaymentMethod } = usePayment();
   const { user } = useAuth();
   const flatListRef = useRef<FlatList>(null);
@@ -215,12 +212,12 @@ export default function DropDetailsScreen() {
 
       // Format with full labels: giorni, ore, minuti, secondi
       const parts = [];
-      if (days > 0) parts.push(`${days} ${days === 1 ? 'giorno' : 'giorni'}`);
-      if (hours > 0) parts.push(`${hours} ${hours === 1 ? 'ora' : 'ore'}`);
-      if (minutes > 0) parts.push(`${minutes} ${minutes === 1 ? 'minuto' : 'minuti'}`);
-      if (seconds >= 0) parts.push(`${seconds} ${seconds === 1 ? 'secondo' : 'secondi'}`);
+      if (days > 0) parts.push(`${days}g`);
+      if (hours > 0) parts.push(`${hours}h`);
+      if (minutes > 0) parts.push(`${minutes}m`);
+      if (seconds >= 0) parts.push(`${seconds}s`);
 
-      setTimeRemaining(parts.join(', '));
+      setTimeRemaining(parts.join(' '));
     };
 
     updateTimer();
@@ -274,29 +271,6 @@ export default function DropDetailsScreen() {
     const minValue = drop.supplier_lists.min_reservation_value ?? 1;
     return (currentValue / minValue) * 100;
   }, [drop]);
-
-  const toggleProgressBar = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    
-    const newExpandedState = !isProgressExpanded;
-    setIsProgressExpanded(newExpandedState);
-
-    // Animate banner sliding left/right
-    Animated.spring(bannerTranslateX, {
-      toValue: newExpandedState ? 0 : -280, // Slide left when collapsed
-      useNativeDriver: true,
-      tension: 100,
-      friction: 10,
-    }).start();
-
-    // Animate chevron rotation
-    Animated.spring(chevronRotateAnim, {
-      toValue: newExpandedState ? 0 : 1,
-      useNativeDriver: true,
-      tension: 100,
-      friction: 10,
-    }).start();
-  };
 
   const handleBook = async (productId: string) => {
     if (!user) {
@@ -522,12 +496,6 @@ export default function DropDetailsScreen() {
     ? ((currentDiscount - minDiscount) / (maxDiscount - minDiscount)) * 100
     : 0;
 
-  // Interpolate chevron rotation
-  const chevronRotation = chevronRotateAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['0deg', '180deg'],
-  });
-
   return (
     <View style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
@@ -553,188 +521,145 @@ export default function DropDetailsScreen() {
         })}
       />
 
-      {/* Overlay Header - Positioned absolutely on top */}
-      <View style={styles.overlayHeaderContainer} pointerEvents="box-none">
-        <SafeAreaView edges={['top']} style={styles.headerSafeArea}>
-          <View style={styles.header}>
-            <Pressable
-              style={styles.backBtn}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                router.back();
-              }}
-            >
-              <IconSymbol ios_icon_name="chevron.left" android_material_icon_name="arrow_back" size={24} color="#000" />
-            </Pressable>
-
-            <View style={styles.headerCenter}>
-              <Text style={styles.dropName} numberOfLines={1}>{drop.name}</Text>
-            </View>
-
-            <Pressable
-              style={styles.shareBtn}
-              onPress={handleShareWhatsApp}
-              onPressIn={handlePressIn}
-              onPressOut={handlePressOut}
-            >
-              <Animated.View style={{ transform: [{ scale: bounceAnim }] }}>
-                <IconSymbol ios_icon_name="square.and.arrow.up" android_material_icon_name="share" size={24} color="#000" />
-              </Animated.View>
-            </Pressable>
-          </View>
-
-          {/* Underfunding Warning */}
-          {atRisk && (
-            <View style={styles.underfundingWarning}>
-              <IconSymbol
-                ios_icon_name="exclamationmark.triangle.fill"
-                android_material_icon_name="warning"
-                size={20}
-                color="#FF6B35"
+      {/* Transparent Timer at Top */}
+      <View style={styles.timerOverlay} pointerEvents="box-none">
+        <SafeAreaView edges={['top']} style={styles.timerSafeArea}>
+          <View style={styles.timerContainer}>
+            <View style={styles.timerContent}>
+              <IconSymbol 
+                ios_icon_name="clock.fill" 
+                android_material_icon_name="schedule" 
+                size={16} 
+                color="#FFF" 
               />
-              <View style={styles.underfundingContent}>
-                <Text style={styles.underfundingTitle}>⚠️ Drop a Rischio!</Text>
-                <Text style={styles.underfundingText}>
-                  Raggiunto €{currentValue.toFixed(0)} su €{minReservationValue.toFixed(0)} richiesti ({underfundingProgress.toFixed(0)}%)
-                </Text>
-                <Pressable
-                  style={styles.shareUrgentButton}
-                  onPress={handleShareWhatsApp}
-                >
-                  <IconSymbol
-                    ios_icon_name="square.and.arrow.up.fill"
-                    android_material_icon_name="share"
-                    size={16}
-                    color="#fff"
-                  />
-                  <Text style={styles.shareUrgentButtonText}>Condividi Ora!</Text>
-                </Pressable>
-              </View>
+              <Text style={styles.timerText}>{timeRemaining}</Text>
             </View>
-          )}
-
-          {/* Sliding Banner Container */}
-          <View style={styles.bannerContainer}>
-            {/* Animated Banner - Slides left/right */}
-            <Animated.View 
-              style={[
-                styles.progressBanner,
-                {
-                  transform: [{ translateX: bannerTranslateX }],
-                }
-              ]}
-            >
-              {/* Pickup Point and List Name Section */}
-              <View style={styles.bannerHeader}>
-                <View style={styles.bannerInfoRow}>
-                  <IconSymbol 
-                    ios_icon_name="mappin.circle.fill" 
-                    android_material_icon_name="location_on" 
-                    size={14} 
-                    color={colors.primary} 
-                  />
-                  <Text style={styles.bannerInfoText}>{drop.pickup_points?.city ?? 'N/A'}</Text>
-                </View>
-                <View style={styles.bannerInfoRow}>
-                  <IconSymbol 
-                    ios_icon_name="list.bullet" 
-                    android_material_icon_name="list" 
-                    size={14} 
-                    color={colors.primary} 
-                  />
-                  <Text style={styles.bannerInfoText}>{drop.supplier_lists?.name ?? 'N/A'}</Text>
-                </View>
-              </View>
-
-              <View style={styles.bannerDivider} />
-
-              {/* Timer Section */}
-              <View style={styles.timerSection}>
-                <View style={styles.timerLabelRow}>
-                  <IconSymbol 
-                    ios_icon_name="clock.fill" 
-                    android_material_icon_name="schedule" 
-                    size={12} 
-                    color={colors.primary} 
-                  />
-                  <Text style={styles.timerLabel}>Tempo Rimanente</Text>
-                </View>
-                <Text style={styles.timerText}>{timeRemaining}</Text>
-              </View>
-
-              <View style={styles.bannerDivider} />
-
-              {/* Progress Section */}
-              <View style={styles.progressRow}>
-                <View style={styles.progressLabelRow}>
-                  <IconSymbol 
-                    ios_icon_name="chart.bar.fill" 
-                    android_material_icon_name="trending_up" 
-                    size={12} 
-                    color={colors.primary} 
-                  />
-                  <Text style={styles.progressLabel}>Obiettivo</Text>
-                </View>
-                <Text style={styles.progressValue}>
-                  €{currentValue.toFixed(0)} / €{maxReservationValue.toFixed(0)}
-                </Text>
-              </View>
-              
-              {/* Progress Bar */}
-              <View style={styles.progressBarContainer}>
-                <View style={[styles.progressBarFill, { width: `${valueProgress}%` }]} />
-              </View>
-
-              <View style={styles.progressStatsRow}>
-                <View style={styles.progressStat}>
-                  <Text style={styles.progressStatLabel}>Sconto Attuale</Text>
-                  <Animated.View style={{ transform: [{ scale: bounceAnim }] }}>
-                    <Text style={styles.progressStatValue}>{currentDiscount.toFixed(0)}%</Text>
-                  </Animated.View>
-                </View>
-                
-                <View style={styles.progressDivider} />
-                
-                <View style={styles.progressStat}>
-                  <Text style={styles.progressStatLabel}>Sconto Max</Text>
-                  <Text style={styles.progressStatValueMax}>{maxDiscount.toFixed(0)}%</Text>
-                </View>
-                
-                <View style={styles.progressDivider} />
-                
-                <View style={styles.progressStat}>
-                  <Text style={styles.progressStatLabel}>Progresso</Text>
-                  <Text style={styles.progressStatValue}>{valueProgress.toFixed(0)}%</Text>
-                </View>
-              </View>
-            </Animated.View>
-
-            {/* Toggle Button - Fixed on the right side */}
-            <Pressable 
-              style={styles.toggleButton}
-              onPress={toggleProgressBar}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <Animated.View style={{ transform: [{ rotate: chevronRotation }] }}>
-                <IconSymbol 
-                  ios_icon_name="chevron.left" 
-                  android_material_icon_name="chevron_left" 
-                  size={20} 
-                  color="#666" 
-                />
-              </Animated.View>
-            </Pressable>
           </View>
-
-          {/* Real-time connection indicator */}
-          {isConnected && (
-            <View style={styles.realtimeIndicator}>
-              <View style={styles.realtimeDot} />
-              <Text style={styles.realtimeText}>Live</Text>
-            </View>
-          )}
         </SafeAreaView>
       </View>
+
+      {/* Back Button - Top Left */}
+      <View style={styles.backButtonOverlay} pointerEvents="box-none">
+        <SafeAreaView edges={['top']} style={styles.backButtonSafeArea}>
+          <Pressable
+            style={styles.backBtn}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              router.back();
+            }}
+          >
+            <IconSymbol ios_icon_name="chevron.left" android_material_icon_name="arrow_back" size={24} color="#FFF" />
+          </Pressable>
+        </SafeAreaView>
+      </View>
+
+      {/* TikTok-style Right Side Icons */}
+      <View style={styles.rightSideIcons} pointerEvents="box-none">
+        {/* Pickup Point */}
+        <Pressable style={styles.iconButton}>
+          <View style={styles.iconCircle}>
+            <IconSymbol 
+              ios_icon_name="mappin.circle.fill" 
+              android_material_icon_name="location_on" 
+              size={20} 
+              color="#FFF" 
+            />
+          </View>
+          <Text style={styles.iconLabel} numberOfLines={1}>
+            {drop.pickup_points?.city ?? 'N/A'}
+          </Text>
+        </Pressable>
+
+        {/* List Name */}
+        <Pressable style={styles.iconButton}>
+          <View style={styles.iconCircle}>
+            <IconSymbol 
+              ios_icon_name="list.bullet.rectangle" 
+              android_material_icon_name="list" 
+              size={20} 
+              color="#FFF" 
+            />
+          </View>
+          <Text style={styles.iconLabel} numberOfLines={2}>
+            {drop.supplier_lists?.name ?? 'N/A'}
+          </Text>
+        </Pressable>
+
+        {/* Current Discount */}
+        <Pressable style={styles.iconButton}>
+          <Animated.View style={[styles.iconCircle, { transform: [{ scale: bounceAnim }] }]}>
+            <Text style={styles.discountText}>{currentDiscount.toFixed(0)}%</Text>
+          </Animated.View>
+          <Text style={styles.iconLabel}>Sconto</Text>
+        </Pressable>
+
+        {/* Max Discount */}
+        <Pressable style={styles.iconButton}>
+          <View style={styles.iconCircle}>
+            <Text style={styles.maxDiscountText}>{maxDiscount.toFixed(0)}%</Text>
+          </View>
+          <Text style={styles.iconLabel}>Max</Text>
+        </Pressable>
+
+        {/* Progress */}
+        <Pressable style={styles.iconButton}>
+          <View style={styles.progressCircle}>
+            <View style={styles.progressCircleBackground}>
+              <View style={[styles.progressCircleFill, { height: `${valueProgress}%` }]} />
+            </View>
+            <View style={styles.progressCircleContent}>
+              <Text style={styles.progressPercentage}>{valueProgress.toFixed(0)}%</Text>
+            </View>
+          </View>
+          <Text style={styles.iconLabel}>Obiettivo</Text>
+        </Pressable>
+
+        {/* Share Button */}
+        <Pressable 
+          style={styles.iconButton}
+          onPress={handleShareWhatsApp}
+          onPressIn={handlePressIn}
+          onPressOut={handlePressOut}
+        >
+          <Animated.View style={[styles.iconCircle, styles.shareCircle, { transform: [{ scale: bounceAnim }] }]}>
+            <IconSymbol 
+              ios_icon_name="square.and.arrow.up.fill" 
+              android_material_icon_name="share" 
+              size={20} 
+              color="#FFF" 
+            />
+          </Animated.View>
+          <Text style={styles.iconLabel}>Condividi</Text>
+        </Pressable>
+      </View>
+
+      {/* Underfunding Warning - Bottom */}
+      {atRisk && (
+        <View style={styles.underfundingWarningBottom} pointerEvents="box-none">
+          <View style={styles.underfundingCard}>
+            <IconSymbol
+              ios_icon_name="exclamationmark.triangle.fill"
+              android_material_icon_name="warning"
+              size={20}
+              color="#FF6B35"
+            />
+            <View style={styles.underfundingContent}>
+              <Text style={styles.underfundingTitle}>⚠️ Drop a Rischio!</Text>
+              <Text style={styles.underfundingText}>
+                €{currentValue.toFixed(0)} / €{minReservationValue.toFixed(0)} ({underfundingProgress.toFixed(0)}%)
+              </Text>
+            </View>
+          </View>
+        </View>
+      )}
+
+      {/* Real-time connection indicator */}
+      {isConnected && (
+        <View style={styles.realtimeIndicator}>
+          <View style={styles.realtimeDot} />
+          <Text style={styles.realtimeText}>Live</Text>
+        </View>
+      )}
     </View>
   );
 }
@@ -743,19 +668,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
-  },
-  overlayHeaderContainer: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 1000,
-  },
-  headerSafeArea: {
-    backgroundColor: 'rgba(255, 255, 255, 0.92)',
-    backdropFilter: 'blur(20px)',
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0, 0, 0, 0.08)',
   },
   loadingContainer: {
     flex: 1,
@@ -794,59 +706,179 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontFamily: 'System',
   },
-  header: {
-    flexDirection: 'row',
+  productContainer: {
+    height: height,
+    width: width,
+  },
+  // Transparent Timer Overlay at Top
+  timerOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 100,
+  },
+  timerSafeArea: {
+    backgroundColor: 'transparent',
+  },
+  timerContainer: {
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 12,
     paddingVertical: 8,
   },
-  backBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 3,
-    elevation: 2,
-  },
-  headerCenter: {
-    flex: 1,
-    marginHorizontal: 10,
-    alignItems: 'center',
-  },
-  dropName: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#000',
-    fontFamily: 'System',
-  },
-  shareBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 3,
-    elevation: 2,
-  },
-  underfundingWarning: {
+  timerContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 107, 53, 0.12)',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    gap: 8,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  timerText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#FFF',
+    fontFamily: 'System',
+  },
+  // Back Button Overlay
+  backButtonOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    zIndex: 100,
+  },
+  backButtonSafeArea: {
+    backgroundColor: 'transparent',
+  },
+  backBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 16,
+    marginTop: 8,
+  },
+  // TikTok-style Right Side Icons
+  rightSideIcons: {
+    position: 'absolute',
+    right: 12,
+    top: '25%',
+    bottom: '25%',
+    justifyContent: 'space-evenly',
+    alignItems: 'center',
+    gap: 16,
+    zIndex: 10,
+  },
+  iconButton: {
+    alignItems: 'center',
+    gap: 4,
+  },
+  iconCircle: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  shareCircle: {
+    backgroundColor: 'rgba(76, 175, 80, 0.8)',
+  },
+  iconLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#FFF',
+    textAlign: 'center',
+    maxWidth: 60,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+    overflow: 'hidden',
+    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  discountText: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#FFF',
+    fontFamily: 'System',
+  },
+  maxDiscountText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#FFF',
+    fontFamily: 'System',
+  },
+  // Progress Circle
+  progressCircle: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    position: 'relative',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  progressCircleBackground: {
+    position: 'absolute',
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+    overflow: 'hidden',
+  },
+  progressCircleFill: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: colors.primary,
+    opacity: 0.8,
+  },
+  progressCircleContent: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 1,
+  },
+  progressPercentage: {
+    fontSize: 13,
+    fontWeight: '900',
+    color: '#FFF',
+    fontFamily: 'System',
+    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  // Underfunding Warning at Bottom
+  underfundingWarningBottom: {
+    position: 'absolute',
+    bottom: 120,
+    left: 16,
+    right: 80,
+    zIndex: 10,
+  },
+  underfundingCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 107, 53, 0.95)',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
     gap: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 107, 53, 0.2)',
+    borderWidth: 2,
+    borderColor: '#FF6B35',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
   },
   underfundingContent: {
     flex: 1,
@@ -854,197 +886,40 @@ const styles = StyleSheet.create({
   underfundingTitle: {
     fontSize: 13,
     fontWeight: '800',
-    color: '#FF6B35',
+    color: '#FFF',
     marginBottom: 4,
     fontFamily: 'System',
   },
   underfundingText: {
     fontSize: 11,
-    color: '#000',
-    marginBottom: 8,
-    fontFamily: 'System',
-  },
-  shareUrgentButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#FF6B35',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 6,
-    gap: 6,
-  },
-  shareUrgentButtonText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#fff',
-    fontFamily: 'System',
-  },
-  bannerContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.98)',
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0, 0, 0, 0.06)',
-    overflow: 'hidden',
-  },
-  progressBanner: {
-    width: 280,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  bannerHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  bannerInfoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  bannerInfoText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: colors.text,
-    fontFamily: 'System',
-  },
-  bannerDivider: {
-    height: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.08)',
-    marginVertical: 10,
-  },
-  timerSection: {
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  timerLabelRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginBottom: 6,
-  },
-  timerLabel: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: colors.text,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    fontFamily: 'System',
-  },
-  timerText: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: colors.primary,
-    fontFamily: 'System',
-    textAlign: 'center',
-  },
-  progressRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  progressLabelRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  progressLabel: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: colors.text,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    fontFamily: 'System',
-  },
-  progressValue: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: colors.primary,
-    fontFamily: 'System',
-  },
-  progressBarContainer: {
-    height: 8,
-    backgroundColor: 'rgba(0, 0, 0, 0.08)',
-    borderRadius: 4,
-    overflow: 'hidden',
-    marginBottom: 10,
-  },
-  progressBarFill: {
-    height: '100%',
-    backgroundColor: colors.primary,
-    borderRadius: 4,
-  },
-  progressStatsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  progressStat: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  progressStatLabel: {
-    fontSize: 9,
-    color: '#999',
-    marginBottom: 2,
+    color: '#FFF',
     fontFamily: 'System',
     fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 0.3,
-  },
-  progressStatValue: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: colors.primary,
-    fontFamily: 'System',
-  },
-  progressStatValueMax: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#666',
-    fontFamily: 'System',
-  },
-  progressDivider: {
-    width: 1,
-    height: 30,
-    backgroundColor: 'rgba(0, 0, 0, 0.08)',
-    marginHorizontal: 8,
-  },
-  toggleButton: {
-    width: 40,
-    height: '100%',
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.98)',
-    borderLeftWidth: 1,
-    borderLeftColor: 'rgba(0, 0, 0, 0.06)',
   },
   realtimeIndicator: {
+    position: 'absolute',
+    top: 60,
+    right: 80,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 4,
     paddingHorizontal: 8,
-    backgroundColor: 'rgba(76, 175, 80, 0.12)',
+    backgroundColor: 'rgba(76, 175, 80, 0.9)',
+    borderRadius: 12,
+    zIndex: 100,
   },
   realtimeDot: {
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: colors.success,
+    backgroundColor: '#FFF',
     marginRight: 5,
   },
   realtimeText: {
     fontSize: 10,
-    color: colors.success,
+    color: '#FFF',
     fontWeight: '700',
     fontFamily: 'System',
-  },
-  productContainer: {
-    height: height,
-    width: width,
   },
 });
