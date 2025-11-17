@@ -42,10 +42,12 @@ export default function HomeScreen() {
   const loadProducts = useCallback(async () => {
     try {
       console.log('=== LOADING PRODUCTS ===');
+      console.log('Timestamp:', new Date().toISOString());
       setError(null);
       setLoading(true);
       
       // First, get all active products
+      console.log('→ Fetching active products...');
       const { data: products, error: productsError } = await supabase
         .from('products')
         .select('*')
@@ -53,7 +55,7 @@ export default function HomeScreen() {
         .order('created_at', { ascending: false });
 
       if (productsError) {
-        console.error('Error loading products:', productsError);
+        console.error('❌ Error loading products:', productsError);
         setError(`Errore nel caricamento dei prodotti: ${productsError.message}`);
         setLoading(false);
         return;
@@ -70,9 +72,14 @@ export default function HomeScreen() {
 
       // Get unique supplier list IDs from products
       const listIds = [...new Set(products.map(p => p.supplier_list_id))];
-      console.log(`✓ Found ${listIds.length} unique supplier list IDs in products`);
+      console.log(`✓ Found ${listIds.length} unique supplier list IDs in products:`);
+      listIds.forEach((id, idx) => {
+        const count = products.filter(p => p.supplier_list_id === id).length;
+        console.log(`  ${idx + 1}. ${id.substring(0, 8)}... (${count} products)`);
+      });
       
       // Fetch supplier lists with supplier info - only active lists
+      console.log('→ Fetching supplier lists...');
       const { data: supplierLists, error: listsError } = await supabase
         .from('supplier_lists')
         .select(`
@@ -89,26 +96,31 @@ export default function HomeScreen() {
         .eq('status', 'active');
 
       if (listsError) {
-        console.error('Error loading supplier lists:', listsError);
+        console.error('❌ Error loading supplier lists:', listsError);
         setError(`Errore nel caricamento delle liste fornitori: ${listsError.message}`);
         setLoading(false);
         return;
       }
 
       console.log(`✓ Found ${supplierLists?.length || 0} active supplier lists`);
-      supplierLists?.forEach((list, idx) => {
-        console.log(`  ${idx + 1}. "${list.name}" (ID: ${list.id.substring(0, 8)}...) - status: ${list.status}`);
-      });
+      if (supplierLists && supplierLists.length > 0) {
+        supplierLists.forEach((list, idx) => {
+          console.log(`  ${idx + 1}. "${list.name}" (ID: ${list.id.substring(0, 8)}...) - status: ${list.status}`);
+        });
+      } else {
+        console.warn('⚠ No supplier lists returned from query!');
+      }
 
       // Get supplier profiles
       const supplierIds = supplierLists?.map(list => list.supplier_id) || [];
+      console.log(`→ Fetching ${supplierIds.length} supplier profiles...`);
       const { data: profiles, error: profilesError } = await supabase
         .from('profiles')
         .select('user_id, full_name')
         .in('user_id', supplierIds);
 
       if (profilesError) {
-        console.error('Error loading profiles:', profilesError);
+        console.error('⚠ Error loading profiles:', profilesError);
         // Don't fail completely if profiles fail to load
       }
 
@@ -127,16 +139,19 @@ export default function HomeScreen() {
       ]) || []);
 
       console.log('=== GROUPING PRODUCTS BY LIST ===');
+      console.log(`Lists map size: ${listsMap.size}`);
       
       // Group products by supplier list
       const groupedLists = new Map<string, ProductList>();
       
+      let skippedProducts = 0;
       products.forEach((product: any) => {
         const listId = product.supplier_list_id;
         const listData = listsMap.get(listId);
         
         if (!listData) {
-          console.warn(`⚠ No active list data found for list ID: ${listId}, skipping product ${product.id}`);
+          console.warn(`⚠ No active list data found for list ID: ${listId.substring(0, 8)}..., skipping product ${product.id.substring(0, 8)}...`);
+          skippedProducts++;
           return;
         }
 
@@ -204,6 +219,7 @@ export default function HomeScreen() {
         groupedLists.get(listId)!.products.push(productData);
       });
       
+      console.log(`✓ Processed ${products.length - skippedProducts} products, skipped ${skippedProducts} products`);
       console.log('=== FILTERING LISTS ===');
       console.log(`Total grouped lists before filtering: ${groupedLists.size}`);
       
@@ -220,11 +236,19 @@ export default function HomeScreen() {
         console.log(`  ${index + 1}. "${list.listName}" by ${list.supplierName} - ${list.products.length} products (ID: ${list.listId.substring(0, 8)}...)`);
       });
       
+      if (lists.length === 0) {
+        console.error('❌ NO LISTS AFTER FILTERING! This should not happen.');
+        console.log('Debug info:');
+        console.log('- Products fetched:', products.length);
+        console.log('- Supplier lists fetched:', supplierLists?.length);
+        console.log('- Grouped lists created:', groupedLists.size);
+      }
+      
       setProductLists(lists);
       setLoading(false);
       console.log('=== LOADING COMPLETE ===');
     } catch (error) {
-      console.error('Exception loading products:', error);
+      console.error('❌ Exception loading products:', error);
       setError(`Errore imprevisto: ${error instanceof Error ? error.message : 'Errore sconosciuto'}`);
       setLoading(false);
     }
