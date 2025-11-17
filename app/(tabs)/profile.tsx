@@ -8,6 +8,7 @@ import { Stack, router } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/app/integrations/supabase/client';
 import * as Haptics from 'expo-haptics';
+import { DevMenu } from '@/components/DevMenu';
 
 export default function ProfileScreen() {
   const { user, logout, updatePickupPoint } = useAuth();
@@ -15,6 +16,7 @@ export default function ProfileScreen() {
   const [pickupPoints, setPickupPoints] = useState<Array<{ id: string; city: string }>>([]);
   const [loadingPoints, setLoadingPoints] = useState(true);
   const [updatingPoint, setUpdatingPoint] = useState(false);
+  const [showDevMenu, setShowDevMenu] = useState(false);
 
   useEffect(() => {
     loadPickupPoints();
@@ -110,6 +112,11 @@ export default function ProfileScreen() {
     router.push('/admin/dashboard');
   };
 
+  const handleOpenDevMenu = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setShowDevMenu(true);
+  };
+
   return (
     <>
       <Stack.Screen
@@ -164,6 +171,25 @@ export default function ProfileScreen() {
                   <View style={styles.adminButtonTextContainer}>
                     <Text style={styles.adminButtonTitle}>Pannello Amministratore</Text>
                     <Text style={styles.adminButtonSubtitle}>Gestisci utenti, fornitori, prodotti e drop</Text>
+                  </View>
+                </View>
+                <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="chevron_right" size={24} color={colors.background} />
+              </Pressable>
+            </View>
+          )}
+
+          {/* Developer Menu Button - Only visible in DEV mode */}
+          {__DEV__ && (
+            <View style={styles.section}>
+              <Pressable 
+                style={styles.devButton}
+                onPress={handleOpenDevMenu}
+              >
+                <View style={styles.devButtonContent}>
+                  <IconSymbol ios_icon_name="ant.fill" android_material_icon_name="bug_report" size={24} color={colors.background} />
+                  <View style={styles.devButtonTextContainer}>
+                    <Text style={styles.devButtonTitle}>🛠️ Menu Sviluppatore</Text>
+                    <Text style={styles.devButtonSubtitle}>Debug, ispezione e strumenti di sviluppo</Text>
                   </View>
                 </View>
                 <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="chevron_right" size={24} color={colors.background} />
@@ -277,6 +303,9 @@ export default function ProfileScreen() {
           </View>
         </ScrollView>
       </SafeAreaView>
+
+      {/* Developer Menu Modal */}
+      <DevMenu visible={showDevMenu} onClose={() => setShowDevMenu(false)} />
     </>
   );
 }
@@ -365,6 +394,36 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.background,
     opacity: 0.8,
+  },
+  devButton: {
+    backgroundColor: '#FF6B35',
+    borderRadius: 16,
+    padding: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    boxShadow: '0px 4px 12px rgba(255, 107, 53, 0.3)',
+    elevation: 4,
+  },
+  devButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+    flex: 1,
+  },
+  devButtonTextContainer: {
+    flex: 1,
+  },
+  devButtonTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.background,
+    marginBottom: 4,
+  },
+  devButtonSubtitle: {
+    fontSize: 13,
+    color: colors.background,
+    opacity: 0.9,
   },
   sectionTitle: {
     fontSize: 20,

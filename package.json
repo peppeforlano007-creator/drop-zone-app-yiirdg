@@ -1,13 +1,14 @@
-
 {
   "name": "Natively",
   "version": "1.0.0",
   "main": "index.ts",
   "scripts": {
     "dev": "EXPO_NO_TELEMETRY=1 expo start --clear --tunnel",
+    "dev:debug": "EXPO_NO_TELEMETRY=1 expo start --clear --tunnel --dev-client",
     "android": "EXPO_NO_TELEMETRY=1 expo start --android",
     "ios": "EXPO_NO_TELEMETRY=1 expo start --ios",
     "web": "EXPO_NO_TELEMETRY=1 expo start --web",
+    "devtools": "react-devtools",
     "build:web": "expo export -p web && npx workbox generateSW workbox-config.js",
     "build:android": "expo prebuild -p android",
     "lint": "eslint ."
@@ -47,6 +48,7 @@
     "expo-system-ui": "^6.0.7",
     "expo-web-browser": "^15.0.6",
     "react": "19.1.0",
+    "react-devtools": "^7.0.1",
     "react-dom": "19.1.0",
     "react-native": "0.81.4",
     "react-native-css-interop": "^0.1.22",
