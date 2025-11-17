@@ -46,40 +46,8 @@ export default function HomeScreen() {
       setError(null);
       setLoading(true);
       
-      // First, get all active products
-      console.log('→ Fetching active products...');
-      const { data: products, error: productsError } = await supabase
-        .from('products')
-        .select('*')
-        .eq('status', 'active')
-        .order('created_at', { ascending: false });
-
-      if (productsError) {
-        console.error('❌ Error loading products:', productsError);
-        setError(`Errore nel caricamento dei prodotti: ${productsError.message}`);
-        setLoading(false);
-        return;
-      }
-
-      console.log(`✓ Found ${products?.length || 0} active products`);
-
-      if (!products || products.length === 0) {
-        console.log('⚠ No products found in database');
-        setProductLists([]);
-        setLoading(false);
-        return;
-      }
-
-      // Get unique supplier list IDs from products
-      const listIds = [...new Set(products.map(p => p.supplier_list_id))];
-      console.log(`✓ Found ${listIds.length} unique supplier list IDs in products:`);
-      listIds.forEach((id, idx) => {
-        const count = products.filter(p => p.supplier_list_id === id).length;
-        console.log(`  ${idx + 1}. ${id.substring(0, 8)}... (${count} products)`);
-      });
-      
-      // Fetch supplier lists with supplier info - only active lists
-      console.log('→ Fetching supplier lists...');
+      // STEP 1: Get all active supplier lists first
+      console.log('→ Fetching active supplier lists...');
       const { data: supplierLists, error: listsError } = await supabase
         .from('supplier_lists')
         .select(`
@@ -92,7 +60,6 @@ export default function HomeScreen() {
           supplier_id,
           status
         `)
-        .in('id', listIds)
         .eq('status', 'active');
 
       if (listsError) {
@@ -103,16 +70,87 @@ export default function HomeScreen() {
       }
 
       console.log(`✓ Found ${supplierLists?.length || 0} active supplier lists`);
-      if (supplierLists && supplierLists.length > 0) {
-        supplierLists.forEach((list, idx) => {
-          console.log(`  ${idx + 1}. "${list.name}" (ID: ${list.id.substring(0, 8)}...) - status: ${list.status}`);
-        });
-      } else {
-        console.warn('⚠ No supplier lists returned from query!');
+      if (!supplierLists || supplierLists.length === 0) {
+        console.log('⚠ No active supplier lists found');
+        setProductLists([]);
+        setLoading(false);
+        return;
       }
 
-      // Get supplier profiles
-      const supplierIds = supplierLists?.map(list => list.supplier_id) || [];
+      supplierLists.forEach((list, idx) => {
+        console.log(`  ${idx + 1}. "${list.name}" (ID: ${list.id.substring(0, 8)}...) - status: ${list.status}`);
+      });
+
+      const listIds = supplierLists.map(list => list.id);
+      console.log(`→ Will fetch products for ${listIds.length} lists`);
+      
+      // STEP 2: Get ALL products for these lists - IMPORTANT: Use range to get more than 1000 rows
+      console.log('→ Fetching ALL active products for these lists (removing default 1000 row limit)...');
+      
+      // Fetch products in batches to avoid hitting limits
+      const batchSize = 1000;
+      let allProducts: any[] = [];
+      let offset = 0;
+      let hasMore = true;
+      
+      while (hasMore) {
+        console.log(`  Fetching batch starting at offset ${offset}...`);
+        const { data: productsBatch, error: productsError } = await supabase
+          .from('products')
+          .select('*')
+          .eq('status', 'active')
+          .in('supplier_list_id', listIds)
+          .order('created_at', { ascending: false })
+          .range(offset, offset + batchSize - 1);
+
+        if (productsError) {
+          console.error('❌ Error loading products:', productsError);
+          setError(`Errore nel caricamento dei prodotti: ${productsError.message}`);
+          setLoading(false);
+          return;
+        }
+
+        if (!productsBatch || productsBatch.length === 0) {
+          hasMore = false;
+          console.log(`  No more products found at offset ${offset}`);
+        } else {
+          console.log(`  ✓ Fetched ${productsBatch.length} products in this batch`);
+          allProducts = allProducts.concat(productsBatch);
+          offset += batchSize;
+          
+          // If we got less than batchSize, we've reached the end
+          if (productsBatch.length < batchSize) {
+            hasMore = false;
+            console.log(`  Reached end of products (got ${productsBatch.length} < ${batchSize})`);
+          }
+        }
+      }
+
+      const products = allProducts;
+      console.log(`✓ Found TOTAL of ${products.length} active products across all batches`);
+
+      if (!products || products.length === 0) {
+        console.log('⚠ No products found for active lists');
+        setProductLists([]);
+        setLoading(false);
+        return;
+      }
+
+      // Count products per list
+      const productsPerList = new Map<string, number>();
+      products.forEach(p => {
+        const count = productsPerList.get(p.supplier_list_id) || 0;
+        productsPerList.set(p.supplier_list_id, count + 1);
+      });
+      
+      console.log('Products per list:');
+      productsPerList.forEach((count, listId) => {
+        const list = supplierLists.find(l => l.id === listId);
+        console.log(`  - ${list?.name || 'Unknown'} (${listId.substring(0, 8)}...): ${count} products`);
+      });
+
+      // STEP 3: Get supplier profiles
+      const supplierIds = supplierLists.map(list => list.supplier_id);
       console.log(`→ Fetching ${supplierIds.length} supplier profiles...`);
       const { data: profiles, error: profilesError } = await supabase
         .from('profiles')
@@ -130,13 +168,13 @@ export default function HomeScreen() {
       const profilesMap = new Map(profiles?.map(p => [p.user_id, p.full_name]) || []);
 
       // Create a map of list_id to list data
-      const listsMap = new Map(supplierLists?.map(list => [
+      const listsMap = new Map(supplierLists.map(list => [
         list.id,
         {
           ...list,
           supplierName: profilesMap.get(list.supplier_id) || 'Fornitore'
         }
-      ]) || []);
+      ]));
 
       console.log('=== GROUPING PRODUCTS BY LIST ===');
       console.log(`Lists map size: ${listsMap.size}`);
@@ -157,7 +195,7 @@ export default function HomeScreen() {
         const listData = listsMap.get(listId);
         
         if (!listData) {
-          console.warn(`⚠ Product ${index + 1}/${products.length}: No active list data found for list ID: ${listId.substring(0, 8)}..., skipping product ${product.id.substring(0, 8)}...`);
+          console.warn(`⚠ Product ${index + 1}/${products.length}: No list data found for list ID: ${listId.substring(0, 8)}..., skipping product ${product.id.substring(0, 8)}...`);
           skippedProducts++;
           return;
         }
@@ -251,13 +289,9 @@ export default function HomeScreen() {
       if (lists.length === 0) {
         console.error('❌ NO LISTS AFTER FILTERING! This should not happen.');
         console.log('Debug info:');
+        console.log('- Supplier lists fetched:', supplierLists.length);
         console.log('- Products fetched:', products.length);
-        console.log('- Supplier lists fetched:', supplierLists?.length);
         console.log('- Grouped lists created:', groupedLists.size);
-        console.log('- Lists map entries:');
-        listsMap.forEach((data, id) => {
-          console.log(`  ${id}: ${data.name}`);
-        });
       }
       
       setProductLists(lists);
