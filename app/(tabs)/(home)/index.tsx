@@ -41,7 +41,7 @@ export default function HomeScreen() {
 
   const loadProducts = useCallback(async () => {
     try {
-      console.log('Loading products from database...');
+      console.log('=== LOADING PRODUCTS ===');
       setError(null);
       setLoading(true);
       
@@ -59,18 +59,18 @@ export default function HomeScreen() {
         return;
       }
 
-      console.log(`Found ${products?.length || 0} active products`);
+      console.log(`✓ Found ${products?.length || 0} active products`);
 
       if (!products || products.length === 0) {
-        console.log('No products found in database');
+        console.log('⚠ No products found in database');
         setProductLists([]);
         setLoading(false);
         return;
       }
 
-      // Get unique supplier list IDs
+      // Get unique supplier list IDs from products
       const listIds = [...new Set(products.map(p => p.supplier_list_id))];
-      console.log(`Found ${listIds.length} unique supplier list IDs:`, listIds);
+      console.log(`✓ Found ${listIds.length} unique supplier list IDs in products`);
       
       // Fetch supplier lists with supplier info - only active lists
       const { data: supplierLists, error: listsError } = await supabase
@@ -95,8 +95,10 @@ export default function HomeScreen() {
         return;
       }
 
-      console.log(`Found ${supplierLists?.length || 0} active supplier lists:`, 
-        supplierLists?.map(l => ({ id: l.id, name: l.name, status: l.status })));
+      console.log(`✓ Found ${supplierLists?.length || 0} active supplier lists`);
+      supplierLists?.forEach((list, idx) => {
+        console.log(`  ${idx + 1}. "${list.name}" (ID: ${list.id.substring(0, 8)}...) - status: ${list.status}`);
+      });
 
       // Get supplier profiles
       const supplierIds = supplierLists?.map(list => list.supplier_id) || [];
@@ -110,6 +112,8 @@ export default function HomeScreen() {
         // Don't fail completely if profiles fail to load
       }
 
+      console.log(`✓ Loaded ${profiles?.length || 0} supplier profiles`);
+
       // Create a map of supplier_id to full_name
       const profilesMap = new Map(profiles?.map(p => [p.user_id, p.full_name]) || []);
 
@@ -122,6 +126,8 @@ export default function HomeScreen() {
         }
       ]) || []);
 
+      console.log('=== GROUPING PRODUCTS BY LIST ===');
+      
       // Group products by supplier list
       const groupedLists = new Map<string, ProductList>();
       
@@ -130,11 +136,12 @@ export default function HomeScreen() {
         const listData = listsMap.get(listId);
         
         if (!listData) {
-          console.warn(`No active list data found for list ID: ${listId}, skipping product ${product.id}`);
+          console.warn(`⚠ No active list data found for list ID: ${listId}, skipping product ${product.id}`);
           return;
         }
 
         if (!groupedLists.has(listId)) {
+          console.log(`→ Creating new list group: "${listData.name}" (${listId.substring(0, 8)}...)`);
           groupedLists.set(listId, {
             listId: listId,
             listName: listData.name || 'Lista',
@@ -197,16 +204,25 @@ export default function HomeScreen() {
         groupedLists.get(listId)!.products.push(productData);
       });
       
-      // Filter out lists with no products
-      const lists = Array.from(groupedLists.values()).filter(list => list.products.length > 0);
+      console.log('=== FILTERING LISTS ===');
+      console.log(`Total grouped lists before filtering: ${groupedLists.size}`);
       
-      console.log(`Created ${lists.length} product lists with products:`);
+      // Filter out lists with no products
+      const lists = Array.from(groupedLists.values()).filter(list => {
+        const hasProducts = list.products.length > 0;
+        console.log(`  "${list.listName}" by ${list.supplierName}: ${list.products.length} products - ${hasProducts ? '✓ INCLUDED' : '✗ EXCLUDED'}`);
+        return hasProducts;
+      });
+      
+      console.log('=== FINAL RESULT ===');
+      console.log(`✓ Created ${lists.length} product lists with products:`);
       lists.forEach((list, index) => {
-        console.log(`  ${index + 1}. "${list.listName}" by ${list.supplierName} - ${list.products.length} products (ID: ${list.listId})`);
+        console.log(`  ${index + 1}. "${list.listName}" by ${list.supplierName} - ${list.products.length} products (ID: ${list.listId.substring(0, 8)}...)`);
       });
       
       setProductLists(lists);
       setLoading(false);
+      console.log('=== LOADING COMPLETE ===');
     } catch (error) {
       console.error('Exception loading products:', error);
       setError(`Errore imprevisto: ${error instanceof Error ? error.message : 'Errore sconosciuto'}`);
@@ -422,7 +438,7 @@ export default function HomeScreen() {
     if (currentListIndex < productLists.length - 1) {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       const nextIndex = currentListIndex + 1;
-      console.log(`Switching to next list: ${nextIndex + 1}/${productLists.length} - ${productLists[nextIndex].listName}`);
+      console.log(`→ Switching to next list: ${nextIndex + 1}/${productLists.length} - "${productLists[nextIndex].listName}"`);
       
       // Update state first
       setCurrentListIndex(nextIndex);
@@ -450,7 +466,7 @@ export default function HomeScreen() {
     if (currentListIndex > 0) {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       const prevIndex = currentListIndex - 1;
-      console.log(`Switching to previous list: ${prevIndex + 1}/${productLists.length} - ${productLists[prevIndex].listName}`);
+      console.log(`← Switching to previous list: ${prevIndex + 1}/${productLists.length} - "${productLists[prevIndex].listName}"`);
       
       // Update state first
       setCurrentListIndex(prevIndex);
