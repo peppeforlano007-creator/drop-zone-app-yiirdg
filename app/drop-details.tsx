@@ -61,7 +61,7 @@ export default function DropDetailsScreen() {
   const [timeRemaining, setTimeRemaining] = useState('');
   const [isProgressExpanded, setIsProgressExpanded] = useState(true);
   const bounceAnim = useRef(new Animated.Value(1)).current;
-  const progressHeightAnim = useRef(new Animated.Value(1)).current;
+  const bannerTranslateX = useRef(new Animated.Value(0)).current;
   const chevronRotateAnim = useRef(new Animated.Value(0)).current;
   const { hasPaymentMethod } = usePayment();
   const { user } = useAuth();
@@ -281,10 +281,10 @@ export default function DropDetailsScreen() {
     const newExpandedState = !isProgressExpanded;
     setIsProgressExpanded(newExpandedState);
 
-    // Animate height
-    Animated.spring(progressHeightAnim, {
-      toValue: newExpandedState ? 1 : 0,
-      useNativeDriver: false,
+    // Animate banner sliding left/right
+    Animated.spring(bannerTranslateX, {
+      toValue: newExpandedState ? 0 : -280, // Slide left when collapsed
+      useNativeDriver: true,
       tension: 100,
       friction: 10,
     }).start();
@@ -569,10 +569,6 @@ export default function DropDetailsScreen() {
 
             <View style={styles.headerCenter}>
               <Text style={styles.dropName} numberOfLines={1}>{drop.name}</Text>
-              <View style={styles.pickupPointRow}>
-                <IconSymbol ios_icon_name="mappin.circle.fill" android_material_icon_name="location_on" size={14} color="#666" />
-                <Text style={styles.pickupPoint}>{drop.pickup_points?.city ?? 'N/A'}</Text>
-              </View>
             </View>
 
             <Pressable
@@ -617,96 +613,118 @@ export default function DropDetailsScreen() {
             </View>
           )}
 
-          {/* Progress Bar Section - Collapsible with Timer */}
-          <Animated.View 
-            style={[
-              styles.progressSection,
-              {
-                maxHeight: progressHeightAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [0, 250],
-                }),
-                opacity: progressHeightAnim,
-              }
-            ]}
-          >
-            {/* Timer Section - Now inside collapsible area */}
-            <View style={styles.timerSection}>
-              <View style={styles.timerLabelRow}>
-                <IconSymbol 
-                  ios_icon_name="clock.fill" 
-                  android_material_icon_name="schedule" 
-                  size={12} 
-                  color={colors.primary} 
-                />
-                <Text style={styles.timerLabel}>Tempo Rimanente</Text>
+          {/* Sliding Banner Container */}
+          <View style={styles.bannerContainer}>
+            {/* Animated Banner - Slides left/right */}
+            <Animated.View 
+              style={[
+                styles.progressBanner,
+                {
+                  transform: [{ translateX: bannerTranslateX }],
+                }
+              ]}
+            >
+              {/* Pickup Point and List Name Section */}
+              <View style={styles.bannerHeader}>
+                <View style={styles.bannerInfoRow}>
+                  <IconSymbol 
+                    ios_icon_name="mappin.circle.fill" 
+                    android_material_icon_name="location_on" 
+                    size={14} 
+                    color={colors.primary} 
+                  />
+                  <Text style={styles.bannerInfoText}>{drop.pickup_points?.city ?? 'N/A'}</Text>
+                </View>
+                <View style={styles.bannerInfoRow}>
+                  <IconSymbol 
+                    ios_icon_name="list.bullet" 
+                    android_material_icon_name="list" 
+                    size={14} 
+                    color={colors.primary} 
+                  />
+                  <Text style={styles.bannerInfoText}>{drop.supplier_lists?.name ?? 'N/A'}</Text>
+                </View>
               </View>
-              <Text style={styles.timerText}>{timeRemaining}</Text>
-            </View>
 
-            {/* Divider */}
-            <View style={styles.sectionDivider} />
+              <View style={styles.bannerDivider} />
 
-            {/* Progress Section */}
-            <View style={styles.progressRow}>
-              <View style={styles.progressLabelRow}>
-                <IconSymbol 
-                  ios_icon_name="chart.bar.fill" 
-                  android_material_icon_name="trending_up" 
-                  size={12} 
-                  color={colors.primary} 
-                />
-                <Text style={styles.progressLabel}>Obiettivo</Text>
+              {/* Timer Section */}
+              <View style={styles.timerSection}>
+                <View style={styles.timerLabelRow}>
+                  <IconSymbol 
+                    ios_icon_name="clock.fill" 
+                    android_material_icon_name="schedule" 
+                    size={12} 
+                    color={colors.primary} 
+                  />
+                  <Text style={styles.timerLabel}>Tempo Rimanente</Text>
+                </View>
+                <Text style={styles.timerText}>{timeRemaining}</Text>
               </View>
-              <Text style={styles.progressValue}>
-                €{currentValue.toFixed(0)} / €{maxReservationValue.toFixed(0)}
-              </Text>
-            </View>
-            
-            {/* Progress Bar */}
-            <View style={styles.progressBarContainer}>
-              <View style={[styles.progressBarFill, { width: `${valueProgress}%` }]} />
-            </View>
 
-            <View style={styles.progressStatsRow}>
-              <View style={styles.progressStat}>
-                <Text style={styles.progressStatLabel}>Sconto Attuale</Text>
-                <Animated.View style={{ transform: [{ scale: bounceAnim }] }}>
-                  <Text style={styles.progressStatValue}>{currentDiscount.toFixed(0)}%</Text>
-                </Animated.View>
+              <View style={styles.bannerDivider} />
+
+              {/* Progress Section */}
+              <View style={styles.progressRow}>
+                <View style={styles.progressLabelRow}>
+                  <IconSymbol 
+                    ios_icon_name="chart.bar.fill" 
+                    android_material_icon_name="trending_up" 
+                    size={12} 
+                    color={colors.primary} 
+                  />
+                  <Text style={styles.progressLabel}>Obiettivo</Text>
+                </View>
+                <Text style={styles.progressValue}>
+                  €{currentValue.toFixed(0)} / €{maxReservationValue.toFixed(0)}
+                </Text>
               </View>
               
-              <View style={styles.progressDivider} />
-              
-              <View style={styles.progressStat}>
-                <Text style={styles.progressStatLabel}>Sconto Max</Text>
-                <Text style={styles.progressStatValueMax}>{maxDiscount.toFixed(0)}%</Text>
+              {/* Progress Bar */}
+              <View style={styles.progressBarContainer}>
+                <View style={[styles.progressBarFill, { width: `${valueProgress}%` }]} />
               </View>
-              
-              <View style={styles.progressDivider} />
-              
-              <View style={styles.progressStat}>
-                <Text style={styles.progressStatLabel}>Progresso</Text>
-                <Text style={styles.progressStatValue}>{valueProgress.toFixed(0)}%</Text>
-              </View>
-            </View>
-          </Animated.View>
 
-          {/* Toggle Icon for Progress Bar */}
-          <Pressable 
-            style={styles.toggleButton}
-            onPress={toggleProgressBar}
-            hitSlop={{ top: 10, bottom: 10, left: 20, right: 20 }}
-          >
-            <Animated.View style={{ transform: [{ rotate: chevronRotation }] }}>
-              <IconSymbol 
-                ios_icon_name="chevron.up" 
-                android_material_icon_name="keyboard_arrow_up" 
-                size={20} 
-                color="#666" 
-              />
+              <View style={styles.progressStatsRow}>
+                <View style={styles.progressStat}>
+                  <Text style={styles.progressStatLabel}>Sconto Attuale</Text>
+                  <Animated.View style={{ transform: [{ scale: bounceAnim }] }}>
+                    <Text style={styles.progressStatValue}>{currentDiscount.toFixed(0)}%</Text>
+                  </Animated.View>
+                </View>
+                
+                <View style={styles.progressDivider} />
+                
+                <View style={styles.progressStat}>
+                  <Text style={styles.progressStatLabel}>Sconto Max</Text>
+                  <Text style={styles.progressStatValueMax}>{maxDiscount.toFixed(0)}%</Text>
+                </View>
+                
+                <View style={styles.progressDivider} />
+                
+                <View style={styles.progressStat}>
+                  <Text style={styles.progressStatLabel}>Progresso</Text>
+                  <Text style={styles.progressStatValue}>{valueProgress.toFixed(0)}%</Text>
+                </View>
+              </View>
             </Animated.View>
-          </Pressable>
+
+            {/* Toggle Button - Fixed on the right side */}
+            <Pressable 
+              style={styles.toggleButton}
+              onPress={toggleProgressBar}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Animated.View style={{ transform: [{ rotate: chevronRotation }] }}>
+                <IconSymbol 
+                  ios_icon_name="chevron.left" 
+                  android_material_icon_name="chevron_left" 
+                  size={20} 
+                  color="#666" 
+                />
+              </Animated.View>
+            </Pressable>
+          </View>
 
           {/* Real-time connection indicator */}
           {isConnected && (
@@ -807,18 +825,6 @@ const styles = StyleSheet.create({
     color: '#000',
     fontFamily: 'System',
   },
-  pickupPointRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    marginTop: 1,
-  },
-  pickupPoint: {
-    fontSize: 12,
-    color: '#666',
-    fontFamily: 'System',
-    fontWeight: '600',
-  },
   shareBtn: {
     width: 36,
     height: 36,
@@ -874,17 +880,44 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontFamily: 'System',
   },
-  progressSection: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+  bannerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: 'rgba(255, 255, 255, 0.98)',
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(0, 0, 0, 0.06)',
     overflow: 'hidden',
   },
+  progressBanner: {
+    width: 280,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  bannerHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  bannerInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  bannerInfoText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.text,
+    fontFamily: 'System',
+  },
+  bannerDivider: {
+    height: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.08)',
+    marginVertical: 10,
+  },
   timerSection: {
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 10,
   },
   timerLabelRow: {
     flexDirection: 'row',
@@ -906,11 +939,6 @@ const styles = StyleSheet.create({
     color: colors.primary,
     fontFamily: 'System',
     textAlign: 'center',
-  },
-  sectionDivider: {
-    height: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.08)',
-    marginVertical: 12,
   },
   progressRow: {
     flexDirection: 'row',
@@ -986,12 +1014,13 @@ const styles = StyleSheet.create({
     marginHorizontal: 8,
   },
   toggleButton: {
-    alignItems: 'center',
+    width: 40,
+    height: '100%',
     justifyContent: 'center',
-    paddingVertical: 8,
+    alignItems: 'center',
     backgroundColor: 'rgba(255, 255, 255, 0.98)',
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0, 0, 0, 0.06)',
+    borderLeftWidth: 1,
+    borderLeftColor: 'rgba(0, 0, 0, 0.06)',
   },
   realtimeIndicator: {
     flexDirection: 'row',
