@@ -143,6 +143,28 @@ export default function DropsScreen() {
     <DropCard drop={item} />
   );
 
+  const renderHeader = () => (
+    <View style={styles.headerContainer}>
+      <View style={styles.infoCard}>
+        <View style={styles.infoIconContainer}>
+          <IconSymbol 
+            ios_icon_name="info.circle.fill" 
+            android_material_icon_name="info" 
+            size={24} 
+            color={colors.primary} 
+          />
+        </View>
+        <View style={styles.infoTextContainer}>
+          <Text style={styles.infoText}>
+            I drop sono attivi per città specifiche. Gli articoli potranno essere ritirati solo presso il punto di ritiro della città indicata. 
+            Lo sconto attuale è quello visualizzato, ma aumenta man mano che condividi con amici e parenti e più persone prenotano con carta, 
+            fino a raggiungere lo sconto massimo del drop.
+          </Text>
+        </View>
+      </View>
+    </View>
+  );
+
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
@@ -189,6 +211,7 @@ export default function DropsScreen() {
           data={drops}
           renderItem={renderDrop}
           keyExtractor={(item) => item.id}
+          ListHeaderComponent={renderHeader}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
           refreshControl={
@@ -240,6 +263,30 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.success,
     fontWeight: '600',
+    fontFamily: 'System',
+  },
+  headerContainer: {
+    marginBottom: 16,
+  },
+  infoCard: {
+    flexDirection: 'row',
+    backgroundColor: colors.primary + '15',
+    borderRadius: 12,
+    padding: 16,
+    borderLeftWidth: 4,
+    borderLeftColor: colors.primary,
+  },
+  infoIconContainer: {
+    marginRight: 12,
+    marginTop: 2,
+  },
+  infoTextContainer: {
+    flex: 1,
+  },
+  infoText: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: colors.text,
     fontFamily: 'System',
   },
   listContent: {
