@@ -142,10 +142,26 @@ export default function HomeScreen() {
         }
         
         // Properly map database fields to Product interface
-        // Handle additional_images being null
-        const additionalImages = product.additional_images && Array.isArray(product.additional_images) 
-          ? product.additional_images 
-          : [];
+        // Handle additional_images being null or not an array
+        let additionalImages: string[] = [];
+        if (product.additional_images) {
+          if (Array.isArray(product.additional_images)) {
+            additionalImages = product.additional_images.filter(Boolean);
+          } else if (typeof product.additional_images === 'string') {
+            // If it's a string, try to parse it or split it
+            try {
+              const parsed = JSON.parse(product.additional_images);
+              if (Array.isArray(parsed)) {
+                additionalImages = parsed.filter(Boolean);
+              }
+            } catch {
+              // If parsing fails, treat it as a single URL if it looks like one
+              if (product.additional_images.startsWith('http')) {
+                additionalImages = [product.additional_images];
+              }
+            }
+          }
+        }
         
         const imageUrls = [product.image_url, ...additionalImages].filter(Boolean);
         
@@ -349,21 +365,25 @@ export default function HomeScreen() {
       const nextIndex = currentListIndex + 1;
       console.log(`Switching to next list: ${nextIndex + 1}/${productLists.length} - ${productLists[nextIndex].listName}`);
       
+      // Update state first
       setCurrentListIndex(nextIndex);
       setCurrentProductIndex(0);
       
-      // Scroll to the next list with error handling
+      // Scroll the horizontal list to show the next list
       setTimeout(() => {
         try {
-          listFlatListRef.current?.scrollToIndex({ 
-            index: nextIndex, 
-            animated: true,
-            viewPosition: 0
-          });
+          if (listFlatListRef.current) {
+            listFlatListRef.current.scrollToOffset({
+              offset: SCREEN_WIDTH * nextIndex,
+              animated: true,
+            });
+          }
         } catch (error) {
           console.error('Error scrolling to next list:', error);
         }
-      }, 50);
+      }, 100);
+    } else {
+      console.log('Already at last list');
     }
   };
 
@@ -373,21 +393,25 @@ export default function HomeScreen() {
       const prevIndex = currentListIndex - 1;
       console.log(`Switching to previous list: ${prevIndex + 1}/${productLists.length} - ${productLists[prevIndex].listName}`);
       
+      // Update state first
       setCurrentListIndex(prevIndex);
       setCurrentProductIndex(0);
       
-      // Scroll to the previous list with error handling
+      // Scroll the horizontal list to show the previous list
       setTimeout(() => {
         try {
-          listFlatListRef.current?.scrollToIndex({ 
-            index: prevIndex, 
-            animated: true,
-            viewPosition: 0
-          });
+          if (listFlatListRef.current) {
+            listFlatListRef.current.scrollToOffset({
+              offset: SCREEN_WIDTH * prevIndex,
+              animated: true,
+            });
+          }
         } catch (error) {
           console.error('Error scrolling to previous list:', error);
         }
-      }, 50);
+      }, 100);
+    } else {
+      console.log('Already at first list');
     }
   };
 
@@ -617,10 +641,9 @@ export default function HomeScreen() {
             // Retry after a delay
             setTimeout(() => {
               try {
-                listFlatListRef.current?.scrollToIndex({ 
-                  index: info.index, 
+                listFlatListRef.current?.scrollToOffset({ 
+                  offset: SCREEN_WIDTH * info.index,
                   animated: false,
-                  viewPosition: 0
                 });
               } catch (error) {
                 console.error('Retry scroll failed:', error);

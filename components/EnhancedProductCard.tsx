@@ -20,6 +20,19 @@ interface EnhancedProductCardProps {
   isInterested?: boolean;
 }
 
+// Helper function to validate if a string is a valid URL
+const isValidUrl = (urlString: string): boolean => {
+  if (!urlString || typeof urlString !== 'string') return false;
+  
+  // Check if it's a valid HTTP/HTTPS URL
+  try {
+    const url = new URL(urlString);
+    return url.protocol === 'http:' || url.protocol === 'https:';
+  } catch {
+    return false;
+  }
+};
+
 export default function EnhancedProductCard({
   product,
   isInDrop = false,
@@ -45,10 +58,40 @@ export default function EnhancedProductCard({
   const discount = currentDiscount ?? minDiscount;
   const discountedPrice = originalPrice * (1 - discount / 100);
 
+  // Safely construct image URLs array with validation
+  const imageUrls = React.useMemo(() => {
+    const urls: string[] = [];
+    
+    // Add main image if it exists and is valid
+    if (product.imageUrl && isValidUrl(product.imageUrl)) {
+      urls.push(product.imageUrl);
+    }
+    
+    // Add additional images if they exist, are an array, and are valid URLs
+    if (product.imageUrls && Array.isArray(product.imageUrls)) {
+      const validAdditionalUrls = product.imageUrls.filter(url => 
+        url && 
+        url !== product.imageUrl && 
+        isValidUrl(url)
+      );
+      urls.push(...validAdditionalUrls);
+    }
+    
+    return urls;
+  }, [product.imageUrl, product.imageUrls]);
+
+  const hasMultipleImages = imageUrls.length > 1;
+  const hasValidImage = imageUrls.length > 0;
+
   const handleImagePress = () => {
+    if (!hasValidImage) {
+      console.log('No valid images available for product:', product.id);
+      return;
+    }
+    
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setGalleryVisible(true);
-    console.log('Opening image gallery for product:', product.id);
+    console.log('Opening image gallery for product:', product.id, 'with', imageUrls.length, 'images');
   };
 
   const handlePressIn = () => {
@@ -136,7 +179,6 @@ export default function EnhancedProductCard({
     console.log('Selected color:', color);
   };
 
-  const hasMultipleImages = product.imageUrls && product.imageUrls.length > 1;
   const isFashionItem = product.category === 'Fashion';
 
   const getConditionColor = (condition?: string) => {
@@ -167,16 +209,20 @@ export default function EnhancedProductCard({
 
   const conditionIcon = getConditionIcon(product.condition);
 
+  // Get the main image URL (first in the array or empty string)
+  const mainImageUrl = imageUrls[0] || '';
+
   return (
     <View style={styles.container}>
       <Pressable 
         style={styles.imageWrapper}
         onPress={handleImagePress}
         activeOpacity={0.95}
+        disabled={!hasValidImage}
       >
-        {!imageError ? (
+        {hasValidImage && mainImageUrl ? (
           <Image
-            source={{ uri: product.imageUrl }}
+            source={{ uri: mainImageUrl }}
             style={styles.image}
             resizeMode="contain"
             onLoadStart={() => {
@@ -186,9 +232,10 @@ export default function EnhancedProductCard({
             onLoad={() => {
               setImageLoaded(true);
               setImageError(false);
+              console.log('Image loaded successfully:', mainImageUrl);
             }}
-            onError={() => {
-              console.error('Image load error:', product.imageUrl);
+            onError={(error) => {
+              console.error('Image load error for product:', product.id, 'URL:', mainImageUrl, 'Error:', error.nativeEvent.error);
               setImageError(true);
               setImageLoaded(false);
             }}
@@ -202,10 +249,13 @@ export default function EnhancedProductCard({
               color={colors.textTertiary} 
             />
             <Text style={styles.imageErrorText}>Immagine non disponibile</Text>
+            {product.imageUrl && !isValidUrl(product.imageUrl) && (
+              <Text style={styles.imageDebugText}>URL non valido: {product.imageUrl}</Text>
+            )}
           </View>
         )}
         
-        {!imageLoaded && !imageError && (
+        {!imageLoaded && !imageError && hasValidImage && mainImageUrl && (
           <View style={styles.imageLoadingOverlay}>
             <ActivityIndicator size="large" color={colors.text} />
           </View>
@@ -219,16 +269,18 @@ export default function EnhancedProductCard({
               size={20} 
               color={colors.background} 
             />
-            <Text style={styles.imageCount}>{product.imageUrls.length}</Text>
+            <Text style={styles.imageCount}>{imageUrls.length}</Text>
           </View>
         )}
 
-        {/* Drop badge moved to bottom-left of image */}
-        {isInDrop && currentDiscount && (
-          <View style={styles.dropBadgeBottomLeft}>
-            <Text style={styles.dropBadgeText}>Drop -{currentDiscount.toFixed(1)}%</Text>
-          </View>
-        )}
+        {/* Top badges overlay on image */}
+        <View style={styles.topBadgesContainer}>
+          {isInDrop && currentDiscount && (
+            <View style={styles.dropBadge}>
+              <Text style={styles.dropBadgeText}>Drop -{currentDiscount.toFixed(1)}%</Text>
+            </View>
+          )}
+        </View>
       </Pressable>
 
       <View style={styles.overlay}>
@@ -299,10 +351,9 @@ export default function EnhancedProductCard({
             <View style={styles.priceInfo}>
               <Text style={styles.discountedPrice}>€{discountedPrice.toFixed(2)}</Text>
               <Text style={styles.originalPrice}>€{originalPrice.toFixed(2)}</Text>
-              {/* Discount badge moved closer to the price */}
-              <View style={styles.discountBadge}>
-                <Text style={styles.discountText}>-{discount.toFixed(0)}%</Text>
-              </View>
+            </View>
+            <View style={styles.discountBadge}>
+              <Text style={styles.discountText}>-{discount.toFixed(0)}%</Text>
             </View>
           </View>
 
@@ -381,61 +432,85 @@ export default function EnhancedProductCard({
             </View>
           )}
 
-          {/* "PRENOTA CON CARTA" Button - Always shown in drop feed */}
-          <Animated.View 
-            style={[
-              styles.bookButtonWrapper,
-              {
-                transform: [{ scale: scaleAnim }],
-              },
-            ]}
-          >
+          {/* Compact "PRENOTA CON CARTA" Button */}
+          {isInDrop ? (
+            <Animated.View 
+              style={[
+                styles.bookButtonWrapper,
+                {
+                  transform: [{ scale: scaleAnim }],
+                },
+              ]}
+            >
+              <Pressable
+                onPress={handlePress}
+                onPressIn={handlePressIn}
+                onPressOut={handlePressOut}
+                disabled={isProcessing}
+                style={styles.bookButton}
+              >
+                {isProcessing ? (
+                  <ActivityIndicator color="#FFFFFF" size="small" />
+                ) : (
+                  <>
+                    <View style={styles.bookButtonIconContainer}>
+                      <IconSymbol 
+                        ios_icon_name="creditcard.fill" 
+                        android_material_icon_name="credit_card" 
+                        size={22} 
+                        color="#333" 
+                      />
+                    </View>
+                    <View style={styles.bookButtonTextContainer}>
+                      <Text style={styles.bookButtonTitle}>PRENOTA CON CARTA</Text>
+                      <Text style={styles.bookButtonSubtitle}>
+                        Blocco temporaneo • Addebito finale
+                      </Text>
+                    </View>
+                    <View style={styles.bookButtonArrow}>
+                      <IconSymbol 
+                        ios_icon_name="chevron.right" 
+                        android_material_icon_name="chevron_right" 
+                        size={20} 
+                        color="#333" 
+                      />
+                    </View>
+                  </>
+                )}
+              </Pressable>
+            </Animated.View>
+          ) : (
             <Pressable
+              style={[
+                styles.actionButton,
+                isInterested && styles.interestedButton,
+                isProcessing && styles.actionButtonDisabled,
+              ]}
               onPress={handlePress}
-              onPressIn={handlePressIn}
-              onPressOut={handlePressOut}
               disabled={isProcessing}
-              style={styles.bookButton}
             >
               {isProcessing ? (
-                <ActivityIndicator color="#FFFFFF" size="small" />
+                <ActivityIndicator color={colors.background} />
               ) : (
-                <>
-                  <View style={styles.bookButtonIconContainer}>
-                    <IconSymbol 
-                      ios_icon_name="creditcard.fill" 
-                      android_material_icon_name="credit_card" 
-                      size={22} 
-                      color="#333" 
-                    />
-                  </View>
-                  <View style={styles.bookButtonTextContainer}>
-                    <Text style={styles.bookButtonTitle}>PRENOTA CON CARTA</Text>
-                    <Text style={styles.bookButtonSubtitle}>
-                      Blocco temporaneo • Addebito finale
-                    </Text>
-                  </View>
-                  <View style={styles.bookButtonArrow}>
-                    <IconSymbol 
-                      ios_icon_name="chevron.right" 
-                      android_material_icon_name="chevron_right" 
-                      size={20} 
-                      color="#333" 
-                    />
-                  </View>
-                </>
+                <Text style={styles.actionButtonText}>
+                  {isInterested
+                    ? 'INTERESSATO ✓'
+                    : 'VORRÒ PARTECIPARE AL DROP'}
+                </Text>
               )}
             </Pressable>
-          </Animated.View>
+          )}
         </View>
       </View>
 
-      <ImageGallery
-        images={product.imageUrls || [product.imageUrl]}
-        visible={galleryVisible}
-        onClose={() => setGalleryVisible(false)}
-        initialIndex={0}
-      />
+      {hasValidImage && (
+        <ImageGallery
+          images={imageUrls}
+          visible={galleryVisible}
+          onClose={() => setGalleryVisible(false)}
+          initialIndex={0}
+        />
+      )}
     </View>
   );
 }
@@ -480,6 +555,14 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontWeight: '500',
   },
+  imageDebugText: {
+    marginTop: 8,
+    fontSize: 10,
+    color: colors.textTertiary,
+    fontStyle: 'italic',
+    textAlign: 'center',
+    paddingHorizontal: 20,
+  },
   imageIndicator: {
     position: 'absolute',
     top: 60,
@@ -497,11 +580,15 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
   },
-  // Drop badge repositioned to bottom-left of image
-  dropBadgeBottomLeft: {
+  topBadgesContainer: {
     position: 'absolute',
-    bottom: 20,
+    top: 60,
     left: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  dropBadge: {
     backgroundColor: 'rgba(0, 0, 0, 0.85)',
     paddingHorizontal: 12,
     paddingVertical: 6,
@@ -579,20 +666,18 @@ const styles = StyleSheet.create({
   priceInfo: {
     flexDirection: 'row',
     alignItems: 'baseline',
-    gap: 8,
+    gap: 10,
   },
   originalPrice: {
     fontSize: 13,
     color: colors.textSecondary,
     textDecorationLine: 'line-through',
   },
-  // Discount badge moved closer to the price (within priceInfo)
   discountBadge: {
     backgroundColor: colors.text,
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 7,
-    marginLeft: 4,
   },
   discountText: {
     fontSize: 12,
@@ -675,7 +760,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(0, 0, 0, 0.1)',
   },
-  // "PRENOTA CON CARTA" button styles
+  // Compact "PRENOTA CON CARTA" button styles
   bookButtonWrapper: {
     marginTop: 4,
     shadowColor: '#000',
@@ -724,5 +809,25 @@ const styles = StyleSheet.create({
   },
   bookButtonArrow: {
     opacity: 0.8,
+  },
+  // Standard action button (for non-drop products)
+  actionButton: {
+    paddingVertical: 15,
+    borderRadius: 6,
+    backgroundColor: colors.text,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  interestedButton: {
+    backgroundColor: colors.secondary,
+  },
+  actionButtonDisabled: {
+    opacity: 0.6,
+  },
+  actionButtonText: {
+    color: colors.background,
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 1.2,
   },
 });

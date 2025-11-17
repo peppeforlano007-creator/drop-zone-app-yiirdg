@@ -20,6 +20,19 @@ interface ProductCardProps {
   isInterested?: boolean;
 }
 
+// Helper function to validate if a string is a valid URL
+const isValidUrl = (urlString: string): boolean => {
+  if (!urlString || typeof urlString !== 'string') return false;
+  
+  // Check if it's a valid HTTP/HTTPS URL
+  try {
+    const url = new URL(urlString);
+    return url.protocol === 'http:' || url.protocol === 'https:';
+  } catch {
+    return false;
+  }
+};
+
 export default function ProductCard({
   product,
   isInDrop = false,
@@ -45,30 +58,34 @@ export default function ProductCard({
   const discount = currentDiscount ?? minDiscount;
   const discountedPrice = originalPrice * (1 - discount / 100);
 
-  // Safely construct image URLs array
+  // Safely construct image URLs array with validation
   const imageUrls = React.useMemo(() => {
     const urls: string[] = [];
     
-    // Add main image if it exists
-    if (product.imageUrl) {
+    // Add main image if it exists and is valid
+    if (product.imageUrl && isValidUrl(product.imageUrl)) {
       urls.push(product.imageUrl);
     }
     
-    // Add additional images if they exist and are an array
+    // Add additional images if they exist, are an array, and are valid URLs
     if (product.imageUrls && Array.isArray(product.imageUrls)) {
-      // Filter out the main image URL to avoid duplicates
-      const additionalUrls = product.imageUrls.filter(url => url && url !== product.imageUrl);
-      urls.push(...additionalUrls);
+      const validAdditionalUrls = product.imageUrls.filter(url => 
+        url && 
+        url !== product.imageUrl && 
+        isValidUrl(url)
+      );
+      urls.push(...validAdditionalUrls);
     }
     
-    return urls.filter(Boolean); // Remove any null/undefined values
+    return urls;
   }, [product.imageUrl, product.imageUrls]);
 
   const hasMultipleImages = imageUrls.length > 1;
+  const hasValidImage = imageUrls.length > 0;
 
   const handleImagePress = () => {
-    if (imageUrls.length === 0) {
-      console.log('No images available for product:', product.id);
+    if (!hasValidImage) {
+      console.log('No valid images available for product:', product.id);
       return;
     }
     
@@ -192,7 +209,7 @@ export default function ProductCard({
 
   const conditionIcon = getConditionIcon(product.condition);
 
-  // Get the main image URL (first in the array or fallback)
+  // Get the main image URL (first in the array or empty string)
   const mainImageUrl = imageUrls[0] || '';
 
   return (
@@ -201,8 +218,9 @@ export default function ProductCard({
         style={styles.imageWrapper}
         onPress={handleImagePress}
         activeOpacity={0.95}
+        disabled={!hasValidImage}
       >
-        {!imageError && mainImageUrl ? (
+        {hasValidImage && mainImageUrl ? (
           <Image
             source={{ uri: mainImageUrl }}
             style={styles.image}
@@ -231,10 +249,13 @@ export default function ProductCard({
               color={colors.textTertiary} 
             />
             <Text style={styles.imageErrorText}>Immagine non disponibile</Text>
+            {product.imageUrl && !isValidUrl(product.imageUrl) && (
+              <Text style={styles.imageDebugText}>URL non valido: {product.imageUrl}</Text>
+            )}
           </View>
         )}
         
-        {!imageLoaded && !imageError && mainImageUrl && (
+        {!imageLoaded && !imageError && hasValidImage && mainImageUrl && (
           <View style={styles.imageLoadingOverlay}>
             <ActivityIndicator size="large" color={colors.text} />
           </View>
@@ -482,7 +503,7 @@ export default function ProductCard({
         </View>
       </View>
 
-      {imageUrls.length > 0 && (
+      {hasValidImage && (
         <ImageGallery
           images={imageUrls}
           visible={galleryVisible}
@@ -533,6 +554,14 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.textSecondary,
     fontWeight: '500',
+  },
+  imageDebugText: {
+    marginTop: 8,
+    fontSize: 10,
+    color: colors.textTertiary,
+    fontStyle: 'italic',
+    textAlign: 'center',
+    paddingHorizontal: 20,
   },
   imageIndicator: {
     position: 'absolute',
