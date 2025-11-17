@@ -140,19 +140,25 @@ export default function HomeScreen() {
           });
         }
         
+        // Properly map database fields to Product interface
         const productData: Product = {
           id: product.id,
           name: product.name,
           description: product.description || '',
-          imageUrl: product.image_url,
-          additionalImages: product.additional_images || [],
+          imageUrl: product.image_url || '',
+          imageUrls: product.additional_images && Array.isArray(product.additional_images) 
+            ? [product.image_url, ...product.additional_images].filter(Boolean)
+            : [product.image_url].filter(Boolean),
           originalPrice: parseFloat(product.original_price),
           availableSizes: product.available_sizes || [],
           availableColors: product.available_colors || [],
+          sizes: product.available_sizes || [],
+          colors: product.available_colors || [],
           condition: product.condition as any,
           category: product.category,
           stock: product.stock,
           listId: listId,
+          supplierId: product.supplier_id,
           supplierName: listData.supplierName,
           minDiscount: listData.min_discount || 30,
           maxDiscount: listData.max_discount || 80,
@@ -165,6 +171,7 @@ export default function HomeScreen() {
       
       const lists = Array.from(groupedLists.values());
       console.log(`Loaded ${lists.length} product lists with ${products.length} total products`);
+      console.log('Lists:', lists.map(l => ({ id: l.listId, name: l.listName, productCount: l.products.length })));
       setProductLists(lists);
       setLoading(false);
     } catch (error) {
@@ -336,8 +343,15 @@ export default function HomeScreen() {
       const nextIndex = currentListIndex + 1;
       setCurrentListIndex(nextIndex);
       setCurrentProductIndex(0);
-      listFlatListRef.current?.scrollToIndex({ index: nextIndex, animated: true });
-      console.log('Navigating to next list:', productLists[nextIndex].listId);
+      
+      // Scroll to the next list
+      listFlatListRef.current?.scrollToIndex({ 
+        index: nextIndex, 
+        animated: true,
+        viewPosition: 0
+      });
+      
+      console.log(`Navigating to next list (${nextIndex + 1}/${productLists.length}):`, productLists[nextIndex].listName);
     }
   };
 
@@ -347,8 +361,15 @@ export default function HomeScreen() {
       const prevIndex = currentListIndex - 1;
       setCurrentListIndex(prevIndex);
       setCurrentProductIndex(0);
-      listFlatListRef.current?.scrollToIndex({ index: prevIndex, animated: true });
-      console.log('Navigating to previous list:', productLists[prevIndex].listId);
+      
+      // Scroll to the previous list
+      listFlatListRef.current?.scrollToIndex({ 
+        index: prevIndex, 
+        animated: true,
+        viewPosition: 0
+      });
+      
+      console.log(`Navigating to previous list (${prevIndex + 1}/${productLists.length}):`, productLists[prevIndex].listName);
     }
   };
 
@@ -387,10 +408,12 @@ export default function HomeScreen() {
   };
 
   const renderList = ({ item, index }: { item: ProductList; index: number }) => {
+    const isCurrentList = index === currentListIndex;
+    
     return (
       <View style={styles.listContainer}>
         <FlatList
-          ref={index === currentListIndex ? productFlatListRef : null}
+          ref={isCurrentList ? productFlatListRef : null}
           data={item.products}
           renderItem={({ item: product }) => (
             <ProductCard
@@ -414,8 +437,9 @@ export default function HomeScreen() {
           maxToRenderPerBatch={3}
           windowSize={5}
           initialNumToRender={2}
-          onScroll={index === currentListIndex ? handleProductScroll : undefined}
+          onScroll={isCurrentList ? handleProductScroll : undefined}
           scrollEventThrottle={16}
+          scrollEnabled={isCurrentList}
         />
       </View>
     );
@@ -567,6 +591,20 @@ export default function HomeScreen() {
           scrollEnabled={false}
           getItemLayout={getItemLayout}
           removeClippedSubviews={Platform.OS === 'android'}
+          initialNumToRender={1}
+          maxToRenderPerBatch={1}
+          windowSize={3}
+          onScrollToIndexFailed={(info) => {
+            console.warn('Scroll to index failed:', info);
+            // Retry after a delay
+            setTimeout(() => {
+              listFlatListRef.current?.scrollToIndex({ 
+                index: info.index, 
+                animated: false,
+                viewPosition: 0
+              });
+            }, 100);
+          }}
         />
         
         {/* Top Buttons - Logout (Left) and Notifications (Right) with Transparent Background */}
