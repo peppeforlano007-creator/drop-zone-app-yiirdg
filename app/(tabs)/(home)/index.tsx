@@ -82,7 +82,8 @@ export default function HomeScreen() {
           max_reservation_value,
           supplier_id
         `)
-        .in('id', listIds);
+        .in('id', listIds)
+        .eq('status', 'active');
 
       if (listsError) {
         console.error('Error loading supplier lists:', listsError);
@@ -141,14 +142,19 @@ export default function HomeScreen() {
         }
         
         // Properly map database fields to Product interface
+        // Handle additional_images being null
+        const additionalImages = product.additional_images && Array.isArray(product.additional_images) 
+          ? product.additional_images 
+          : [];
+        
+        const imageUrls = [product.image_url, ...additionalImages].filter(Boolean);
+        
         const productData: Product = {
           id: product.id,
           name: product.name,
           description: product.description || '',
           imageUrl: product.image_url || '',
-          imageUrls: product.additional_images && Array.isArray(product.additional_images) 
-            ? [product.image_url, ...product.additional_images].filter(Boolean)
-            : [product.image_url].filter(Boolean),
+          imageUrls: imageUrls,
           originalPrice: parseFloat(product.original_price),
           availableSizes: product.available_sizes || [],
           availableColors: product.available_colors || [],
@@ -341,17 +347,23 @@ export default function HomeScreen() {
     if (currentListIndex < productLists.length - 1) {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       const nextIndex = currentListIndex + 1;
+      console.log(`Switching to next list: ${nextIndex + 1}/${productLists.length} - ${productLists[nextIndex].listName}`);
+      
       setCurrentListIndex(nextIndex);
       setCurrentProductIndex(0);
       
-      // Scroll to the next list
-      listFlatListRef.current?.scrollToIndex({ 
-        index: nextIndex, 
-        animated: true,
-        viewPosition: 0
-      });
-      
-      console.log(`Navigating to next list (${nextIndex + 1}/${productLists.length}):`, productLists[nextIndex].listName);
+      // Scroll to the next list with error handling
+      setTimeout(() => {
+        try {
+          listFlatListRef.current?.scrollToIndex({ 
+            index: nextIndex, 
+            animated: true,
+            viewPosition: 0
+          });
+        } catch (error) {
+          console.error('Error scrolling to next list:', error);
+        }
+      }, 50);
     }
   };
 
@@ -359,17 +371,23 @@ export default function HomeScreen() {
     if (currentListIndex > 0) {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       const prevIndex = currentListIndex - 1;
+      console.log(`Switching to previous list: ${prevIndex + 1}/${productLists.length} - ${productLists[prevIndex].listName}`);
+      
       setCurrentListIndex(prevIndex);
       setCurrentProductIndex(0);
       
-      // Scroll to the previous list
-      listFlatListRef.current?.scrollToIndex({ 
-        index: prevIndex, 
-        animated: true,
-        viewPosition: 0
-      });
-      
-      console.log(`Navigating to previous list (${prevIndex + 1}/${productLists.length}):`, productLists[prevIndex].listName);
+      // Scroll to the previous list with error handling
+      setTimeout(() => {
+        try {
+          listFlatListRef.current?.scrollToIndex({ 
+            index: prevIndex, 
+            animated: true,
+            viewPosition: 0
+          });
+        } catch (error) {
+          console.error('Error scrolling to previous list:', error);
+        }
+      }, 50);
     }
   };
 
@@ -598,11 +616,15 @@ export default function HomeScreen() {
             console.warn('Scroll to index failed:', info);
             // Retry after a delay
             setTimeout(() => {
-              listFlatListRef.current?.scrollToIndex({ 
-                index: info.index, 
-                animated: false,
-                viewPosition: 0
-              });
+              try {
+                listFlatListRef.current?.scrollToIndex({ 
+                  index: info.index, 
+                  animated: false,
+                  viewPosition: 0
+                });
+              } catch (error) {
+                console.error('Retry scroll failed:', error);
+              }
             }, 100);
           }}
         />

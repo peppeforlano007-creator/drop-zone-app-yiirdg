@@ -68,7 +68,12 @@ export default function ImageGallery({
       <View style={styles.container}>
         <Pressable style={styles.closeButton} onPress={handleClose}>
           <View style={styles.closeButtonInner}>
-            <IconSymbol name="xmark" size={24} color={colors.text} />
+            <IconSymbol 
+              ios_icon_name="xmark" 
+              android_material_icon_name="close" 
+              size={24} 
+              color={colors.text} 
+            />
           </View>
         </Pressable>
 

@@ -45,10 +45,36 @@ export default function ProductCard({
   const discount = currentDiscount ?? minDiscount;
   const discountedPrice = originalPrice * (1 - discount / 100);
 
+  // Safely construct image URLs array
+  const imageUrls = React.useMemo(() => {
+    const urls: string[] = [];
+    
+    // Add main image if it exists
+    if (product.imageUrl) {
+      urls.push(product.imageUrl);
+    }
+    
+    // Add additional images if they exist and are an array
+    if (product.imageUrls && Array.isArray(product.imageUrls)) {
+      // Filter out the main image URL to avoid duplicates
+      const additionalUrls = product.imageUrls.filter(url => url && url !== product.imageUrl);
+      urls.push(...additionalUrls);
+    }
+    
+    return urls.filter(Boolean); // Remove any null/undefined values
+  }, [product.imageUrl, product.imageUrls]);
+
+  const hasMultipleImages = imageUrls.length > 1;
+
   const handleImagePress = () => {
+    if (imageUrls.length === 0) {
+      console.log('No images available for product:', product.id);
+      return;
+    }
+    
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setGalleryVisible(true);
-    console.log('Opening image gallery for product:', product.id);
+    console.log('Opening image gallery for product:', product.id, 'with', imageUrls.length, 'images');
   };
 
   const handlePressIn = () => {
@@ -136,7 +162,6 @@ export default function ProductCard({
     console.log('Selected color:', color);
   };
 
-  const hasMultipleImages = product.imageUrls && product.imageUrls.length > 1;
   const isFashionItem = product.category === 'Fashion';
 
   const getConditionColor = (condition?: string) => {
@@ -167,6 +192,9 @@ export default function ProductCard({
 
   const conditionIcon = getConditionIcon(product.condition);
 
+  // Get the main image URL (first in the array or fallback)
+  const mainImageUrl = imageUrls[0] || '';
+
   return (
     <View style={styles.container}>
       <Pressable 
@@ -174,9 +202,9 @@ export default function ProductCard({
         onPress={handleImagePress}
         activeOpacity={0.95}
       >
-        {!imageError ? (
+        {!imageError && mainImageUrl ? (
           <Image
-            source={{ uri: product.imageUrl }}
+            source={{ uri: mainImageUrl }}
             style={styles.image}
             resizeMode="contain"
             onLoadStart={() => {
@@ -186,9 +214,10 @@ export default function ProductCard({
             onLoad={() => {
               setImageLoaded(true);
               setImageError(false);
+              console.log('Image loaded successfully:', mainImageUrl);
             }}
-            onError={() => {
-              console.error('Image load error:', product.imageUrl);
+            onError={(error) => {
+              console.error('Image load error for product:', product.id, 'URL:', mainImageUrl, 'Error:', error.nativeEvent.error);
               setImageError(true);
               setImageLoaded(false);
             }}
@@ -205,7 +234,7 @@ export default function ProductCard({
           </View>
         )}
         
-        {!imageLoaded && !imageError && (
+        {!imageLoaded && !imageError && mainImageUrl && (
           <View style={styles.imageLoadingOverlay}>
             <ActivityIndicator size="large" color={colors.text} />
           </View>
@@ -219,7 +248,7 @@ export default function ProductCard({
               size={20} 
               color={colors.background} 
             />
-            <Text style={styles.imageCount}>{product.imageUrls.length}</Text>
+            <Text style={styles.imageCount}>{imageUrls.length}</Text>
           </View>
         )}
 
@@ -453,12 +482,14 @@ export default function ProductCard({
         </View>
       </View>
 
-      <ImageGallery
-        images={product.imageUrls || [product.imageUrl]}
-        visible={galleryVisible}
-        onClose={() => setGalleryVisible(false)}
-        initialIndex={0}
-      />
+      {imageUrls.length > 0 && (
+        <ImageGallery
+          images={imageUrls}
+          visible={galleryVisible}
+          onClose={() => setGalleryVisible(false)}
+          initialIndex={0}
+        />
+      )}
     </View>
   );
 }
