@@ -134,6 +134,14 @@ export default function UserDetailsScreen() {
     loadUserDetails();
   };
 
+  const handleEditUser = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push({
+      pathname: '/admin/edit-user',
+      params: { userId },
+    });
+  };
+
   const getRoleColor = (role: string) => {
     switch (role) {
       case 'admin':
@@ -370,6 +378,23 @@ export default function UserDetailsScreen() {
                 Registrato: {new Date(user.created_at).toLocaleDateString('it-IT')}
               </Text>
             </View>
+
+            {/* Edit User Button */}
+            <Pressable
+              style={({ pressed }) => [
+                styles.editButton,
+                pressed && styles.editButtonPressed,
+              ]}
+              onPress={handleEditUser}
+            >
+              <IconSymbol
+                ios_icon_name="pencil"
+                android_material_icon_name="edit"
+                size={20}
+                color="#FFF"
+              />
+              <Text style={styles.editButtonText}>Modifica Dati Utente</Text>
+            </Pressable>
           </View>
 
           {/* Bookings Section */}
@@ -549,10 +574,29 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: colors.border,
     marginTop: 16,
+    marginBottom: 16,
   },
   userDate: {
     fontSize: 12,
     color: colors.textTertiary,
+  },
+  editButton: {
+    backgroundColor: colors.primary,
+    borderRadius: 12,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  editButtonPressed: {
+    opacity: 0.7,
+    transform: [{ scale: 0.98 }],
+  },
+  editButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFF',
   },
   section: {
     marginBottom: 24,
