@@ -11,6 +11,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
@@ -20,6 +21,7 @@ import * as Haptics from 'expo-haptics';
 import { supabase } from '@/app/integrations/supabase/client';
 import * as DocumentPicker from 'expo-document-picker';
 import * as XLSX from 'xlsx';
+import ExcelFormatGuide from '@/components/ExcelFormatGuide';
 
 interface Supplier {
   user_id: string;
@@ -28,6 +30,7 @@ interface Supplier {
 }
 
 interface ExcelProduct {
+  sku?: string;
   nome: string;
   descrizione?: string;
   immagine_url: string;
@@ -54,6 +57,7 @@ export default function CreateListScreen() {
   const [loadingSuppliers, setLoadingSuppliers] = useState(true);
   const [importMode, setImportMode] = useState<'manual' | 'excel'>('manual');
   const [excelProducts, setExcelProducts] = useState<ExcelProduct[]>([]);
+  const [showFormatGuide, setShowFormatGuide] = useState(false);
 
   useEffect(() => {
     loadSuppliers();
@@ -126,6 +130,7 @@ export default function CreateListScreen() {
       const products: ExcelProduct[] = [];
       const errors: string[] = [];
       const warnings: string[] = [];
+      const skuGroups: { [sku: string]: number } = {};
 
       jsonData.forEach((row, index) => {
         const rowNum = index + 2; // +2 because Excel rows start at 1 and we have a header
@@ -154,6 +159,11 @@ export default function CreateListScreen() {
           return;
         }
 
+        // Track SKU grouping
+        if (row.sku) {
+          skuGroups[row.sku] = (skuGroups[row.sku] || 0) + 1;
+        }
+
         // Check for optional fields and warn if missing
         if (!row.descrizione) {
           warnings.push(`Riga ${rowNum}: Descrizione mancante`);
@@ -161,8 +171,12 @@ export default function CreateListScreen() {
         if (!row.categoria) {
           warnings.push(`Riga ${rowNum}: Categoria mancante`);
         }
+        if (!row.sku) {
+          warnings.push(`Riga ${rowNum}: SKU mancante - consigliato per raggruppare varianti`);
+        }
 
         products.push({
+          sku: row.sku || null,
           nome: row.nome,
           descrizione: row.descrizione || '',
           immagine_url: row.immagine_url,
@@ -196,9 +210,30 @@ export default function CreateListScreen() {
       setExcelProducts(products);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       
+      // Count unique SKUs
+      const uniqueSkus = Object.keys(skuGroups).length;
+      const productsWithSku = products.filter(p => p.sku).length;
+      
       let message = `${products.length} prodott${products.length === 1 ? 'o' : 'i'} caricato con successo!`;
       
-      if (warnings.length > 0) {
+      if (uniqueSkus > 0) {
+        message += `\n\n📦 ${uniqueSkus} SKU unici trovati`;
+        message += `\n${productsWithSku} prodotti con SKU (verranno raggruppati)`;
+        
+        // Show top grouped SKUs
+        const topSkus = Object.entries(skuGroups)
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 3);
+        
+        if (topSkus.length > 0) {
+          message += '\n\nEsempi di raggruppamento:';
+          topSkus.forEach(([sku, count]) => {
+            message += `\n• ${sku}: ${count} varianti`;
+          });
+        }
+      }
+      
+      if (warnings.length > 0 && warnings.length <= 5) {
         message += `\n\n⚠️ Avvisi:\n${warnings.slice(0, 3).join('\n')}${warnings.length > 3 ? `\n...e altri ${warnings.length - 3}` : ''}`;
       }
       
@@ -309,6 +344,7 @@ export default function CreateListScreen() {
           return {
             supplier_list_id: data.id,
             supplier_id: selectedSupplierId,
+            sku: product.sku || null,
             name: product.nome,
             description: product.descrizione || null,
             image_url: product.immagine_url,
@@ -351,14 +387,17 @@ export default function CreateListScreen() {
         }
 
         console.log('Products imported successfully');
-      }
-
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      
-      if (importMode === 'excel' && excelProducts.length > 0) {
+        
+        // Count unique SKUs for success message
+        const uniqueSkus = new Set(excelProducts.filter(p => p.sku).map(p => p.sku)).size;
+        const skuMessage = uniqueSkus > 0 
+          ? `\n\n📦 ${uniqueSkus} articoli unici (raggruppati per SKU)` 
+          : '';
+        
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         Alert.alert(
           'Lista Creata!',
-          `La lista "${listName}" è stata creata con successo con ${excelProducts.length} prodott${excelProducts.length === 1 ? 'o' : 'i'}!`,
+          `La lista "${listName}" è stata creata con successo con ${excelProducts.length} prodott${excelProducts.length === 1 ? 'o' : 'i'}!${skuMessage}`,
           [
             {
               text: 'Visualizza Lista',
@@ -372,6 +411,7 @@ export default function CreateListScreen() {
           ]
         );
       } else {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         Alert.alert(
           'Lista Creata!',
           `La lista "${listName}" è stata creata con successo.\n\nPuoi ora aggiungere prodotti a questa lista.`,
@@ -570,14 +610,35 @@ export default function CreateListScreen() {
                     </Text>
                   </Pressable>
                   
+                  <Pressable
+                    style={({ pressed }) => [
+                      styles.formatGuideButton,
+                      pressed && styles.formatGuideButtonPressed,
+                    ]}
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      setShowFormatGuide(true);
+                    }}
+                    disabled={loading}
+                  >
+                    <IconSymbol
+                      ios_icon_name="info.circle.fill"
+                      android_material_icon_name="info"
+                      size={20}
+                      color={colors.primary}
+                    />
+                    <Text style={styles.formatGuideButtonText}>
+                      Visualizza Formato Excel
+                    </Text>
+                  </Pressable>
+                  
                   <Text style={styles.excelHint}>
                     <Text style={styles.excelHintBold}>Colonne obbligatorie:</Text>{'\n'}
                     • nome, immagine_url, prezzo{'\n\n'}
                     <Text style={styles.excelHintBold}>Colonne opzionali:</Text>{'\n'}
-                    • descrizione, brand, immagini_aggiuntive (separate da virgola){'\n'}
-                    • taglie (separate da virgola), colori (separate da virgola){'\n'}
-                    • condizione (nuovo/reso da cliente/packaging rovinato){'\n'}
-                    • categoria, stock
+                    • <Text style={styles.excelHintBold}>sku</Text> (per raggruppare varianti){'\n'}
+                    • descrizione, brand, immagini_aggiuntive{'\n'}
+                    • taglie, colori, condizione, categoria, stock
                   </Text>
                 </View>
               )}
@@ -731,6 +792,16 @@ export default function CreateListScreen() {
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
+
+      {/* Format Guide Modal */}
+      <Modal
+        visible={showFormatGuide}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowFormatGuide(false)}
+      >
+        <ExcelFormatGuide onClose={() => setShowFormatGuide(false)} />
+      </Modal>
     </>
   );
 }
@@ -896,6 +967,26 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#FFFFFF',
+  },
+  formatGuideButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.background,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    paddingVertical: 12,
+    borderRadius: 8,
+    gap: 8,
+    marginBottom: 12,
+  },
+  formatGuideButtonPressed: {
+    opacity: 0.7,
+  },
+  formatGuideButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.primary,
   },
   excelHint: {
     fontSize: 12,

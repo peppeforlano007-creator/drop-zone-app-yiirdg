@@ -72,6 +72,11 @@ export default function ExcelFormatGuide({ onClose }: ExcelFormatGuideProps) {
           </View>
           <View style={styles.fieldList}>
             <View style={styles.field}>
+              <Text style={styles.fieldName}>sku</Text>
+              <Text style={styles.fieldDescription}>Codice articolo SKU - usato per raggruppare varianti dello stesso prodotto</Text>
+              <Text style={styles.fieldExample}>Es: NIKE-AM-001 (stesso SKU per tutte le taglie/colori dello stesso articolo)</Text>
+            </View>
+            <View style={styles.field}>
               <Text style={styles.fieldName}>descrizione</Text>
               <Text style={styles.fieldDescription}>Descrizione dettagliata del prodotto</Text>
               <Text style={styles.fieldExample}>Es: Scarpe sportive con suola ammortizzata</Text>
@@ -108,15 +113,69 @@ export default function ExcelFormatGuide({ onClose }: ExcelFormatGuideProps) {
             </View>
             <View style={styles.field}>
               <Text style={styles.fieldName}>stock</Text>
-              <Text style={styles.fieldDescription}>Quantità disponibile</Text>
+              <Text style={styles.fieldDescription}>Quantità disponibile per questa specifica variante</Text>
               <Text style={styles.fieldExample}>Es: 10 (default: 1)</Text>
             </View>
           </View>
         </View>
 
+        <View style={styles.skuSection}>
+          <View style={styles.sectionHeader}>
+            <IconSymbol
+              ios_icon_name="square.grid.3x3.fill"
+              android_material_icon_name="grid_view"
+              size={20}
+              color="#FFA500"
+            />
+            <Text style={styles.sectionTitle}>Raggruppamento per SKU</Text>
+          </View>
+          <Text style={styles.skuDescription}>
+            Il campo <Text style={styles.skuBold}>sku</Text> permette di raggruppare prodotti con diverse taglie e colori come varianti dello stesso articolo.
+            {'\n\n'}
+            <Text style={styles.skuBold}>Esempio:</Text> Se hai lo stesso modello di scarpe in diverse taglie e colori, usa lo stesso SKU per tutte le righe:
+          </Text>
+          <View style={styles.skuExampleTable}>
+            <View style={styles.skuExampleRow}>
+              <Text style={styles.skuExampleHeader}>SKU</Text>
+              <Text style={styles.skuExampleHeader}>Nome</Text>
+              <Text style={styles.skuExampleHeader}>Taglia</Text>
+              <Text style={styles.skuExampleHeader}>Colore</Text>
+              <Text style={styles.skuExampleHeader}>Stock</Text>
+            </View>
+            <View style={styles.skuExampleRow}>
+              <Text style={styles.skuExampleCell}>NIKE-AM-001</Text>
+              <Text style={styles.skuExampleCell}>Nike Air Max</Text>
+              <Text style={styles.skuExampleCell}>38</Text>
+              <Text style={styles.skuExampleCell}>Nero</Text>
+              <Text style={styles.skuExampleCell}>5</Text>
+            </View>
+            <View style={styles.skuExampleRow}>
+              <Text style={styles.skuExampleCell}>NIKE-AM-001</Text>
+              <Text style={styles.skuExampleCell}>Nike Air Max</Text>
+              <Text style={styles.skuExampleCell}>39</Text>
+              <Text style={styles.skuExampleCell}>Nero</Text>
+              <Text style={styles.skuExampleCell}>3</Text>
+            </View>
+            <View style={styles.skuExampleRow}>
+              <Text style={styles.skuExampleCell}>NIKE-AM-001</Text>
+              <Text style={styles.skuExampleCell}>Nike Air Max</Text>
+              <Text style={styles.skuExampleCell}>38</Text>
+              <Text style={styles.skuExampleCell}>Bianco</Text>
+              <Text style={styles.skuExampleCell}>7</Text>
+            </View>
+          </View>
+          <Text style={styles.skuNote}>
+            ℹ️ Tutte le righe con lo stesso SKU verranno raggruppate nel feed come un unico prodotto con varianti selezionabili.
+          </Text>
+        </View>
+
         <View style={styles.exampleSection}>
           <Text style={styles.exampleTitle}>Esempio di Riga Excel:</Text>
           <View style={styles.exampleTable}>
+            <View style={styles.exampleRow}>
+              <Text style={styles.exampleCell}>sku</Text>
+              <Text style={styles.exampleCell}>NIKE-AM-001</Text>
+            </View>
             <View style={styles.exampleRow}>
               <Text style={styles.exampleCell}>nome</Text>
               <Text style={styles.exampleCell}>Scarpe Nike Air Max</Text>
@@ -139,11 +198,11 @@ export default function ExcelFormatGuide({ onClose }: ExcelFormatGuideProps) {
             </View>
             <View style={styles.exampleRow}>
               <Text style={styles.exampleCell}>taglie</Text>
-              <Text style={styles.exampleCell}>38, 39, 40, 41, 42</Text>
+              <Text style={styles.exampleCell}>38</Text>
             </View>
             <View style={styles.exampleRow}>
               <Text style={styles.exampleCell}>colori</Text>
-              <Text style={styles.exampleCell}>Nero, Bianco</Text>
+              <Text style={styles.exampleCell}>Nero</Text>
             </View>
             <View style={styles.exampleRow}>
               <Text style={styles.exampleCell}>condizione</Text>
@@ -155,7 +214,7 @@ export default function ExcelFormatGuide({ onClose }: ExcelFormatGuideProps) {
             </View>
             <View style={styles.exampleRow}>
               <Text style={styles.exampleCell}>stock</Text>
-              <Text style={styles.exampleCell}>15</Text>
+              <Text style={styles.exampleCell}>5</Text>
             </View>
           </View>
         </View>
@@ -176,7 +235,9 @@ export default function ExcelFormatGuide({ onClose }: ExcelFormatGuideProps) {
             <Text style={styles.tip}>- Gli URL delle immagini devono essere completi e accessibili</Text>
             <Text style={styles.tip}>- Per liste multiple (taglie, colori, immagini), usa la virgola come separatore</Text>
             <Text style={styles.tip}>- Se una colonna opzionale è vuota, verrà ignorata</Text>
-            <Text style={styles.tip}>- Il campo brand è opzionale ma consigliato per una migliore organizzazione</Text>
+            <Text style={styles.tip}>- Il campo SKU è opzionale ma fortemente consigliato per raggruppare varianti</Text>
+            <Text style={styles.tip}>- Usa lo stesso SKU per tutte le varianti (taglie/colori) dello stesso articolo</Text>
+            <Text style={styles.tip}>- Ogni riga con lo stesso SKU può avere quantità diverse per taglia/colore</Text>
           </View>
         </View>
       </ScrollView>
@@ -249,6 +310,55 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.textSecondary,
     fontStyle: 'italic',
+  },
+  skuSection: {
+    marginBottom: 24,
+    backgroundColor: colors.card,
+    padding: 16,
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: '#FFA500',
+  },
+  skuDescription: {
+    fontSize: 14,
+    color: colors.text,
+    lineHeight: 20,
+    marginBottom: 12,
+  },
+  skuBold: {
+    fontWeight: '700',
+    color: colors.primary,
+  },
+  skuExampleTable: {
+    backgroundColor: colors.background,
+    borderRadius: 8,
+    padding: 8,
+    marginBottom: 12,
+  },
+  skuExampleRow: {
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    paddingVertical: 8,
+  },
+  skuExampleHeader: {
+    flex: 1,
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.text,
+    fontFamily: 'monospace',
+  },
+  skuExampleCell: {
+    flex: 1,
+    fontSize: 10,
+    color: colors.textSecondary,
+    fontFamily: 'monospace',
+  },
+  skuNote: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    fontStyle: 'italic',
+    lineHeight: 18,
   },
   exampleSection: {
     marginBottom: 24,

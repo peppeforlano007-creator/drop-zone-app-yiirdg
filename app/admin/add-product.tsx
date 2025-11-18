@@ -28,6 +28,7 @@ const CONDITIONS: { value: ProductCondition; label: string }[] = [
 
 export default function AddProductScreen() {
   const { listId, supplierId } = useLocalSearchParams<{ listId: string; supplierId: string }>();
+  const [sku, setSku] = useState('');
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [imageUrl, setImageUrl] = useState('');
@@ -36,6 +37,7 @@ export default function AddProductScreen() {
   const [colors, setColors] = useState('');
   const [condition, setCondition] = useState<ProductCondition>('nuovo');
   const [category, setCategory] = useState('');
+  const [brand, setBrand] = useState('');
   const [stock, setStock] = useState('1');
   const [loading, setLoading] = useState(false);
 
@@ -79,8 +81,10 @@ export default function AddProductScreen() {
         .insert({
           supplier_list_id: listId,
           supplier_id: supplierId,
+          sku: sku.trim() || null,
           name: name.trim(),
           description: description.trim() || null,
+          brand: brand.trim() || null,
           image_url: imageUrl.trim(),
           original_price: priceNum,
           available_sizes: sizesArray.length > 0 ? sizesArray : null,
@@ -104,12 +108,12 @@ export default function AddProductScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert(
         'Prodotto Aggiunto!',
-        `Il prodotto "${name}" è stato aggiunto con successo.`,
+        `Il prodotto "${name}" è stato aggiunto con successo.${sku ? `\n\nSKU: ${sku}` : ''}`,
         [
           {
             text: 'Aggiungi Altro',
             onPress: () => {
-              // Reset form
+              // Reset form but keep SKU if user wants to add variants
               setName('');
               setDescription('');
               setImageUrl('');
@@ -118,7 +122,9 @@ export default function AddProductScreen() {
               setColors('');
               setCondition('nuovo');
               setCategory('');
+              setBrand('');
               setStock('1');
+              // Keep SKU for adding variants
             },
           },
           {
@@ -173,6 +179,22 @@ export default function AddProductScreen() {
 
             <View style={styles.form}>
               <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>SKU (Codice Articolo)</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Es. NIKE-AM-001"
+                  placeholderTextColor={colors.textTertiary}
+                  value={sku}
+                  onChangeText={setSku}
+                  autoCapitalize="characters"
+                  editable={!loading}
+                />
+                <Text style={styles.inputHint}>
+                  Usa lo stesso SKU per raggruppare varianti (taglie/colori) dello stesso articolo
+                </Text>
+              </View>
+
+              <View style={styles.inputContainer}>
                 <Text style={styles.inputLabel}>Nome Prodotto *</Text>
                 <TextInput
                   style={styles.input}
@@ -180,6 +202,19 @@ export default function AddProductScreen() {
                   placeholderTextColor={colors.textTertiary}
                   value={name}
                   onChangeText={setName}
+                  autoCapitalize="words"
+                  editable={!loading}
+                />
+              </View>
+
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>Brand</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Es. Nike, Adidas, Puma"
+                  placeholderTextColor={colors.textTertiary}
+                  value={brand}
+                  onChangeText={setBrand}
                   autoCapitalize="words"
                   editable={!loading}
                 />
@@ -309,6 +344,9 @@ export default function AddProductScreen() {
                   keyboardType="number-pad"
                   editable={!loading}
                 />
+                <Text style={styles.inputHint}>
+                  Quantità disponibile per questa specifica variante
+                </Text>
               </View>
 
               <Text style={styles.requiredNote}>* Campi obbligatori</Text>
@@ -412,6 +450,12 @@ const styles = StyleSheet.create({
     padding: 16,
     fontSize: 16,
     color: colors.text,
+  },
+  inputHint: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginTop: 4,
+    fontStyle: 'italic',
   },
   textArea: {
     minHeight: 100,
