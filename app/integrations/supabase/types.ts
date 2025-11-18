@@ -379,6 +379,7 @@ export type Database = {
           additional_images: string[] | null
           available_colors: string[] | null
           available_sizes: string[] | null
+          brand: string | null
           category: string | null
           condition: string | null
           created_at: string | null
@@ -387,6 +388,7 @@ export type Database = {
           image_url: string
           name: string
           original_price: number
+          sku: string | null
           status: string | null
           stock: number | null
           supplier_id: string
@@ -397,6 +399,7 @@ export type Database = {
           additional_images?: string[] | null
           available_colors?: string[] | null
           available_sizes?: string[] | null
+          brand?: string | null
           category?: string | null
           condition?: string | null
           created_at?: string | null
@@ -405,6 +408,7 @@ export type Database = {
           image_url: string
           name: string
           original_price: number
+          sku?: string | null
           status?: string | null
           stock?: number | null
           supplier_id: string
@@ -415,6 +419,7 @@ export type Database = {
           additional_images?: string[] | null
           available_colors?: string[] | null
           available_sizes?: string[] | null
+          brand?: string | null
           category?: string | null
           condition?: string | null
           created_at?: string | null
@@ -423,6 +428,7 @@ export type Database = {
           image_url?: string
           name?: string
           original_price?: number
+          sku?: string | null
           status?: string | null
           stock?: number | null
           supplier_id?: string
