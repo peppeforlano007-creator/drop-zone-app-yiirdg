@@ -1,6 +1,6 @@
 
 import React, { useState, useRef } from 'react';
-import { View, Text, Image, StyleSheet, Pressable, Dimensions, Alert, ActivityIndicator, Animated, ScrollView } from 'react-native';
+import { View, Text, Image, StyleSheet, Pressable, Dimensions, Alert, ActivityIndicator, Animated } from 'react-native';
 import { IconSymbol } from './IconSymbol';
 import { colors } from '@/styles/commonStyles';
 import { Product } from '@/types/Product';
@@ -43,11 +43,12 @@ export default function EnhancedProductCard({
 }: EnhancedProductCardProps) {
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState(false);
-  const [imageLoadStarted, setImageLoadStarted] = useState(false);
   const [galleryVisible, setGalleryVisible] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
   const [selectedColor, setSelectedColor] = useState<string | null>(null);
+  const [descriptionExpanded, setDescriptionExpanded] = useState(false);
+  const [descriptionHeight, setDescriptionHeight] = useState(0);
   const { getDefaultPaymentMethod, authorizePayment } = usePayment();
   
   // Animation values
@@ -180,6 +181,13 @@ export default function EnhancedProductCard({
     console.log('Selected color:', color);
   };
 
+  const handleDescriptionPress = () => {
+    if (descriptionHeight > 17) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      setDescriptionExpanded(!descriptionExpanded);
+    }
+  };
+
   const isFashionItem = product.category === 'Fashion';
 
   const getConditionColor = (condition?: string) => {
@@ -213,9 +221,6 @@ export default function EnhancedProductCard({
   // Get the main image URL (first in the array or empty string)
   const mainImageUrl = imageUrls[0] || '';
 
-  // Show loading spinner only if image loading has started but not completed and no error
-  const showLoadingSpinner = imageLoadStarted && !imageLoaded && !imageError && hasValidImage && mainImageUrl;
-
   return (
     <View style={styles.container}>
       <Pressable 
@@ -229,23 +234,15 @@ export default function EnhancedProductCard({
             source={{ uri: mainImageUrl }}
             style={styles.image}
             resizeMode="contain"
-            onLoadStart={() => {
-              console.log('Image load started for product:', product.id);
-              setImageLoadStarted(true);
-              setImageLoaded(false);
-              setImageError(false);
-            }}
             onLoad={() => {
               console.log('Image loaded successfully for product:', product.id, 'URL:', mainImageUrl);
               setImageLoaded(true);
               setImageError(false);
-              setImageLoadStarted(false);
             }}
             onError={(error) => {
               console.error('Image load error for product:', product.id, 'URL:', mainImageUrl, 'Error:', error.nativeEvent.error);
               setImageError(true);
               setImageLoaded(false);
-              setImageLoadStarted(false);
             }}
           />
         ) : (
@@ -262,12 +259,6 @@ export default function EnhancedProductCard({
             )}
           </View>
         )}
-        
-        {showLoadingSpinner && (
-          <View style={styles.imageLoadingOverlay}>
-            <ActivityIndicator size="large" color={colors.text} />
-          </View>
-        )}
 
         {hasMultipleImages && (
           <View style={styles.imageIndicator}>
@@ -281,23 +272,16 @@ export default function EnhancedProductCard({
           </View>
         )}
 
-        {/* Top badges overlay on image */}
-        <View style={styles.topBadgesContainer}>
-          {isInDrop && currentDiscount && (
-            <View style={styles.dropBadge}>
-              <Text style={styles.dropBadgeText}>Drop -{currentDiscount.toFixed(1)}%</Text>
-            </View>
-          )}
-        </View>
+        {/* Drop badge moved to bottom-left */}
+        {isInDrop && currentDiscount && (
+          <View style={styles.dropBadge}>
+            <Text style={styles.dropBadgeText}>Drop -{currentDiscount.toFixed(1)}%</Text>
+          </View>
+        )}
       </Pressable>
 
       <View style={styles.overlay}>
-        <ScrollView 
-          style={styles.contentScroll}
-          contentContainerStyle={styles.content}
-          showsVerticalScrollIndicator={false}
-          bounces={false}
-        >
+        <View style={styles.content}>
           {/* Product Name */}
           <Text style={styles.productName} numberOfLines={2}>{product.name ?? 'Prodotto'}</Text>
 
@@ -329,13 +313,36 @@ export default function EnhancedProductCard({
             </View>
           )}
 
-          {/* Description */}
+          {/* Description with swipe up gesture */}
           {product.description && (
-            <View style={styles.descriptionContainer}>
-              <Text style={styles.descriptionText} numberOfLines={3}>
+            <Pressable 
+              style={styles.descriptionContainer}
+              onPress={handleDescriptionPress}
+            >
+              <Text 
+                style={styles.descriptionText} 
+                numberOfLines={descriptionExpanded ? undefined : 1}
+                onLayout={(e) => {
+                  const { height } = e.nativeEvent.layout;
+                  if (descriptionHeight === 0) {
+                    setDescriptionHeight(height);
+                  }
+                }}
+              >
                 {product.description}
               </Text>
-            </View>
+              {descriptionHeight > 17 && !descriptionExpanded && (
+                <View style={styles.swipeUpIndicator}>
+                  <IconSymbol 
+                    ios_icon_name="chevron.up" 
+                    android_material_icon_name="expand_less" 
+                    size={12} 
+                    color={colors.primary} 
+                  />
+                  <Text style={styles.swipeUpText}>Tocca per espandere</Text>
+                </View>
+              )}
+            </Pressable>
           )}
 
           {/* Product Details Row: Sizes, Colors, and Condition */}
@@ -416,13 +423,14 @@ export default function EnhancedProductCard({
             </View>
           )}
 
+          {/* Price row with discount badge moved closer to price */}
           <View style={styles.priceRow}>
             <View style={styles.priceInfo}>
               <Text style={styles.discountedPrice}>€{discountedPrice.toFixed(2)}</Text>
+              <View style={styles.discountBadge}>
+                <Text style={styles.discountText}>-{discount.toFixed(0)}%</Text>
+              </View>
               <Text style={styles.originalPrice}>€{originalPrice.toFixed(2)}</Text>
-            </View>
-            <View style={styles.discountBadge}>
-              <Text style={styles.discountText}>-{discount.toFixed(0)}%</Text>
             </View>
           </View>
 
@@ -569,7 +577,7 @@ export default function EnhancedProductCard({
               )}
             </Pressable>
           )}
-        </ScrollView>
+        </View>
       </View>
 
       {hasValidImage && (
@@ -608,16 +616,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: colors.backgroundSecondary,
   },
-  imageLoadingOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.1)',
-  },
   imageErrorText: {
     marginTop: 12,
     fontSize: 14,
@@ -649,15 +647,10 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
   },
-  topBadgesContainer: {
-    position: 'absolute',
-    top: 60,
-    left: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
   dropBadge: {
+    position: 'absolute',
+    bottom: 20,
+    left: 20,
     backgroundColor: 'rgba(0, 0, 0, 0.85)',
     paddingHorizontal: 12,
     paddingVertical: 6,
@@ -678,9 +671,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.97)',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-  },
-  contentScroll: {
-    flex: 1,
   },
   content: {
     padding: 16,
@@ -740,6 +730,17 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     lineHeight: 17,
   },
+  swipeUpIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 4,
+  },
+  swipeUpText: {
+    fontSize: 10,
+    color: colors.primary,
+    fontWeight: '600',
+  },
   detailsRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -789,13 +790,12 @@ const styles = StyleSheet.create({
   priceRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     marginBottom: 10,
   },
   priceInfo: {
     flexDirection: 'row',
     alignItems: 'baseline',
-    gap: 10,
+    gap: 8,
   },
   originalPrice: {
     fontSize: 13,
@@ -804,12 +804,12 @@ const styles = StyleSheet.create({
   },
   discountBadge: {
     backgroundColor: colors.text,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 7,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 5,
   },
   discountText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '700',
     color: colors.background,
     letterSpacing: 0.4,
