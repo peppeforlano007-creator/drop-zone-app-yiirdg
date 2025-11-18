@@ -316,16 +316,22 @@ export default function CreateListScreen() {
         console.log(`Importing ${excelProducts.length} products from Excel...`);
         
         const productsToInsert = excelProducts.map((product) => {
-          const additionalImages = product.immagini_aggiuntive 
-            ? product.immagini_aggiuntive.split(',').map(url => url.trim()).filter(url => url)
+          // Handle additional images - ensure it's a string before splitting
+          const additionalImagesStr = product.immagini_aggiuntive || '';
+          const additionalImages = additionalImagesStr && typeof additionalImagesStr === 'string'
+            ? additionalImagesStr.split(',').map(url => url.trim()).filter(url => url)
             : [];
           
-          const sizes = product.taglie 
-            ? product.taglie.split(',').map(s => s.trim()).filter(s => s)
+          // Handle sizes - ensure it's a string before splitting
+          const taglieStr = product.taglie || '';
+          const sizes = taglieStr && typeof taglieStr === 'string'
+            ? taglieStr.split(',').map(s => s.trim()).filter(s => s)
             : [];
           
-          const colors = product.colori 
-            ? product.colori.split(',').map(c => c.trim()).filter(c => c)
+          // Handle colors - ensure it's a string before splitting
+          const coloriStr = product.colori || '';
+          const colors = coloriStr && typeof coloriStr === 'string'
+            ? coloriStr.split(',').map(c => c.trim()).filter(c => c)
             : [];
 
           const productData = {
