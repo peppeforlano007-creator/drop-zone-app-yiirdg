@@ -280,6 +280,8 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     padding: 20,
+    paddingTop: 40,
+    paddingBottom: 120,
   },
   cardPreview: {
     backgroundColor: colors.card,
