@@ -166,29 +166,38 @@ export default function AdminEditUserScreen() {
     setEmailLoading(true);
 
     try {
-      // Use admin API to update user email
-      const { data, error } = await supabase.auth.admin.updateUserById(
-        userId,
-        { email: email }
-      );
-
-      if (error) {
-        console.error('Error updating email:', error);
-        Alert.alert('Errore', error.message || 'Impossibile aggiornare l\'email');
+      // Get the current session token
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        Alert.alert('Errore', 'Sessione non valida. Effettua nuovamente il login.');
         return;
       }
 
-      // Also update in profiles table
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .update({ email })
-        .eq('user_id', userId);
+      // Call the Edge Function to update email
+      const response = await fetch(
+        `${supabase.supabaseUrl}/functions/v1/admin-update-user`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({
+            userId: userId,
+            email: email,
+          }),
+        }
+      );
 
-      if (profileError) {
-        console.error('Error updating profile email:', profileError);
+      const result = await response.json();
+
+      if (!response.ok) {
+        console.error('Error updating email:', result.error);
+        Alert.alert('Errore', result.error || 'Impossibile aggiornare l\'email');
+        return;
       }
 
-      console.log('Email updated successfully:', data);
+      console.log('Email updated successfully:', result);
       Alert.alert('Successo', 'Email aggiornata con successo');
       
       // Reload user data
@@ -221,19 +230,38 @@ export default function AdminEditUserScreen() {
     setPasswordLoading(true);
 
     try {
-      // Use admin API to update user password
-      const { data, error } = await supabase.auth.admin.updateUserById(
-        userId,
-        { password: newPassword }
-      );
-
-      if (error) {
-        console.error('Error updating password:', error);
-        Alert.alert('Errore', error.message || 'Impossibile aggiornare la password');
+      // Get the current session token
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        Alert.alert('Errore', 'Sessione non valida. Effettua nuovamente il login.');
         return;
       }
 
-      console.log('Password updated successfully:', data);
+      // Call the Edge Function to update password
+      const response = await fetch(
+        `${supabase.supabaseUrl}/functions/v1/admin-update-user`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({
+            userId: userId,
+            password: newPassword,
+          }),
+        }
+      );
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        console.error('Error updating password:', result.error);
+        Alert.alert('Errore', result.error || 'Impossibile aggiornare la password');
+        return;
+      }
+
+      console.log('Password updated successfully:', result);
       Alert.alert('Successo', 'Password aggiornata con successo');
       
       // Clear password fields
