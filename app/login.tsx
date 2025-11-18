@@ -177,6 +177,11 @@ export default function LoginScreen() {
     }
   };
 
+  const handleForgotPassword = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push('/forgot-password');
+  };
+
   const handleRegisterConsumer = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push('/register/consumer');
@@ -234,6 +239,16 @@ export default function LoginScreen() {
                 autoComplete="password"
                 editable={!loading && !resendingEmail}
               />
+
+              <Pressable
+                style={styles.forgotPasswordButton}
+                onPress={handleForgotPassword}
+                disabled={loading || resendingEmail}
+              >
+                <Text style={styles.forgotPasswordText}>
+                  Hai dimenticato la password?
+                </Text>
+              </Pressable>
 
               {showResendEmail && (
                 <Pressable
@@ -392,6 +407,16 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     borderWidth: 1,
     borderColor: colors.border,
+  },
+  forgotPasswordButton: {
+    alignSelf: 'flex-end',
+    marginBottom: 16,
+    paddingVertical: 4,
+  },
+  forgotPasswordText: {
+    fontSize: 14,
+    color: colors.primary,
+    fontWeight: '600',
   },
   resendButton: {
     flexDirection: 'row',
