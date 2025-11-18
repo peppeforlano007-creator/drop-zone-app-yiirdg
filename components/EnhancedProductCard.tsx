@@ -8,6 +8,13 @@ import { usePayment } from '@/contexts/PaymentContext';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import ImageGallery from './ImageGallery';
+import { 
+  getStandardizedImageUri, 
+  getStandardizedImageUris, 
+  isValidImageUrl,
+  STANDARD_IMAGE_TEMPLATE,
+  IMAGE_LOADING_CONFIG 
+} from '@/utils/imageHelpers';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -19,19 +26,6 @@ interface EnhancedProductCardProps {
   onBook?: (productId: string) => void;
   isInterested?: boolean;
 }
-
-// Helper function to validate if a string is a valid URL
-const isValidUrl = (urlString: string): boolean => {
-  if (!urlString || typeof urlString !== 'string') return false;
-  
-  // Check if it's a valid HTTP/HTTPS URL
-  try {
-    const url = new URL(urlString);
-    return url.protocol === 'http:' || url.protocol === 'https:';
-  } catch {
-    return false;
-  }
-};
 
 export default function EnhancedProductCard({
   product,
@@ -60,12 +54,12 @@ export default function EnhancedProductCard({
   const discount = currentDiscount ?? minDiscount;
   const discountedPrice = originalPrice * (1 - discount / 100);
 
-  // Safely construct image URLs array with validation
+  // Safely construct image URLs array with validation and standardization
   const imageUrls = React.useMemo(() => {
     const urls: string[] = [];
     
     // Add main image if it exists and is valid
-    if (product.imageUrl && isValidUrl(product.imageUrl)) {
+    if (product.imageUrl && isValidImageUrl(product.imageUrl)) {
       urls.push(product.imageUrl);
     }
     
@@ -74,12 +68,13 @@ export default function EnhancedProductCard({
       const validAdditionalUrls = product.imageUrls.filter(url => 
         url && 
         url !== product.imageUrl && 
-        isValidUrl(url)
+        isValidImageUrl(url)
       );
       urls.push(...validAdditionalUrls);
     }
     
-    return urls;
+    // Apply standardization to all URLs
+    return getStandardizedImageUris(urls, STANDARD_IMAGE_TEMPLATE);
   }, [product.imageUrl, product.imageUrls]);
 
   const hasMultipleImages = imageUrls.length > 1;
@@ -233,7 +228,7 @@ export default function EnhancedProductCard({
           <Image
             source={{ uri: mainImageUrl }}
             style={styles.image}
-            resizeMode="contain"
+            resizeMode={IMAGE_LOADING_CONFIG.resizeMode}
             onLoad={() => {
               console.log('Image loaded successfully for product:', product.id, 'URL:', mainImageUrl);
               setImageLoaded(true);
@@ -254,7 +249,7 @@ export default function EnhancedProductCard({
               color={colors.textTertiary} 
             />
             <Text style={styles.imageErrorText}>Immagine non disponibile</Text>
-            {product.imageUrl && !isValidUrl(product.imageUrl) && (
+            {product.imageUrl && !isValidImageUrl(product.imageUrl) && (
               <Text style={styles.imageDebugText}>URL non valido: {product.imageUrl}</Text>
             )}
           </View>
@@ -603,10 +598,12 @@ const styles = StyleSheet.create({
     height: '60%',
     position: 'absolute',
     top: 0,
+    backgroundColor: colors.backgroundSecondary,
   },
   image: {
     width: '100%',
     height: '100%',
+    aspectRatio: STANDARD_IMAGE_TEMPLATE.aspectRatio,
   },
   imagePlaceholder: {
     width: '100%',
