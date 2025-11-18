@@ -97,6 +97,11 @@ export default function PickupPointsScreen() {
     loadPickupPoints();
   };
 
+  const handleCreatePickupPoint = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push('/admin/create-pickup-point');
+  };
+
   const handleApprovePickupPoint = async (pointId: string, pointName: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     
@@ -423,6 +428,19 @@ export default function PickupPointsScreen() {
       <Stack.Screen
         options={{
           title: 'Punti di Ritiro',
+          headerRight: () => (
+            <Pressable
+              onPress={handleCreatePickupPoint}
+              style={styles.headerButton}
+            >
+              <IconSymbol
+                ios_icon_name="plus.circle.fill"
+                android_material_icon_name="add_circle"
+                size={28}
+                color={colors.primary}
+              />
+            </Pressable>
+          ),
         }}
       />
       <SafeAreaView style={styles.safeArea} edges={['bottom']}>
@@ -481,8 +499,23 @@ export default function PickupPointsScreen() {
               />
               <Text style={styles.emptyTitle}>Nessun punto di ritiro trovato</Text>
               <Text style={styles.emptyText}>
-                I punti di ritiro registrati appariranno qui
+                Crea il primo punto di ritiro usando il pulsante + in alto
               </Text>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.createFirstButton,
+                  pressed && styles.buttonPressed,
+                ]}
+                onPress={handleCreatePickupPoint}
+              >
+                <IconSymbol
+                  ios_icon_name="plus.circle.fill"
+                  android_material_icon_name="add_circle"
+                  size={24}
+                  color={colors.background}
+                />
+                <Text style={styles.createFirstButtonText}>Crea Punto di Ritiro</Text>
+              </Pressable>
             </View>
           )}
         </ScrollView>
@@ -513,6 +546,9 @@ const styles = StyleSheet.create({
     marginTop: 16,
     fontSize: 14,
     color: colors.textSecondary,
+  },
+  headerButton: {
+    marginRight: 8,
   },
   statsRow: {
     flexDirection: 'row',
@@ -707,5 +743,21 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.textSecondary,
     textAlign: 'center',
+    marginBottom: 24,
+  },
+  createFirstButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.success,
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    borderRadius: 8,
+    gap: 8,
+  },
+  createFirstButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.background,
   },
 });

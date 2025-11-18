@@ -182,11 +182,6 @@ export default function LoginScreen() {
     router.push('/register/consumer');
   };
 
-  const handleRegisterPickupPoint = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    router.push('/pickup-point/register');
-  };
-
   if (authLoading) {
     return (
       <View style={styles.loadingContainer}>
@@ -322,35 +317,17 @@ export default function LoginScreen() {
                 />
               </Pressable>
 
-              <Pressable
-                style={({ pressed }) => [
-                  styles.registerCard,
-                  pressed && styles.registerCardPressed,
-                ]}
-                onPress={handleRegisterPickupPoint}
-                disabled={loading || resendingEmail}
-              >
-                <View style={styles.registerCardIcon}>
-                  <IconSymbol
-                    ios_icon_name="mappin.circle.fill"
-                    android_material_icon_name="location_on"
-                    size={28}
-                    color={colors.primary}
-                  />
-                </View>
-                <View style={styles.registerCardContent}>
-                  <Text style={styles.registerCardTitle}>Punto di Ritiro</Text>
-                  <Text style={styles.registerCardDescription}>
-                    Gestisci ritiri e guadagna commissioni
-                  </Text>
-                </View>
+              <View style={styles.infoBox}>
                 <IconSymbol
-                  ios_icon_name="chevron.right"
-                  android_material_icon_name="chevron_right"
-                  size={20}
-                  color={colors.textSecondary}
+                  ios_icon_name="info.circle.fill"
+                  android_material_icon_name="info"
+                  size={18}
+                  color={colors.info}
                 />
-              </Pressable>
+                <Text style={styles.infoText}>
+                  Sei un punto di ritiro? Le credenziali di accesso ti verranno fornite dall&apos;amministratore.
+                </Text>
+              </View>
             </View>
           </ScrollView>
         </KeyboardAvoidingView>
@@ -486,7 +463,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card,
     borderRadius: 12,
     padding: 16,
-    marginBottom: 12,
+    marginBottom: 16,
     borderWidth: 1,
     borderColor: colors.border,
   },
@@ -515,6 +492,22 @@ const styles = StyleSheet.create({
   registerCardDescription: {
     fontSize: 13,
     color: colors.textSecondary,
+    lineHeight: 18,
+  },
+  infoBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: colors.info + '10',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: colors.info + '30',
+    gap: 12,
+  },
+  infoText: {
+    flex: 1,
+    fontSize: 13,
+    color: colors.text,
     lineHeight: 18,
   },
 });
