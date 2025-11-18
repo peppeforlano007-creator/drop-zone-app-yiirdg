@@ -106,16 +106,13 @@ export default function CreateListScreen() {
       const file = result.assets[0];
       console.log('Selected file:', file);
 
-      // Read the file
       const response = await fetch(file.uri);
       const arrayBuffer = await response.arrayBuffer();
       const workbook = XLSX.read(arrayBuffer, { type: 'array' });
       
-      // Get first sheet
       const sheetName = workbook.SheetNames[0];
       const worksheet = workbook.Sheets[sheetName];
       
-      // Convert to JSON
       const jsonData = XLSX.utils.sheet_to_json(worksheet) as any[];
       
       console.log('Parsed Excel data:', jsonData);
@@ -126,16 +123,14 @@ export default function CreateListScreen() {
         return;
       }
 
-      // Validate and transform data
       const products: ExcelProduct[] = [];
       const errors: string[] = [];
       const warnings: string[] = [];
       const skuGroups: { [sku: string]: number } = {};
 
       jsonData.forEach((row, index) => {
-        const rowNum = index + 2; // +2 because Excel rows start at 1 and we have a header
+        const rowNum = index + 2;
         
-        // Required fields
         if (!row.nome || !row.immagine_url || !row.prezzo) {
           errors.push(`Riga ${rowNum}: Campi obbligatori mancanti (nome, immagine_url, prezzo)`);
           return;
@@ -159,12 +154,10 @@ export default function CreateListScreen() {
           return;
         }
 
-        // Track SKU grouping
         if (row.sku) {
           skuGroups[row.sku] = (skuGroups[row.sku] || 0) + 1;
         }
 
-        // Check for optional fields and warn if missing
         if (!row.descrizione) {
           warnings.push(`Riga ${rowNum}: Descrizione mancante`);
         }
@@ -210,7 +203,6 @@ export default function CreateListScreen() {
       setExcelProducts(products);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       
-      // Count unique SKUs
       const uniqueSkus = Object.keys(skuGroups).length;
       const productsWithSku = products.filter(p => p.sku).length;
       
@@ -220,7 +212,6 @@ export default function CreateListScreen() {
         message += `\n\n📦 ${uniqueSkus} SKU unici trovati`;
         message += `\n${productsWithSku} prodotti con SKU (verranno raggruppati)`;
         
-        // Show top grouped SKUs
         const topSkus = Object.entries(skuGroups)
           .sort((a, b) => b[1] - a[1])
           .slice(0, 3);
@@ -249,7 +240,6 @@ export default function CreateListScreen() {
   const handleCreateList = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     
-    // Validation
     if (!selectedSupplierId) {
       Alert.alert('Errore', 'Seleziona un fornitore');
       return;
@@ -322,17 +312,14 @@ export default function CreateListScreen() {
 
       console.log('List created successfully:', data.id);
 
-      // If we have Excel products, import them
       if (importMode === 'excel' && excelProducts.length > 0) {
         console.log(`Importing ${excelProducts.length} products from Excel...`);
         
-        const productsToInsert = excelProducts.map(product => {
-          // Parse additional images if provided
+        const productsToInsert = excelProducts.map((product) => {
           const additionalImages = product.immagini_aggiuntive 
             ? product.immagini_aggiuntive.split(',').map(url => url.trim()).filter(url => url)
             : [];
           
-          // Parse sizes and colors
           const sizes = product.taglie 
             ? product.taglie.split(',').map(s => s.trim()).filter(s => s)
             : [];
@@ -341,23 +328,26 @@ export default function CreateListScreen() {
             ? product.colori.split(',').map(c => c.trim()).filter(c => c)
             : [];
 
-          return {
+          const productData = {
             supplier_list_id: data.id,
             supplier_id: selectedSupplierId,
             sku: product.sku || null,
-            name: product.nome,
+            name: product.nome || '',
             description: product.descrizione || null,
-            image_url: product.immagine_url,
+            image_url: product.immagine_url || '',
             additional_images: additionalImages.length > 0 ? additionalImages : null,
-            original_price: product.prezzo,
+            original_price: product.prezzo || 0,
             available_sizes: sizes.length > 0 ? sizes : null,
             available_colors: colors.length > 0 ? colors : null,
-            condition: product.condizione,
+            condition: product.condizione || 'nuovo',
             category: product.categoria || null,
             brand: product.brand || null,
-            stock: product.stock,
+            stock: product.stock || 1,
             status: 'active',
           };
+
+          console.log('Product data to insert:', productData);
+          return productData;
         });
 
         console.log('Sample product to insert:', productsToInsert[0]);
@@ -368,6 +358,7 @@ export default function CreateListScreen() {
 
         if (productsError) {
           console.error('Error importing products:', productsError);
+          console.error('Error details:', JSON.stringify(productsError, null, 2));
           Alert.alert(
             'Attenzione',
             `Lista creata ma errore nell'importazione dei prodotti: ${productsError.message}\n\nPuoi aggiungere i prodotti manualmente.`,
@@ -388,7 +379,6 @@ export default function CreateListScreen() {
 
         console.log('Products imported successfully');
         
-        // Count unique SKUs for success message
         const uniqueSkus = new Set(excelProducts.filter(p => p.sku).map(p => p.sku)).size;
         const skuMessage = uniqueSkus > 0 
           ? `\n\n📦 ${uniqueSkus} articoli unici (raggruppati per SKU)` 
@@ -437,8 +427,9 @@ export default function CreateListScreen() {
       }
     } catch (error) {
       console.error('Exception creating list:', error);
+      console.error('Exception details:', JSON.stringify(error, null, 2));
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert('Errore', 'Si è verificato un errore imprevisto');
+      Alert.alert('Errore', `Si è verificato un errore imprevisto: ${error instanceof Error ? error.message : 'Errore sconosciuto'}`);
     } finally {
       setLoading(false);
     }
@@ -527,7 +518,6 @@ export default function CreateListScreen() {
             </View>
 
             <View style={styles.form}>
-              {/* Import Mode Selection */}
               <View style={styles.inputContainer}>
                 <Text style={styles.inputLabel}>Modalità Importazione</Text>
                 <View style={styles.modeSelector}>
@@ -586,7 +576,6 @@ export default function CreateListScreen() {
                 </View>
               </View>
 
-              {/* Excel Import Section */}
               {importMode === 'excel' && (
                 <View style={styles.excelSection}>
                   <Pressable
@@ -690,6 +679,8 @@ export default function CreateListScreen() {
                   onChangeText={setListName}
                   autoCapitalize="words"
                   editable={!loading}
+                  contextMenuHidden={false}
+                  selectTextOnFocus={false}
                 />
               </View>
 
@@ -704,6 +695,8 @@ export default function CreateListScreen() {
                     onChangeText={setMinDiscount}
                     keyboardType="numeric"
                     editable={!loading}
+                    contextMenuHidden={false}
+                    selectTextOnFocus={false}
                   />
                 </View>
 
@@ -717,6 +710,8 @@ export default function CreateListScreen() {
                     onChangeText={setMaxDiscount}
                     keyboardType="numeric"
                     editable={!loading}
+                    contextMenuHidden={false}
+                    selectTextOnFocus={false}
                   />
                 </View>
               </View>
@@ -732,6 +727,8 @@ export default function CreateListScreen() {
                     onChangeText={setMinReservationValue}
                     keyboardType="numeric"
                     editable={!loading}
+                    contextMenuHidden={false}
+                    selectTextOnFocus={false}
                   />
                 </View>
 
@@ -745,6 +742,8 @@ export default function CreateListScreen() {
                     onChangeText={setMaxReservationValue}
                     keyboardType="numeric"
                     editable={!loading}
+                    contextMenuHidden={false}
+                    selectTextOnFocus={false}
                   />
                 </View>
               </View>
@@ -793,7 +792,6 @@ export default function CreateListScreen() {
         </KeyboardAvoidingView>
       </SafeAreaView>
 
-      {/* Format Guide Modal */}
       <Modal
         visible={showFormatGuide}
         animationType="slide"
