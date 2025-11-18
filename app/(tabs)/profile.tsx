@@ -105,6 +105,12 @@ export default function ProfileScreen() {
     router.push('/(tabs)/my-bookings');
   };
 
+  const handleNotifications = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push('/(tabs)/notifications');
+    console.log('Navigating to notifications screen');
+  };
+
   const handleAdminPanel = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push('/admin/dashboard');
@@ -259,7 +265,7 @@ export default function ProfileScreen() {
               <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="chevron_right" size={20} color={colors.textSecondary} />
             </Pressable>
 
-            <Pressable style={styles.settingItem}>
+            <Pressable style={styles.settingItem} onPress={handleNotifications}>
               <View style={styles.settingContent}>
                 <IconSymbol ios_icon_name="bell.fill" android_material_icon_name="notifications" size={20} color={colors.text} />
                 <Text style={styles.settingText}>Notifiche</Text>

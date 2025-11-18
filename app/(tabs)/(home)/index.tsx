@@ -532,9 +532,8 @@ export default function HomeScreen() {
 
   const handleNotifications = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    // TODO: Navigate to notifications screen or show notifications modal
-    Alert.alert('Notifiche', 'Funzionalità notifiche in arrivo!');
-    console.log('Notifications button pressed');
+    router.push('/(tabs)/notifications');
+    console.log('Navigating to notifications screen');
   };
 
   const handleNextList = () => {
