@@ -32,12 +32,12 @@ export default function HomeScreen() {
   const [productLists, setProductLists] = useState<ProductList[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [bannerDismissed, setBannerDismissed] = useState(false);
-  const [bannerSessionKey, setBannerSessionKey] = useState<string>('');
+  const [bannerDismissed, setBannerDismissed] = useState<Record<string, boolean>>({});
   const [processingInterests, setProcessingInterests] = useState<Set<string>>(new Set());
   const listFlatListRef = useRef<FlatList>(null);
   const productFlatListRef = useRef<FlatList>(null);
   const progressAnim = useRef(new Animated.Value(0)).current;
+  const bannerOpacity = useRef(new Animated.Value(0)).current;
 
   const loadProducts = useCallback(async () => {
     try {
@@ -338,17 +338,19 @@ export default function HomeScreen() {
   const totalProductsInList = currentList?.products.length || 0;
   const interestedInCurrentList = currentList?.products.filter(p => interestedProducts.has(p.id)).length || 0;
 
-  // Load banner state from AsyncStorage
+  // Load banner state from AsyncStorage when list changes
   useEffect(() => {
     const loadBannerState = async () => {
       if (!currentList) return;
       
       const sessionKey = `banner_dismissed_${currentList.listId}`;
-      setBannerSessionKey(sessionKey);
       
       try {
         const dismissed = await AsyncStorage.getItem(sessionKey);
-        setBannerDismissed(dismissed === 'true');
+        setBannerDismissed(prev => ({
+          ...prev,
+          [currentList.listId]: dismissed === 'true'
+        }));
       } catch (error) {
         console.error('Error loading banner state:', error);
       }
@@ -357,10 +359,36 @@ export default function HomeScreen() {
     loadBannerState();
   }, [currentList?.listId]);
 
-  // Reset banner when navigating to a new list
+  // Animate banner visibility based on conditions
   useEffect(() => {
-    setBannerDismissed(false);
-  }, [currentListIndex]);
+    const shouldShowBanner = 
+      currentList && 
+      interestedInCurrentList > 1 && 
+      !bannerDismissed[currentList.listId];
+
+    console.log('Banner visibility check:', {
+      listId: currentList?.listId,
+      interestedCount: interestedInCurrentList,
+      isDismissed: bannerDismissed[currentList?.listId],
+      shouldShow: shouldShowBanner
+    });
+
+    if (shouldShowBanner) {
+      // Show banner with animation
+      Animated.timing(bannerOpacity, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      // Hide banner with animation
+      Animated.timing(bannerOpacity, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [interestedInCurrentList, currentList?.listId, bannerDismissed, bannerOpacity]);
 
   useEffect(() => {
     // Animate progress bar
@@ -585,17 +613,23 @@ export default function HomeScreen() {
   };
 
   const handleDismissBanner = async () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setBannerDismissed(true);
+    if (!currentList) return;
     
-    // Save to AsyncStorage for this session
-    if (bannerSessionKey) {
-      try {
-        await AsyncStorage.setItem(bannerSessionKey, 'true');
-        console.log('Banner dismissed for list:', currentList?.listId);
-      } catch (error) {
-        console.error('Error saving banner state:', error);
-      }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    
+    // Update state immediately
+    setBannerDismissed(prev => ({
+      ...prev,
+      [currentList.listId]: true
+    }));
+    
+    // Save to AsyncStorage for persistence
+    const sessionKey = `banner_dismissed_${currentList.listId}`;
+    try {
+      await AsyncStorage.setItem(sessionKey, 'true');
+      console.log('Banner dismissed for list:', currentList.listId);
+    } catch (error) {
+      console.error('Error saving banner state:', error);
     }
   };
 
@@ -764,6 +798,11 @@ export default function HomeScreen() {
     );
   }
 
+  const shouldShowBanner = 
+    currentList && 
+    interestedInCurrentList > 1 && 
+    !bannerDismissed[currentList.listId];
+
   return (
     <>
       <Stack.Screen
@@ -905,9 +944,17 @@ export default function HomeScreen() {
           </Pressable>
         )}
 
-        {/* Hint Message with Close Button */}
-        {interestedInCurrentList > 1 && !bannerDismissed && (
-          <View style={styles.hintContainer}>
+        {/* Hint Message with Close Button - Only show when conditions are met */}
+        {shouldShowBanner && (
+          <Animated.View 
+            style={[
+              styles.hintContainer,
+              {
+                opacity: bannerOpacity,
+                pointerEvents: shouldShowBanner ? 'auto' : 'none',
+              }
+            ]}
+          >
             <View style={styles.hintCard}>
               <IconSymbol ios_icon_name="lightbulb.fill" android_material_icon_name="lightbulb" size={18} color="#FFB800" />
               <Text style={styles.hintText}>
@@ -917,7 +964,7 @@ export default function HomeScreen() {
                 <IconSymbol ios_icon_name="xmark" android_material_icon_name="close" size={16} color="#8B6914" />
               </Pressable>
             </View>
-          </View>
+          </Animated.View>
         )}
       </View>
     </>
