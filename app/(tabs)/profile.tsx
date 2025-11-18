@@ -116,6 +116,11 @@ export default function ProfileScreen() {
     router.push('/admin/dashboard');
   };
 
+  const handleEditProfile = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push('/edit-profile');
+  };
+
   return (
     <>
       <Stack.Screen
@@ -257,6 +262,14 @@ export default function ProfileScreen() {
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Impostazioni</Text>
             
+            <Pressable style={styles.settingItem} onPress={handleEditProfile}>
+              <View style={styles.settingContent}>
+                <IconSymbol ios_icon_name="person.crop.circle" android_material_icon_name="edit" size={20} color={colors.text} />
+                <Text style={styles.settingText}>Modifica Profilo</Text>
+              </View>
+              <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="chevron_right" size={20} color={colors.textSecondary} />
+            </Pressable>
+
             <Pressable style={styles.settingItem} onPress={handleViewBookings}>
               <View style={styles.settingContent}>
                 <IconSymbol ios_icon_name="cart.fill" android_material_icon_name="shopping_cart" size={20} color={colors.text} />
