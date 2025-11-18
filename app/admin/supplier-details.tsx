@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams, router } from 'expo-router';
 import {
@@ -44,13 +44,7 @@ export default function SupplierDetailsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    if (supplierId) {
-      loadSupplierDetails();
-    }
-  }, [supplierId]);
-
-  const loadSupplierDetails = async () => {
+  const loadSupplierDetails = useCallback(async () => {
     try {
       setLoading(true);
 
@@ -105,7 +99,13 @@ export default function SupplierDetailsScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [supplierId]);
+
+  useEffect(() => {
+    if (supplierId) {
+      loadSupplierDetails();
+    }
+  }, [supplierId, loadSupplierDetails]);
 
   const handleRefresh = () => {
     setRefreshing(true);

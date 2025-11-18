@@ -272,7 +272,7 @@ export default function DropDetailsScreen() {
     return (currentValue / minValue) * 100;
   }, [drop]);
 
-  const handleBook = async (productId: string) => {
+  const handleBook = useCallback(async (productId: string) => {
     if (!user) {
       Alert.alert('Accesso richiesto', 'Devi effettuare l\'accesso per prenotare');
       router.push('/login');
@@ -363,7 +363,7 @@ export default function DropDetailsScreen() {
       console.error('Error in handleBook:', error);
       Alert.alert('Errore', 'Si è verificato un errore durante la prenotazione');
     }
-  };
+  }, [user, hasPaymentMethod, drop, products, calculateNewDiscount]);
 
   const handlePressIn = () => {
     Animated.spring(bounceAnim, {

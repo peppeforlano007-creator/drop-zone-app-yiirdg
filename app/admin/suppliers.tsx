@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, router, useFocusEffect } from 'expo-router';
 import {
@@ -34,14 +34,7 @@ export default function SuppliersScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  // Load suppliers when screen comes into focus
-  useFocusEffect(
-    React.useCallback(() => {
-      loadSuppliers();
-    }, [])
-  );
-
-  const loadSuppliers = async () => {
+  const loadSuppliers = useCallback(async () => {
     try {
       if (!refreshing) {
         setLoading(true);
@@ -121,7 +114,14 @@ export default function SuppliersScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [refreshing]);
+
+  // Load suppliers when screen comes into focus
+  useFocusEffect(
+    React.useCallback(() => {
+      loadSuppliers();
+    }, [loadSuppliers])
+  );
 
   const handleRefresh = () => {
     setRefreshing(true);

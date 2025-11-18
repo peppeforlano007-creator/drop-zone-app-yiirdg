@@ -357,7 +357,7 @@ export default function HomeScreen() {
     };
     
     loadBannerState();
-  }, [currentList?.listId]);
+  }, [currentList]);
 
   // Animate banner visibility based on conditions
   useEffect(() => {
@@ -388,7 +388,7 @@ export default function HomeScreen() {
         useNativeDriver: true,
       }).start();
     }
-  }, [interestedInCurrentList, currentList?.listId, bannerDismissed, bannerOpacity]);
+  }, [interestedInCurrentList, currentList, bannerDismissed, bannerOpacity]);
 
   useEffect(() => {
     // Animate progress bar

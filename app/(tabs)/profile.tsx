@@ -12,7 +12,7 @@ import * as Haptics from 'expo-haptics';
 export default function ProfileScreen() {
   const { user, logout, updatePickupPoint } = useAuth();
   const [selectedPickupPoint, setSelectedPickupPoint] = useState(user?.pickupPoint || '');
-  const [pickupPoints, setPickupPoints] = useState<Array<{ id: string; city: string }>>([]);
+  const [pickupPoints, setPickupPoints] = useState<{ id: string; city: string }[]>([]);
   const [loadingPoints, setLoadingPoints] = useState(true);
   const [updatingPoint, setUpdatingPoint] = useState(false);
 
