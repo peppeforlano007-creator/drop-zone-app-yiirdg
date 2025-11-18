@@ -13,10 +13,11 @@ export interface ImageDimensions {
 /**
  * Standard image template dimensions for product photos
  * Based on "officina artistica" example - 4:5 aspect ratio (Instagram portrait)
+ * Reduced dimensions for better performance and smaller file sizes
  */
 export const STANDARD_IMAGE_TEMPLATE: ImageDimensions = {
-  width: 1080,
-  height: 1350,
+  width: 720,
+  height: 900,
   aspectRatio: 4 / 5, // 0.8 - Instagram portrait ratio
 };
 
@@ -25,19 +26,24 @@ export const STANDARD_IMAGE_TEMPLATE: ImageDimensions = {
  */
 export const IMAGE_TEMPLATES = {
   SQUARE: {
-    width: 1080,
-    height: 1080,
+    width: 720,
+    height: 720,
     aspectRatio: 1,
   },
   PORTRAIT: {
-    width: 1080,
-    height: 1350,
+    width: 720,
+    height: 900,
     aspectRatio: 4 / 5,
   },
   LANDSCAPE: {
-    width: 1350,
-    height: 1080,
+    width: 900,
+    height: 720,
     aspectRatio: 5 / 4,
+  },
+  THUMBNAIL: {
+    width: 400,
+    height: 500,
+    aspectRatio: 4 / 5,
   },
 } as const;
 
@@ -63,7 +69,7 @@ export function getStandardizedImageUri(
       url.searchParams.set('width', template.width.toString());
       url.searchParams.set('height', template.height.toString());
       url.searchParams.set('resize', 'cover'); // Cover mode maintains aspect ratio and crops
-      url.searchParams.set('quality', '85'); // Good quality/size balance
+      url.searchParams.set('quality', '80'); // Slightly reduced quality for smaller file size
       
       return url.toString();
     }
@@ -163,7 +169,7 @@ export const IMAGE_LOADING_CONFIG = {
   resizeMode: 'cover' as const,
   
   // Quality for JPEG compression (1-100)
-  quality: 85,
+  quality: 80,
 };
 
 /**
