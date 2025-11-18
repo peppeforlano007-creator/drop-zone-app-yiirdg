@@ -91,10 +91,18 @@ export default function ExcelFormatGuide({ onClose }: ExcelFormatGuideProps) {
               <Text style={styles.fieldDescription}>URL di immagini aggiuntive (separate da virgola)</Text>
               <Text style={styles.fieldExample}>Es: https://ex.com/img1.jpg, https://ex.com/img2.jpg</Text>
             </View>
-            <View style={styles.field}>
+            <View style={[styles.field, styles.highlightedField]}>
               <Text style={styles.fieldName}>taglie</Text>
-              <Text style={styles.fieldDescription}>Taglie disponibili (separate da virgola)</Text>
-              <Text style={styles.fieldExample}>Es: 38, 39, 40, 41, 42</Text>
+              <Text style={styles.fieldDescription}>
+                Taglie disponibili (separate da virgola){'\n'}
+                <Text style={styles.fieldBold}>✓ Supporta sia lettere che numeri!</Text>
+              </Text>
+              <Text style={styles.fieldExample}>
+                <Text style={styles.fieldBold}>Abbigliamento:</Text> S, M, L, XL, XXL{'\n'}
+                <Text style={styles.fieldBold}>Pantaloni:</Text> 42, 44, 46, 48, 50{'\n'}
+                <Text style={styles.fieldBold}>Scarpe:</Text> 38, 39, 40, 41, 42, 43, 44{'\n'}
+                <Text style={styles.fieldBold}>Misto:</Text> S, M, L, 42, 44, 46
+              </Text>
             </View>
             <View style={styles.field}>
               <Text style={styles.fieldName}>colori</Text>
@@ -116,6 +124,99 @@ export default function ExcelFormatGuide({ onClose }: ExcelFormatGuideProps) {
               <Text style={styles.fieldDescription}>Quantità disponibile per questa specifica variante</Text>
               <Text style={styles.fieldExample}>Es: 10 (default: 1)</Text>
             </View>
+          </View>
+        </View>
+
+        <View style={styles.sizesExampleSection}>
+          <View style={styles.sectionHeader}>
+            <IconSymbol
+              ios_icon_name="ruler.fill"
+              android_material_icon_name="straighten"
+              size={20}
+              color="#4CAF50"
+            />
+            <Text style={styles.sectionTitle}>Esempi di Taglie</Text>
+          </View>
+          <Text style={styles.sizesDescription}>
+            Il campo <Text style={styles.fieldBold}>taglie</Text> accetta qualsiasi formato: lettere (S, M, L, XL) o numeri (42, 44, 46).
+            {'\n\n'}
+            <Text style={styles.fieldBold}>Esempi per categoria:</Text>
+          </Text>
+          
+          <View style={styles.sizesExampleCard}>
+            <View style={styles.sizesExampleHeader}>
+              <IconSymbol
+                ios_icon_name="tshirt.fill"
+                android_material_icon_name="checkroom"
+                size={16}
+                color="#2196F3"
+              />
+              <Text style={styles.sizesExampleTitle}>Abbigliamento (T-shirt, Felpe, Giacche)</Text>
+            </View>
+            <Text style={styles.sizesExampleText}>
+              <Text style={styles.fieldBold}>taglie:</Text> XS, S, M, L, XL, XXL
+            </Text>
+          </View>
+
+          <View style={styles.sizesExampleCard}>
+            <View style={styles.sizesExampleHeader}>
+              <IconSymbol
+                ios_icon_name="figure.walk"
+                android_material_icon_name="directions_walk"
+                size={16}
+                color="#FF9800"
+              />
+              <Text style={styles.sizesExampleTitle}>Pantaloni e Jeans</Text>
+            </View>
+            <Text style={styles.sizesExampleText}>
+              <Text style={styles.fieldBold}>taglie:</Text> 38, 40, 42, 44, 46, 48, 50, 52
+            </Text>
+          </View>
+
+          <View style={styles.sizesExampleCard}>
+            <View style={styles.sizesExampleHeader}>
+              <IconSymbol
+                ios_icon_name="shoe.fill"
+                android_material_icon_name="shopping_bag"
+                size={16}
+                color="#9C27B0"
+              />
+              <Text style={styles.sizesExampleTitle}>Scarpe e Calzature</Text>
+            </View>
+            <Text style={styles.sizesExampleText}>
+              <Text style={styles.fieldBold}>taglie:</Text> 36, 37, 38, 39, 40, 41, 42, 43, 44, 45
+            </Text>
+          </View>
+
+          <View style={styles.sizesExampleCard}>
+            <View style={styles.sizesExampleHeader}>
+              <IconSymbol
+                ios_icon_name="bag.fill"
+                android_material_icon_name="shopping_bag"
+                size={16}
+                color="#F44336"
+              />
+              <Text style={styles.sizesExampleTitle}>Accessori (Cinture, Guanti)</Text>
+            </View>
+            <Text style={styles.sizesExampleText}>
+              <Text style={styles.fieldBold}>taglie:</Text> 75, 80, 85, 90, 95, 100
+            </Text>
+          </View>
+
+          <View style={[styles.sizesExampleCard, styles.mixedSizesCard]}>
+            <View style={styles.sizesExampleHeader}>
+              <IconSymbol
+                ios_icon_name="star.fill"
+                android_material_icon_name="star"
+                size={16}
+                color="#FFD700"
+              />
+              <Text style={styles.sizesExampleTitle}>Formato Misto (Supportato!)</Text>
+            </View>
+            <Text style={styles.sizesExampleText}>
+              <Text style={styles.fieldBold}>taglie:</Text> S, M, L, 42, 44, 46{'\n'}
+              <Text style={styles.sizesNote}>✓ Puoi mescolare lettere e numeri nella stessa lista</Text>
+            </Text>
           </View>
         </View>
 
@@ -159,7 +260,7 @@ export default function ExcelFormatGuide({ onClose }: ExcelFormatGuideProps) {
             <View style={styles.skuExampleRow}>
               <Text style={styles.skuExampleCell}>NIKE-AM-001</Text>
               <Text style={styles.skuExampleCell}>Nike Air Max</Text>
-              <Text style={styles.skuExampleCell}>38</Text>
+              <Text style={styles.skuExampleCell}>40</Text>
               <Text style={styles.skuExampleCell}>Bianco</Text>
               <Text style={styles.skuExampleCell}>7</Text>
             </View>
@@ -170,39 +271,39 @@ export default function ExcelFormatGuide({ onClose }: ExcelFormatGuideProps) {
         </View>
 
         <View style={styles.exampleSection}>
-          <Text style={styles.exampleTitle}>Esempio di Riga Excel:</Text>
+          <Text style={styles.exampleTitle}>Esempio Completo - Pantalone:</Text>
           <View style={styles.exampleTable}>
             <View style={styles.exampleRow}>
               <Text style={styles.exampleCell}>sku</Text>
-              <Text style={styles.exampleCell}>NIKE-AM-001</Text>
+              <Text style={styles.exampleCell}>PANT-DENIM-001</Text>
             </View>
             <View style={styles.exampleRow}>
               <Text style={styles.exampleCell}>nome</Text>
-              <Text style={styles.exampleCell}>Scarpe Nike Air Max</Text>
+              <Text style={styles.exampleCell}>Jeans Slim Fit</Text>
             </View>
             <View style={styles.exampleRow}>
               <Text style={styles.exampleCell}>descrizione</Text>
-              <Text style={styles.exampleCell}>Scarpe sportive comode</Text>
+              <Text style={styles.exampleCell}>Jeans elasticizzati comfort</Text>
             </View>
             <View style={styles.exampleRow}>
               <Text style={styles.exampleCell}>brand</Text>
-              <Text style={styles.exampleCell}>Nike</Text>
+              <Text style={styles.exampleCell}>Levi&apos;s</Text>
             </View>
             <View style={styles.exampleRow}>
               <Text style={styles.exampleCell}>immagine_url</Text>
-              <Text style={styles.exampleCell}>https://example.com/nike.jpg</Text>
+              <Text style={styles.exampleCell}>https://example.com/jeans.jpg</Text>
             </View>
             <View style={styles.exampleRow}>
               <Text style={styles.exampleCell}>prezzo</Text>
-              <Text style={styles.exampleCell}>129.99</Text>
+              <Text style={styles.exampleCell}>89.99</Text>
             </View>
-            <View style={styles.exampleRow}>
+            <View style={[styles.exampleRow, styles.highlightedRow]}>
               <Text style={styles.exampleCell}>taglie</Text>
-              <Text style={styles.exampleCell}>38</Text>
+              <Text style={[styles.exampleCell, styles.exampleCellBold]}>42, 44, 46, 48</Text>
             </View>
             <View style={styles.exampleRow}>
               <Text style={styles.exampleCell}>colori</Text>
-              <Text style={styles.exampleCell}>Nero</Text>
+              <Text style={styles.exampleCell}>Blu Scuro</Text>
             </View>
             <View style={styles.exampleRow}>
               <Text style={styles.exampleCell}>condizione</Text>
@@ -214,7 +315,57 @@ export default function ExcelFormatGuide({ onClose }: ExcelFormatGuideProps) {
             </View>
             <View style={styles.exampleRow}>
               <Text style={styles.exampleCell}>stock</Text>
-              <Text style={styles.exampleCell}>5</Text>
+              <Text style={styles.exampleCell}>8</Text>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.exampleSection}>
+          <Text style={styles.exampleTitle}>Esempio Completo - Scarpe:</Text>
+          <View style={styles.exampleTable}>
+            <View style={styles.exampleRow}>
+              <Text style={styles.exampleCell}>sku</Text>
+              <Text style={styles.exampleCell}>SHOE-SPORT-001</Text>
+            </View>
+            <View style={styles.exampleRow}>
+              <Text style={styles.exampleCell}>nome</Text>
+              <Text style={styles.exampleCell}>Scarpe Running Pro</Text>
+            </View>
+            <View style={styles.exampleRow}>
+              <Text style={styles.exampleCell}>descrizione</Text>
+              <Text style={styles.exampleCell}>Scarpe da corsa professionali</Text>
+            </View>
+            <View style={styles.exampleRow}>
+              <Text style={styles.exampleCell}>brand</Text>
+              <Text style={styles.exampleCell}>Nike</Text>
+            </View>
+            <View style={styles.exampleRow}>
+              <Text style={styles.exampleCell}>immagine_url</Text>
+              <Text style={styles.exampleCell}>https://example.com/shoes.jpg</Text>
+            </View>
+            <View style={styles.exampleRow}>
+              <Text style={styles.exampleCell}>prezzo</Text>
+              <Text style={styles.exampleCell}>129.99</Text>
+            </View>
+            <View style={[styles.exampleRow, styles.highlightedRow]}>
+              <Text style={styles.exampleCell}>taglie</Text>
+              <Text style={[styles.exampleCell, styles.exampleCellBold]}>38, 39, 40, 41, 42, 43</Text>
+            </View>
+            <View style={styles.exampleRow}>
+              <Text style={styles.exampleCell}>colori</Text>
+              <Text style={styles.exampleCell}>Nero, Bianco</Text>
+            </View>
+            <View style={styles.exampleRow}>
+              <Text style={styles.exampleCell}>condizione</Text>
+              <Text style={styles.exampleCell}>nuovo</Text>
+            </View>
+            <View style={styles.exampleRow}>
+              <Text style={styles.exampleCell}>categoria</Text>
+              <Text style={styles.exampleCell}>Fashion</Text>
+            </View>
+            <View style={styles.exampleRow}>
+              <Text style={styles.exampleCell}>stock</Text>
+              <Text style={styles.exampleCell}>12</Text>
             </View>
           </View>
         </View>
@@ -234,6 +385,7 @@ export default function ExcelFormatGuide({ onClose }: ExcelFormatGuideProps) {
             <Text style={styles.tip}>- Usa il punto (.) come separatore decimale per i prezzi</Text>
             <Text style={styles.tip}>- Gli URL delle immagini devono essere completi e accessibili</Text>
             <Text style={styles.tip}>- Per liste multiple (taglie, colori, immagini), usa la virgola come separatore</Text>
+            <Text style={styles.tip}>- <Text style={styles.fieldBold}>Le taglie possono essere lettere (S, M, L) o numeri (42, 44, 46)</Text></Text>
             <Text style={styles.tip}>- Se una colonna opzionale è vuota, verrà ignorata</Text>
             <Text style={styles.tip}>- Il campo SKU è opzionale ma fortemente consigliato per raggruppare varianti</Text>
             <Text style={styles.tip}>- Usa lo stesso SKU per tutte le varianti (taglie/colori) dello stesso articolo</Text>
@@ -294,6 +446,12 @@ const styles = StyleSheet.create({
     borderLeftWidth: 3,
     borderLeftColor: colors.primary,
   },
+  highlightedField: {
+    backgroundColor: '#E8F5E9',
+    borderLeftColor: '#4CAF50',
+    borderWidth: 2,
+    borderColor: '#4CAF50',
+  },
   fieldName: {
     fontSize: 14,
     fontWeight: '700',
@@ -305,10 +463,67 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.text,
     marginBottom: 4,
+    lineHeight: 20,
   },
   fieldExample: {
     fontSize: 12,
     color: colors.textSecondary,
+    fontStyle: 'italic',
+    lineHeight: 18,
+  },
+  fieldBold: {
+    fontWeight: '700',
+    color: colors.text,
+  },
+  sizesExampleSection: {
+    marginBottom: 24,
+    backgroundColor: colors.card,
+    padding: 16,
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: '#4CAF50',
+  },
+  sizesDescription: {
+    fontSize: 14,
+    color: colors.text,
+    lineHeight: 20,
+    marginBottom: 16,
+  },
+  sizesExampleCard: {
+    backgroundColor: colors.background,
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 12,
+    borderLeftWidth: 3,
+    borderLeftColor: '#2196F3',
+  },
+  mixedSizesCard: {
+    backgroundColor: '#FFFBF0',
+    borderLeftColor: '#FFD700',
+    borderWidth: 2,
+    borderColor: '#FFD700',
+  },
+  sizesExampleHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  sizesExampleTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  sizesExampleText: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    fontFamily: 'monospace',
+    lineHeight: 18,
+  },
+  sizesNote: {
+    fontSize: 11,
+    color: '#4CAF50',
+    fontWeight: '600',
     fontStyle: 'italic',
   },
   skuSection: {
@@ -381,11 +596,18 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,
     paddingVertical: 8,
   },
+  highlightedRow: {
+    backgroundColor: '#E8F5E9',
+  },
   exampleCell: {
     flex: 1,
     fontSize: 12,
     color: colors.text,
     fontFamily: 'monospace',
+  },
+  exampleCellBold: {
+    fontWeight: '700',
+    color: '#4CAF50',
   },
   tipsSection: {
     marginBottom: 24,
