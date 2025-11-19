@@ -172,6 +172,62 @@ export default function ListDetailsScreen() {
     );
   };
 
+  const handleDeleteList = async () => {
+    if (!list) return;
+
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    
+    Alert.alert(
+      'Elimina Lista',
+      `Sei sicuro di voler eliminare la lista "${list.name}"?\n\nQuesta azione eliminerà anche:\n- ${products.length} prodotti\n- Tutti i drop associati\n\nQuesta azione non può essere annullata.`,
+      [
+        { text: 'Annulla', style: 'cancel' },
+        {
+          text: 'Elimina',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              // Delete all products in this list
+              const { error: productsError } = await supabase
+                .from('products')
+                .delete()
+                .eq('supplier_list_id', listId);
+
+              if (productsError) {
+                console.error('Error deleting products:', productsError);
+                Alert.alert('Errore', 'Impossibile eliminare i prodotti');
+                return;
+              }
+
+              // Delete the list
+              const { error: listError } = await supabase
+                .from('supplier_lists')
+                .delete()
+                .eq('id', listId);
+
+              if (listError) {
+                console.error('Error deleting list:', listError);
+                Alert.alert('Errore', 'Impossibile eliminare la lista');
+                return;
+              }
+
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              Alert.alert('Successo', 'Lista eliminata con successo', [
+                {
+                  text: 'OK',
+                  onPress: () => router.back(),
+                },
+              ]);
+            } catch (error) {
+              console.error('Error deleting list:', error);
+              Alert.alert('Errore', 'Si è verificato un errore');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const handleToggleProductStatus = async (productId: string, currentStatus: string) => {
     const newStatus = currentStatus === 'active' ? 'inactive' : 'active';
     
@@ -452,20 +508,35 @@ export default function ListDetailsScreen() {
               </View>
             </View>
 
-            <Pressable
-              style={[styles.toggleButton, { backgroundColor: list.status === 'active' ? '#FF9800' : '#4CAF50' }]}
-              onPress={handleToggleListStatus}
-            >
-              <IconSymbol
-                ios_icon_name={list.status === 'active' ? 'pause.circle' : 'play.circle'}
-                android_material_icon_name={list.status === 'active' ? 'pause_circle' : 'play_circle'}
-                size={20}
-                color="#FFF"
-              />
-              <Text style={styles.toggleButtonText}>
-                {list.status === 'active' ? 'Disattiva Lista' : 'Attiva Lista'}
-              </Text>
-            </Pressable>
+            <View style={styles.buttonRow}>
+              <Pressable
+                style={[styles.toggleButton, { backgroundColor: list.status === 'active' ? '#FF9800' : '#4CAF50' }]}
+                onPress={handleToggleListStatus}
+              >
+                <IconSymbol
+                  ios_icon_name={list.status === 'active' ? 'pause.circle' : 'play.circle'}
+                  android_material_icon_name={list.status === 'active' ? 'pause_circle' : 'play_circle'}
+                  size={20}
+                  color="#FFF"
+                />
+                <Text style={styles.toggleButtonText}>
+                  {list.status === 'active' ? 'Disattiva' : 'Attiva'}
+                </Text>
+              </Pressable>
+              
+              <Pressable
+                style={[styles.deleteButton]}
+                onPress={handleDeleteList}
+              >
+                <IconSymbol
+                  ios_icon_name="trash.fill"
+                  android_material_icon_name="delete"
+                  size={20}
+                  color="#FFF"
+                />
+                <Text style={styles.deleteButtonText}>Elimina Lista</Text>
+              </Pressable>
+            </View>
           </View>
 
           {/* Products Section */}
@@ -639,7 +710,12 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: colors.textTertiary,
   },
+  buttonRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
   toggleButton: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -648,7 +724,22 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   toggleButtonText: {
-    fontSize: 16,
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FFF',
+  },
+  deleteButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderRadius: 8,
+    gap: 8,
+    backgroundColor: '#FF3B30',
+  },
+  deleteButtonText: {
+    fontSize: 14,
     fontWeight: '600',
     color: '#FFF',
   },

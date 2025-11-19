@@ -1,9 +1,9 @@
 
 /**
- * Centralized Error Handler
+ * Centralized Error Handler with User-Friendly Messages
  * 
  * This module provides comprehensive error handling and logging
- * for production deployment.
+ * for production deployment with Italian user-friendly messages.
  */
 
 import { Alert } from 'react-native';
@@ -71,8 +71,7 @@ class ErrorHandler {
       originalError,
     });
 
-    // In production, you would send this to a logging service
-    // like Sentry, LogRocket, or your own backend
+    // Send to logging service
     this.sendToLoggingService(error);
   }
 
@@ -90,15 +89,28 @@ class ErrorHandler {
     this.logError(message, category, severity, context, originalError);
 
     if (showAlert && severity !== ErrorSeverity.LOW) {
-      const userMessage = this.getUserFriendlyMessage(category, message);
+      const userMessage = this.getUserFriendlyMessage(category, message, originalError);
       Alert.alert('Errore', userMessage, [{ text: 'OK' }]);
     }
   }
 
   /**
-   * Get user-friendly error message
+   * Get user-friendly error message in Italian
    */
-  private getUserFriendlyMessage(category: ErrorCategory, message: string): string {
+  private getUserFriendlyMessage(category: ErrorCategory, message: string, originalError?: any): string {
+    // Check for specific PostgREST error codes
+    if (originalError?.code) {
+      const pgrstMessage = this.getPostgRESTErrorMessage(originalError.code, originalError);
+      if (pgrstMessage) return pgrstMessage;
+    }
+
+    // Check for specific error messages
+    if (originalError?.message) {
+      const specificMessage = this.getSpecificErrorMessage(originalError.message);
+      if (specificMessage) return specificMessage;
+    }
+
+    // Fallback to category-based messages
     switch (category) {
       case ErrorCategory.NETWORK:
         return 'Problema di connessione. Verifica la tua connessione internet e riprova.';
@@ -118,23 +130,94 @@ class ErrorHandler {
   }
 
   /**
+   * Get user-friendly message for PostgREST error codes
+   */
+  private getPostgRESTErrorMessage(code: string, error: any): string | null {
+    switch (code) {
+      case 'PGRST301':
+        return 'Accesso negato. Non hai i permessi per visualizzare questi dati.';
+      case 'PGRST204':
+        return 'Nessun dato trovato. La risorsa richiesta non esiste.';
+      case 'PGRST116':
+        return 'Richiesta non valida. Verifica i dati inseriti.';
+      case 'PGRST202':
+        return 'Errore nella richiesta. Alcuni parametri non sono validi.';
+      case '23505':
+        return 'Questo elemento esiste già nel sistema.';
+      case '23503':
+        return 'Impossibile completare l\'operazione. Alcuni dati collegati non sono validi.';
+      case '23502':
+        return 'Alcuni campi obbligatori sono mancanti.';
+      case '42P01':
+        return 'Errore di sistema. La risorsa richiesta non è disponibile.';
+      case '42501':
+        return 'Permessi insufficienti per questa operazione.';
+      case '08006':
+      case '08003':
+      case '08000':
+        return 'Errore di connessione al database. Riprova tra qualche istante.';
+      default:
+        // Check if it's a generic PGRST error
+        if (code.startsWith('PGRST')) {
+          return 'Errore nel caricamento dei dati. Riprova tra qualche istante.';
+        }
+        return null;
+    }
+  }
+
+  /**
+   * Get user-friendly message for specific error messages
+   */
+  private getSpecificErrorMessage(message: string): string | null {
+    const lowerMessage = message.toLowerCase();
+
+    if (lowerMessage.includes('network') || lowerMessage.includes('fetch')) {
+      return 'Problema di connessione. Verifica la tua connessione internet e riprova.';
+    }
+
+    if (lowerMessage.includes('timeout')) {
+      return 'La richiesta ha impiegato troppo tempo. Riprova.';
+    }
+
+    if (lowerMessage.includes('unauthorized') || lowerMessage.includes('forbidden')) {
+      return 'Accesso negato. Effettua nuovamente il login.';
+    }
+
+    if (lowerMessage.includes('not found')) {
+      return 'La risorsa richiesta non è stata trovata.';
+    }
+
+    if (lowerMessage.includes('duplicate') || lowerMessage.includes('already exists')) {
+      return 'Questo elemento esiste già nel sistema.';
+    }
+
+    if (lowerMessage.includes('invalid') || lowerMessage.includes('malformed')) {
+      return 'Dati non validi. Verifica le informazioni inserite.';
+    }
+
+    return null;
+  }
+
+  /**
    * Send error to logging service
    */
   private async sendToLoggingService(error: AppError): Promise<void> {
-    // In production, implement actual logging service integration
-    // For now, we'll just log to console
-    
-    // Example: Send to Supabase for logging
     try {
       if (error.severity === ErrorSeverity.CRITICAL || error.severity === ErrorSeverity.HIGH) {
-        // You could create an error_logs table in Supabase
-        // await supabase.from('error_logs').insert({
-        //   message: error.message,
-        //   category: error.category,
-        //   severity: error.severity,
-        //   context: error.context,
-        //   timestamp: error.timestamp.toISOString(),
-        // });
+        // Log to activity_logs table
+        const { data: { user } } = await supabase.auth.getUser();
+        
+        await supabase.from('activity_logs').insert({
+          action: 'error_occurred',
+          description: `${error.category}: ${error.message}`,
+          user_id: user?.id,
+          metadata: {
+            severity: error.severity,
+            context: error.context,
+            error_code: error.originalError?.code,
+            error_message: error.originalError?.message,
+          },
+        });
       }
     } catch (loggingError) {
       console.error('Failed to send error to logging service:', loggingError);
@@ -170,28 +253,29 @@ class ErrorHandler {
   }
 
   /**
-   * Handle Supabase errors
+   * Handle Supabase errors with user-friendly messages
    */
-  handleSupabaseError(error: any, context?: Record<string, any>): void {
+  handleSupabaseError(error: any, context?: Record<string, any>, showAlert: boolean = true): void {
     let category = ErrorCategory.DATABASE;
     let severity = ErrorSeverity.MEDIUM;
     let message = error.message || 'Database error';
 
     // Categorize based on error code
-    if (error.code === 'PGRST301') {
+    if (error.code === 'PGRST301' || error.code === '42501') {
       category = ErrorCategory.PERMISSION;
-      message = 'Accesso negato';
+      severity = ErrorSeverity.HIGH;
     } else if (error.code === '23505') {
       category = ErrorCategory.VALIDATION;
       severity = ErrorSeverity.LOW;
-      message = 'Questo elemento esiste già';
-    } else if (error.code === '23503') {
+    } else if (error.code === '23503' || error.code === '23502') {
       category = ErrorCategory.VALIDATION;
       severity = ErrorSeverity.LOW;
-      message = 'Riferimento non valido';
+    } else if (error.code?.startsWith('08')) {
+      category = ErrorCategory.NETWORK;
+      severity = ErrorSeverity.HIGH;
     }
 
-    this.handleError(message, category, severity, context, error);
+    this.handleError(message, category, severity, context, error, showAlert);
   }
 
   /**

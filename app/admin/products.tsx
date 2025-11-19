@@ -209,7 +209,10 @@ export default function ProductsScreen() {
         ]}
         onPress={() => {
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-          Alert.alert('Prodotto', `Dettagli per: ${product.name}`);
+          router.push({
+            pathname: '/admin/edit-product',
+            params: { productId: product.id },
+          });
         }}
       >
         <Image

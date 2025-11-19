@@ -105,11 +105,28 @@ export default function NotificationsScreen() {
                 return;
               }
 
-              // In a real app, you would send push notifications here
-              // For now, we'll just log the notification
-              console.log('Sending notification to', users?.length, 'users');
-              console.log('Title:', title);
-              console.log('Message:', message);
+              // Create notification records for each user
+              const notifications = users?.map(user => ({
+                user_id: user.user_id,
+                title,
+                message,
+                type: 'general' as const,
+                read: false,
+              })) || [];
+
+              if (notifications.length > 0) {
+                const { error: notifError } = await supabase
+                  .from('notifications')
+                  .insert(notifications);
+
+                if (notifError) {
+                  console.error('Error creating notifications:', notifError);
+                  Alert.alert('Errore', 'Impossibile creare le notifiche');
+                  return;
+                }
+              }
+
+              console.log('Sent notification to', users?.length, 'users');
 
               Alert.alert(
                 'Notifica Inviata',

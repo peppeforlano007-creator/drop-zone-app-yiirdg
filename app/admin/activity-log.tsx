@@ -59,59 +59,35 @@ export default function ActivityLogScreen() {
     try {
       setLoading(true);
 
-      // Generate mock activity logs
-      // In a real app, you would fetch these from a database table
-      const mockLogs: ActivityLog[] = [
-        {
-          id: '1',
-          action: 'drop_created',
-          description: 'Nuovo drop creato: "Drop Roma Centro"',
-          user_id: 'admin1',
-          user_name: 'Admin User',
-          user_role: 'admin',
-          timestamp: new Date(Date.now() - 1000 * 60 * 5).toISOString(),
-        },
-        {
-          id: '2',
-          action: 'drop_approved',
-          description: 'Drop approvato: "Drop Milano Nord"',
-          user_id: 'admin1',
-          user_name: 'Admin User',
-          user_role: 'admin',
-          timestamp: new Date(Date.now() - 1000 * 60 * 15).toISOString(),
-        },
-        {
-          id: '3',
-          action: 'booking_created',
-          description: 'Nuova prenotazione per prodotto "Nike Air Max"',
-          user_id: 'user123',
-          user_name: 'Mario Rossi',
-          user_role: 'consumer',
-          timestamp: new Date(Date.now() - 1000 * 60 * 30).toISOString(),
-        },
-        {
-          id: '4',
-          action: 'user_registered',
-          description: 'Nuovo utente registrato: "Luigi Verdi"',
-          user_id: 'user456',
-          user_name: 'Luigi Verdi',
-          user_role: 'consumer',
-          timestamp: new Date(Date.now() - 1000 * 60 * 45).toISOString(),
-        },
-        {
-          id: '5',
-          action: 'product_added',
-          description: 'Nuovo prodotto aggiunto: "Adidas Ultraboost"',
-          user_id: 'supplier1',
-          user_name: 'Fornitore Sport',
-          user_role: 'supplier',
-          timestamp: new Date(Date.now() - 1000 * 60 * 60).toISOString(),
-        },
-      ];
+      // Load real activity logs from database
+      const { data: logsData, error: logsError } = await supabase
+        .from('activity_logs')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(200);
 
-      setLogs(mockLogs);
+      if (logsError) {
+        console.error('Error loading activity logs:', logsError);
+        Alert.alert('Errore', 'Impossibile caricare i log attività');
+        return;
+      }
+
+      // Transform data to match interface
+      const transformedLogs: ActivityLog[] = (logsData || []).map(log => ({
+        id: log.id,
+        action: log.action,
+        description: log.description,
+        user_id: log.user_id || 'system',
+        user_name: log.user_name || 'Sistema',
+        user_role: log.user_role || 'system',
+        timestamp: log.created_at,
+        metadata: log.metadata,
+      }));
+
+      setLogs(transformedLogs);
     } catch (error) {
       console.error('Error loading activity logs:', error);
+      Alert.alert('Errore', 'Si è verificato un errore');
     } finally {
       setLoading(false);
       setRefreshing(false);

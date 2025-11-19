@@ -255,6 +255,14 @@ export default function PickupPointsScreen() {
     }
   };
 
+  const handleEditPickupPoint = (pointId: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push({
+      pathname: '/admin/edit-pickup-point',
+      params: { pickupPointId: pointId },
+    });
+  };
+
   const renderPickupPoint = (point: PickupPointData) => {
     const isPending = point.status === 'pending_approval';
     
@@ -403,6 +411,21 @@ export default function PickupPointsScreen() {
               <Text style={styles.toggleButtonText}>
                 {point.status === 'active' ? 'Disattiva' : 'Attiva'}
               </Text>
+            </Pressable>
+            <Pressable
+              style={({ pressed }) => [
+                styles.editButton,
+                pressed && styles.buttonPressed,
+              ]}
+              onPress={() => handleEditPickupPoint(point.id)}
+            >
+              <IconSymbol
+                ios_icon_name="pencil"
+                android_material_icon_name="edit"
+                size={20}
+                color={colors.background}
+              />
+              <Text style={styles.editButtonText}>Modifica</Text>
             </Pressable>
           </View>
         )}
@@ -720,6 +743,21 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   toggleButtonText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.background,
+  },
+  editButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primary,
+    paddingVertical: 12,
+    borderRadius: 8,
+    gap: 6,
+  },
+  editButtonText: {
     fontSize: 14,
     fontWeight: '700',
     color: colors.background,

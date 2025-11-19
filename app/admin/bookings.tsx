@@ -17,6 +17,7 @@ import { supabase } from '@/app/integrations/supabase/client';
 import * as Haptics from 'expo-haptics';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
+import { errorHandler } from '@/utils/errorHandler';
 
 interface BookingData {
   id: string;
@@ -110,7 +111,7 @@ export default function BookingsScreen() {
 
       if (error) {
         console.error('Error loading bookings:', error);
-        Alert.alert('Errore', 'Impossibile caricare le prenotazioni');
+        errorHandler.handleSupabaseError(error, { context: 'load_bookings' });
         return;
       }
 

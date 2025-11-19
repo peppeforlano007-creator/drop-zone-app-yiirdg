@@ -1,9 +1,8 @@
 
-import { Stack, router, useLocalSearchParams } from 'expo-router';
+import { Stack, router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { colors } from '@/styles/commonStyles';
-import { IconSymbol } from '@/components/IconSymbol';
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -15,6 +14,8 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { supabase } from '@/app/integrations/supabase/client';
+import { errorHandler, ErrorCategory, ErrorSeverity } from '@/utils/errorHandler';
+import { logDropActivity } from '@/utils/activityLogger';
 
 interface SupplierList {
   id: string;
@@ -179,7 +180,7 @@ export default function CreateDropScreen() {
 
       if (listsError) {
         console.error('Error loading supplier lists:', listsError);
-        Alert.alert('Errore', 'Impossibile caricare le liste fornitori');
+        errorHandler.handleSupabaseError(listsError, { context: 'load_supplier_lists' });
         return;
       }
 
@@ -192,7 +193,7 @@ export default function CreateDropScreen() {
 
       if (pointsError) {
         console.error('Error loading pickup points:', pointsError);
-        Alert.alert('Errore', 'Impossibile caricare i punti di ritiro');
+        errorHandler.handleSupabaseError(pointsError, { context: 'load_pickup_points' });
         return;
       }
 
@@ -200,7 +201,13 @@ export default function CreateDropScreen() {
       setPickupPoints(points || []);
     } catch (error) {
       console.error('Error in loadData:', error);
-      Alert.alert('Errore', 'Errore imprevisto durante il caricamento');
+      errorHandler.handleError(
+        'Errore imprevisto durante il caricamento',
+        ErrorCategory.UNKNOWN,
+        ErrorSeverity.MEDIUM,
+        { context: 'load_data' },
+        error
+      );
     } finally {
       setLoading(false);
     }
@@ -256,11 +263,14 @@ export default function CreateDropScreen() {
 
               if (dropError) {
                 console.error('Error creating drop:', dropError);
-                Alert.alert('Errore', `Impossibile creare il drop: ${dropError.message}`);
+                errorHandler.handleSupabaseError(dropError, { context: 'create_drop' });
                 return;
               }
 
               console.log('Drop created successfully:', drop);
+
+              // Log activity
+              await logDropActivity.created(drop.name, drop.id);
 
               Alert.alert(
                 'Drop Creato!',
@@ -276,7 +286,13 @@ export default function CreateDropScreen() {
               );
             } catch (error) {
               console.error('Error in handleCreateDrop:', error);
-              Alert.alert('Errore', 'Errore imprevisto durante la creazione del drop');
+              errorHandler.handleError(
+                'Errore imprevisto durante la creazione del drop',
+                ErrorCategory.UNKNOWN,
+                ErrorSeverity.HIGH,
+                { context: 'create_drop' },
+                error
+              );
             } finally {
               setCreating(false);
             }
