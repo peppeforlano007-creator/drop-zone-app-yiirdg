@@ -120,6 +120,56 @@ export default function SupplierDetailsScreen() {
     });
   };
 
+  const handleDeleteList = async (list: SupplierList) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    
+    Alert.alert(
+      'Elimina Lista',
+      `Sei sicuro di voler eliminare la lista "${list.name}"?\n\nQuesta azione eliminerà anche:\n- ${list.products_count} prodotti\n- Tutti i drop associati\n\nQuesta azione non può essere annullata.`,
+      [
+        { text: 'Annulla', style: 'cancel' },
+        {
+          text: 'Elimina',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              // Delete all products in this list
+              const { error: productsError } = await supabase
+                .from('products')
+                .delete()
+                .eq('supplier_list_id', list.id);
+
+              if (productsError) {
+                console.error('Error deleting products:', productsError);
+                Alert.alert('Errore', 'Impossibile eliminare i prodotti');
+                return;
+              }
+
+              // Delete the list
+              const { error: listError } = await supabase
+                .from('supplier_lists')
+                .delete()
+                .eq('id', list.id);
+
+              if (listError) {
+                console.error('Error deleting list:', listError);
+                Alert.alert('Errore', 'Impossibile eliminare la lista');
+                return;
+              }
+
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              Alert.alert('Successo', 'Lista eliminata con successo');
+              loadSupplierDetails();
+            } catch (error) {
+              console.error('Error deleting list:', error);
+              Alert.alert('Errore', 'Si è verificato un errore');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'active':
@@ -148,80 +198,103 @@ export default function SupplierDetailsScreen() {
 
   const renderList = (list: SupplierList) => {
     return (
-      <Pressable
+      <View
         key={list.id}
-        style={({ pressed }) => [
-          styles.listCard,
-          pressed && styles.listCardPressed,
-        ]}
-        onPress={() => handleViewList(list.id)}
+        style={styles.listCard}
       >
-        <View style={styles.listHeader}>
-          <View style={styles.listIconContainer}>
-            <IconSymbol
-              ios_icon_name="list.bullet.rectangle"
-              android_material_icon_name="list_alt"
-              size={24}
-              color={colors.primary}
-            />
+        <Pressable
+          style={({ pressed }) => [
+            styles.listCardContent,
+            pressed && styles.listCardPressed,
+          ]}
+          onPress={() => handleViewList(list.id)}
+        >
+          <View style={styles.listHeader}>
+            <View style={styles.listIconContainer}>
+              <IconSymbol
+                ios_icon_name="list.bullet.rectangle"
+                android_material_icon_name="list_alt"
+                size={24}
+                color={colors.primary}
+              />
+            </View>
+            <View style={styles.listInfo}>
+              <Text style={styles.listName}>{list.name}</Text>
+              <Text style={styles.listDate}>
+                Creata: {new Date(list.created_at).toLocaleDateString('it-IT')}
+              </Text>
+            </View>
+            <View style={[styles.statusBadge, { backgroundColor: getStatusColor(list.status) }]}>
+              <Text style={styles.statusBadgeText}>{getStatusLabel(list.status)}</Text>
+            </View>
           </View>
-          <View style={styles.listInfo}>
-            <Text style={styles.listName}>{list.name}</Text>
-            <Text style={styles.listDate}>
-              Creata: {new Date(list.created_at).toLocaleDateString('it-IT')}
-            </Text>
-          </View>
-          <View style={[styles.statusBadge, { backgroundColor: getStatusColor(list.status) }]}>
-            <Text style={styles.statusBadgeText}>{getStatusLabel(list.status)}</Text>
-          </View>
-        </View>
 
-        <View style={styles.listStats}>
-          <View style={styles.listStatItem}>
-            <IconSymbol
-              ios_icon_name="cube.box.fill"
-              android_material_icon_name="inventory"
-              size={16}
-              color={colors.textSecondary}
-            />
-            <Text style={styles.listStatValue}>{list.products_count}</Text>
-            <Text style={styles.listStatLabel}>Prodotti</Text>
+          <View style={styles.listStats}>
+            <View style={styles.listStatItem}>
+              <IconSymbol
+                ios_icon_name="cube.box.fill"
+                android_material_icon_name="inventory"
+                size={16}
+                color={colors.textSecondary}
+              />
+              <Text style={styles.listStatValue}>{list.products_count}</Text>
+              <Text style={styles.listStatLabel}>Prodotti</Text>
+            </View>
+            <View style={styles.listStatItem}>
+              <IconSymbol
+                ios_icon_name="percent"
+                android_material_icon_name="percent"
+                size={16}
+                color={colors.textSecondary}
+              />
+              <Text style={styles.listStatValue}>
+                {list.min_discount}% - {list.max_discount}%
+              </Text>
+              <Text style={styles.listStatLabel}>Sconto</Text>
+            </View>
+            <View style={styles.listStatItem}>
+              <IconSymbol
+                ios_icon_name="eurosign.circle"
+                android_material_icon_name="euro"
+                size={16}
+                color={colors.textSecondary}
+              />
+              <Text style={styles.listStatValue}>
+                €{list.min_reservation_value.toLocaleString()}
+              </Text>
+              <Text style={styles.listStatLabel}>Min. Ordine</Text>
+            </View>
           </View>
-          <View style={styles.listStatItem}>
-            <IconSymbol
-              ios_icon_name="percent"
-              android_material_icon_name="percent"
-              size={16}
-              color={colors.textSecondary}
-            />
-            <Text style={styles.listStatValue}>
-              {list.min_discount}% - {list.max_discount}%
-            </Text>
-            <Text style={styles.listStatLabel}>Sconto</Text>
-          </View>
-          <View style={styles.listStatItem}>
-            <IconSymbol
-              ios_icon_name="eurosign.circle"
-              android_material_icon_name="euro"
-              size={16}
-              color={colors.textSecondary}
-            />
-            <Text style={styles.listStatValue}>
-              €{list.min_reservation_value.toLocaleString()}
-            </Text>
-            <Text style={styles.listStatLabel}>Min. Ordine</Text>
-          </View>
-        </View>
 
-        <View style={styles.listFooter}>
-          <IconSymbol
-            ios_icon_name="chevron.right"
-            android_material_icon_name="chevron_right"
-            size={20}
-            color={colors.textTertiary}
-          />
+          <View style={styles.listFooter}>
+            <IconSymbol
+              ios_icon_name="chevron.right"
+              android_material_icon_name="chevron_right"
+              size={20}
+              color={colors.textTertiary}
+            />
+          </View>
+        </Pressable>
+
+        {/* Delete button outside the pressable area */}
+        <View style={styles.listActions}>
+          <Pressable
+            style={({ pressed }) => [
+              styles.deleteListButton,
+              pressed && styles.deleteListButtonPressed,
+            ]}
+            onPress={() => handleDeleteList(list)}
+          >
+            <IconSymbol
+              ios_icon_name="trash.fill"
+              android_material_icon_name="delete"
+              size={18}
+              color="#FFF"
+            />
+            <Text style={styles.deleteListButtonText}>Elimina Lista</Text>
+          </Pressable>
         </View>
-      </Pressable>
+      </View>
     );
   };
 
@@ -490,14 +563,16 @@ const styles = StyleSheet.create({
   listCard: {
     backgroundColor: colors.card,
     borderRadius: 12,
-    padding: 16,
     marginBottom: 12,
     borderWidth: 1,
     borderColor: colors.border,
+    overflow: 'hidden',
+  },
+  listCardContent: {
+    padding: 16,
   },
   listCardPressed: {
     opacity: 0.7,
-    transform: [{ scale: 0.98 }],
   },
   listHeader: {
     flexDirection: 'row',
@@ -560,6 +635,30 @@ const styles = StyleSheet.create({
   },
   listFooter: {
     alignItems: 'flex-end',
+  },
+  listActions: {
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    padding: 12,
+    backgroundColor: colors.backgroundSecondary,
+  },
+  deleteListButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FF3B30',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    gap: 8,
+  },
+  deleteListButtonPressed: {
+    opacity: 0.7,
+  },
+  deleteListButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FFF',
   },
   emptyState: {
     alignItems: 'center',

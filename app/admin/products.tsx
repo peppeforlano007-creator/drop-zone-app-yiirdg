@@ -49,6 +49,7 @@ export default function ProductsScreen() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [page, setPage] = useState(0);
+  const [totalCount, setTotalCount] = useState(0);
   const PAGE_SIZE = 100;
 
   const filterProducts = useCallback(() => {
@@ -78,12 +79,12 @@ export default function ProductsScreen() {
         setLoadingMore(true);
       }
       
-      console.log(`Loading products page ${pageNum} for admin...`);
+      console.log(`Loading products page ${pageNum} (${pageNum * PAGE_SIZE} - ${(pageNum + 1) * PAGE_SIZE - 1}) for admin...`);
       
       const from = pageNum * PAGE_SIZE;
       const to = from + PAGE_SIZE - 1;
       
-      // First, get all products with supplier_lists
+      // First, get all products with supplier_lists and count
       const { data: productsData, error: productsError, count } = await supabase
         .from('products')
         .select(`
@@ -101,7 +102,12 @@ export default function ProductsScreen() {
         return;
       }
 
-      console.log(`Products loaded: ${productsData?.length || 0}, Total: ${count}`);
+      console.log(`Products loaded: ${productsData?.length || 0}, Total in DB: ${count}, Page: ${pageNum + 1}`);
+      
+      // Update total count
+      if (count !== null) {
+        setTotalCount(count);
+      }
 
       // Check if there are more products to load
       setHasMore(count ? (from + PAGE_SIZE) < count : false);
@@ -399,11 +405,11 @@ export default function ProductsScreen() {
         >
           <View style={styles.statsRow}>
             <Text style={styles.statsText}>
-              {filteredProducts.length} prodott{filteredProducts.length === 1 ? 'o' : 'i'} trovat{filteredProducts.length === 1 ? 'o' : 'i'}
+              Caricati: {products.length} / {totalCount} prodotti
             </Text>
             {hasMore && (
               <Text style={styles.loadMoreText}>
-                Scorri per caricare altri prodotti
+                Scorri per caricare altri
               </Text>
             )}
           </View>
@@ -415,6 +421,19 @@ export default function ProductsScreen() {
                 <View style={styles.loadingMoreContainer}>
                   <ActivityIndicator size="small" color={colors.primary} />
                   <Text style={styles.loadingMoreText}>Caricamento...</Text>
+                </View>
+              )}
+              {!hasMore && products.length > 0 && (
+                <View style={styles.endMessageContainer}>
+                  <IconSymbol
+                    ios_icon_name="checkmark.circle.fill"
+                    android_material_icon_name="check_circle"
+                    size={24}
+                    color={colors.success}
+                  />
+                  <Text style={styles.endMessageText}>
+                    Tutti i {totalCount} prodotti sono stati caricati
+                  </Text>
                 </View>
               )}
             </>
@@ -639,6 +658,18 @@ const styles = StyleSheet.create({
   loadingMoreText: {
     fontSize: 14,
     color: colors.textSecondary,
+  },
+  endMessageContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 20,
+    gap: 8,
+  },
+  endMessageText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.success,
   },
   emptyState: {
     alignItems: 'center',

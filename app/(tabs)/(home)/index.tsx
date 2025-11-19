@@ -34,6 +34,7 @@ export default function HomeScreen() {
   const [error, setError] = useState<string | null>(null);
   const [bannerDismissed, setBannerDismissed] = useState<Record<string, boolean>>({});
   const [processingInterests, setProcessingInterests] = useState<Set<string>>(new Set());
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
   const listFlatListRef = useRef<FlatList>(null);
   const productFlatListRef = useRef<FlatList>(null);
   const progressAnim = useRef(new Animated.Value(0)).current;
@@ -329,10 +330,59 @@ export default function HomeScreen() {
     }
   }, [user]);
 
+  const loadUnreadNotifications = useCallback(async () => {
+    if (!user) return;
+    
+    try {
+      const { count, error } = await supabase
+        .from('notifications')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+        .eq('read', false);
+
+      if (error) {
+        console.error('Error loading unread notifications count:', error);
+        return;
+      }
+
+      setUnreadNotifications(count || 0);
+      console.log(`Unread notifications: ${count || 0}`);
+    } catch (error) {
+      console.error('Exception loading unread notifications:', error);
+    }
+  }, [user]);
+
   useEffect(() => {
     loadProducts();
     loadUserInterests();
-  }, [loadProducts, loadUserInterests]);
+    loadUnreadNotifications();
+  }, [loadProducts, loadUserInterests, loadUnreadNotifications]);
+
+  // Subscribe to real-time notification updates
+  useEffect(() => {
+    if (!user) return;
+
+    const channel = supabase
+      .channel('notifications_badge')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'notifications',
+          filter: `user_id=eq.${user.id}`,
+        },
+        () => {
+          console.log('Notification change detected, reloading count...');
+          loadUnreadNotifications();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user, loadUnreadNotifications]);
 
   const currentList = productLists[currentListIndex];
   const totalProductsInList = currentList?.products.length || 0;
@@ -742,6 +792,13 @@ export default function HomeScreen() {
               size={24} 
               color={colors.text} 
             />
+            {unreadNotifications > 0 && (
+              <View style={styles.notificationBadge}>
+                <Text style={styles.notificationBadgeText}>
+                  {unreadNotifications > 99 ? '99+' : unreadNotifications}
+                </Text>
+              </View>
+            )}
           </Pressable>
 
           <IconSymbol 
@@ -840,7 +897,7 @@ export default function HomeScreen() {
           }}
         />
         
-        {/* Top Buttons - Logout (Left) and Notifications (Right) with Transparent Background */}
+        {/* Top Buttons - Logout (Left) and Notifications (Right) with Badge */}
         <Pressable onPress={handleLogout} style={styles.topLeftButton}>
           <IconSymbol 
             ios_icon_name="rectangle.portrait.and.arrow.right" 
@@ -857,6 +914,13 @@ export default function HomeScreen() {
             size={24} 
             color={colors.text} 
           />
+          {unreadNotifications > 0 && (
+            <View style={styles.notificationBadge}>
+              <Text style={styles.notificationBadgeText}>
+                {unreadNotifications > 99 ? '99+' : unreadNotifications}
+              </Text>
+            </View>
+          )}
         </Pressable>
         
         {/* TikTok-style Right Side Icons */}
@@ -1086,7 +1150,7 @@ const styles = StyleSheet.create({
     width: SCREEN_WIDTH,
     height: SCREEN_HEIGHT,
   },
-  // Top Buttons with Transparent Background
+  // Top Buttons with Notification Badge
   topLeftButton: {
     position: 'absolute',
     top: Platform.OS === 'android' ? 48 : 60,
@@ -1102,6 +1166,25 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
     padding: 12,
     zIndex: 100,
+  },
+  notificationBadge: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: '#FF3B30',
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 5,
+    borderWidth: 2,
+    borderColor: colors.background,
+  },
+  notificationBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#FFF',
   },
   // TikTok-style Right Side Icons
   rightSideIcons: {
