@@ -18,6 +18,7 @@ import { supabase } from '@/app/integrations/supabase/client';
 import * as Haptics from 'expo-haptics';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
+import { errorHandler, ErrorCategory, ErrorSeverity } from '@/utils/errorHandler';
 
 interface ProductData {
   id: string;
@@ -45,6 +46,10 @@ export default function ProductsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive' | 'sold_out'>('all');
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const [page, setPage] = useState(0);
+  const PAGE_SIZE = 100;
 
   const filterProducts = useCallback(() => {
     let filtered = products;
@@ -65,30 +70,41 @@ export default function ProductsScreen() {
     setFilteredProducts(filtered);
   }, [products, searchQuery, statusFilter]);
 
-  const loadProducts = useCallback(async () => {
+  const loadProducts = useCallback(async (pageNum: number = 0, append: boolean = false) => {
     try {
-      setLoading(true);
-      console.log('Loading products for admin...');
+      if (!append) {
+        setLoading(true);
+      } else {
+        setLoadingMore(true);
+      }
+      
+      console.log(`Loading products page ${pageNum} for admin...`);
+      
+      const from = pageNum * PAGE_SIZE;
+      const to = from + PAGE_SIZE - 1;
       
       // First, get all products with supplier_lists
-      const { data: productsData, error: productsError } = await supabase
+      const { data: productsData, error: productsError, count } = await supabase
         .from('products')
         .select(`
           *,
           supplier_lists (
             name
           )
-        `)
+        `, { count: 'exact' })
         .order('created_at', { ascending: false })
-        .limit(100);
+        .range(from, to);
 
       if (productsError) {
         console.error('Error loading products:', productsError);
-        Alert.alert('Errore', `Impossibile caricare i prodotti: ${productsError.message}`);
+        errorHandler.handleSupabaseError(productsError, { context: 'load_products' });
         return;
       }
 
-      console.log('Products loaded:', productsData?.length || 0);
+      console.log(`Products loaded: ${productsData?.length || 0}, Total: ${count}`);
+
+      // Check if there are more products to load
+      setHasMore(count ? (from + PAGE_SIZE) < count : false);
 
       // Then, get supplier profiles separately
       if (productsData && productsData.length > 0) {
@@ -110,29 +126,50 @@ export default function ProductsScreen() {
               supplier_profile: product.supplier_id ? profilesMap.get(product.supplier_id) : null
             }));
             
-            setProducts(enrichedProducts);
+            if (append) {
+              setProducts(prev => [...prev, ...enrichedProducts]);
+            } else {
+              setProducts(enrichedProducts);
+            }
           } else {
             console.error('Error loading profiles:', profilesError);
-            setProducts(productsData);
+            if (append) {
+              setProducts(prev => [...prev, ...productsData]);
+            } else {
+              setProducts(productsData);
+            }
           }
         } else {
-          setProducts(productsData);
+          if (append) {
+            setProducts(prev => [...prev, ...productsData]);
+          } else {
+            setProducts(productsData);
+          }
         }
       } else {
-        setProducts([]);
+        if (!append) {
+          setProducts([]);
+        }
       }
     } catch (error) {
       console.error('Error loading products:', error);
-      Alert.alert('Errore', 'Si è verificato un errore durante il caricamento dei prodotti');
+      errorHandler.handleError(
+        'Errore imprevisto durante il caricamento dei prodotti',
+        ErrorCategory.UNKNOWN,
+        ErrorSeverity.MEDIUM,
+        { context: 'load_products' },
+        error
+      );
     } finally {
       setLoading(false);
       setRefreshing(false);
+      setLoadingMore(false);
     }
   }, []);
 
   useEffect(() => {
-    loadProducts();
-  }, [loadProducts]);
+    loadProducts(0, false);
+  }, []);
 
   useEffect(() => {
     filterProducts();
@@ -140,7 +177,17 @@ export default function ProductsScreen() {
 
   const handleRefresh = () => {
     setRefreshing(true);
-    loadProducts();
+    setPage(0);
+    setHasMore(true);
+    loadProducts(0, false);
+  };
+
+  const handleLoadMore = () => {
+    if (!loadingMore && hasMore) {
+      const nextPage = page + 1;
+      setPage(nextPage);
+      loadProducts(nextPage, true);
+    }
   };
 
   const getStatusColor = (status: string) => {
@@ -171,31 +218,14 @@ export default function ProductsScreen() {
 
   const getConditionColor = (condition: string) => {
     switch (condition) {
-      case 'new':
+      case 'nuovo':
         return colors.success;
-      case 'like_new':
-        return colors.info;
-      case 'good':
+      case 'reso da cliente':
         return colors.warning;
-      case 'fair':
-        return colors.error;
+      case 'packaging rovinato':
+        return colors.info;
       default:
         return colors.textSecondary;
-    }
-  };
-
-  const getConditionLabel = (condition: string) => {
-    switch (condition) {
-      case 'new':
-        return 'Nuovo';
-      case 'like_new':
-        return 'Come Nuovo';
-      case 'good':
-        return 'Buono';
-      case 'fair':
-        return 'Discreto';
-      default:
-        return condition;
     }
   };
 
@@ -233,7 +263,7 @@ export default function ProductsScreen() {
               </View>
               <View style={[styles.conditionBadge, { backgroundColor: getConditionColor(product.condition) + '20' }]}>
                 <Text style={[styles.conditionText, { color: getConditionColor(product.condition) }]}>
-                  {getConditionLabel(product.condition)}
+                  {product.condition}
                 </Text>
               </View>
             </View>
@@ -260,6 +290,16 @@ export default function ProductsScreen() {
         </View>
       </Pressable>
     );
+  };
+
+  const handleScroll = (event: any) => {
+    const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;
+    const paddingToBottom = 20;
+    const isCloseToBottom = layoutMeasurement.height + contentOffset.y >= contentSize.height - paddingToBottom;
+    
+    if (isCloseToBottom && !loadingMore && hasMore) {
+      handleLoadMore();
+    }
   };
 
   if (loading) {
@@ -354,15 +394,30 @@ export default function ProductsScreen() {
               tintColor={colors.primary}
             />
           }
+          onScroll={handleScroll}
+          scrollEventThrottle={400}
         >
           <View style={styles.statsRow}>
             <Text style={styles.statsText}>
               {filteredProducts.length} prodott{filteredProducts.length === 1 ? 'o' : 'i'} trovat{filteredProducts.length === 1 ? 'o' : 'i'}
             </Text>
+            {hasMore && (
+              <Text style={styles.loadMoreText}>
+                Scorri per caricare altri prodotti
+              </Text>
+            )}
           </View>
 
           {filteredProducts.length > 0 ? (
-            filteredProducts.map(renderProduct)
+            <>
+              {filteredProducts.map(renderProduct)}
+              {loadingMore && (
+                <View style={styles.loadingMoreContainer}>
+                  <ActivityIndicator size="small" color={colors.primary} />
+                  <Text style={styles.loadingMoreText}>Caricamento...</Text>
+                </View>
+              )}
+            </>
           ) : (
             <View style={styles.emptyState}>
               <IconSymbol
@@ -466,11 +521,19 @@ const styles = StyleSheet.create({
   },
   statsRow: {
     marginBottom: 16,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   statsText: {
     fontSize: 14,
     fontWeight: '600',
     color: colors.textSecondary,
+  },
+  loadMoreText: {
+    fontSize: 12,
+    color: colors.textTertiary,
+    fontStyle: 'italic',
   },
   productCard: {
     backgroundColor: colors.card,
@@ -564,6 +627,17 @@ const styles = StyleSheet.create({
   productStock: {
     fontSize: 13,
     fontWeight: '600',
+    color: colors.textSecondary,
+  },
+  loadingMoreContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 20,
+    gap: 8,
+  },
+  loadingMoreText: {
+    fontSize: 14,
     color: colors.textSecondary,
   },
   emptyState: {

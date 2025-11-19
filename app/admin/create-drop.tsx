@@ -166,15 +166,10 @@ export default function CreateDropScreen() {
     try {
       setLoading(true);
 
-      // Load supplier lists
+      // Load supplier lists - load separately to avoid RLS issues
       const { data: lists, error: listsError } = await supabase
         .from('supplier_lists')
-        .select(`
-          *,
-          profiles:supplier_id (
-            full_name
-          )
-        `)
+        .select('*')
         .eq('status', 'active')
         .order('created_at', { ascending: false });
 
@@ -182,6 +177,28 @@ export default function CreateDropScreen() {
         console.error('Error loading supplier lists:', listsError);
         errorHandler.handleSupabaseError(listsError, { context: 'load_supplier_lists' });
         return;
+      }
+
+      // Load supplier profiles separately
+      if (lists && lists.length > 0) {
+        const supplierIds = [...new Set(lists.map(l => l.supplier_id))];
+        const { data: profiles, error: profilesError } = await supabase
+          .from('profiles')
+          .select('user_id, full_name')
+          .in('user_id', supplierIds);
+
+        if (!profilesError && profiles) {
+          const profilesMap = new Map(profiles.map(p => [p.user_id, p]));
+          const enrichedLists = lists.map(list => ({
+            ...list,
+            profiles: list.supplier_id ? profilesMap.get(list.supplier_id) : undefined
+          }));
+          setSupplierLists(enrichedLists);
+        } else {
+          setSupplierLists(lists);
+        }
+      } else {
+        setSupplierLists([]);
       }
 
       // Load pickup points
@@ -197,7 +214,6 @@ export default function CreateDropScreen() {
         return;
       }
 
-      setSupplierLists(lists || []);
       setPickupPoints(points || []);
     } catch (error) {
       console.error('Error in loadData:', error);
@@ -239,6 +255,9 @@ export default function CreateDropScreen() {
               setCreating(true);
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
+              // Get current user for approved_by field
+              const { data: { user } } = await supabase.auth.getUser();
+
               // Calculate end time (5 days from now)
               const endTime = new Date();
               endTime.setDate(endTime.getDate() + 5);
@@ -257,6 +276,7 @@ export default function CreateDropScreen() {
                   start_time: new Date().toISOString(),
                   end_time: endTime.toISOString(),
                   approved_at: new Date().toISOString(),
+                  approved_by: user?.id,
                 })
                 .select()
                 .single();
@@ -272,6 +292,7 @@ export default function CreateDropScreen() {
               // Log activity
               await logDropActivity.created(drop.name, drop.id);
 
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
               Alert.alert(
                 'Drop Creato!',
                 `Il drop "${drop.name}" è stato creato con successo.\n\nStato: Approvato (pronto per l'attivazione)\nSconto iniziale: ${list.min_discount}%\nSconto massimo: ${list.max_discount}%\nDurata: 5 giorni`,

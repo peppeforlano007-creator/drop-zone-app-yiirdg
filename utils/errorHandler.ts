@@ -142,6 +142,8 @@ class ErrorHandler {
         return 'Richiesta non valida. Verifica i dati inseriti.';
       case 'PGRST202':
         return 'Errore nella richiesta. Alcuni parametri non sono validi.';
+      case 'PGRST200':
+        return 'Errore nel caricamento dei dati. Riprova tra qualche istante.';
       case '23505':
         return 'Questo elemento esiste già nel sistema.';
       case '23503':
@@ -149,9 +151,11 @@ class ErrorHandler {
       case '23502':
         return 'Alcuni campi obbligatori sono mancanti.';
       case '42P01':
-        return 'Errore di sistema. La risorsa richiesta non è disponibile.';
+        return 'Errore di sistema. La risorsa richiesta non è disponibile. Contatta l\'assistenza.';
       case '42501':
         return 'Permessi insufficienti per questa operazione.';
+      case '42703':
+        return 'Errore di sistema. Alcuni dati richiesti non sono disponibili.';
       case '08006':
       case '08003':
       case '08000':
@@ -160,6 +164,10 @@ class ErrorHandler {
         // Check if it's a generic PGRST error
         if (code.startsWith('PGRST')) {
           return 'Errore nel caricamento dei dati. Riprova tra qualche istante.';
+        }
+        // Check if it's a PostgreSQL error code (5 characters)
+        if (code.length === 5) {
+          return 'Errore del database. Riprova tra qualche istante.';
         }
         return null;
     }
@@ -193,6 +201,10 @@ class ErrorHandler {
 
     if (lowerMessage.includes('invalid') || lowerMessage.includes('malformed')) {
       return 'Dati non validi. Verifica le informazioni inserite.';
+    }
+
+    if (lowerMessage.includes('could not find') || lowerMessage.includes('does not exist')) {
+      return 'La risorsa richiesta non esiste o non è disponibile.';
     }
 
     return null;
@@ -273,6 +285,10 @@ class ErrorHandler {
     } else if (error.code?.startsWith('08')) {
       category = ErrorCategory.NETWORK;
       severity = ErrorSeverity.HIGH;
+    } else if (error.code === '42P01' || error.code === '42703') {
+      // Table or column not found - critical system error
+      category = ErrorCategory.DATABASE;
+      severity = ErrorSeverity.CRITICAL;
     }
 
     this.handleError(message, category, severity, context, error, showAlert);

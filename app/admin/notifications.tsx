@@ -16,6 +16,7 @@ import { supabase } from '@/app/integrations/supabase/client';
 import * as Haptics from 'expo-haptics';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
+import { errorHandler, ErrorCategory, ErrorSeverity } from '@/utils/errorHandler';
 
 interface NotificationTemplate {
   id: string;
@@ -94,43 +95,51 @@ export default function NotificationsScreen() {
               let query = supabase.from('profiles').select('user_id, email, full_name');
               
               if (targetAudience !== 'all') {
-                query = query.eq('role', targetAudience === 'consumers' ? 'consumer' : targetAudience);
+                const roleMap = {
+                  consumers: 'consumer',
+                  suppliers: 'supplier',
+                  pickup_points: 'pickup_point',
+                };
+                query = query.eq('role', roleMap[targetAudience]);
               }
 
               const { data: users, error } = await query;
 
               if (error) {
                 console.error('Error fetching users:', error);
-                Alert.alert('Errore', 'Impossibile recuperare gli utenti');
+                errorHandler.handleSupabaseError(error, { context: 'fetch_users_for_notification' });
+                return;
+              }
+
+              if (!users || users.length === 0) {
+                Alert.alert('Attenzione', 'Nessun utente trovato per questa categoria');
                 return;
               }
 
               // Create notification records for each user
-              const notifications = users?.map(user => ({
+              const notifications = users.map(user => ({
                 user_id: user.user_id,
                 title,
                 message,
                 type: 'general' as const,
                 read: false,
-              })) || [];
+              }));
 
-              if (notifications.length > 0) {
-                const { error: notifError } = await supabase
-                  .from('notifications')
-                  .insert(notifications);
+              const { error: notifError } = await supabase
+                .from('notifications')
+                .insert(notifications);
 
-                if (notifError) {
-                  console.error('Error creating notifications:', notifError);
-                  Alert.alert('Errore', 'Impossibile creare le notifiche');
-                  return;
-                }
+              if (notifError) {
+                console.error('Error creating notifications:', notifError);
+                errorHandler.handleSupabaseError(notifError, { context: 'create_notifications' });
+                return;
               }
 
-              console.log('Sent notification to', users?.length, 'users');
+              console.log('Sent notification to', users.length, 'users');
 
               Alert.alert(
                 'Notifica Inviata',
-                `La notifica è stata inviata a ${users?.length || 0} utenti.`,
+                `La notifica è stata inviata a ${users.length} utenti.`,
                 [
                   {
                     text: 'OK',
@@ -144,7 +153,13 @@ export default function NotificationsScreen() {
               );
             } catch (error) {
               console.error('Error sending notification:', error);
-              Alert.alert('Errore', 'Si è verificato un errore durante l\'invio');
+              errorHandler.handleError(
+                'Errore imprevisto durante l\'invio della notifica',
+                ErrorCategory.UNKNOWN,
+                ErrorSeverity.HIGH,
+                { context: 'send_notification' },
+                error
+              );
             } finally {
               setSending(false);
             }

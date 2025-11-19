@@ -17,7 +17,7 @@ import { supabase } from '@/app/integrations/supabase/client';
 import * as Haptics from 'expo-haptics';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
-import { errorHandler } from '@/utils/errorHandler';
+import { errorHandler, ErrorCategory, ErrorSeverity } from '@/utils/errorHandler';
 
 interface BookingData {
   id: string;
@@ -89,36 +89,59 @@ export default function BookingsScreen() {
   const loadBookings = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
+      
+      // Load bookings first
+      const { data: bookingsData, error: bookingsError } = await supabase
         .from('bookings')
-        .select(`
-          *,
-          profiles (
-            full_name,
-            email
-          ),
-          products (
-            name,
-            image_url
-          ),
-          drops (
-            name,
-            status
-          )
-        `)
+        .select('*')
         .order('created_at', { ascending: false })
         .limit(200);
 
-      if (error) {
-        console.error('Error loading bookings:', error);
-        errorHandler.handleSupabaseError(error, { context: 'load_bookings' });
+      if (bookingsError) {
+        console.error('Error loading bookings:', bookingsError);
+        errorHandler.handleSupabaseError(bookingsError, { context: 'load_bookings' });
         return;
       }
 
-      setBookings(data || []);
+      if (!bookingsData || bookingsData.length === 0) {
+        setBookings([]);
+        return;
+      }
+
+      // Load related data separately
+      const userIds = [...new Set(bookingsData.map(b => b.user_id))];
+      const productIds = [...new Set(bookingsData.map(b => b.product_id))];
+      const dropIds = [...new Set(bookingsData.map(b => b.drop_id))];
+
+      const [profilesResult, productsResult, dropsResult] = await Promise.all([
+        supabase.from('profiles').select('user_id, full_name, email').in('user_id', userIds),
+        supabase.from('products').select('id, name, image_url').in('id', productIds),
+        supabase.from('drops').select('id, name, status').in('id', dropIds),
+      ]);
+
+      // Create maps for quick lookup
+      const profilesMap = new Map(profilesResult.data?.map(p => [p.user_id, p]) || []);
+      const productsMap = new Map(productsResult.data?.map(p => [p.id, p]) || []);
+      const dropsMap = new Map(dropsResult.data?.map(d => [d.id, d]) || []);
+
+      // Enrich bookings with related data
+      const enrichedBookings = bookingsData.map(booking => ({
+        ...booking,
+        profiles: profilesMap.get(booking.user_id) || { full_name: 'N/A', email: 'N/A' },
+        products: productsMap.get(booking.product_id) || { name: 'N/A', image_url: '' },
+        drops: dropsMap.get(booking.drop_id) || { name: 'N/A', status: 'unknown' },
+      }));
+
+      setBookings(enrichedBookings);
     } catch (error) {
       console.error('Error loading bookings:', error);
-      Alert.alert('Errore', 'Si è verificato un errore');
+      errorHandler.handleError(
+        'Errore imprevisto durante il caricamento delle prenotazioni',
+        ErrorCategory.UNKNOWN,
+        ErrorSeverity.MEDIUM,
+        { context: 'load_bookings' },
+        error
+      );
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -391,7 +414,9 @@ export default function BookingsScreen() {
               />
               <Text style={styles.emptyTitle}>Nessuna prenotazione trovata</Text>
               <Text style={styles.emptyText}>
-                Prova a modificare i filtri di ricerca
+                {bookings.length === 0 
+                  ? 'Non ci sono ancora prenotazioni nel sistema'
+                  : 'Prova a modificare i filtri di ricerca'}
               </Text>
             </View>
           )}
