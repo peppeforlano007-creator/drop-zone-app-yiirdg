@@ -60,7 +60,7 @@ export default function SettingsScreen() {
         .from('app_settings')
         .select('setting_value')
         .eq('setting_key', 'whatsapp_support_number')
-        .single();
+        .maybeSingle();
 
       if (whatsappError) {
         console.error('Error loading WhatsApp number:', whatsappError);
@@ -116,15 +116,14 @@ export default function SettingsScreen() {
 
               if (checkError) {
                 console.error('Error checking existing setting:', checkError);
-                Alert.alert('Errore', `Errore durante la verifica: ${checkError.message}`);
-                return;
+                throw new Error(`Errore durante la verifica delle impostazioni esistenti: ${checkError.message}`);
               }
 
               let saveError;
 
               if (existingData) {
                 // Update existing setting
-                console.log('Updating existing setting...');
+                console.log('Updating existing setting with id:', existingData.id);
                 const { error } = await supabase
                   .from('app_settings')
                   .update({ 
@@ -150,11 +149,7 @@ export default function SettingsScreen() {
 
               if (saveError) {
                 console.error('Error saving WhatsApp number:', saveError);
-                Alert.alert(
-                  'Errore di Salvataggio',
-                  `Si è verificato un errore durante il salvataggio:\n\n${saveError.message}\n\nCodice: ${saveError.code || 'N/A'}\n\nDettagli: ${saveError.details || 'N/A'}`
-                );
-                return;
+                throw new Error(`Errore durante il salvataggio: ${saveError.message}`);
               }
 
               // Verify the save was successful
@@ -166,14 +161,21 @@ export default function SettingsScreen() {
 
               if (verifyError) {
                 console.error('Error verifying save:', verifyError);
-                Alert.alert(
-                  'Attenzione',
-                  'Il salvataggio potrebbe non essere riuscito. Verifica le impostazioni.'
-                );
-              } else if (verifyData.setting_value === settings.whatsapp_support_number) {
-                console.log('Save verified successfully:', verifyData.setting_value);
-                
-                // Log activity with correct signature
+                throw new Error('Impossibile verificare il salvataggio');
+              }
+
+              if (verifyData.setting_value !== settings.whatsapp_support_number) {
+                console.error('Verification mismatch:', {
+                  saved: verifyData.setting_value,
+                  expected: settings.whatsapp_support_number
+                });
+                throw new Error('Il valore salvato non corrisponde al valore inserito');
+              }
+
+              console.log('Save verified successfully:', verifyData.setting_value);
+              
+              // Log activity (non-blocking - don't fail if this fails)
+              try {
                 await logActivity({
                   action: 'update_settings',
                   description: 'Impostazioni aggiornate',
@@ -181,25 +183,19 @@ export default function SettingsScreen() {
                     whatsapp_support_number: settings.whatsapp_support_number,
                   }
                 });
-
-                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                setHasChanges(false);
-                Alert.alert('Successo', 'Impostazioni salvate con successo!');
-              } else {
-                console.error('Verification mismatch:', {
-                  saved: verifyData.setting_value,
-                  expected: settings.whatsapp_support_number
-                });
-                Alert.alert(
-                  'Errore',
-                  'Il valore salvato non corrisponde. Riprova.'
-                );
+              } catch (logError) {
+                console.error('Failed to log activity (non-critical):', logError);
+                // Don't throw - activity logging failure shouldn't prevent success message
               }
+
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              setHasChanges(false);
+              Alert.alert('Successo', 'Impostazioni salvate con successo!');
             } catch (error) {
               console.error('Exception saving settings:', error);
               Alert.alert(
                 'Errore',
-                `Si è verificato un errore imprevisto:\n\n${error instanceof Error ? error.message : 'Errore sconosciuto'}`
+                error instanceof Error ? error.message : 'Si è verificato un errore imprevisto durante il salvataggio'
               );
             } finally {
               setSaving(false);
