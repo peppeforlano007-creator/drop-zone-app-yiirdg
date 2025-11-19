@@ -173,14 +173,14 @@ export default function SettingsScreen() {
               } else if (verifyData.setting_value === settings.whatsapp_support_number) {
                 console.log('Save verified successfully:', verifyData.setting_value);
                 
-                // Log activity
-                await logActivity(
-                  'update_settings',
-                  'Impostazioni aggiornate',
-                  {
+                // Log activity with correct signature
+                await logActivity({
+                  action: 'update_settings',
+                  description: 'Impostazioni aggiornate',
+                  metadata: {
                     whatsapp_support_number: settings.whatsapp_support_number,
                   }
-                );
+                });
 
                 Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
                 setHasChanges(false);
