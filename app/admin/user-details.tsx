@@ -142,90 +142,6 @@ export default function UserDetailsScreen() {
     });
   };
 
-  const handleDeleteUser = () => {
-    if (!user) return;
-
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    
-    Alert.alert(
-      'Elimina Utente',
-      `Sei sicuro di voler eliminare l'utente "${user.full_name}"?\n\nQuesta azione eliminerà anche:\n- ${bookings.length} prenotazioni\n- Tutti i dati associati\n\nQuesta azione non può essere annullata.`,
-      [
-        { text: 'Annulla', style: 'cancel' },
-        {
-          text: 'Elimina',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              // Delete user bookings
-              const { error: bookingsError } = await supabase
-                .from('bookings')
-                .delete()
-                .eq('user_id', userId);
-
-              if (bookingsError) {
-                console.error('Error deleting bookings:', bookingsError);
-                Alert.alert('Errore', 'Impossibile eliminare le prenotazioni');
-                return;
-              }
-
-              // Delete user interests
-              const { error: interestsError } = await supabase
-                .from('user_interests')
-                .delete()
-                .eq('user_id', userId);
-
-              if (interestsError) {
-                console.error('Error deleting interests:', interestsError);
-              }
-
-              // Delete payment methods
-              const { error: paymentError } = await supabase
-                .from('payment_methods')
-                .delete()
-                .eq('user_id', userId);
-
-              if (paymentError) {
-                console.error('Error deleting payment methods:', paymentError);
-              }
-
-              // Delete profile
-              const { error: profileError } = await supabase
-                .from('profiles')
-                .delete()
-                .eq('user_id', userId);
-
-              if (profileError) {
-                console.error('Error deleting profile:', profileError);
-                Alert.alert('Errore', 'Impossibile eliminare il profilo');
-                return;
-              }
-
-              // Delete auth user (this will cascade delete everything else)
-              const { error: authError } = await supabase.auth.admin.deleteUser(userId);
-
-              if (authError) {
-                console.error('Error deleting auth user:', authError);
-                // Don't show error if profile was already deleted
-              }
-
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-              Alert.alert('Successo', 'Utente eliminato con successo', [
-                {
-                  text: 'OK',
-                  onPress: () => router.back(),
-                },
-              ]);
-            } catch (error) {
-              console.error('Error deleting user:', error);
-              Alert.alert('Errore', 'Si è verificato un errore');
-            }
-          },
-        },
-      ]
-    );
-  };
-
   const getRoleColor = (role: string) => {
     switch (role) {
       case 'admin':
@@ -463,40 +379,22 @@ export default function UserDetailsScreen() {
               </Text>
             </View>
 
-            {/* Action Buttons */}
-            <View style={styles.buttonRow}>
-              <Pressable
-                style={({ pressed }) => [
-                  styles.editButton,
-                  pressed && styles.editButtonPressed,
-                ]}
-                onPress={handleEditUser}
-              >
-                <IconSymbol
-                  ios_icon_name="pencil"
-                  android_material_icon_name="edit"
-                  size={20}
-                  color="#FFF"
-                />
-                <Text style={styles.editButtonText}>Modifica</Text>
-              </Pressable>
-              
-              <Pressable
-                style={({ pressed }) => [
-                  styles.deleteButton,
-                  pressed && styles.deleteButtonPressed,
-                ]}
-                onPress={handleDeleteUser}
-              >
-                <IconSymbol
-                  ios_icon_name="trash.fill"
-                  android_material_icon_name="delete"
-                  size={20}
-                  color="#FFF"
-                />
-                <Text style={styles.deleteButtonText}>Elimina</Text>
-              </Pressable>
-            </View>
+            {/* Action Button */}
+            <Pressable
+              style={({ pressed }) => [
+                styles.editButton,
+                pressed && styles.editButtonPressed,
+              ]}
+              onPress={handleEditUser}
+            >
+              <IconSymbol
+                ios_icon_name="pencil"
+                android_material_icon_name="edit"
+                size={20}
+                color="#FFF"
+              />
+              <Text style={styles.editButtonText}>Modifica Utente</Text>
+            </Pressable>
           </View>
 
           {/* Bookings Section */}
@@ -682,12 +580,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.textTertiary,
   },
-  buttonRow: {
-    flexDirection: 'row',
-    gap: 8,
-  },
   editButton: {
-    flex: 1,
     backgroundColor: colors.primary,
     borderRadius: 12,
     padding: 16,
@@ -701,25 +594,6 @@ const styles = StyleSheet.create({
     transform: [{ scale: 0.98 }],
   },
   editButtonText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#FFF',
-  },
-  deleteButton: {
-    flex: 1,
-    backgroundColor: '#FF3B30',
-    borderRadius: 12,
-    padding: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-  },
-  deleteButtonPressed: {
-    opacity: 0.7,
-    transform: [{ scale: 0.98 }],
-  },
-  deleteButtonText: {
     fontSize: 14,
     fontWeight: '700',
     color: '#FFF',

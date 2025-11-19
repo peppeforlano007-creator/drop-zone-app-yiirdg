@@ -235,69 +235,6 @@ export default function ProductsScreen() {
     }
   };
 
-  const renderProduct = (product: ProductData) => {
-    return (
-      <Pressable
-        key={product.id}
-        style={({ pressed }) => [
-          styles.productCard,
-          pressed && styles.productCardPressed,
-        ]}
-        onPress={() => {
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-          router.push({
-            pathname: '/admin/edit-product',
-            params: { productId: product.id },
-          });
-        }}
-      >
-        <Image
-          source={{ uri: product.image_url }}
-          style={styles.productImage}
-          resizeMode="cover"
-        />
-        <View style={styles.productInfo}>
-          <View style={styles.productHeader}>
-            <Text style={styles.productName} numberOfLines={2}>
-              {product.name}
-            </Text>
-            <View style={styles.badges}>
-              <View style={[styles.statusBadge, { backgroundColor: getStatusColor(product.status) + '20' }]}>
-                <Text style={[styles.statusText, { color: getStatusColor(product.status) }]}>
-                  {getStatusLabel(product.status)}
-                </Text>
-              </View>
-              <View style={[styles.conditionBadge, { backgroundColor: getConditionColor(product.condition) + '20' }]}>
-                <Text style={[styles.conditionText, { color: getConditionColor(product.condition) }]}>
-                  {product.condition}
-                </Text>
-              </View>
-            </View>
-          </View>
-
-          <Text style={styles.productSupplier}>
-            Fornitore: {product.supplier_profile?.full_name || 'N/A'}
-          </Text>
-          <Text style={styles.productList}>
-            Lista: {product.supplier_lists?.name || 'N/A'}
-          </Text>
-          {product.category && (
-            <Text style={styles.productCategory}>
-              Categoria: {product.category}
-            </Text>
-          )}
-
-          <View style={styles.productFooter}>
-            <View style={styles.priceContainer}>
-              <Text style={styles.productPrice}>€{product.original_price.toFixed(2)}</Text>
-              <Text style={styles.productStock}>Stock: {product.stock}</Text>
-            </View>
-          </View>
-        </View>
-      </Pressable>
-    );
-  };
-
   const handleScroll = (event: any) => {
     const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;
     const paddingToBottom = 20;
@@ -416,7 +353,66 @@ export default function ProductsScreen() {
 
           {filteredProducts.length > 0 ? (
             <>
-              {filteredProducts.map(renderProduct)}
+              {filteredProducts.map((product, index) => (
+                <Pressable
+                  key={`${product.id}-${index}`}
+                  style={({ pressed }) => [
+                    styles.productCard,
+                    pressed && styles.productCardPressed,
+                  ]}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    router.push({
+                      pathname: '/admin/edit-product',
+                      params: { productId: product.id },
+                    });
+                  }}
+                >
+                  <Image
+                    source={{ uri: product.image_url }}
+                    style={styles.productImage}
+                    resizeMode="cover"
+                  />
+                  <View style={styles.productInfo}>
+                    <View style={styles.productHeader}>
+                      <Text style={styles.productName} numberOfLines={2}>
+                        {product.name}
+                      </Text>
+                      <View style={styles.badges}>
+                        <View style={[styles.statusBadge, { backgroundColor: getStatusColor(product.status) + '20' }]}>
+                          <Text style={[styles.statusText, { color: getStatusColor(product.status) }]}>
+                            {getStatusLabel(product.status)}
+                          </Text>
+                        </View>
+                        <View style={[styles.conditionBadge, { backgroundColor: getConditionColor(product.condition) + '20' }]}>
+                          <Text style={[styles.conditionText, { color: getConditionColor(product.condition) }]}>
+                            {product.condition}
+                          </Text>
+                        </View>
+                      </View>
+                    </View>
+
+                    <Text style={styles.productSupplier}>
+                      Fornitore: {product.supplier_profile?.full_name || 'N/A'}
+                    </Text>
+                    <Text style={styles.productList}>
+                      Lista: {product.supplier_lists?.name || 'N/A'}
+                    </Text>
+                    {product.category && (
+                      <Text style={styles.productCategory}>
+                        Categoria: {product.category}
+                      </Text>
+                    )}
+
+                    <View style={styles.productFooter}>
+                      <View style={styles.priceContainer}>
+                        <Text style={styles.productPrice}>€{product.original_price.toFixed(2)}</Text>
+                        <Text style={styles.productStock}>Stock: {product.stock}</Text>
+                      </View>
+                    </View>
+                  </View>
+                </Pressable>
+              ))}
               {loadingMore && (
                 <View style={styles.loadingMoreContainer}>
                   <ActivityIndicator size="small" color={colors.primary} />

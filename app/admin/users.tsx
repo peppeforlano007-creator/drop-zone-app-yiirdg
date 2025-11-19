@@ -134,6 +134,99 @@ export default function UsersScreen() {
     });
   };
 
+  const handleCreateUser = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push('/admin/create-user');
+  };
+
+  const handleDeleteUser = (user: UserData) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    
+    Alert.alert(
+      'Elimina Utente',
+      `Sei sicuro di voler eliminare l'utente "${user.full_name}"?\n\nQuesta azione eliminerà anche tutti i dati associati.\n\nQuesta azione non può essere annullata.`,
+      [
+        { text: 'Annulla', style: 'cancel' },
+        {
+          text: 'Elimina',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              // Delete user bookings
+              const { error: bookingsError } = await supabase
+                .from('bookings')
+                .delete()
+                .eq('user_id', user.user_id);
+
+              if (bookingsError) {
+                console.error('Error deleting bookings:', bookingsError);
+              }
+
+              // Delete user interests
+              const { error: interestsError } = await supabase
+                .from('user_interests')
+                .delete()
+                .eq('user_id', user.user_id);
+
+              if (interestsError) {
+                console.error('Error deleting interests:', interestsError);
+              }
+
+              // Delete payment methods
+              const { error: paymentError } = await supabase
+                .from('payment_methods')
+                .delete()
+                .eq('user_id', user.user_id);
+
+              if (paymentError) {
+                console.error('Error deleting payment methods:', paymentError);
+              }
+
+              // Delete notifications
+              const { error: notificationsError } = await supabase
+                .from('notifications')
+                .delete()
+                .eq('user_id', user.user_id);
+
+              if (notificationsError) {
+                console.error('Error deleting notifications:', notificationsError);
+              }
+
+              // Delete profile
+              const { error: profileError } = await supabase
+                .from('profiles')
+                .delete()
+                .eq('user_id', user.user_id);
+
+              if (profileError) {
+                console.error('Error deleting profile:', profileError);
+                Alert.alert('Errore', 'Impossibile eliminare il profilo');
+                return;
+              }
+
+              // Delete auth user (this will cascade delete everything else)
+              const { error: authError } = await supabase.auth.admin.deleteUser(user.user_id);
+
+              if (authError) {
+                console.error('Error deleting auth user:', authError);
+                // Don't show error if profile was already deleted
+              }
+
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              Alert.alert('Successo', 'Utente eliminato con successo');
+              
+              // Reload users
+              loadUsers();
+            } catch (error) {
+              console.error('Error deleting user:', error);
+              Alert.alert('Errore', 'Si è verificato un errore durante l\'eliminazione');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const getRoleColor = (role: string) => {
     switch (role) {
       case 'admin':
@@ -183,53 +276,73 @@ export default function UsersScreen() {
     const roleIcon = getRoleIcon(user.role);
     
     return (
-      <Pressable
+      <View
         key={user.id}
-        style={({ pressed }) => [
-          styles.userCard,
-          pressed && styles.userCardPressed,
-        ]}
-        onPress={() => handleViewUser(user.user_id)}
+        style={styles.userCard}
       >
-        <View style={styles.userHeader}>
-          <View style={styles.userInfo}>
-            <View style={styles.userNameRow}>
-              <Text style={styles.userName}>{user.full_name || 'N/A'}</Text>
-              <View style={[styles.roleBadge, { backgroundColor: getRoleColor(user.role) + '20' }]}>
-                <IconSymbol
-                  ios_icon_name={roleIcon.ios}
-                  android_material_icon_name={roleIcon.android}
-                  size={12}
-                  color={getRoleColor(user.role)}
-                />
-                <Text style={[styles.roleText, { color: getRoleColor(user.role) }]}>
-                  {getRoleLabel(user.role)}
-                </Text>
+        <Pressable
+          style={({ pressed }) => [
+            styles.userCardContent,
+            pressed && styles.userCardPressed,
+          ]}
+          onPress={() => handleViewUser(user.user_id)}
+        >
+          <View style={styles.userHeader}>
+            <View style={styles.userInfo}>
+              <View style={styles.userNameRow}>
+                <Text style={styles.userName}>{user.full_name || 'N/A'}</Text>
+                <View style={[styles.roleBadge, { backgroundColor: getRoleColor(user.role) + '20' }]}>
+                  <IconSymbol
+                    ios_icon_name={roleIcon.ios}
+                    android_material_icon_name={roleIcon.android}
+                    size={12}
+                    color={getRoleColor(user.role)}
+                  />
+                  <Text style={[styles.roleText, { color: getRoleColor(user.role) }]}>
+                    {getRoleLabel(user.role)}
+                  </Text>
+                </View>
               </View>
+              <Text style={styles.userEmail}>{user.email}</Text>
+              {user.phone && (
+                <Text style={styles.userPhone}>{user.phone}</Text>
+              )}
+              {user.pickup_points && (
+                <Text style={styles.userPickupPoint}>
+                  📍 {user.pickup_points.city} - {user.pickup_points.name}
+                </Text>
+              )}
             </View>
-            <Text style={styles.userEmail}>{user.email}</Text>
-            {user.phone && (
-              <Text style={styles.userPhone}>{user.phone}</Text>
-            )}
-            {user.pickup_points && (
-              <Text style={styles.userPickupPoint}>
-                📍 {user.pickup_points.city} - {user.pickup_points.name}
-              </Text>
-            )}
+            <IconSymbol
+              ios_icon_name="chevron.right"
+              android_material_icon_name="chevron_right"
+              size={20}
+              color={colors.textTertiary}
+            />
           </View>
+          <View style={styles.userFooter}>
+            <Text style={styles.userDate}>
+              Registrato: {new Date(user.created_at).toLocaleDateString('it-IT')}
+            </Text>
+          </View>
+        </Pressable>
+        
+        <Pressable
+          style={({ pressed }) => [
+            styles.deleteButton,
+            pressed && styles.deleteButtonPressed,
+          ]}
+          onPress={() => handleDeleteUser(user)}
+        >
           <IconSymbol
-            ios_icon_name="chevron.right"
-            android_material_icon_name="chevron_right"
-            size={20}
-            color={colors.textTertiary}
+            ios_icon_name="trash.fill"
+            android_material_icon_name="delete"
+            size={18}
+            color="#FFF"
           />
-        </View>
-        <View style={styles.userFooter}>
-          <Text style={styles.userDate}>
-            Registrato: {new Date(user.created_at).toLocaleDateString('it-IT')}
-          </Text>
-        </View>
-      </Pressable>
+          <Text style={styles.deleteButtonText}>Elimina</Text>
+        </Pressable>
+      </View>
     );
   };
 
@@ -327,10 +440,26 @@ export default function UsersScreen() {
             />
           }
         >
-          <View style={styles.statsRow}>
+          <View style={styles.headerRow}>
             <Text style={styles.statsText}>
               {filteredUsers.length} utent{filteredUsers.length === 1 ? 'e' : 'i'} trovat{filteredUsers.length === 1 ? 'o' : 'i'}
             </Text>
+            
+            <Pressable
+              style={({ pressed }) => [
+                styles.createButton,
+                pressed && styles.createButtonPressed,
+              ]}
+              onPress={handleCreateUser}
+            >
+              <IconSymbol
+                ios_icon_name="plus.circle.fill"
+                android_material_icon_name="add_circle"
+                size={20}
+                color="#FFF"
+              />
+              <Text style={styles.createButtonText}>Crea Utente</Text>
+            </Pressable>
           </View>
 
           {filteredUsers.length > 0 ? (
@@ -434,25 +563,48 @@ const styles = StyleSheet.create({
   filterButtonTextActive: {
     color: '#fff',
   },
-  statsRow: {
+  headerRow: {
     marginBottom: 16,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   statsText: {
     fontSize: 14,
     fontWeight: '600',
     color: colors.textSecondary,
   },
+  createButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.primary,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    gap: 6,
+  },
+  createButtonPressed: {
+    opacity: 0.7,
+    transform: [{ scale: 0.98 }],
+  },
+  createButtonText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#FFF',
+  },
   userCard: {
     backgroundColor: colors.card,
     borderRadius: 12,
-    padding: 16,
     marginBottom: 12,
     borderWidth: 1,
     borderColor: colors.border,
+    overflow: 'hidden',
+  },
+  userCardContent: {
+    padding: 16,
   },
   userCardPressed: {
     opacity: 0.7,
-    transform: [{ scale: 0.98 }],
   },
   userHeader: {
     flexDirection: 'row',
@@ -512,6 +664,24 @@ const styles = StyleSheet.create({
   userDate: {
     fontSize: 12,
     color: colors.textTertiary,
+  },
+  deleteButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FF3B30',
+    paddingVertical: 12,
+    gap: 6,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  deleteButtonPressed: {
+    opacity: 0.7,
+  },
+  deleteButtonText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#FFF',
   },
   emptyState: {
     alignItems: 'center',
