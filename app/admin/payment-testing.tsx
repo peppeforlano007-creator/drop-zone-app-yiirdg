@@ -16,6 +16,7 @@ import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 import * as Haptics from 'expo-haptics';
 import { supabase } from '@/app/integrations/supabase/client';
+import { deleteAllTestData } from '@/utils/testDataHelpers';
 
 interface TestCard {
   name: string;
@@ -290,6 +291,93 @@ export default function PaymentTestingScreen() {
     setShowGuide(!showGuide);
   };
 
+  const handleReturnToProduction = async () => {
+    Alert.alert(
+      '⚠️ ATTENZIONE: Ritorno a Produzione',
+      'Questa azione eliminerà TUTTI i dati di test e rimuoverà la sezione Test Pagamenti.\n\n' +
+      'L\'app verrà ricollegata al database di produzione con dati reali.\n\n' +
+      'Verranno eliminati:\n' +
+      '• Tutte le prenotazioni di test\n' +
+      '• Tutti gli interessi utente di test\n' +
+      '• Tutti i drop di test\n' +
+      '• Tutti i prodotti di test\n' +
+      '• Tutte le liste fornitori di test\n\n' +
+      'QUESTA AZIONE È IRREVERSIBILE!\n\n' +
+      'Sei assolutamente sicuro di voler procedere?',
+      [
+        { text: 'Annulla', style: 'cancel' },
+        {
+          text: 'Conferma Eliminazione',
+          style: 'destructive',
+          onPress: () => {
+            Alert.alert(
+              '🔴 ULTIMA CONFERMA',
+              'Stai per eliminare TUTTI i dati di test e tornare alla modalità produzione.\n\n' +
+              'Confermi di voler procedere?',
+              [
+                { text: 'Annulla', style: 'cancel' },
+                {
+                  text: 'SÌ, ELIMINA TUTTO',
+                  style: 'destructive',
+                  onPress: executeReturnToProduction,
+                },
+              ]
+            );
+          },
+        },
+      ]
+    );
+  };
+
+  const executeReturnToProduction = async () => {
+    setTesting(true);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+
+    try {
+      console.log('🔄 Inizio eliminazione dati di test...');
+
+      // Delete all test data
+      const result = await deleteAllTestData();
+
+      if (result.success) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        
+        Alert.alert(
+          '✅ Ritorno a Produzione Completato',
+          'Tutti i dati di test sono stati eliminati con successo.\n\n' +
+          'L\'app è ora collegata al database di produzione.\n\n' +
+          'Verrai reindirizzato alla dashboard admin.',
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                router.replace('/admin/dashboard');
+              },
+            },
+          ]
+        );
+      } else {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        Alert.alert(
+          '❌ Errore',
+          `Errore durante l'eliminazione dei dati:\n\n${result.message}\n\n` +
+          'Alcuni dati potrebbero non essere stati eliminati. Controlla manualmente il database.',
+          [{ text: 'OK' }]
+        );
+      }
+    } catch (error) {
+      console.error('Error returning to production:', error);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert(
+        'Errore',
+        'Errore imprevisto durante il ritorno a produzione. Controlla i log.',
+        [{ text: 'OK' }]
+      );
+    } finally {
+      setTesting(false);
+    }
+  };
+
   if (showGuide) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
@@ -308,7 +396,7 @@ export default function PaymentTestingScreen() {
           <View style={styles.guideSection}>
             <Text style={styles.guideTitle}>Guida al Testing dei Pagamenti</Text>
             <Text style={styles.guideSubtitle}>
-              Questa guida fornisce istruzioni complete per testare l'intero flusso di ordini (cliente, fornitore, punto di ritiro) utilizzando carte di credito virtuali di test.
+              Questa guida fornisce istruzioni complete per testare l&apos;intero flusso di ordini (cliente, fornitore, punto di ritiro) utilizzando carte di credito virtuali di test.
             </Text>
           </View>
 
@@ -317,7 +405,7 @@ export default function PaymentTestingScreen() {
             
             <Text style={styles.guideSubsectionTitle}>1. Modalità Test Stripe</Text>
             <Text style={styles.guideText}>
-              L'app è configurata per utilizzare le chiavi di test Stripe. Verifica che nel tuo progetto Supabase siano configurate le seguenti variabili d'ambiente:
+              L&apos;app è configurata per utilizzare le chiavi di test Stripe. Verifica che nel tuo progetto Supabase siano configurate le seguenti variabili d&apos;ambiente:
             </Text>
             <View style={styles.codeBlock}>
               <Text style={styles.codeText}>STRIPE_PUBLISHABLE_KEY=pk_test_...</Text>
@@ -326,20 +414,20 @@ export default function PaymentTestingScreen() {
 
             <Text style={styles.guideSubsectionTitle}>2. Accesso Admin</Text>
             <Text style={styles.guideText}>
-              Per testare l'intero flusso, avrai bisogno di accedere con diversi ruoli:
+              Per testare l&apos;intero flusso, avrai bisogno di accedere con diversi ruoli:
             </Text>
-            <Text style={styles.guideListItem}>• Admin: Per approvare drop e gestire ordini</Text>
-            <Text style={styles.guideListItem}>• Consumer: Per prenotare prodotti</Text>
-            <Text style={styles.guideListItem}>• Supplier: Per visualizzare ordini ricevuti</Text>
-            <Text style={styles.guideListItem}>• Pickup Point: Per gestire ritiri</Text>
+            <Text style={styles.guideListItem}>- Admin: Per approvare drop e gestire ordini</Text>
+            <Text style={styles.guideListItem}>- Consumer: Per prenotare prodotti</Text>
+            <Text style={styles.guideListItem}>- Supplier: Per visualizzare ordini ricevuti</Text>
+            <Text style={styles.guideListItem}>- Pickup Point: Per gestire ritiri</Text>
 
             <Text style={styles.guideSubsectionTitle}>3. Dati di Test</Text>
             <Text style={styles.guideText}>
-              Usa la funzione "Crea Dati Test" nella sezione Testing & Diagnostica per generare:
+              Usa la funzione &quot;Crea Dati Test&quot; nella sezione Testing & Diagnostica per generare:
             </Text>
-            <Text style={styles.guideListItem}>• Un fornitore di test</Text>
-            <Text style={styles.guideListItem}>• 5 prodotti di esempio</Text>
-            <Text style={styles.guideListItem}>• Una lista fornitore configurata</Text>
+            <Text style={styles.guideListItem}>- Un fornitore di test</Text>
+            <Text style={styles.guideListItem}>- 5 prodotti di esempio</Text>
+            <Text style={styles.guideListItem}>- Una lista fornitore configurata</Text>
           </View>
 
           <View style={styles.guideSection}>
@@ -403,8 +491,8 @@ export default function PaymentTestingScreen() {
 
             <Text style={styles.guideSubsectionTitle}>Fase 1: Preparazione (Admin)</Text>
             <Text style={styles.guideListItem}>1. Accedi come Admin</Text>
-            <Text style={styles.guideListItem}>2. Vai su "Testing & Diagnostica"</Text>
-            <Text style={styles.guideListItem}>3. Clicca "Crea Dati Test"</Text>
+            <Text style={styles.guideListItem}>2. Vai su &quot;Testing & Diagnostica&quot;</Text>
+            <Text style={styles.guideListItem}>3. Clicca &quot;Crea Dati Test&quot;</Text>
             <Text style={styles.guideListItem}>4. Verifica che vengano creati fornitore, lista e prodotti</Text>
 
             <Text style={styles.guideSubsectionTitle}>Fase 2: Registrazione Interesse (Consumer)</Text>
@@ -416,43 +504,43 @@ export default function PaymentTestingScreen() {
 
             <Text style={styles.guideSubsectionTitle}>Fase 3: Attivazione Drop (Admin)</Text>
             <Text style={styles.guideListItem}>1. Il drop si crea automaticamente a €5.000</Text>
-            <Text style={styles.guideListItem}>2. Vai su "Gestione Drop"</Text>
-            <Text style={styles.guideListItem}>3. Trova il drop in "Pending Approval"</Text>
-            <Text style={styles.guideListItem}>4. Clicca "Approva" e poi "Attiva"</Text>
+            <Text style={styles.guideListItem}>2. Vai su &quot;Gestione Drop&quot;</Text>
+            <Text style={styles.guideListItem}>3. Trova il drop in &quot;Pending Approval&quot;</Text>
+            <Text style={styles.guideListItem}>4. Clicca &quot;Approva&quot; e poi &quot;Attiva&quot;</Text>
             <Text style={styles.guideListItem}>5. Verifica timer di 5 giorni e sconto al 30%</Text>
 
             <Text style={styles.guideSubsectionTitle}>Fase 4: Prenotazione con Carta (Consumer)</Text>
-            <Text style={styles.guideListItem}>1. Vai alla tab "Drops" e seleziona il drop attivo</Text>
-            <Text style={styles.guideListItem}>2. Seleziona un prodotto e clicca "Prenota con Carta"</Text>
+            <Text style={styles.guideListItem}>1. Vai alla tab &quot;Drops&quot; e seleziona il drop attivo</Text>
+            <Text style={styles.guideListItem}>2. Seleziona un prodotto e clicca &quot;Prenota con Carta&quot;</Text>
             <Text style={styles.guideListItem}>3. Verifica il riepilogo e conferma</Text>
-            <Text style={styles.guideListItem}>4. Vai su "Le Mie Prenotazioni" e verifica stato "Autorizzato"</Text>
+            <Text style={styles.guideListItem}>4. Vai su &quot;Le Mie Prenotazioni&quot; e verifica stato &quot;Autorizzato&quot;</Text>
             <Text style={styles.guideListItem}>5. Ripeti con altri consumer per far crescere lo sconto</Text>
 
             <Text style={styles.guideSubsectionTitle}>Fase 5: Chiusura Drop (Admin)</Text>
-            <Text style={styles.guideListItem}>1. Vai su "Gestione Drop"</Text>
+            <Text style={styles.guideListItem}>1. Vai su &quot;Gestione Drop&quot;</Text>
             <Text style={styles.guideListItem}>2. Seleziona il drop attivo</Text>
-            <Text style={styles.guideListItem}>3. Clicca "Completa Drop"</Text>
+            <Text style={styles.guideListItem}>3. Clicca &quot;Completa Drop&quot;</Text>
             <Text style={styles.guideListItem}>4. Verifica calcolo sconto finale e creazione ordine</Text>
 
             <Text style={styles.guideSubsectionTitle}>Fase 6: Cattura Pagamenti (Automatica)</Text>
             <Text style={styles.guideListItem}>1. I pagamenti vengono catturati automaticamente</Text>
-            <Text style={styles.guideListItem}>2. Verifica stato "Addebitato" in "Le Mie Prenotazioni"</Text>
+            <Text style={styles.guideListItem}>2. Verifica stato &quot;Addebitato&quot; in &quot;Le Mie Prenotazioni&quot;</Text>
             <Text style={styles.guideListItem}>3. Controlla ordine fornitore con importi corretti</Text>
 
             <Text style={styles.guideSubsectionTitle}>Fase 7: Gestione Ordine (Supplier)</Text>
             <Text style={styles.guideListItem}>1. Accedi come Fornitore</Text>
-            <Text style={styles.guideListItem}>2. Visualizza l'ordine ricevuto</Text>
-            <Text style={styles.guideListItem}>3. Segna come "Confermato", poi "In Transito", poi "Spedito"</Text>
+            <Text style={styles.guideListItem}>2. Visualizza l&apos;ordine ricevuto</Text>
+            <Text style={styles.guideListItem}>3. Segna come &quot;Confermato&quot;, poi &quot;In Transito&quot;, poi &quot;Spedito&quot;</Text>
 
             <Text style={styles.guideSubsectionTitle}>Fase 8: Gestione Ritiro (Pickup Point)</Text>
             <Text style={styles.guideListItem}>1. Accedi come Punto di Ritiro</Text>
-            <Text style={styles.guideListItem}>2. Quando l'ordine arriva, clicca "Segna come Arrivato"</Text>
-            <Text style={styles.guideListItem}>3. Quando cliente ritira, segna come "Ritirato"</Text>
+            <Text style={styles.guideListItem}>2. Quando l&apos;ordine arriva, clicca &quot;Segna come Arrivato&quot;</Text>
+            <Text style={styles.guideListItem}>3. Quando cliente ritira, segna come &quot;Ritirato&quot;</Text>
 
             <Text style={styles.guideSubsectionTitle}>Fase 9: Completamento (Consumer)</Text>
             <Text style={styles.guideListItem}>1. Ricevi notifica ordine pronto</Text>
             <Text style={styles.guideListItem}>2. Vai al punto di ritiro e ritira il prodotto</Text>
-            <Text style={styles.guideListItem}>3. Verifica stato "Completato" e risparmio ottenuto</Text>
+            <Text style={styles.guideListItem}>3. Verifica stato &quot;Completato&quot; e risparmio ottenuto</Text>
           </View>
 
           <View style={styles.guideSection}>
@@ -468,61 +556,61 @@ export default function PaymentTestingScreen() {
 
             <Text style={styles.guideSubsectionTitle}>Scenario 3: Drop Sotto-Finanziato</Text>
             <Text style={styles.guideText}>Obiettivo: Testare comportamento quando il drop non raggiunge il minimo</Text>
-            <Text style={styles.guideListItem}>• Crea drop con poche prenotazioni</Text>
-            <Text style={styles.guideListItem}>• Lascia scadere il timer</Text>
-            <Text style={styles.guideListItem}>• Verifica rilascio fondi e notifiche</Text>
+            <Text style={styles.guideListItem}>- Crea drop con poche prenotazioni</Text>
+            <Text style={styles.guideListItem}>- Lascia scadere il timer</Text>
+            <Text style={styles.guideListItem}>- Verifica rilascio fondi e notifiche</Text>
 
             <Text style={styles.guideSubsectionTitle}>Scenario 4: Cancellazione Prenotazione</Text>
-            <Text style={styles.guideText}>Obiettivo: Testare cancellazione prenotazione da parte dell'utente</Text>
-            <Text style={styles.guideListItem}>• Crea prenotazione</Text>
-            <Text style={styles.guideListItem}>• Vai su "Le Mie Prenotazioni"</Text>
-            <Text style={styles.guideListItem}>• Clicca "Annulla Prenotazione"</Text>
-            <Text style={styles.guideListItem}>• Verifica rilascio fondi</Text>
+            <Text style={styles.guideText}>Obiettivo: Testare cancellazione prenotazione da parte dell&apos;utente</Text>
+            <Text style={styles.guideListItem}>- Crea prenotazione</Text>
+            <Text style={styles.guideListItem}>- Vai su &quot;Le Mie Prenotazioni&quot;</Text>
+            <Text style={styles.guideListItem}>- Clicca &quot;Annulla Prenotazione&quot;</Text>
+            <Text style={styles.guideListItem}>- Verifica rilascio fondi</Text>
           </View>
 
           <View style={styles.guideSection}>
             <Text style={styles.guideSectionTitle}>🔧 Risoluzione Problemi</Text>
 
             <Text style={styles.guideSubsectionTitle}>Problema: Carta Non Accettata</Text>
-            <Text style={styles.guideListItem}>• Verifica modalità test Stripe</Text>
-            <Text style={styles.guideListItem}>• Controlla numero carta corretto</Text>
-            <Text style={styles.guideListItem}>• Usa data di scadenza futura</Text>
-            <Text style={styles.guideListItem}>• Verifica CVC (3 cifre, 4 per Amex)</Text>
+            <Text style={styles.guideListItem}>- Verifica modalità test Stripe</Text>
+            <Text style={styles.guideListItem}>- Controlla numero carta corretto</Text>
+            <Text style={styles.guideListItem}>- Usa data di scadenza futura</Text>
+            <Text style={styles.guideListItem}>- Verifica CVC (3 cifre, 4 per Amex)</Text>
 
             <Text style={styles.guideSubsectionTitle}>Problema: Autorizzazione Non Creata</Text>
-            <Text style={styles.guideListItem}>• Verifica metodo di pagamento presente</Text>
-            <Text style={styles.guideListItem}>• Controlla drop in stato "Active"</Text>
-            <Text style={styles.guideListItem}>• Verifica prodotto disponibile</Text>
-            <Text style={styles.guideListItem}>• Controlla policy RLS su Supabase</Text>
+            <Text style={styles.guideListItem}>- Verifica metodo di pagamento presente</Text>
+            <Text style={styles.guideListItem}>- Controlla drop in stato &quot;Active&quot;</Text>
+            <Text style={styles.guideListItem}>- Verifica prodotto disponibile</Text>
+            <Text style={styles.guideListItem}>- Controlla policy RLS su Supabase</Text>
 
             <Text style={styles.guideSubsectionTitle}>Problema: Pagamento Non Catturato</Text>
-            <Text style={styles.guideListItem}>• Verifica Edge Function deployata</Text>
-            <Text style={styles.guideListItem}>• Controlla log Edge Function</Text>
-            <Text style={styles.guideListItem}>• Verifica drop in stato "Completed"</Text>
-            <Text style={styles.guideListItem}>• Controlla chiavi Stripe configurate</Text>
+            <Text style={styles.guideListItem}>- Verifica Edge Function deployata</Text>
+            <Text style={styles.guideListItem}>- Controlla log Edge Function</Text>
+            <Text style={styles.guideListItem}>- Verifica drop in stato &quot;Completed&quot;</Text>
+            <Text style={styles.guideListItem}>- Controlla chiavi Stripe configurate</Text>
 
             <Text style={styles.guideSubsectionTitle}>Problema: Drop Non Si Crea</Text>
-            <Text style={styles.guideListItem}>• Verifica trigger database attivo</Text>
-            <Text style={styles.guideListItem}>• Controlla interessi stesso punto di ritiro</Text>
-            <Text style={styles.guideListItem}>• Verifica lista fornitore "Active"</Text>
-            <Text style={styles.guideListItem}>• Crea manualmente da admin se necessario</Text>
+            <Text style={styles.guideListItem}>- Verifica trigger database attivo</Text>
+            <Text style={styles.guideListItem}>- Controlla interessi stesso punto di ritiro</Text>
+            <Text style={styles.guideListItem}>- Verifica lista fornitore &quot;Active&quot;</Text>
+            <Text style={styles.guideListItem}>- Crea manualmente da admin se necessario</Text>
           </View>
 
           <View style={styles.guideSection}>
             <Text style={styles.guideSectionTitle}>⚠️ Note Importanti</Text>
-            <Text style={styles.guideListItem}>• Le carte di test funzionano SOLO in modalità test Stripe</Text>
-            <Text style={styles.guideListItem}>• Non addebitano mai denaro reale</Text>
-            <Text style={styles.guideListItem}>• Usa qualsiasi CVC valido (3 cifre, 4 per Amex)</Text>
-            <Text style={styles.guideListItem}>• Usa qualsiasi data di scadenza futura</Text>
-            <Text style={styles.guideListItem}>• Elimina periodicamente i dati di test</Text>
-            <Text style={styles.guideListItem}>• Testa sempre su dispositivi reali</Text>
+            <Text style={styles.guideListItem}>- Le carte di test funzionano SOLO in modalità test Stripe</Text>
+            <Text style={styles.guideListItem}>- Non addebitano mai denaro reale</Text>
+            <Text style={styles.guideListItem}>- Usa qualsiasi CVC valido (3 cifre, 4 per Amex)</Text>
+            <Text style={styles.guideListItem}>- Usa qualsiasi data di scadenza futura</Text>
+            <Text style={styles.guideListItem}>- Elimina periodicamente i dati di test</Text>
+            <Text style={styles.guideListItem}>- Testa sempre su dispositivi reali</Text>
           </View>
 
           <View style={styles.guideSection}>
             <Text style={styles.guideSectionTitle}>📚 Risorse Aggiuntive</Text>
-            <Text style={styles.guideListItem}>• Documentazione Stripe: https://stripe.com/docs/testing</Text>
-            <Text style={styles.guideListItem}>• Dashboard Stripe Test: https://dashboard.stripe.com/test/payments</Text>
-            <Text style={styles.guideListItem}>• Supabase Dashboard: https://supabase.com/dashboard</Text>
+            <Text style={styles.guideListItem}>- Documentazione Stripe: https://stripe.com/docs/testing</Text>
+            <Text style={styles.guideListItem}>- Dashboard Stripe Test: https://dashboard.stripe.com/test/payments</Text>
+            <Text style={styles.guideListItem}>- Supabase Dashboard: https://supabase.com/dashboard</Text>
           </View>
 
           <Pressable style={styles.backToTestButton} onPress={toggleGuide}>
@@ -550,6 +638,27 @@ export default function PaymentTestingScreen() {
           <Text style={styles.subtitle}>
             Usa le carte di test Stripe per simulare diversi scenari di pagamento
           </Text>
+        </View>
+
+        {/* Return to Production Button */}
+        <View style={styles.section}>
+          <View style={styles.productionWarningCard}>
+            <View style={styles.productionWarningHeader}>
+              <IconSymbol ios_icon_name="exclamationmark.triangle.fill" android_material_icon_name="warning" size={28} color="#FF3B30" />
+              <Text style={styles.productionWarningTitle}>Modalità Test Attiva</Text>
+            </View>
+            <Text style={styles.productionWarningText}>
+              Stai utilizzando la modalità test con carte virtuali. Quando hai finito i test, clicca il pulsante qui sotto per eliminare tutti i dati di test e tornare alla modalità produzione con dati reali.
+            </Text>
+            <Pressable
+              style={[styles.productionButton, testing && styles.productionButtonDisabled]}
+              onPress={handleReturnToProduction}
+              disabled={testing}
+            >
+              <IconSymbol ios_icon_name="arrow.uturn.backward.circle.fill" android_material_icon_name="restore" size={24} color="#FFF" />
+              <Text style={styles.productionButtonText}>Elimina Test e Torna a Produzione</Text>
+            </Pressable>
+          </View>
         </View>
 
         {/* Quick Actions */}
@@ -745,11 +854,11 @@ export default function PaymentTestingScreen() {
             <View style={styles.noteContent}>
               <Text style={styles.noteTitle}>Note Importanti</Text>
               <Text style={styles.noteText}>
-                • Le carte di test funzionano SOLO in modalità test Stripe{'\n'}
-                • Non addebitano mai denaro reale{'\n'}
-                • Usa qualsiasi CVC valido (3 cifre, 4 per Amex){'\n'}
-                • Usa qualsiasi data di scadenza futura{'\n'}
-                • Consulta la guida completa per il flusso di test end-to-end
+                - Le carte di test funzionano SOLO in modalità test Stripe{'\n'}
+                - Non addebitano mai denaro reale{'\n'}
+                - Usa qualsiasi CVC valido (3 cifre, 4 per Amex){'\n'}
+                - Usa qualsiasi data di scadenza futura{'\n'}
+                - Consulta la guida completa per il flusso di test end-to-end
               </Text>
             </View>
           </View>
@@ -798,6 +907,48 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     color: colors.text,
+  },
+  productionWarningCard: {
+    backgroundColor: '#FFF5F5',
+    borderRadius: 12,
+    padding: 20,
+    borderWidth: 2,
+    borderColor: '#FF3B30',
+  },
+  productionWarningHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 12,
+  },
+  productionWarningTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#FF3B30',
+  },
+  productionWarningText: {
+    fontSize: 14,
+    color: '#1F2937',
+    lineHeight: 20,
+    marginBottom: 16,
+  },
+  productionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FF3B30',
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderRadius: 10,
+    gap: 10,
+  },
+  productionButtonDisabled: {
+    opacity: 0.5,
+  },
+  productionButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFF',
   },
   actionRow: {
     flexDirection: 'row',
