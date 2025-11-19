@@ -45,6 +45,7 @@ export default function SettingsScreen() {
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [hasChanges, setHasChanges] = useState(false);
 
   useEffect(() => {
     loadSettings();
@@ -63,11 +64,16 @@ export default function SettingsScreen() {
 
       if (whatsappError) {
         console.error('Error loading WhatsApp number:', whatsappError);
+        Alert.alert(
+          'Attenzione',
+          'Impossibile caricare il numero WhatsApp dal database. Verrà utilizzato il valore predefinito.'
+        );
       } else if (whatsappData) {
         setSettings(prev => ({
           ...prev,
           whatsapp_support_number: whatsappData.setting_value,
         }));
+        console.log('WhatsApp number loaded:', whatsappData.setting_value);
       }
     } catch (error) {
       console.error('Exception loading settings:', error);
@@ -78,6 +84,16 @@ export default function SettingsScreen() {
   };
 
   const handleSaveSettings = async () => {
+    // Validate WhatsApp number format
+    const phoneRegex = /^[0-9]{10,15}$/;
+    if (!phoneRegex.test(settings.whatsapp_support_number)) {
+      Alert.alert(
+        'Errore di Validazione',
+        'Il numero WhatsApp deve contenere solo cifre (10-15 caratteri) senza spazi o simboli.\n\nEsempio: 393123456789'
+      );
+      return;
+    }
+
     Alert.alert(
       'Salva Impostazioni',
       'Sei sicuro di voler salvare le modifiche?',
@@ -89,33 +105,102 @@ export default function SettingsScreen() {
           onPress: async () => {
             try {
               setSaving(true);
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              console.log('Saving WhatsApp number:', settings.whatsapp_support_number);
 
-              // Save WhatsApp support number to database
-              const { error: whatsappError } = await supabase
+              // Check if the setting exists
+              const { data: existingData, error: checkError } = await supabase
                 .from('app_settings')
-                .update({ setting_value: settings.whatsapp_support_number })
-                .eq('setting_key', 'whatsapp_support_number');
+                .select('id')
+                .eq('setting_key', 'whatsapp_support_number')
+                .maybeSingle();
 
-              if (whatsappError) {
-                console.error('Error saving WhatsApp number:', whatsappError);
-                Alert.alert('Errore', 'Si è verificato un errore durante il salvataggio del numero WhatsApp');
+              if (checkError) {
+                console.error('Error checking existing setting:', checkError);
+                Alert.alert('Errore', `Errore durante la verifica: ${checkError.message}`);
                 return;
               }
 
-              // Log activity
-              await logActivity(
-                'update_settings',
-                'Impostazioni aggiornate',
-                {
-                  whatsapp_support_number: settings.whatsapp_support_number,
-                }
-              );
+              let saveError;
 
-              Alert.alert('Successo', 'Impostazioni salvate con successo');
+              if (existingData) {
+                // Update existing setting
+                console.log('Updating existing setting...');
+                const { error } = await supabase
+                  .from('app_settings')
+                  .update({ 
+                    setting_value: settings.whatsapp_support_number,
+                    updated_at: new Date().toISOString()
+                  })
+                  .eq('setting_key', 'whatsapp_support_number');
+                
+                saveError = error;
+              } else {
+                // Insert new setting
+                console.log('Inserting new setting...');
+                const { error } = await supabase
+                  .from('app_settings')
+                  .insert({
+                    setting_key: 'whatsapp_support_number',
+                    setting_value: settings.whatsapp_support_number,
+                    description: 'Numero WhatsApp per il supporto clienti (formato: codice paese + numero senza + o spazi)',
+                  });
+                
+                saveError = error;
+              }
+
+              if (saveError) {
+                console.error('Error saving WhatsApp number:', saveError);
+                Alert.alert(
+                  'Errore di Salvataggio',
+                  `Si è verificato un errore durante il salvataggio:\n\n${saveError.message}\n\nCodice: ${saveError.code || 'N/A'}\n\nDettagli: ${saveError.details || 'N/A'}`
+                );
+                return;
+              }
+
+              // Verify the save was successful
+              const { data: verifyData, error: verifyError } = await supabase
+                .from('app_settings')
+                .select('setting_value')
+                .eq('setting_key', 'whatsapp_support_number')
+                .single();
+
+              if (verifyError) {
+                console.error('Error verifying save:', verifyError);
+                Alert.alert(
+                  'Attenzione',
+                  'Il salvataggio potrebbe non essere riuscito. Verifica le impostazioni.'
+                );
+              } else if (verifyData.setting_value === settings.whatsapp_support_number) {
+                console.log('Save verified successfully:', verifyData.setting_value);
+                
+                // Log activity
+                await logActivity(
+                  'update_settings',
+                  'Impostazioni aggiornate',
+                  {
+                    whatsapp_support_number: settings.whatsapp_support_number,
+                  }
+                );
+
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                setHasChanges(false);
+                Alert.alert('Successo', 'Impostazioni salvate con successo!');
+              } else {
+                console.error('Verification mismatch:', {
+                  saved: verifyData.setting_value,
+                  expected: settings.whatsapp_support_number
+                });
+                Alert.alert(
+                  'Errore',
+                  'Il valore salvato non corrisponde. Riprova.'
+                );
+              }
             } catch (error) {
-              console.error('Error saving settings:', error);
-              Alert.alert('Errore', 'Si è verificato un errore durante il salvataggio');
+              console.error('Exception saving settings:', error);
+              Alert.alert(
+                'Errore',
+                `Si è verificato un errore imprevisto:\n\n${error instanceof Error ? error.message : 'Errore sconosciuto'}`
+              );
             } finally {
               setSaving(false);
             }
@@ -131,6 +216,7 @@ export default function SettingsScreen() {
   ) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setSettings(prev => ({ ...prev, [key]: value }));
+    setHasChanges(true);
   };
 
   if (loading) {
@@ -160,6 +246,20 @@ export default function SettingsScreen() {
       />
       <SafeAreaView style={styles.safeArea} edges={['bottom']}>
         <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
+          {hasChanges && (
+            <View style={styles.changesIndicator}>
+              <IconSymbol
+                ios_icon_name="exclamationmark.circle.fill"
+                android_material_icon_name="info"
+                size={20}
+                color={colors.primary}
+              />
+              <Text style={styles.changesText}>
+                Hai modifiche non salvate
+              </Text>
+            </View>
+          )}
+
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Supporto Clienti</Text>
             
@@ -177,10 +277,10 @@ export default function SettingsScreen() {
             <TextInput
               style={styles.textInput}
               value={settings.whatsapp_support_number}
-              onChangeText={(text) => updateSetting('whatsapp_support_number', text)}
+              onChangeText={(text) => updateSetting('whatsapp_support_number', text.replace(/[^0-9]/g, ''))}
               placeholder="393123456789"
               keyboardType="phone-pad"
-              maxLength={20}
+              maxLength={15}
             />
           </View>
 
@@ -458,6 +558,20 @@ const styles = StyleSheet.create({
   loadingText: {
     fontSize: 16,
     color: colors.textSecondary,
+  },
+  changesIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.primary + '20',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 16,
+    gap: 8,
+  },
+  changesText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.primary,
   },
   section: {
     marginBottom: 24,
