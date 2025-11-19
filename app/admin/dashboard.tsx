@@ -627,6 +627,38 @@ export default function AdminDashboard() {
                 color={colors.textTertiary}
               />
             </Pressable>
+
+            <Pressable
+              style={({ pressed }) => [
+                styles.actionCard,
+                pressed && styles.actionCardPressed,
+              ]}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.push('/admin/payment-testing');
+              }}
+            >
+              <View style={styles.actionIconContainer}>
+                <IconSymbol
+                  ios_icon_name="creditcard.fill"
+                  android_material_icon_name="credit_card"
+                  size={24}
+                  color="#3B82F6"
+                />
+              </View>
+              <View style={styles.actionContent}>
+                <Text style={styles.actionTitle}>Test Pagamenti</Text>
+                <Text style={styles.actionDescription}>
+                  Carte di test e flusso ordini
+                </Text>
+              </View>
+              <IconSymbol
+                ios_icon_name="chevron.right"
+                android_material_icon_name="chevron_right"
+                size={20}
+                color={colors.textTertiary}
+              />
+            </Pressable>
           </View>
 
           <View style={styles.logoutSection}>
