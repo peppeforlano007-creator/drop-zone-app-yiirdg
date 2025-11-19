@@ -1,5 +1,5 @@
 
-import { View, Text, StyleSheet, ScrollView, Platform, Pressable, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Platform, Pressable, Alert, ActivityIndicator, Linking } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, commonStyles } from '@/styles/commonStyles';
 import React, { useState, useEffect } from 'react';
@@ -8,6 +8,9 @@ import { Stack, router } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/app/integrations/supabase/client';
 import * as Haptics from 'expo-haptics';
+
+// WhatsApp support number (format: country code + number without + or spaces)
+const WHATSAPP_SUPPORT_NUMBER = '393123456789'; // Replace with your actual WhatsApp number
 
 export default function ProfileScreen() {
   const { user, logout, updatePickupPoint } = useAuth();
@@ -119,6 +122,37 @@ export default function ProfileScreen() {
   const handleEditProfile = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push('/edit-profile');
+  };
+
+  const handleSupport = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    
+    const message = encodeURIComponent('Ciao, ho bisogno di supporto.');
+    const whatsappUrl = `whatsapp://send?phone=${WHATSAPP_SUPPORT_NUMBER}&text=${message}`;
+    const whatsappWebUrl = `https://wa.me/${WHATSAPP_SUPPORT_NUMBER}?text=${message}`;
+    
+    try {
+      // Try to open WhatsApp app first
+      const canOpen = await Linking.canOpenURL(whatsappUrl);
+      
+      if (canOpen) {
+        await Linking.openURL(whatsappUrl);
+      } else {
+        // If WhatsApp app is not installed, open WhatsApp Web
+        await Linking.openURL(whatsappWebUrl);
+      }
+    } catch (error) {
+      console.error('Error opening WhatsApp:', error);
+      Alert.alert(
+        'Errore',
+        'Impossibile aprire WhatsApp. Assicurati di avere WhatsApp installato sul tuo dispositivo.',
+        [
+          {
+            text: 'OK',
+          },
+        ]
+      );
+    }
   };
 
   return (
@@ -286,7 +320,7 @@ export default function ProfileScreen() {
               <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="chevron_right" size={20} color={colors.textSecondary} />
             </Pressable>
 
-            <Pressable style={styles.settingItem}>
+            <Pressable style={styles.settingItem} onPress={handleSupport}>
               <View style={styles.settingContent}>
                 <IconSymbol ios_icon_name="questionmark.circle.fill" android_material_icon_name="help" size={20} color={colors.text} />
                 <Text style={styles.settingText}>Aiuto e Supporto</Text>

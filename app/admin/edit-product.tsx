@@ -23,6 +23,7 @@ interface ProductData {
   name: string;
   description: string;
   image_url: string;
+  additional_images: string[];
   original_price: number;
   condition: string;
   category: string;
@@ -30,6 +31,8 @@ interface ProductData {
   status: string;
   brand?: string;
   sku?: string;
+  available_sizes: string[];
+  available_colors: string[];
 }
 
 export default function EditProductScreen() {
@@ -41,6 +44,7 @@ export default function EditProductScreen() {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [imageUrl, setImageUrl] = useState('');
+  const [additionalImages, setAdditionalImages] = useState('');
   const [originalPrice, setOriginalPrice] = useState('');
   const [condition, setCondition] = useState('nuovo');
   const [category, setCategory] = useState('');
@@ -48,6 +52,8 @@ export default function EditProductScreen() {
   const [status, setStatus] = useState('active');
   const [brand, setBrand] = useState('');
   const [sku, setSku] = useState('');
+  const [availableSizes, setAvailableSizes] = useState('');
+  const [availableColors, setAvailableColors] = useState('');
 
   useEffect(() => {
     loadProduct();
@@ -73,6 +79,7 @@ export default function EditProductScreen() {
       setName(data.name || '');
       setDescription(data.description || '');
       setImageUrl(data.image_url || '');
+      setAdditionalImages(data.additional_images ? data.additional_images.join(', ') : '');
       setOriginalPrice(data.original_price?.toString() || '');
       setCondition(data.condition || 'nuovo');
       setCategory(data.category || '');
@@ -80,6 +87,8 @@ export default function EditProductScreen() {
       setStatus(data.status || 'active');
       setBrand(data.brand || '');
       setSku(data.sku || '');
+      setAvailableSizes(data.available_sizes ? data.available_sizes.join(', ') : '');
+      setAvailableColors(data.available_colors ? data.available_colors.join(', ') : '');
     } catch (error) {
       console.error('Error loading product:', error);
       Alert.alert('Errore', 'Si è verificato un errore');
@@ -108,19 +117,40 @@ export default function EditProductScreen() {
       setSaving(true);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
+      // Parse additional images
+      const additionalImagesArray = additionalImages
+        .split(',')
+        .map(url => url.trim())
+        .filter(url => url.length > 0);
+
+      // Parse sizes
+      const sizesArray = availableSizes
+        .split(',')
+        .map(size => size.trim())
+        .filter(size => size.length > 0);
+
+      // Parse colors
+      const colorsArray = availableColors
+        .split(',')
+        .map(color => color.trim())
+        .filter(color => color.length > 0);
+
       const { error } = await supabase
         .from('products')
         .update({
           name: name.trim(),
-          description: description.trim(),
+          description: description.trim() || null,
           image_url: imageUrl.trim(),
+          additional_images: additionalImagesArray.length > 0 ? additionalImagesArray : null,
           original_price: parseFloat(originalPrice),
           condition,
-          category: category.trim(),
+          category: category.trim() || null,
           stock: parseInt(stock),
           status,
           brand: brand.trim() || null,
           sku: sku.trim() || null,
+          available_sizes: sizesArray.length > 0 ? sizesArray : null,
+          available_colors: colorsArray.length > 0 ? colorsArray : null,
           updated_at: new Date().toISOString(),
         })
         .eq('id', productId);
@@ -208,13 +238,30 @@ export default function EditProductScreen() {
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>URL Immagine *</Text>
+            <Text style={styles.label}>URL Immagine Principale *</Text>
             <TextInput
               style={styles.input}
               value={imageUrl}
               onChangeText={setImageUrl}
               placeholder="https://..."
               placeholderTextColor={colors.textTertiary}
+              autoCapitalize="none"
+            />
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Immagini Aggiuntive</Text>
+            <Text style={styles.helperText}>
+              Inserisci URL separati da virgola (es: url1, url2, url3)
+            </Text>
+            <TextInput
+              style={[styles.input, styles.textArea]}
+              value={additionalImages}
+              onChangeText={setAdditionalImages}
+              placeholder="https://image1.jpg, https://image2.jpg, https://image3.jpg"
+              placeholderTextColor={colors.textTertiary}
+              multiline
+              numberOfLines={3}
               autoCapitalize="none"
             />
           </View>
@@ -289,11 +336,42 @@ export default function EditProductScreen() {
 
           <View style={styles.inputGroup}>
             <Text style={styles.label}>SKU</Text>
+            <Text style={styles.helperText}>
+              Codice articolo per raggruppare varianti (es. stesso prodotto con taglie/colori diversi)
+            </Text>
             <TextInput
               style={styles.input}
               value={sku}
               onChangeText={setSku}
               placeholder="Codice articolo"
+              placeholderTextColor={colors.textTertiary}
+            />
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Taglie Disponibili</Text>
+            <Text style={styles.helperText}>
+              Inserisci taglie separate da virgola (es: S, M, L, XL o 38, 39, 40, 41)
+            </Text>
+            <TextInput
+              style={styles.input}
+              value={availableSizes}
+              onChangeText={setAvailableSizes}
+              placeholder="S, M, L, XL"
+              placeholderTextColor={colors.textTertiary}
+            />
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Colori Disponibili</Text>
+            <Text style={styles.helperText}>
+              Inserisci colori separati da virgola (es: Nero, Bianco, Rosso)
+            </Text>
+            <TextInput
+              style={styles.input}
+              value={availableColors}
+              onChangeText={setAvailableColors}
+              placeholder="Nero, Bianco, Rosso, Blu"
               placeholderTextColor={colors.textTertiary}
             />
           </View>
@@ -407,6 +485,12 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: colors.text,
     marginBottom: 8,
+  },
+  helperText: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginBottom: 6,
+    fontStyle: 'italic',
   },
   input: {
     backgroundColor: colors.card,
