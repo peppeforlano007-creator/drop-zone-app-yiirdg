@@ -164,6 +164,7 @@ export default function PaymentTestingScreen() {
   const [selectedCard, setSelectedCard] = useState<TestCard | null>(null);
   const [testAmount, setTestAmount] = useState('100.00');
   const [testing, setTesting] = useState(false);
+  const [showGuide, setShowGuide] = useState(false);
   const [testResults, setTestResults] = useState<Array<{
     card: string;
     result: string;
@@ -203,7 +204,6 @@ export default function PaymentTestingScreen() {
 
   const copyToClipboard = (text: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    // In a real app, you would use Clipboard API
     Alert.alert('Copiato', `${text} copiato negli appunti`);
   };
 
@@ -213,7 +213,6 @@ export default function PaymentTestingScreen() {
 
     try {
       // Simulate payment test
-      // In production, this would call Stripe API
       await new Promise(resolve => setTimeout(resolve, 2000));
 
       const success = card.category === 'success';
@@ -279,7 +278,6 @@ export default function PaymentTestingScreen() {
         {
           text: 'Apri',
           onPress: () => {
-            // In production, use Linking.openURL('https://stripe.com/docs/testing')
             Alert.alert('Info', 'URL: https://stripe.com/docs/testing');
           },
         },
@@ -287,14 +285,254 @@ export default function PaymentTestingScreen() {
     );
   };
 
-  const viewPaymentGuide = () => {
+  const toggleGuide = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    Alert.alert(
-      'Guida Testing Pagamenti',
-      'La guida completa al testing dei pagamenti è disponibile in:\n\ndocs/PAYMENT_TESTING_GUIDE.md\n\nContiene:\n• Carte di test Stripe\n• Flusso completo ordine\n• Scenari di test\n• Risoluzione problemi',
-      [{ text: 'OK' }]
-    );
+    setShowGuide(!showGuide);
   };
+
+  if (showGuide) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <Stack.Screen
+          options={{
+            title: 'Guida Testing Pagamenti',
+            headerShown: true,
+          }}
+        />
+        <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+          <Pressable style={styles.backButton} onPress={toggleGuide}>
+            <IconSymbol ios_icon_name="arrow.left" android_material_icon_name="arrow_back" size={20} color={colors.primary} />
+            <Text style={styles.backButtonText}>Torna ai Test</Text>
+          </Pressable>
+
+          <View style={styles.guideSection}>
+            <Text style={styles.guideTitle}>Guida al Testing dei Pagamenti</Text>
+            <Text style={styles.guideSubtitle}>
+              Questa guida fornisce istruzioni complete per testare l'intero flusso di ordini (cliente, fornitore, punto di ritiro) utilizzando carte di credito virtuali di test.
+            </Text>
+          </View>
+
+          <View style={styles.guideSection}>
+            <Text style={styles.guideSectionTitle}>📋 Configurazione Ambiente di Test</Text>
+            
+            <Text style={styles.guideSubsectionTitle}>1. Modalità Test Stripe</Text>
+            <Text style={styles.guideText}>
+              L'app è configurata per utilizzare le chiavi di test Stripe. Verifica che nel tuo progetto Supabase siano configurate le seguenti variabili d'ambiente:
+            </Text>
+            <View style={styles.codeBlock}>
+              <Text style={styles.codeText}>STRIPE_PUBLISHABLE_KEY=pk_test_...</Text>
+              <Text style={styles.codeText}>STRIPE_SECRET_KEY=sk_test_...</Text>
+            </View>
+
+            <Text style={styles.guideSubsectionTitle}>2. Accesso Admin</Text>
+            <Text style={styles.guideText}>
+              Per testare l'intero flusso, avrai bisogno di accedere con diversi ruoli:
+            </Text>
+            <Text style={styles.guideListItem}>• Admin: Per approvare drop e gestire ordini</Text>
+            <Text style={styles.guideListItem}>• Consumer: Per prenotare prodotti</Text>
+            <Text style={styles.guideListItem}>• Supplier: Per visualizzare ordini ricevuti</Text>
+            <Text style={styles.guideListItem}>• Pickup Point: Per gestire ritiri</Text>
+
+            <Text style={styles.guideSubsectionTitle}>3. Dati di Test</Text>
+            <Text style={styles.guideText}>
+              Usa la funzione "Crea Dati Test" nella sezione Testing & Diagnostica per generare:
+            </Text>
+            <Text style={styles.guideListItem}>• Un fornitore di test</Text>
+            <Text style={styles.guideListItem}>• 5 prodotti di esempio</Text>
+            <Text style={styles.guideListItem}>• Una lista fornitore configurata</Text>
+          </View>
+
+          <View style={styles.guideSection}>
+            <Text style={styles.guideSectionTitle}>💳 Carte di Credito Virtuali Test</Text>
+            <Text style={styles.guideText}>
+              Stripe fornisce carte di test che simulano diversi scenari di pagamento. IMPORTANTE: Queste carte funzionano SOLO in modalità test e non addebitano mai denaro reale.
+            </Text>
+
+            <Text style={styles.guideSubsectionTitle}>Carte di Successo</Text>
+            
+            <View style={styles.cardInfoBlock}>
+              <Text style={styles.cardInfoTitle}>Visa - Pagamento Riuscito</Text>
+              <Text style={styles.cardInfoText}>Numero: 4242 4242 4242 4242</Text>
+              <Text style={styles.cardInfoText}>CVC: Qualsiasi 3 cifre</Text>
+              <Text style={styles.cardInfoText}>Data: Qualsiasi data futura</Text>
+            </View>
+
+            <View style={styles.cardInfoBlock}>
+              <Text style={styles.cardInfoTitle}>Mastercard - Pagamento Riuscito</Text>
+              <Text style={styles.cardInfoText}>Numero: 5555 5555 5555 4444</Text>
+              <Text style={styles.cardInfoText}>CVC: Qualsiasi 3 cifre</Text>
+              <Text style={styles.cardInfoText}>Data: Qualsiasi data futura</Text>
+            </View>
+
+            <View style={styles.cardInfoBlock}>
+              <Text style={styles.cardInfoTitle}>American Express - Pagamento Riuscito</Text>
+              <Text style={styles.cardInfoText}>Numero: 3782 822463 10005</Text>
+              <Text style={styles.cardInfoText}>CVC: Qualsiasi 4 cifre</Text>
+              <Text style={styles.cardInfoText}>Data: Qualsiasi data futura</Text>
+            </View>
+
+            <Text style={styles.guideSubsectionTitle}>Carte per Testare Errori</Text>
+
+            <View style={styles.cardInfoBlock}>
+              <Text style={styles.cardInfoTitle}>Carta Declinata - Fondi Insufficienti</Text>
+              <Text style={styles.cardInfoText}>Numero: 4000 0000 0000 9995</Text>
+              <Text style={styles.cardInfoText}>Risultato: Pagamento declinato (insufficient_funds)</Text>
+            </View>
+
+            <View style={styles.cardInfoBlock}>
+              <Text style={styles.cardInfoTitle}>Carta Declinata - Generica</Text>
+              <Text style={styles.cardInfoText}>Numero: 4000 0000 0000 0002</Text>
+              <Text style={styles.cardInfoText}>Risultato: Pagamento declinato (generic_decline)</Text>
+            </View>
+
+            <View style={styles.cardInfoBlock}>
+              <Text style={styles.cardInfoTitle}>Carta Scaduta</Text>
+              <Text style={styles.cardInfoText}>Numero: 4000 0000 0000 0069</Text>
+              <Text style={styles.cardInfoText}>Risultato: Carta scaduta (expired_card)</Text>
+            </View>
+
+            <View style={styles.cardInfoBlock}>
+              <Text style={styles.cardInfoTitle}>CVC Errato</Text>
+              <Text style={styles.cardInfoText}>Numero: 4000 0000 0000 0127</Text>
+              <Text style={styles.cardInfoText}>Risultato: CVC non valido (incorrect_cvc)</Text>
+            </View>
+          </View>
+
+          <View style={styles.guideSection}>
+            <Text style={styles.guideSectionTitle}>🔄 Flusso Completo di Test</Text>
+
+            <Text style={styles.guideSubsectionTitle}>Fase 1: Preparazione (Admin)</Text>
+            <Text style={styles.guideListItem}>1. Accedi come Admin</Text>
+            <Text style={styles.guideListItem}>2. Vai su "Testing & Diagnostica"</Text>
+            <Text style={styles.guideListItem}>3. Clicca "Crea Dati Test"</Text>
+            <Text style={styles.guideListItem}>4. Verifica che vengano creati fornitore, lista e prodotti</Text>
+
+            <Text style={styles.guideSubsectionTitle}>Fase 2: Registrazione Interesse (Consumer)</Text>
+            <Text style={styles.guideListItem}>1. Crea Account Consumer e seleziona punto di ritiro</Text>
+            <Text style={styles.guideListItem}>2. Aggiungi Metodo di Pagamento (usa Visa: 4242 4242 4242 4242)</Text>
+            <Text style={styles.guideListItem}>3. Esprimi Interesse sui Prodotti (almeno 3 prodotti)</Text>
+            <Text style={styles.guideListItem}>4. Ripeti con 2-3 account consumer aggiuntivi</Text>
+            <Text style={styles.guideListItem}>5. Obiettivo: Raggiungere €5.000 di valore totale</Text>
+
+            <Text style={styles.guideSubsectionTitle}>Fase 3: Attivazione Drop (Admin)</Text>
+            <Text style={styles.guideListItem}>1. Il drop si crea automaticamente a €5.000</Text>
+            <Text style={styles.guideListItem}>2. Vai su "Gestione Drop"</Text>
+            <Text style={styles.guideListItem}>3. Trova il drop in "Pending Approval"</Text>
+            <Text style={styles.guideListItem}>4. Clicca "Approva" e poi "Attiva"</Text>
+            <Text style={styles.guideListItem}>5. Verifica timer di 5 giorni e sconto al 30%</Text>
+
+            <Text style={styles.guideSubsectionTitle}>Fase 4: Prenotazione con Carta (Consumer)</Text>
+            <Text style={styles.guideListItem}>1. Vai alla tab "Drops" e seleziona il drop attivo</Text>
+            <Text style={styles.guideListItem}>2. Seleziona un prodotto e clicca "Prenota con Carta"</Text>
+            <Text style={styles.guideListItem}>3. Verifica il riepilogo e conferma</Text>
+            <Text style={styles.guideListItem}>4. Vai su "Le Mie Prenotazioni" e verifica stato "Autorizzato"</Text>
+            <Text style={styles.guideListItem}>5. Ripeti con altri consumer per far crescere lo sconto</Text>
+
+            <Text style={styles.guideSubsectionTitle}>Fase 5: Chiusura Drop (Admin)</Text>
+            <Text style={styles.guideListItem}>1. Vai su "Gestione Drop"</Text>
+            <Text style={styles.guideListItem}>2. Seleziona il drop attivo</Text>
+            <Text style={styles.guideListItem}>3. Clicca "Completa Drop"</Text>
+            <Text style={styles.guideListItem}>4. Verifica calcolo sconto finale e creazione ordine</Text>
+
+            <Text style={styles.guideSubsectionTitle}>Fase 6: Cattura Pagamenti (Automatica)</Text>
+            <Text style={styles.guideListItem}>1. I pagamenti vengono catturati automaticamente</Text>
+            <Text style={styles.guideListItem}>2. Verifica stato "Addebitato" in "Le Mie Prenotazioni"</Text>
+            <Text style={styles.guideListItem}>3. Controlla ordine fornitore con importi corretti</Text>
+
+            <Text style={styles.guideSubsectionTitle}>Fase 7: Gestione Ordine (Supplier)</Text>
+            <Text style={styles.guideListItem}>1. Accedi come Fornitore</Text>
+            <Text style={styles.guideListItem}>2. Visualizza l'ordine ricevuto</Text>
+            <Text style={styles.guideListItem}>3. Segna come "Confermato", poi "In Transito", poi "Spedito"</Text>
+
+            <Text style={styles.guideSubsectionTitle}>Fase 8: Gestione Ritiro (Pickup Point)</Text>
+            <Text style={styles.guideListItem}>1. Accedi come Punto di Ritiro</Text>
+            <Text style={styles.guideListItem}>2. Quando l'ordine arriva, clicca "Segna come Arrivato"</Text>
+            <Text style={styles.guideListItem}>3. Quando cliente ritira, segna come "Ritirato"</Text>
+
+            <Text style={styles.guideSubsectionTitle}>Fase 9: Completamento (Consumer)</Text>
+            <Text style={styles.guideListItem}>1. Ricevi notifica ordine pronto</Text>
+            <Text style={styles.guideListItem}>2. Vai al punto di ritiro e ritira il prodotto</Text>
+            <Text style={styles.guideListItem}>3. Verifica stato "Completato" e risparmio ottenuto</Text>
+          </View>
+
+          <View style={styles.guideSection}>
+            <Text style={styles.guideSectionTitle}>🧪 Scenari di Test</Text>
+
+            <Text style={styles.guideSubsectionTitle}>Scenario 1: Pagamento Riuscito (Happy Path)</Text>
+            <Text style={styles.guideText}>Carta: 4242 4242 4242 4242 (Visa)</Text>
+            <Text style={styles.guideText}>Obiettivo: Testare il flusso completo senza errori</Text>
+
+            <Text style={styles.guideSubsectionTitle}>Scenario 2: Carta Declinata - Fondi Insufficienti</Text>
+            <Text style={styles.guideText}>Carta: 4000 0000 0000 9995</Text>
+            <Text style={styles.guideText}>Obiettivo: Testare gestione errore fondi insufficienti</Text>
+
+            <Text style={styles.guideSubsectionTitle}>Scenario 3: Drop Sotto-Finanziato</Text>
+            <Text style={styles.guideText}>Obiettivo: Testare comportamento quando il drop non raggiunge il minimo</Text>
+            <Text style={styles.guideListItem}>• Crea drop con poche prenotazioni</Text>
+            <Text style={styles.guideListItem}>• Lascia scadere il timer</Text>
+            <Text style={styles.guideListItem}>• Verifica rilascio fondi e notifiche</Text>
+
+            <Text style={styles.guideSubsectionTitle}>Scenario 4: Cancellazione Prenotazione</Text>
+            <Text style={styles.guideText}>Obiettivo: Testare cancellazione prenotazione da parte dell'utente</Text>
+            <Text style={styles.guideListItem}>• Crea prenotazione</Text>
+            <Text style={styles.guideListItem}>• Vai su "Le Mie Prenotazioni"</Text>
+            <Text style={styles.guideListItem}>• Clicca "Annulla Prenotazione"</Text>
+            <Text style={styles.guideListItem}>• Verifica rilascio fondi</Text>
+          </View>
+
+          <View style={styles.guideSection}>
+            <Text style={styles.guideSectionTitle}>🔧 Risoluzione Problemi</Text>
+
+            <Text style={styles.guideSubsectionTitle}>Problema: Carta Non Accettata</Text>
+            <Text style={styles.guideListItem}>• Verifica modalità test Stripe</Text>
+            <Text style={styles.guideListItem}>• Controlla numero carta corretto</Text>
+            <Text style={styles.guideListItem}>• Usa data di scadenza futura</Text>
+            <Text style={styles.guideListItem}>• Verifica CVC (3 cifre, 4 per Amex)</Text>
+
+            <Text style={styles.guideSubsectionTitle}>Problema: Autorizzazione Non Creata</Text>
+            <Text style={styles.guideListItem}>• Verifica metodo di pagamento presente</Text>
+            <Text style={styles.guideListItem}>• Controlla drop in stato "Active"</Text>
+            <Text style={styles.guideListItem}>• Verifica prodotto disponibile</Text>
+            <Text style={styles.guideListItem}>• Controlla policy RLS su Supabase</Text>
+
+            <Text style={styles.guideSubsectionTitle}>Problema: Pagamento Non Catturato</Text>
+            <Text style={styles.guideListItem}>• Verifica Edge Function deployata</Text>
+            <Text style={styles.guideListItem}>• Controlla log Edge Function</Text>
+            <Text style={styles.guideListItem}>• Verifica drop in stato "Completed"</Text>
+            <Text style={styles.guideListItem}>• Controlla chiavi Stripe configurate</Text>
+
+            <Text style={styles.guideSubsectionTitle}>Problema: Drop Non Si Crea</Text>
+            <Text style={styles.guideListItem}>• Verifica trigger database attivo</Text>
+            <Text style={styles.guideListItem}>• Controlla interessi stesso punto di ritiro</Text>
+            <Text style={styles.guideListItem}>• Verifica lista fornitore "Active"</Text>
+            <Text style={styles.guideListItem}>• Crea manualmente da admin se necessario</Text>
+          </View>
+
+          <View style={styles.guideSection}>
+            <Text style={styles.guideSectionTitle}>⚠️ Note Importanti</Text>
+            <Text style={styles.guideListItem}>• Le carte di test funzionano SOLO in modalità test Stripe</Text>
+            <Text style={styles.guideListItem}>• Non addebitano mai denaro reale</Text>
+            <Text style={styles.guideListItem}>• Usa qualsiasi CVC valido (3 cifre, 4 per Amex)</Text>
+            <Text style={styles.guideListItem}>• Usa qualsiasi data di scadenza futura</Text>
+            <Text style={styles.guideListItem}>• Elimina periodicamente i dati di test</Text>
+            <Text style={styles.guideListItem}>• Testa sempre su dispositivi reali</Text>
+          </View>
+
+          <View style={styles.guideSection}>
+            <Text style={styles.guideSectionTitle}>📚 Risorse Aggiuntive</Text>
+            <Text style={styles.guideListItem}>• Documentazione Stripe: https://stripe.com/docs/testing</Text>
+            <Text style={styles.guideListItem}>• Dashboard Stripe Test: https://dashboard.stripe.com/test/payments</Text>
+            <Text style={styles.guideListItem}>• Supabase Dashboard: https://supabase.com/dashboard</Text>
+          </View>
+
+          <Pressable style={styles.backToTestButton} onPress={toggleGuide}>
+            <IconSymbol ios_icon_name="arrow.left" android_material_icon_name="arrow_back" size={20} color="#FFF" />
+            <Text style={styles.backToTestButtonText}>Torna ai Test Interattivi</Text>
+          </Pressable>
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -319,11 +557,11 @@ export default function PaymentTestingScreen() {
           <View style={styles.actionRow}>
             <Pressable
               style={[styles.actionButton, { flex: 1 }]}
-              onPress={viewPaymentGuide}
+              onPress={toggleGuide}
               disabled={testing}
             >
               <IconSymbol ios_icon_name="book.fill" android_material_icon_name="menu_book" size={20} color={colors.text} />
-              <Text style={styles.actionButtonText}>Guida</Text>
+              <Text style={styles.actionButtonText}>Guida Completa</Text>
             </Pressable>
 
             <Pressable
@@ -773,5 +1011,105 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.textSecondary,
     lineHeight: 20,
+  },
+  backButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 24,
+    paddingVertical: 8,
+  },
+  backButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.primary,
+  },
+  guideSection: {
+    marginBottom: 32,
+  },
+  guideTitle: {
+    fontSize: 32,
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: 12,
+  },
+  guideSubtitle: {
+    fontSize: 16,
+    color: colors.textSecondary,
+    lineHeight: 24,
+  },
+  guideSectionTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: 16,
+  },
+  guideSubsectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.text,
+    marginTop: 16,
+    marginBottom: 12,
+  },
+  guideText: {
+    fontSize: 15,
+    color: colors.textSecondary,
+    lineHeight: 22,
+    marginBottom: 12,
+  },
+  guideListItem: {
+    fontSize: 15,
+    color: colors.textSecondary,
+    lineHeight: 24,
+    marginBottom: 4,
+  },
+  codeBlock: {
+    backgroundColor: colors.card,
+    borderRadius: 8,
+    padding: 16,
+    marginVertical: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  codeText: {
+    fontSize: 13,
+    fontFamily: 'monospace',
+    color: colors.text,
+    lineHeight: 20,
+  },
+  cardInfoBlock: {
+    backgroundColor: colors.card,
+    borderRadius: 8,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  cardInfoTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: 8,
+  },
+  cardInfoText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    lineHeight: 20,
+    marginBottom: 4,
+  },
+  backToTestButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primary,
+    paddingVertical: 16,
+    borderRadius: 12,
+    gap: 8,
+    marginTop: 24,
+  },
+  backToTestButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFF',
   },
 });
