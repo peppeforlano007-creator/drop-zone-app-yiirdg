@@ -9,18 +9,17 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/app/integrations/supabase/client';
 import * as Haptics from 'expo-haptics';
 
-// WhatsApp support number (format: country code + number without + or spaces)
-const WHATSAPP_SUPPORT_NUMBER = '393123456789'; // Replace with your actual WhatsApp number
-
 export default function ProfileScreen() {
   const { user, logout, updatePickupPoint } = useAuth();
   const [selectedPickupPoint, setSelectedPickupPoint] = useState(user?.pickupPoint || '');
   const [pickupPoints, setPickupPoints] = useState<{ id: string; city: string }[]>([]);
   const [loadingPoints, setLoadingPoints] = useState(true);
   const [updatingPoint, setUpdatingPoint] = useState(false);
+  const [whatsappNumber, setWhatsappNumber] = useState('393123456789'); // Default fallback
 
   useEffect(() => {
     loadPickupPoints();
+    loadWhatsAppNumber();
   }, []);
 
   useEffect(() => {
@@ -28,6 +27,27 @@ export default function ProfileScreen() {
       setSelectedPickupPoint(user.pickupPoint);
     }
   }, [user?.pickupPoint]);
+
+  const loadWhatsAppNumber = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('app_settings')
+        .select('setting_value')
+        .eq('setting_key', 'whatsapp_support_number')
+        .single();
+
+      if (error) {
+        console.error('Error loading WhatsApp number:', error);
+        return;
+      }
+
+      if (data?.setting_value) {
+        setWhatsappNumber(data.setting_value);
+      }
+    } catch (error) {
+      console.error('Exception loading WhatsApp number:', error);
+    }
+  };
 
   const loadPickupPoints = async () => {
     try {
@@ -128,8 +148,8 @@ export default function ProfileScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     
     const message = encodeURIComponent('Ciao, ho bisogno di supporto.');
-    const whatsappUrl = `whatsapp://send?phone=${WHATSAPP_SUPPORT_NUMBER}&text=${message}`;
-    const whatsappWebUrl = `https://wa.me/${WHATSAPP_SUPPORT_NUMBER}?text=${message}`;
+    const whatsappUrl = `whatsapp://send?phone=${whatsappNumber}&text=${message}`;
+    const whatsappWebUrl = `https://wa.me/${whatsappNumber}?text=${message}`;
     
     try {
       // Try to open WhatsApp app first

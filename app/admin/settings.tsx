@@ -17,6 +17,7 @@ import { supabase } from '@/app/integrations/supabase/client';
 import * as Haptics from 'expo-haptics';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
+import { logActivity } from '@/utils/activityLogger';
 
 interface PlatformSettings {
   drop_duration_days: number;
@@ -27,6 +28,7 @@ interface PlatformSettings {
   auto_complete_drops: boolean;
   enable_notifications: boolean;
   maintenance_mode: boolean;
+  whatsapp_support_number: string;
 }
 
 export default function SettingsScreen() {
@@ -39,9 +41,41 @@ export default function SettingsScreen() {
     auto_complete_drops: false,
     enable_notifications: true,
     maintenance_mode: false,
+    whatsapp_support_number: '393123456789',
   });
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    loadSettings();
+  }, []);
+
+  const loadSettings = async () => {
+    try {
+      setLoading(true);
+      
+      // Load WhatsApp support number from database
+      const { data: whatsappData, error: whatsappError } = await supabase
+        .from('app_settings')
+        .select('setting_value')
+        .eq('setting_key', 'whatsapp_support_number')
+        .single();
+
+      if (whatsappError) {
+        console.error('Error loading WhatsApp number:', whatsappError);
+      } else if (whatsappData) {
+        setSettings(prev => ({
+          ...prev,
+          whatsapp_support_number: whatsappData.setting_value,
+        }));
+      }
+    } catch (error) {
+      console.error('Exception loading settings:', error);
+      Alert.alert('Errore', 'Impossibile caricare le impostazioni');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSaveSettings = async () => {
     Alert.alert(
@@ -57,8 +91,26 @@ export default function SettingsScreen() {
               setSaving(true);
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
-              // In a real app, you would save these settings to the database
-              console.log('Saving settings:', settings);
+              // Save WhatsApp support number to database
+              const { error: whatsappError } = await supabase
+                .from('app_settings')
+                .update({ setting_value: settings.whatsapp_support_number })
+                .eq('setting_key', 'whatsapp_support_number');
+
+              if (whatsappError) {
+                console.error('Error saving WhatsApp number:', whatsappError);
+                Alert.alert('Errore', 'Si è verificato un errore durante il salvataggio del numero WhatsApp');
+                return;
+              }
+
+              // Log activity
+              await logActivity(
+                'update_settings',
+                'Impostazioni aggiornate',
+                {
+                  whatsapp_support_number: settings.whatsapp_support_number,
+                }
+              );
 
               Alert.alert('Successo', 'Impostazioni salvate con successo');
             } catch (error) {
@@ -81,6 +133,24 @@ export default function SettingsScreen() {
     setSettings(prev => ({ ...prev, [key]: value }));
   };
 
+  if (loading) {
+    return (
+      <>
+        <Stack.Screen
+          options={{
+            title: 'Impostazioni',
+          }}
+        />
+        <SafeAreaView style={styles.safeArea} edges={['bottom']}>
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={colors.text} />
+            <Text style={styles.loadingText}>Caricamento impostazioni...</Text>
+          </View>
+        </SafeAreaView>
+      </>
+    );
+  }
+
   return (
     <>
       <Stack.Screen
@@ -90,6 +160,30 @@ export default function SettingsScreen() {
       />
       <SafeAreaView style={styles.safeArea} edges={['bottom']}>
         <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Supporto Clienti</Text>
+            
+            <View style={styles.settingItem}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Numero WhatsApp Assistenza</Text>
+                <Text style={styles.settingDescription}>
+                  Numero WhatsApp per il supporto clienti (formato: codice paese + numero senza + o spazi)
+                </Text>
+                <Text style={styles.settingExample}>
+                  Esempio: 393123456789 per +39 312 345 6789
+                </Text>
+              </View>
+            </View>
+            <TextInput
+              style={styles.textInput}
+              value={settings.whatsapp_support_number}
+              onChangeText={(text) => updateSetting('whatsapp_support_number', text)}
+              placeholder="393123456789"
+              keyboardType="phone-pad"
+              maxLength={20}
+            />
+          </View>
+
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Configurazione Drop</Text>
             
@@ -355,6 +449,16 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingBottom: 40,
   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 16,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: colors.textSecondary,
+  },
   section: {
     marginBottom: 24,
   },
@@ -388,6 +492,13 @@ const styles = StyleSheet.create({
   settingDescription: {
     fontSize: 13,
     color: colors.textSecondary,
+    lineHeight: 18,
+  },
+  settingExample: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    fontStyle: 'italic',
+    marginTop: 4,
   },
   numberInput: {
     backgroundColor: colors.background,
@@ -400,6 +511,16 @@ const styles = StyleSheet.create({
     minWidth: 80,
     borderWidth: 1,
     borderColor: colors.border,
+  },
+  textInput: {
+    backgroundColor: colors.card,
+    borderRadius: 12,
+    padding: 16,
+    fontSize: 16,
+    color: colors.text,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginBottom: 12,
   },
   dangerZone: {
     marginTop: 24,
