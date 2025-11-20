@@ -2,7 +2,7 @@
 import { View, Text, StyleSheet, ScrollView, Pressable, Alert, ActivityIndicator, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '@/styles/commonStyles';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { IconSymbol } from '@/components/IconSymbol';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { supabase } from '@/app/integrations/supabase/client';
@@ -32,11 +32,7 @@ export default function AdminEditUserScreen() {
   const [phoneLoading, setPhoneLoading] = useState(false);
   const [passwordLoading, setPasswordLoading] = useState(false);
 
-  useEffect(() => {
-    loadUserData();
-  }, [userId]);
-
-  const loadUserData = async () => {
+  const loadUserData = useCallback(async () => {
     try {
       setLoading(true);
       
@@ -64,7 +60,11 @@ export default function AdminEditUserScreen() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [userId]);
+
+  useEffect(() => {
+    loadUserData();
+  }, [loadUserData]);
 
   const handleUpdateName = async () => {
     if (!name.trim()) {

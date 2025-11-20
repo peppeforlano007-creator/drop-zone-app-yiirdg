@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import {
@@ -55,11 +55,7 @@ export default function EditProductScreen() {
   const [availableSizes, setAvailableSizes] = useState('');
   const [availableColors, setAvailableColors] = useState('');
 
-  useEffect(() => {
-    loadProduct();
-  }, [productId]);
-
-  const loadProduct = async () => {
+  const loadProduct = useCallback(async () => {
     try {
       setLoading(true);
       
@@ -95,7 +91,11 @@ export default function EditProductScreen() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [productId]);
+
+  useEffect(() => {
+    loadProduct();
+  }, [loadProduct]);
 
   const handleSave = async () => {
     if (!name.trim()) {

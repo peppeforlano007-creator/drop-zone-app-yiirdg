@@ -1,6 +1,6 @@
 
 import "react-native-reanimated";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { useFonts } from "expo-font";
 import { Stack, router } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
@@ -90,7 +90,7 @@ function CustomSplashScreen({ onFinish }: { onFinish: () => void }) {
         });
       });
     });
-  }, [fadeAnim, scaleAnim, circleScaleAnim, bgColorAnim, logoScaleAnim, sloganOpacityAnim]);
+  }, [fadeAnim, scaleAnim, circleScaleAnim, bgColorAnim, logoScaleAnim, sloganOpacityAnim, onFinish]);
 
   const backgroundColor = bgColorAnim.interpolate({
     inputRange: [0, 1],
@@ -267,8 +267,12 @@ export default function RootLayout() {
     }
   }, [networkState.isConnected, networkState.isInternetReachable]);
 
+  const handleSplashFinish = useCallback(() => {
+    setShowCustomSplash(false);
+  }, []);
+
   if (!loaded || showCustomSplash) {
-    return <CustomSplashScreen onFinish={() => setShowCustomSplash(false)} />;
+    return <CustomSplashScreen onFinish={handleSplashFinish} />;
   }
 
   const CustomDefaultTheme: Theme = {

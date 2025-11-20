@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, router } from 'expo-router';
 import {
@@ -38,11 +38,7 @@ export default function CreateUserScreen() {
   const [role, setRole] = useState<'consumer' | 'supplier' | 'pickup_point' | 'admin'>('consumer');
   const [selectedPickupPointId, setSelectedPickupPointId] = useState<string>('');
 
-  useEffect(() => {
-    loadPickupPoints();
-  }, []);
-
-  const loadPickupPoints = async () => {
+  const loadPickupPoints = useCallback(async () => {
     try {
       setLoadingPickupPoints(true);
       const { data, error } = await supabase
@@ -62,7 +58,11 @@ export default function CreateUserScreen() {
     } finally {
       setLoadingPickupPoints(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    loadPickupPoints();
+  }, [loadPickupPoints]);
 
   const validateForm = () => {
     if (!email.trim()) {
@@ -210,7 +210,7 @@ export default function CreateUserScreen() {
     }
   };
 
-  const roles: Array<'consumer' | 'supplier' | 'pickup_point' | 'admin'> = [
+  const roles: ('consumer' | 'supplier' | 'pickup_point' | 'admin')[] = [
     'consumer',
     'supplier',
     'pickup_point',

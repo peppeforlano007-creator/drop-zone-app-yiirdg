@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import {
@@ -49,11 +49,7 @@ export default function EditPickupPointScreen() {
   const [status, setStatus] = useState('active');
   const [consumerInfo, setConsumerInfo] = useState('');
 
-  useEffect(() => {
-    loadPickupPoint();
-  }, [pickupPointId]);
-
-  const loadPickupPoint = async () => {
+  const loadPickupPoint = useCallback(async () => {
     try {
       setLoading(true);
       
@@ -86,7 +82,11 @@ export default function EditPickupPointScreen() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [pickupPointId]);
+
+  useEffect(() => {
+    loadPickupPoint();
+  }, [loadPickupPoint]);
 
   const handleSave = async () => {
     if (!name.trim()) {
