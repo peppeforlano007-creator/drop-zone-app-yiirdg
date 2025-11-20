@@ -29,6 +29,7 @@ export default function LoginScreen() {
   const [showResendEmail, setShowResendEmail] = useState(false);
   const [resendingEmail, setResendingEmail] = useState(false);
   const [whatsappNumber, setWhatsappNumber] = useState('393123456789'); // Default fallback
+  const [loadingWhatsapp, setLoadingWhatsapp] = useState(true);
 
   useEffect(() => {
     loadWhatsAppNumber();
@@ -64,22 +65,32 @@ export default function LoginScreen() {
 
   const loadWhatsAppNumber = async () => {
     try {
+      setLoadingWhatsapp(true);
+      console.log('Loading WhatsApp number from database...');
+      
       const { data, error } = await supabase
         .from('app_settings')
         .select('setting_value')
         .eq('setting_key', 'whatsapp_support_number')
-        .single();
+        .maybeSingle();
 
       if (error) {
         console.error('Error loading WhatsApp number:', error);
+        // Don't show alert, just use fallback
         return;
       }
 
       if (data?.setting_value) {
+        console.log('WhatsApp number loaded successfully:', data.setting_value);
         setWhatsappNumber(data.setting_value);
+      } else {
+        console.log('No WhatsApp number found in database, using fallback');
       }
     } catch (error) {
       console.error('Exception loading WhatsApp number:', error);
+      // Don't show alert, just use fallback
+    } finally {
+      setLoadingWhatsapp(false);
     }
   };
 
@@ -354,20 +365,26 @@ export default function LoginScreen() {
               <Pressable
                 style={({ pressed }) => [
                   styles.supportButton,
-                  pressed && styles.supportButtonPressed,
+                  (pressed || loadingWhatsapp) && styles.supportButtonPressed,
                 ]}
                 onPress={handleSupport}
-                disabled={loading || resendingEmail}
+                disabled={loading || resendingEmail || loadingWhatsapp}
               >
-                <IconSymbol
-                  ios_icon_name="questionmark.circle.fill"
-                  android_material_icon_name="help"
-                  size={20}
-                  color={colors.primary}
-                />
-                <Text style={styles.supportButtonText}>
-                  Hai bisogno di aiuto?
-                </Text>
+                {loadingWhatsapp ? (
+                  <ActivityIndicator color={colors.primary} size="small" />
+                ) : (
+                  <>
+                    <IconSymbol
+                      ios_icon_name="questionmark.circle.fill"
+                      android_material_icon_name="help"
+                      size={20}
+                      color={colors.primary}
+                    />
+                    <Text style={styles.supportButtonText}>
+                      Hai bisogno di aiuto?
+                    </Text>
+                  </>
+                )}
               </Pressable>
             </View>
 
@@ -546,6 +563,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.primary + '20',
     gap: 8,
+    minHeight: 52,
   },
   supportButtonPressed: {
     opacity: 0.7,

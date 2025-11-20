@@ -20,7 +20,6 @@ export default function PickupPointLayout() {
       <Stack.Screen name="dashboard" options={{ headerShown: false }} />
       <Stack.Screen name="orders" options={{ headerShown: false }} />
       <Stack.Screen name="earnings" options={{ headerShown: false }} />
-      <Stack.Screen name="edit" options={{ headerShown: false }} />
     </Stack>
   );
 }

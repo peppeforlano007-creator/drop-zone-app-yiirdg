@@ -16,6 +16,7 @@ export default function ProfileScreen() {
   const [loadingPoints, setLoadingPoints] = useState(true);
   const [updatingPoint, setUpdatingPoint] = useState(false);
   const [whatsappNumber, setWhatsappNumber] = useState('393123456789'); // Default fallback
+  const [loadingWhatsapp, setLoadingWhatsapp] = useState(true);
 
   useEffect(() => {
     loadPickupPoints();
@@ -30,22 +31,32 @@ export default function ProfileScreen() {
 
   const loadWhatsAppNumber = async () => {
     try {
+      setLoadingWhatsapp(true);
+      console.log('Profile: Loading WhatsApp number from database...');
+      
       const { data, error } = await supabase
         .from('app_settings')
         .select('setting_value')
         .eq('setting_key', 'whatsapp_support_number')
-        .single();
+        .maybeSingle();
 
       if (error) {
-        console.error('Error loading WhatsApp number:', error);
+        console.error('Profile: Error loading WhatsApp number:', error);
+        // Don't show alert, just use fallback
         return;
       }
 
       if (data?.setting_value) {
+        console.log('Profile: WhatsApp number loaded successfully:', data.setting_value);
         setWhatsappNumber(data.setting_value);
+      } else {
+        console.log('Profile: No WhatsApp number found in database, using fallback');
       }
     } catch (error) {
-      console.error('Exception loading WhatsApp number:', error);
+      console.error('Profile: Exception loading WhatsApp number:', error);
+      // Don't show alert, just use fallback
+    } finally {
+      setLoadingWhatsapp(false);
     }
   };
 
@@ -343,9 +354,17 @@ export default function ProfileScreen() {
               <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="chevron_right" size={20} color={colors.textSecondary} />
             </Pressable>
 
-            <Pressable style={styles.settingItem} onPress={handleSupport}>
+            <Pressable 
+              style={styles.settingItem} 
+              onPress={handleSupport}
+              disabled={loadingWhatsapp}
+            >
               <View style={styles.settingContent}>
-                <IconSymbol ios_icon_name="questionmark.circle.fill" android_material_icon_name="help" size={20} color={colors.text} />
+                {loadingWhatsapp ? (
+                  <ActivityIndicator size="small" color={colors.text} />
+                ) : (
+                  <IconSymbol ios_icon_name="questionmark.circle.fill" android_material_icon_name="help" size={20} color={colors.text} />
+                )}
                 <Text style={styles.settingText}>Aiuto e Supporto</Text>
               </View>
               <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="chevron_right" size={20} color={colors.textSecondary} />

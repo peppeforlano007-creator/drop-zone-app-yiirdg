@@ -364,38 +364,6 @@ export default function PickupPointDashboardScreen() {
                 color={colors.textSecondary}
               />
             </Pressable>
-
-            <Pressable
-              style={({ pressed }) => [
-                styles.actionCard,
-                pressed && styles.actionCardPressed,
-              ]}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                router.push('/pickup-point/edit');
-              }}
-            >
-              <View style={styles.actionIcon}>
-                <IconSymbol
-                  ios_icon_name="pencil.circle.fill"
-                  android_material_icon_name="edit"
-                  size={24}
-                  color={colors.info}
-                />
-              </View>
-              <View style={styles.actionContent}>
-                <Text style={styles.actionTitle}>Modifica Informazioni</Text>
-                <Text style={styles.actionDescription}>
-                  Aggiorna i dati del punto di ritiro
-                </Text>
-              </View>
-              <IconSymbol
-                ios_icon_name="chevron.right"
-                android_material_icon_name="chevron_right"
-                size={20}
-                color={colors.textSecondary}
-              />
-            </Pressable>
           </View>
 
           {/* Pickup Point Info */}
@@ -443,6 +411,17 @@ export default function PickupPointDashboardScreen() {
                     Commissione: {pickupPoint.commission_rate}%
                   </Text>
                 </View>
+              </View>
+              <View style={styles.infoNote}>
+                <IconSymbol
+                  ios_icon_name="info.circle.fill"
+                  android_material_icon_name="info"
+                  size={18}
+                  color={colors.info}
+                />
+                <Text style={styles.infoNoteText}>
+                  Per modificare le informazioni del punto di ritiro, contatta l&apos;amministratore.
+                </Text>
               </View>
             </View>
           )}
@@ -613,6 +592,7 @@ const styles = StyleSheet.create({
     padding: 16,
     borderWidth: 1,
     borderColor: colors.border,
+    marginBottom: 12,
   },
   infoRow: {
     flexDirection: 'row',
@@ -625,5 +605,21 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.text,
     lineHeight: 20,
+  },
+  infoNote: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: colors.info + '10',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: colors.info + '30',
+    gap: 12,
+  },
+  infoNoteText: {
+    flex: 1,
+    fontSize: 13,
+    color: colors.text,
+    lineHeight: 18,
   },
 });
