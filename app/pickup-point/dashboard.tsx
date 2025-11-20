@@ -55,7 +55,18 @@ export default function PickupPointDashboardScreen() {
 
   const loadDashboardData = async () => {
     if (!user?.pickupPointId) {
-      console.error('No pickup point ID found');
+      console.error('No pickup point ID found for user:', user?.email);
+      Alert.alert(
+        'Errore',
+        'No pickup point ID found. Contatta l\'amministratore per assistenza.',
+        [
+          {
+            text: 'OK',
+            onPress: () => router.replace('/login'),
+          },
+        ]
+      );
+      setLoading(false);
       return;
     }
 
@@ -69,6 +80,7 @@ export default function PickupPointDashboardScreen() {
 
       if (ppError) {
         console.error('Error loading pickup point:', ppError);
+        Alert.alert('Errore', 'Impossibile caricare i dati del punto di ritiro');
       } else {
         setPickupPoint(ppData);
       }
@@ -173,6 +185,29 @@ export default function PickupPointDashboardScreen() {
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={colors.primary} />
         <Text style={styles.loadingText}>Caricamento...</Text>
+      </View>
+    );
+  }
+
+  if (!user?.pickupPointId) {
+    return (
+      <View style={styles.errorContainer}>
+        <IconSymbol
+          ios_icon_name="exclamationmark.triangle.fill"
+          android_material_icon_name="error"
+          size={64}
+          color={colors.error}
+        />
+        <Text style={styles.errorTitle}>Errore</Text>
+        <Text style={styles.errorText}>
+          No pickup point ID found. Contatta l&apos;amministratore per assistenza.
+        </Text>
+        <Pressable
+          style={styles.errorButton}
+          onPress={() => router.replace('/login')}
+        >
+          <Text style={styles.errorButtonText}>Torna al Login</Text>
+        </Pressable>
       </View>
     );
   }
@@ -439,6 +474,38 @@ const styles = StyleSheet.create({
     marginTop: 16,
     fontSize: 14,
     color: colors.textSecondary,
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: colors.background,
+    padding: 32,
+  },
+  errorTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: colors.text,
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  errorText: {
+    fontSize: 16,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 24,
+    marginBottom: 24,
+  },
+  errorButton: {
+    backgroundColor: colors.primary,
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+    borderRadius: 8,
+  },
+  errorButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.background,
   },
   header: {
     flexDirection: 'row',

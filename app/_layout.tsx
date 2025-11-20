@@ -27,7 +27,7 @@ export const unstable_settings = {
   initialRouteName: "login",
 };
 
-// Enhanced Custom Splash Screen Component with growing circle animation
+// Enhanced Custom Splash Screen Component with improved animation
 function CustomSplashScreen({ onFinish }: { onFinish: () => void }) {
   const [fadeAnim] = useState(new Animated.Value(1));
   const [scaleAnim] = useState(new Animated.Value(0.3));
@@ -150,6 +150,7 @@ function CustomSplashScreen({ onFinish }: { onFinish: () => void }) {
             { scale: logoScale },
           ],
           zIndex: 10,
+          paddingHorizontal: 40,
         }}
       >
         <Animated.Text style={[styles.splashLogo, { color: logoColor as any }]}>
@@ -164,7 +165,7 @@ function CustomSplashScreen({ onFinish }: { onFinish: () => void }) {
             },
           ]}
         >
-          Prenota insieme, risparmia di più
+          Più condividi, più risparmi
         </Animated.Text>
       </Animated.View>
     </Animated.View>
@@ -307,7 +308,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
   },
   splashLogo: {
-    fontSize: 48,
+    fontSize: 36,
     fontWeight: '900',
     letterSpacing: 2,
     textAlign: 'center',

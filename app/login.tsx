@@ -11,6 +11,7 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
+  Linking,
 } from 'react-native';
 import { colors } from '@/styles/commonStyles';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -27,6 +28,11 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const [showResendEmail, setShowResendEmail] = useState(false);
   const [resendingEmail, setResendingEmail] = useState(false);
+  const [whatsappNumber, setWhatsappNumber] = useState('393123456789'); // Default fallback
+
+  useEffect(() => {
+    loadWhatsAppNumber();
+  }, []);
 
   useEffect(() => {
     // Redirect if already logged in
@@ -55,6 +61,58 @@ export default function LoginScreen() {
       }
     }
   }, [user, authLoading]);
+
+  const loadWhatsAppNumber = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('app_settings')
+        .select('setting_value')
+        .eq('setting_key', 'whatsapp_support_number')
+        .single();
+
+      if (error) {
+        console.error('Error loading WhatsApp number:', error);
+        return;
+      }
+
+      if (data?.setting_value) {
+        setWhatsappNumber(data.setting_value);
+      }
+    } catch (error) {
+      console.error('Exception loading WhatsApp number:', error);
+    }
+  };
+
+  const handleSupport = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    
+    const message = encodeURIComponent('Ciao, ho bisogno di supporto.');
+    const whatsappUrl = `whatsapp://send?phone=${whatsappNumber}&text=${message}`;
+    const whatsappWebUrl = `https://wa.me/${whatsappNumber}?text=${message}`;
+    
+    try {
+      // Try to open WhatsApp app first
+      const canOpen = await Linking.canOpenURL(whatsappUrl);
+      
+      if (canOpen) {
+        await Linking.openURL(whatsappUrl);
+      } else {
+        // If WhatsApp app is not installed, open WhatsApp Web
+        await Linking.openURL(whatsappWebUrl);
+      }
+    } catch (error) {
+      console.error('Error opening WhatsApp:', error);
+      Alert.alert(
+        'Errore',
+        'Impossibile aprire WhatsApp. Assicurati di avere WhatsApp installato sul tuo dispositivo.',
+        [
+          {
+            text: 'OK',
+          },
+        ]
+      );
+    }
+  };
 
   const handleResendConfirmationEmail = async () => {
     if (!email.trim()) {
@@ -291,6 +349,26 @@ export default function LoginScreen() {
                   <Text style={styles.loginButtonText}>Accedi</Text>
                 )}
               </Pressable>
+
+              {/* Support Button */}
+              <Pressable
+                style={({ pressed }) => [
+                  styles.supportButton,
+                  pressed && styles.supportButtonPressed,
+                ]}
+                onPress={handleSupport}
+                disabled={loading || resendingEmail}
+              >
+                <IconSymbol
+                  ios_icon_name="questionmark.circle.fill"
+                  android_material_icon_name="help"
+                  size={20}
+                  color={colors.primary}
+                />
+                <Text style={styles.supportButtonText}>
+                  Hai bisogno di aiuto?
+                </Text>
+              </Pressable>
             </View>
 
             <View style={styles.divider}>
@@ -456,6 +534,26 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#fff',
+  },
+  supportButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primary + '10',
+    borderRadius: 8,
+    padding: 14,
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: colors.primary + '20',
+    gap: 8,
+  },
+  supportButtonPressed: {
+    opacity: 0.7,
+  },
+  supportButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.primary,
   },
   divider: {
     flexDirection: 'row',
