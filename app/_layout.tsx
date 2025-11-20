@@ -29,14 +29,14 @@ export const unstable_settings = {
 
 // Enhanced Custom Splash Screen Component with growing circle animation
 function CustomSplashScreen({ onFinish }: { onFinish: () => void }) {
-  const fadeAnim = React.useRef(new Animated.Value(1)).current;
-  const scaleAnim = React.useRef(new Animated.Value(0.3)).current;
-  const circleScaleAnim = React.useRef(new Animated.Value(0)).current;
-  const bgColorAnim = React.useRef(new Animated.Value(0)).current;
-  const logoScaleAnim = React.useRef(new Animated.Value(1)).current;
-  const sloganOpacityAnim = React.useRef(new Animated.Value(0)).current;
+  const [fadeAnim] = useState(new Animated.Value(1));
+  const [scaleAnim] = useState(new Animated.Value(0.3));
+  const [circleScaleAnim] = useState(new Animated.Value(0));
+  const [bgColorAnim] = useState(new Animated.Value(0));
+  const [logoScaleAnim] = useState(new Animated.Value(1));
+  const [sloganOpacityAnim] = useState(new Animated.Value(0));
 
-  React.useEffect(() => {
+  useEffect(() => {
     // Phase 1: Logo appears and scales up (0-800ms)
     Animated.parallel([
       Animated.timing(fadeAnim, {
@@ -88,7 +88,7 @@ function CustomSplashScreen({ onFinish }: { onFinish: () => void }) {
         });
       });
     });
-  }, []);
+  }, [fadeAnim, scaleAnim, circleScaleAnim, bgColorAnim, logoScaleAnim, sloganOpacityAnim]);
 
   const backgroundColor = bgColorAnim.interpolate({
     inputRange: [0, 1],
@@ -103,6 +103,16 @@ function CustomSplashScreen({ onFinish }: { onFinish: () => void }) {
   const sloganColor = bgColorAnim.interpolate({
     inputRange: [0, 0.5, 1],
     outputRange: ['#CCCCCC', '#999999', '#666666'],
+  });
+
+  const combinedScale = scaleAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 1],
+  });
+
+  const logoScale = logoScaleAnim.interpolate({
+    inputRange: [1, 1.1],
+    outputRange: [1, 1.1],
   });
 
   return (
@@ -135,13 +145,16 @@ function CustomSplashScreen({ onFinish }: { onFinish: () => void }) {
       {/* Logo and slogan */}
       <Animated.View
         style={{
-          transform: [{ scale: Animated.multiply(scaleAnim, logoScaleAnim) }],
+          transform: [
+            { scale: combinedScale },
+            { scale: logoScale },
+          ],
           zIndex: 10,
         }}
       >
-        <Text style={[styles.splashLogo, { color: logoColor as any }]}>
+        <Animated.Text style={[styles.splashLogo, { color: logoColor as any }]}>
           DROPMARKET
-        </Text>
+        </Animated.Text>
         <Animated.Text
           style={[
             styles.splashTagline,
@@ -172,7 +185,7 @@ export default function RootLayout() {
     }
   }, [loaded, showCustomSplash]);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (
       !networkState.isConnected &&
       networkState.isInternetReachable === false
