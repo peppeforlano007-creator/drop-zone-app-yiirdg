@@ -1,24 +1,24 @@
 
-import React, { useState } from 'react';
+import { Stack, router } from 'expo-router';
 import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
-  TextInput,
   Pressable,
-  Alert,
+  TextInput,
   KeyboardAvoidingView,
   Platform,
+  ScrollView,
+  Alert,
   ActivityIndicator,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Stack, router } from 'expo-router';
 import { colors } from '@/styles/commonStyles';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { IconSymbol } from '@/components/IconSymbol';
-import { useAuth } from '@/contexts/AuthContext';
+import React, { useState, useEffect } from 'react';
 import * as Haptics from 'expo-haptics';
 import { supabase } from '@/app/integrations/supabase/client';
+import { Picker } from '@react-native-picker/picker';
 
 interface PickupPoint {
   id: string;
@@ -26,93 +26,74 @@ interface PickupPoint {
   city: string;
 }
 
-export default function RegisterConsumerScreen() {
-  const { register } = useAuth();
-  const [fullName, setFullName] = useState('');
+export default function ConsumerRegisterScreen() {
   const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [selectedPickupPoint, setSelectedPickupPoint] = useState<string>('');
+  const [fullName, setFullName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [pickupPointId, setPickupPointId] = useState('');
   const [pickupPoints, setPickupPoints] = useState<PickupPoint[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadingPickupPoints, setLoadingPickupPoints] = useState(true);
-  const [registeredEmail, setRegisteredEmail] = useState<string | null>(null);
-  const [resendingEmail, setResendingEmail] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  React.useEffect(() => {
+  useEffect(() => {
     loadPickupPoints();
   }, []);
 
   const loadPickupPoints = async () => {
     try {
+      setLoadingPickupPoints(true);
+      console.log('Loading pickup points...');
+      
       const { data, error } = await supabase
         .from('pickup_points')
         .select('id, name, city')
         .eq('status', 'active')
-        .order('city');
+        .order('city', { ascending: true });
 
       if (error) {
         console.error('Error loading pickup points:', error);
-        Alert.alert('Errore', 'Impossibile caricare i punti di ritiro');
-      } else {
-        setPickupPoints(data || []);
+        Alert.alert('Errore', 'Impossibile caricare i punti di ritiro. Riprova.');
+        return;
       }
+
+      console.log('Pickup points loaded:', data?.length);
+      setPickupPoints(data || []);
     } catch (error) {
       console.error('Exception loading pickup points:', error);
+      Alert.alert('Errore', 'Si è verificato un errore durante il caricamento dei punti di ritiro.');
     } finally {
       setLoadingPickupPoints(false);
     }
   };
 
-  const handleResendConfirmationEmail = async () => {
-    if (!registeredEmail) return;
-
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setResendingEmail(true);
-
-    try {
-      console.log('Resending confirmation email to:', registeredEmail);
-      const { error } = await supabase.auth.resend({
-        type: 'signup',
-        email: registeredEmail,
-        options: {
-          emailRedirectTo: 'dropzone://email-confirmed'
-        }
-      });
-
-      if (error) {
-        console.error('Error resending confirmation email:', error);
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-        Alert.alert(
-          'Errore',
-          'Impossibile inviare l\'email di conferma. Riprova più tardi.'
-        );
-      } else {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        Alert.alert(
-          'Email Inviata!',
-          'Abbiamo inviato nuovamente l\'email di conferma. Controlla la tua casella di posta (anche nello spam).',
-          [{ text: 'OK' }]
-        );
-      }
-    } catch (error) {
-      console.error('Exception resending confirmation email:', error);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert('Errore', 'Si è verificato un errore imprevisto. Riprova.');
-    } finally {
-      setResendingEmail(false);
+  const validatePassword = (password: string): { valid: boolean; message?: string } => {
+    if (password.length < 8) {
+      return { valid: false, message: 'La password deve contenere almeno 8 caratteri' };
     }
+    
+    if (!/[A-Z]/.test(password)) {
+      return { valid: false, message: 'La password deve contenere almeno una lettera maiuscola' };
+    }
+    
+    if (!/[a-z]/.test(password)) {
+      return { valid: false, message: 'La password deve contenere almeno una lettera minuscola' };
+    }
+    
+    if (!/[0-9]/.test(password)) {
+      return { valid: false, message: 'La password deve contenere almeno un numero' };
+    }
+    
+    return { valid: true };
   };
 
   const handleRegister = async () => {
-    console.log('handleRegister called');
-    
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    
     // Validation
     if (!fullName.trim()) {
-      Alert.alert('Errore', 'Inserisci il nome completo');
+      Alert.alert('Errore', 'Inserisci il tuo nome completo');
       return;
     }
 
@@ -121,8 +102,10 @@ export default function RegisterConsumerScreen() {
       return;
     }
 
-    if (!email.includes('@')) {
-      Alert.alert('Errore', 'Inserisci un\'email valida');
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email.trim())) {
+      Alert.alert('Errore', 'Inserisci un indirizzo email valido');
       return;
     }
 
@@ -131,307 +114,373 @@ export default function RegisterConsumerScreen() {
       return;
     }
 
-    if (!selectedPickupPoint) {
-      Alert.alert('Errore', 'Seleziona un punto di ritiro');
-      return;
-    }
-
     if (!password) {
       Alert.alert('Errore', 'Inserisci la password');
       return;
     }
 
-    if (password.length < 6) {
-      Alert.alert('Errore', 'La password deve essere di almeno 6 caratteri');
+    // Validate password strength
+    const validation = validatePassword(password);
+    if (!validation.valid) {
+      Alert.alert('Password Non Valida', validation.message);
       return;
     }
 
     if (password !== confirmPassword) {
-      Alert.alert('Errore', 'Le password non coincidono');
+      Alert.alert('Errore', 'Le password non corrispondono');
       return;
     }
 
+    if (!pickupPointId) {
+      Alert.alert('Errore', 'Seleziona un punto di ritiro');
+      return;
+    }
+
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setLoading(true);
 
     try {
-      const result = await register(
-        email.trim().toLowerCase(),
+      console.log('Registering consumer:', email, 'pickup_point:', pickupPointId);
+      
+      // Register with Supabase Auth
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: email.trim().toLowerCase(),
         password,
-        fullName.trim(),
-        phone.trim(),
-        'consumer',
-        selectedPickupPoint
-      );
+        options: {
+          emailRedirectTo: 'dropzone://email-confirmed',
+          data: {
+            full_name: fullName.trim(),
+            phone: phone.trim(),
+            role: 'consumer',
+            pickup_point_id: pickupPointId,
+          }
+        }
+      });
 
-      if (result.success) {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        setRegisteredEmail(email.trim().toLowerCase());
-        
-        Alert.alert(
-          '✅ Registrazione Completata!',
-          'Ti abbiamo inviato un\'email di conferma.\n\n' +
-          '📧 Controlla la tua casella di posta (anche nello spam) e clicca sul link per attivare il tuo account.\n\n' +
-          '⚠️ Non potrai accedere finché non confermi la tua email.\n\n' +
-          'Non hai ricevuto l\'email?',
-          [
-            {
-              text: 'Invia Nuovamente',
-              onPress: () => {
-                handleResendConfirmationEmail();
-              },
-            },
-            {
-              text: 'Vai al Login',
-              style: 'cancel',
-              onPress: () => {
-                console.log('Navigating to login...');
-                router.replace('/login');
-              },
-            },
-          ]
-        );
-      } else {
+      if (authError) {
+        console.error('Registration error:', authError);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
         
-        // Provide more helpful error messages
-        let errorMessage = result.message || 'Si è verificato un errore';
-        
-        if (errorMessage.toLowerCase().includes('user already registered') ||
-            errorMessage.toLowerCase().includes('already registered')) {
-          errorMessage = 'Questo indirizzo email è già registrato.\n\nSe hai dimenticato la password, contatta il supporto.';
+        let errorMessage = authError.message;
+        if (errorMessage.toLowerCase().includes('already registered')) {
+          errorMessage = 'Questo indirizzo email è già registrato. Prova ad accedere o usa un\'altra email.';
         }
         
         Alert.alert('Errore di Registrazione', errorMessage);
+        return;
       }
+
+      if (!authData.user) {
+        Alert.alert('Errore', 'Si è verificato un errore durante la registrazione. Riprova.');
+        return;
+      }
+
+      console.log('User registered successfully:', authData.user.id);
+      
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      
+      // Show success message with email confirmation instructions
+      Alert.alert(
+        'Registrazione Completata! 🎉',
+        `Abbiamo inviato un'email di conferma a:\n\n${email}\n\nControlla la tua casella di posta (anche nello spam) e clicca sul link per confermare il tuo account.\n\nDopo la conferma, potrai accedere all'app.`,
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              router.replace('/login');
+            }
+          }
+        ]
+      );
     } catch (error) {
       console.error('Registration exception:', error);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert('Errore', 'Si è verificato un errore imprevisto');
+      Alert.alert('Errore', 'Si è verificato un errore imprevisto durante la registrazione. Riprova.');
     } finally {
       setLoading(false);
     }
   };
 
+  const handleBackToLogin = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.back();
+  };
+
   return (
     <>
-      <Stack.Screen
-        options={{
+      <Stack.Screen 
+        options={{ 
           headerShown: true,
           title: 'Registrazione Utente',
           headerBackTitle: 'Indietro',
-        }}
+        }} 
       />
-      <SafeAreaView style={styles.container} edges={['bottom']}>
+      <SafeAreaView style={styles.safeArea} edges={['bottom']}>
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={styles.keyboardView}
+          style={styles.container}
         >
           <ScrollView
             contentContainerStyle={styles.scrollContent}
-            showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
             <View style={styles.header}>
-              <View style={styles.iconContainer}>
-                <IconSymbol 
-                  ios_icon_name="person.fill" 
-                  android_material_icon_name="person"
-                  size={48} 
-                  color={colors.text} 
-                />
-              </View>
-              <Text style={styles.title}>Crea Account</Text>
+              <Text style={styles.title}>Crea il tuo Account</Text>
               <Text style={styles.subtitle}>
-                Inserisci i tuoi dati per iniziare a prenotare prodotti
+                Registrati per iniziare a prenotare prodotti e partecipare ai drop
               </Text>
             </View>
 
-            {registeredEmail && (
-              <View style={styles.emailConfirmationBanner}>
-                <IconSymbol
-                  ios_icon_name="envelope.badge.fill"
-                  android_material_icon_name="mark_email_unread"
-                  size={24}
-                  color={colors.primary}
-                />
-                <View style={styles.emailConfirmationContent}>
-                  <Text style={styles.emailConfirmationTitle}>
-                    Email di Conferma Inviata
-                  </Text>
-                  <Text style={styles.emailConfirmationText}>
-                    Controlla {registeredEmail}
-                  </Text>
-                </View>
-                <Pressable
-                  style={({ pressed }) => [
-                    styles.resendIconButton,
-                    (pressed || resendingEmail) && styles.resendIconButtonPressed,
-                  ]}
-                  onPress={handleResendConfirmationEmail}
-                  disabled={resendingEmail}
-                >
-                  {resendingEmail ? (
-                    <ActivityIndicator size="small" color={colors.primary} />
-                  ) : (
-                    <IconSymbol
-                      ios_icon_name="arrow.clockwise"
-                      android_material_icon_name="refresh"
-                      size={20}
-                      color={colors.primary}
-                    />
-                  )}
-                </Pressable>
-              </View>
-            )}
+            <View style={styles.formSection}>
+              <Text style={styles.inputLabel}>Nome Completo</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Mario Rossi"
+                placeholderTextColor={colors.textTertiary}
+                value={fullName}
+                onChangeText={setFullName}
+                autoCapitalize="words"
+                autoComplete="name"
+                editable={!loading}
+              />
 
-            <View style={styles.form}>
-              <View style={styles.inputContainer}>
-                <Text style={styles.inputLabel}>Nome Completo *</Text>
+              <Text style={styles.inputLabel}>Email</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="email@esempio.com"
+                placeholderTextColor={colors.textTertiary}
+                value={email}
+                onChangeText={setEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoComplete="email"
+                editable={!loading}
+              />
+
+              <Text style={styles.inputLabel}>Telefono</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="+39 123 456 7890"
+                placeholderTextColor={colors.textTertiary}
+                value={phone}
+                onChangeText={setPhone}
+                keyboardType="phone-pad"
+                autoComplete="tel"
+                editable={!loading}
+              />
+
+              <Text style={styles.inputLabel}>Password</Text>
+              <View style={styles.passwordInputContainer}>
                 <TextInput
-                  style={styles.input}
-                  placeholder="Es. Mario Rossi"
-                  placeholderTextColor={colors.textTertiary}
-                  value={fullName}
-                  onChangeText={setFullName}
-                  autoCapitalize="words"
-                  autoComplete="name"
-                  editable={!loading && !resendingEmail}
-                />
-              </View>
-
-              <View style={styles.inputContainer}>
-                <Text style={styles.inputLabel}>Email *</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="email@esempio.com"
-                  placeholderTextColor={colors.textTertiary}
-                  value={email}
-                  onChangeText={setEmail}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  autoComplete="email"
-                  editable={!loading && !resendingEmail}
-                />
-              </View>
-
-              <View style={styles.inputContainer}>
-                <Text style={styles.inputLabel}>Numero di Telefono *</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="+39 123 456 7890"
-                  placeholderTextColor={colors.textTertiary}
-                  value={phone}
-                  onChangeText={setPhone}
-                  keyboardType="phone-pad"
-                  autoComplete="tel"
-                  editable={!loading && !resendingEmail}
-                />
-              </View>
-
-              <View style={styles.inputContainer}>
-                <Text style={styles.inputLabel}>Punto di Ritiro *</Text>
-                {loadingPickupPoints ? (
-                  <View style={styles.loadingPickupPoints}>
-                    <ActivityIndicator color={colors.primary} />
-                    <Text style={styles.loadingText}>Caricamento punti di ritiro...</Text>
-                  </View>
-                ) : (
-                  <ScrollView 
-                    style={styles.pickupPointsContainer}
-                    nestedScrollEnabled
-                  >
-                    {pickupPoints.map((point) => (
-                      <Pressable
-                        key={point.id}
-                        style={({ pressed }) => [
-                          styles.pickupPointCard,
-                          selectedPickupPoint === point.id && styles.pickupPointCardSelected,
-                          pressed && styles.pickupPointCardPressed,
-                        ]}
-                        onPress={() => {
-                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                          setSelectedPickupPoint(point.id);
-                        }}
-                        disabled={loading || resendingEmail}
-                      >
-                        <View style={styles.pickupPointIcon}>
-                          <IconSymbol
-                            ios_icon_name={selectedPickupPoint === point.id ? "checkmark.circle.fill" : "circle"}
-                            android_material_icon_name={selectedPickupPoint === point.id ? "check_circle" : "radio_button_unchecked"}
-                            size={24}
-                            color={selectedPickupPoint === point.id ? colors.primary : colors.textSecondary}
-                          />
-                        </View>
-                        <View style={styles.pickupPointInfo}>
-                          <Text style={styles.pickupPointName}>{point.name}</Text>
-                          <Text style={styles.pickupPointCity}>{point.city}</Text>
-                        </View>
-                      </Pressable>
-                    ))}
-                  </ScrollView>
-                )}
-              </View>
-
-              <View style={styles.inputContainer}>
-                <Text style={styles.inputLabel}>Password *</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Minimo 6 caratteri"
+                  style={styles.passwordInput}
+                  placeholder="Almeno 8 caratteri"
                   placeholderTextColor={colors.textTertiary}
                   value={password}
                   onChangeText={setPassword}
-                  secureTextEntry
+                  secureTextEntry={!showPassword}
                   autoCapitalize="none"
                   autoComplete="password-new"
-                  editable={!loading && !resendingEmail}
+                  editable={!loading}
                 />
+                <Pressable
+                  style={styles.eyeButton}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setShowPassword(!showPassword);
+                  }}
+                  disabled={loading}
+                >
+                  <IconSymbol
+                    ios_icon_name={showPassword ? 'eye.slash.fill' : 'eye.fill'}
+                    android_material_icon_name={showPassword ? 'visibility_off' : 'visibility'}
+                    size={22}
+                    color={colors.textSecondary}
+                  />
+                </Pressable>
               </View>
 
-              <View style={styles.inputContainer}>
-                <Text style={styles.inputLabel}>Conferma Password *</Text>
+              <Text style={styles.inputLabel}>Conferma Password</Text>
+              <View style={styles.passwordInputContainer}>
                 <TextInput
-                  style={styles.input}
+                  style={styles.passwordInput}
                   placeholder="Ripeti la password"
                   placeholderTextColor={colors.textTertiary}
                   value={confirmPassword}
                   onChangeText={setConfirmPassword}
-                  secureTextEntry
+                  secureTextEntry={!showConfirmPassword}
                   autoCapitalize="none"
                   autoComplete="password-new"
-                  editable={!loading && !resendingEmail}
+                  editable={!loading}
                 />
+                <Pressable
+                  style={styles.eyeButton}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setShowConfirmPassword(!showConfirmPassword);
+                  }}
+                  disabled={loading}
+                >
+                  <IconSymbol
+                    ios_icon_name={showConfirmPassword ? 'eye.slash.fill' : 'eye.fill'}
+                    android_material_icon_name={showConfirmPassword ? 'visibility_off' : 'visibility'}
+                    size={22}
+                    color={colors.textSecondary}
+                  />
+                </Pressable>
               </View>
 
-              <Text style={styles.requiredNote}>* Campi obbligatori</Text>
+              <View style={styles.requirementsBox}>
+                <Text style={styles.requirementsTitle}>Requisiti password:</Text>
+                <View style={styles.requirementItem}>
+                  <IconSymbol
+                    ios_icon_name={password.length >= 8 ? 'checkmark.circle.fill' : 'circle'}
+                    android_material_icon_name={password.length >= 8 ? 'check_circle' : 'radio_button_unchecked'}
+                    size={18}
+                    color={password.length >= 8 ? colors.success : colors.textTertiary}
+                  />
+                  <Text style={[
+                    styles.requirementText,
+                    password.length >= 8 && styles.requirementTextMet
+                  ]}>
+                    Almeno 8 caratteri
+                  </Text>
+                </View>
+                <View style={styles.requirementItem}>
+                  <IconSymbol
+                    ios_icon_name={/[A-Z]/.test(password) ? 'checkmark.circle.fill' : 'circle'}
+                    android_material_icon_name={/[A-Z]/.test(password) ? 'check_circle' : 'radio_button_unchecked'}
+                    size={18}
+                    color={/[A-Z]/.test(password) ? colors.success : colors.textTertiary}
+                  />
+                  <Text style={[
+                    styles.requirementText,
+                    /[A-Z]/.test(password) && styles.requirementTextMet
+                  ]}>
+                    Una lettera maiuscola
+                  </Text>
+                </View>
+                <View style={styles.requirementItem}>
+                  <IconSymbol
+                    ios_icon_name={/[a-z]/.test(password) ? 'checkmark.circle.fill' : 'circle'}
+                    android_material_icon_name={/[a-z]/.test(password) ? 'check_circle' : 'radio_button_unchecked'}
+                    size={18}
+                    color={/[a-z]/.test(password) ? colors.success : colors.textTertiary}
+                  />
+                  <Text style={[
+                    styles.requirementText,
+                    /[a-z]/.test(password) && styles.requirementTextMet
+                  ]}>
+                    Una lettera minuscola
+                  </Text>
+                </View>
+                <View style={styles.requirementItem}>
+                  <IconSymbol
+                    ios_icon_name={/[0-9]/.test(password) ? 'checkmark.circle.fill' : 'circle'}
+                    android_material_icon_name={/[0-9]/.test(password) ? 'check_circle' : 'radio_button_unchecked'}
+                    size={18}
+                    color={/[0-9]/.test(password) ? colors.success : colors.textTertiary}
+                  />
+                  <Text style={[
+                    styles.requirementText,
+                    /[0-9]/.test(password) && styles.requirementTextMet
+                  ]}>
+                    Un numero
+                  </Text>
+                </View>
+              </View>
 
-              <Pressable 
-                style={({ pressed }) => [
-                  styles.registerButton,
-                  (pressed || loading || resendingEmail) && styles.registerButtonPressed
-                ]} 
-                onPress={handleRegister}
-                disabled={loading || resendingEmail}
-              >
-                {loading ? (
-                  <ActivityIndicator color={colors.background} />
-                ) : (
-                  <Text style={styles.registerButtonText}>Registrati</Text>
-                )}
-              </Pressable>
+              <Text style={styles.inputLabel}>Punto di Ritiro</Text>
+              {loadingPickupPoints ? (
+                <View style={styles.loadingPickupPoints}>
+                  <ActivityIndicator color={colors.primary} />
+                  <Text style={styles.loadingText}>Caricamento punti di ritiro...</Text>
+                </View>
+              ) : pickupPoints.length === 0 ? (
+                <View style={styles.noPickupPoints}>
+                  <IconSymbol
+                    ios_icon_name="exclamationmark.triangle.fill"
+                    android_material_icon_name="warning"
+                    size={24}
+                    color={colors.warning}
+                  />
+                  <Text style={styles.noPickupPointsText}>
+                    Nessun punto di ritiro disponibile al momento.
+                  </Text>
+                </View>
+              ) : (
+                <View style={styles.pickerContainer}>
+                  <Picker
+                    selectedValue={pickupPointId}
+                    onValueChange={(itemValue) => setPickupPointId(itemValue)}
+                    style={styles.picker}
+                    enabled={!loading}
+                  >
+                    <Picker.Item label="Seleziona un punto di ritiro" value="" />
+                    {pickupPoints.map((point) => (
+                      <Picker.Item
+                        key={point.id}
+                        label={`${point.name} - ${point.city}`}
+                        value={point.id}
+                      />
+                    ))}
+                  </Picker>
+                </View>
+              )}
 
               <Pressable
-                style={styles.loginLink}
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  router.back();
-                }}
-                disabled={loading || resendingEmail}
+                style={({ pressed }) => [
+                  styles.registerButton,
+                  (pressed || loading || loadingPickupPoints) && styles.registerButtonPressed,
+                ]}
+                onPress={handleRegister}
+                disabled={loading || loadingPickupPoints}
               >
-                <Text style={styles.loginLinkText}>
-                  Hai già un account? Accedi
-                </Text>
+                {loading ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <>
+                    <IconSymbol
+                      ios_icon_name="person.badge.plus.fill"
+                      android_material_icon_name="person_add"
+                      size={20}
+                      color="#fff"
+                    />
+                    <Text style={styles.registerButtonText}>
+                      Registrati
+                    </Text>
+                  </>
+                )}
               </Pressable>
             </View>
+
+            <View style={styles.infoBox}>
+              <IconSymbol
+                ios_icon_name="info.circle.fill"
+                android_material_icon_name="info"
+                size={18}
+                color={colors.info}
+              />
+              <Text style={styles.infoText}>
+                Dopo la registrazione, riceverai un&apos;email di conferma. 
+                Clicca sul link nell&apos;email per attivare il tuo account.
+              </Text>
+            </View>
+
+            <Pressable
+              style={styles.backButton}
+              onPress={handleBackToLogin}
+              disabled={loading}
+            >
+              <IconSymbol
+                ios_icon_name="chevron.left"
+                android_material_icon_name="chevron_left"
+                size={20}
+                color={colors.primary}
+              />
+              <Text style={styles.backButtonText}>
+                Hai già un account? Accedi
+              </Text>
+            </Pressable>
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
@@ -440,178 +489,189 @@ export default function RegisterConsumerScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
+  safeArea: {
     flex: 1,
     backgroundColor: colors.background,
   },
-  keyboardView: {
+  container: {
     flex: 1,
   },
   scrollContent: {
     flexGrow: 1,
-    padding: 24,
+    padding: 20,
   },
   header: {
-    alignItems: 'center',
     marginBottom: 32,
-  },
-  iconContainer: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: colors.backgroundSecondary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 16,
+    marginTop: 20,
   },
   title: {
     fontSize: 28,
     fontWeight: '700',
     color: colors.text,
     marginBottom: 8,
-    textAlign: 'center',
+    letterSpacing: -0.5,
   },
   subtitle: {
-    fontSize: 14,
+    fontSize: 16,
     color: colors.textSecondary,
-    textAlign: 'center',
-    lineHeight: 20,
+    lineHeight: 24,
   },
-  emailConfirmationBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.primary + '15',
-    borderRadius: 12,
-    padding: 16,
+  formSection: {
     marginBottom: 24,
-    borderWidth: 1,
-    borderColor: colors.primary + '30',
-  },
-  emailConfirmationContent: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  emailConfirmationTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.text,
-    marginBottom: 4,
-  },
-  emailConfirmationText: {
-    fontSize: 12,
-    color: colors.textSecondary,
-  },
-  resendIconButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.background,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: 8,
-  },
-  resendIconButtonPressed: {
-    opacity: 0.7,
-  },
-  form: {
-    flex: 1,
-  },
-  inputContainer: {
-    marginBottom: 20,
   },
   inputLabel: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
     color: colors.text,
     marginBottom: 8,
   },
   input: {
     backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
     borderRadius: 8,
     padding: 16,
     fontSize: 16,
+    color: colors.text,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  passwordInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.card,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginBottom: 16,
+  },
+  passwordInput: {
+    flex: 1,
+    padding: 16,
+    fontSize: 16,
+    color: colors.text,
+  },
+  eyeButton: {
+    padding: 16,
+  },
+  requirementsBox: {
+    backgroundColor: colors.card,
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginBottom: 16,
+  },
+  requirementsTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 12,
+  },
+  requirementItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+    gap: 10,
+  },
+  requirementText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+  },
+  requirementTextMet: {
+    color: colors.success,
+    fontWeight: '500',
+  },
+  pickerContainer: {
+    backgroundColor: colors.card,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginBottom: 16,
+    overflow: 'hidden',
+  },
+  picker: {
     color: colors.text,
   },
   loadingPickupPoints: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 20,
+    justifyContent: 'center',
     backgroundColor: colors.card,
     borderRadius: 8,
-  },
-  loadingText: {
-    marginLeft: 12,
-    fontSize: 14,
-    color: colors.textSecondary,
-  },
-  pickupPointsContainer: {
-    maxHeight: 200,
-    backgroundColor: colors.card,
-    borderRadius: 8,
+    padding: 16,
+    marginBottom: 16,
     borderWidth: 1,
     borderColor: colors.border,
+    gap: 12,
   },
-  pickupPointCard: {
+  loadingText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+  },
+  noPickupPoints: {
     flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: colors.warning + '10',
+    borderRadius: 8,
     padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: colors.warning + '30',
+    gap: 12,
   },
-  pickupPointCardSelected: {
-    backgroundColor: colors.primary + '10',
-  },
-  pickupPointCardPressed: {
-    opacity: 0.7,
-  },
-  pickupPointIcon: {
-    marginRight: 12,
-  },
-  pickupPointInfo: {
+  noPickupPointsText: {
     flex: 1,
-  },
-  pickupPointName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.text,
-    marginBottom: 4,
-  },
-  pickupPointCity: {
     fontSize: 14,
-    color: colors.textSecondary,
-  },
-  requiredNote: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    marginBottom: 24,
-    fontStyle: 'italic',
+    color: colors.text,
+    lineHeight: 20,
   },
   registerButton: {
-    backgroundColor: colors.text,
-    paddingVertical: 18,
+    flexDirection: 'row',
+    backgroundColor: colors.primary,
     borderRadius: 8,
+    padding: 16,
     alignItems: 'center',
-    marginBottom: 16,
-    minHeight: 56,
     justifyContent: 'center',
+    marginTop: 8,
+    minHeight: 56,
+    gap: 8,
   },
   registerButtonPressed: {
-    opacity: 0.7,
+    opacity: 0.8,
+    transform: [{ scale: 0.98 }],
   },
   registerButtonText: {
-    color: colors.background,
-    fontSize: 18,
-    fontWeight: '700',
-  },
-  loginLink: {
-    alignItems: 'center',
-    paddingVertical: 12,
-  },
-  loginLinkText: {
-    fontSize: 14,
-    color: colors.text,
+    fontSize: 16,
     fontWeight: '600',
+    color: '#fff',
+  },
+  infoBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: colors.info + '10',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: colors.info + '30',
+    gap: 12,
+    marginBottom: 24,
+  },
+  infoText: {
+    flex: 1,
+    fontSize: 13,
+    color: colors.text,
+    lineHeight: 20,
+  },
+  backButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    gap: 4,
+  },
+  backButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: colors.primary,
   },
 });

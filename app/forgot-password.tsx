@@ -42,10 +42,12 @@ export default function ForgotPasswordScreen() {
 
     try {
       console.log('Sending password reset email to:', email);
+      
+      // Use the Supabase project URL as the redirect
       const { error } = await supabase.auth.resetPasswordForEmail(
         email.trim().toLowerCase(),
         {
-          redirectTo: 'dropzone://update-password',
+          redirectTo: 'https://sippdylyuzejudmzbwdn.supabase.co/auth/v1/verify?redirect_to=dropzone://update-password',
         }
       );
 
@@ -175,6 +177,9 @@ export default function ForgotPasswordScreen() {
                   <Text style={styles.infoText}>
                     Riceverai un&apos;email con le istruzioni per reimpostare la tua password. 
                     Controlla anche la cartella spam se non la trovi nella posta in arrivo.
+                    {'\n\n'}
+                    <Text style={styles.infoTextBold}>Importante:</Text> Il link scadrà dopo 1 ora. 
+                    Clicca sul link nell&apos;email il prima possibile.
                   </Text>
                 </View>
 
@@ -227,6 +232,19 @@ export default function ForgotPasswordScreen() {
                   </Text>
                 </View>
 
+                <View style={styles.warningBox}>
+                  <IconSymbol
+                    ios_icon_name="exclamationmark.triangle.fill"
+                    android_material_icon_name="warning"
+                    size={20}
+                    color={colors.warning}
+                  />
+                  <Text style={styles.warningText}>
+                    <Text style={styles.warningTextBold}>Attenzione:</Text> Il link scadrà dopo 1 ora. 
+                    Clicca sul link nell&apos;email il prima possibile per reimpostare la password.
+                  </Text>
+                </View>
+
                 <View style={styles.instructionsBox}>
                   <Text style={styles.instructionsTitle}>Cosa fare ora:</Text>
                   <View style={styles.instructionItem}>
@@ -244,13 +262,13 @@ export default function ForgotPasswordScreen() {
                   <View style={styles.instructionItem}>
                     <Text style={styles.instructionNumber}>3.</Text>
                     <Text style={styles.instructionText}>
-                      Clicca sul link per reimpostare la password
+                      Clicca sul link <Text style={styles.instructionTextBold}>entro 1 ora</Text>
                     </Text>
                   </View>
                   <View style={styles.instructionItem}>
                     <Text style={styles.instructionNumber}>4.</Text>
                     <Text style={styles.instructionText}>
-                      Scegli una nuova password sicura
+                      L&apos;app si aprirà automaticamente per reimpostare la password
                     </Text>
                   </View>
                 </View>
@@ -397,6 +415,10 @@ const styles = StyleSheet.create({
     color: colors.text,
     lineHeight: 20,
   },
+  infoTextBold: {
+    fontWeight: '700',
+    color: colors.text,
+  },
   backButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -418,7 +440,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.primary + '30',
     gap: 16,
-    marginBottom: 24,
+    marginBottom: 16,
   },
   successText: {
     flex: 1,
@@ -426,6 +448,27 @@ const styles = StyleSheet.create({
     color: colors.text,
     lineHeight: 22,
     fontWeight: '500',
+  },
+  warningBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: colors.warning + '10',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: colors.warning + '30',
+    gap: 12,
+    marginBottom: 24,
+  },
+  warningText: {
+    flex: 1,
+    fontSize: 14,
+    color: colors.text,
+    lineHeight: 20,
+  },
+  warningTextBold: {
+    fontWeight: '700',
+    color: colors.warning,
   },
   instructionsBox: {
     backgroundColor: colors.card,
@@ -458,6 +501,10 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: colors.text,
     lineHeight: 22,
+  },
+  instructionTextBold: {
+    fontWeight: '700',
+    color: colors.warning,
   },
   doneButton: {
     backgroundColor: colors.primary,
