@@ -45,7 +45,7 @@ export default function ForgotPasswordScreen() {
       const { error } = await supabase.auth.resetPasswordForEmail(
         email.trim().toLowerCase(),
         {
-          redirectTo: 'https://natively.dev/update-password',
+          redirectTo: 'dropzone://update-password',
         }
       );
 

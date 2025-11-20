@@ -93,7 +93,7 @@ export default function LoginScreen() {
   };
 
   const handleSupport = async () => {
-    if (!whatsappNumber) {
+    if (!whatsappNumber || whatsappNumber.trim() === '') {
       Alert.alert(
         'Supporto Non Disponibile',
         'Il numero di supporto non è stato configurato. Contatta l\'amministratore.',
@@ -147,7 +147,7 @@ export default function LoginScreen() {
         type: 'signup',
         email: email.trim().toLowerCase(),
         options: {
-          emailRedirectTo: 'https://natively.dev/email-confirmed'
+          emailRedirectTo: 'dropzone://email-confirmed'
         }
       });
 
@@ -368,7 +368,7 @@ export default function LoginScreen() {
                 )}
               </Pressable>
 
-              {/* Support Button - Fixed to be always clickable when not loading */}
+              {/* Support Button - Fixed to check for empty string */}
               <Pressable
                 style={({ pressed }) => [
                   styles.supportButton,

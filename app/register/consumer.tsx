@@ -77,7 +77,7 @@ export default function RegisterConsumerScreen() {
         type: 'signup',
         email: registeredEmail,
         options: {
-          emailRedirectTo: 'https://natively.dev/email-confirmed'
+          emailRedirectTo: 'dropzone://email-confirmed'
         }
       });
 
