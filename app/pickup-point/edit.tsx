@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,56 +10,152 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, router } from 'expo-router';
 import { colors } from '@/styles/commonStyles';
 import * as Haptics from 'expo-haptics';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/app/integrations/supabase/client';
 
 export default function EditPickupPointScreen() {
-  const [name, setName] = useState('DropMarket Roma Centro');
-  const [address, setAddress] = useState('Via del Corso, 123');
-  const [city, setCity] = useState('Roma');
-  const [phone, setPhone] = useState('+39 06 1234567');
-  const [email, setEmail] = useState('roma@dropmarket.it');
-  const [openingHours, setOpeningHours] = useState('Lun-Ven: 9:00-19:00, Sab: 9:00-13:00');
-  const [directionsForConsumers, setDirectionsForConsumers] = useState(
-    'Siamo in Via del Corso, vicino alla fermata metro Spagna. Entrata principale con insegna DropMarket.'
-  );
-  const [shippingInstructions, setShippingInstructions] = useState(
-    'Spedire a: DropMarket Roma Centro, Via del Corso 123, 00187 Roma. Citare sempre il codice ordine.'
-  );
-  const [contactPerson, setContactPerson] = useState('Mario Rossi');
+  const { user } = useAuth();
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [name, setName] = useState('');
+  const [address, setAddress] = useState('');
+  const [city, setCity] = useState('');
+  const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
+  const [openingHours, setOpeningHours] = useState('');
+  const [directionsForConsumers, setDirectionsForConsumers] = useState('');
+  const [shippingInstructions, setShippingInstructions] = useState('');
+  const [contactPerson, setContactPerson] = useState('');
 
-  const handleSave = () => {
-    if (!name || !address || !city || !phone || !email) {
-      Alert.alert('Errore', 'Compila tutti i campi obbligatori');
+  useEffect(() => {
+    loadPickupPointData();
+  }, []);
+
+  const loadPickupPointData = async () => {
+    if (!user?.pickupPointId) {
+      Alert.alert('Errore', 'Punto di ritiro non trovato');
+      router.back();
       return;
     }
 
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    Alert.alert(
-      'Successo',
-      'Informazioni aggiornate con successo!',
-      [
-        {
-          text: 'OK',
-          onPress: () => router.back(),
-        },
-      ]
-    );
-    console.log('Pickup point updated:', {
-      name,
-      address,
-      city,
-      phone,
-      email,
-      openingHours,
-      directionsForConsumers,
-      shippingInstructions,
-      contactPerson,
-    });
+    try {
+      const { data, error } = await supabase
+        .from('pickup_points')
+        .select('*')
+        .eq('id', user.pickupPointId)
+        .single();
+
+      if (error) {
+        console.error('Error loading pickup point:', error);
+        Alert.alert('Errore', 'Impossibile caricare i dati del punto di ritiro');
+        return;
+      }
+
+      if (data) {
+        setName(data.name || '');
+        setAddress(data.address || '');
+        setCity(data.city || '');
+        setPhone(data.phone || '');
+        setEmail(data.email || '');
+        setOpeningHours(data.consumer_info || '');
+        setContactPerson(data.manager_name || '');
+      }
+    } catch (error) {
+      console.error('Exception loading pickup point:', error);
+      Alert.alert('Errore', 'Si è verificato un errore');
+    } finally {
+      setLoading(false);
+    }
   };
+
+  const handleSave = async () => {
+    if (!name.trim()) {
+      Alert.alert('Errore', 'Inserisci il nome del punto di ritiro');
+      return;
+    }
+
+    if (!address.trim()) {
+      Alert.alert('Errore', 'Inserisci l\'indirizzo');
+      return;
+    }
+
+    if (!city.trim()) {
+      Alert.alert('Errore', 'Inserisci la città');
+      return;
+    }
+
+    if (!phone.trim()) {
+      Alert.alert('Errore', 'Inserisci il numero di telefono');
+      return;
+    }
+
+    if (!email.trim()) {
+      Alert.alert('Errore', 'Inserisci l\'email');
+      return;
+    }
+
+    if (!user?.pickupPointId) {
+      Alert.alert('Errore', 'Punto di ritiro non trovato');
+      return;
+    }
+
+    setSaving(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    try {
+      const { error } = await supabase
+        .from('pickup_points')
+        .update({
+          name: name.trim(),
+          address: address.trim(),
+          city: city.trim(),
+          phone: phone.trim(),
+          email: email.trim(),
+          consumer_info: openingHours.trim() || null,
+          manager_name: contactPerson.trim() || null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', user.pickupPointId);
+
+      if (error) {
+        console.error('Error updating pickup point:', error);
+        Alert.alert('Errore', 'Impossibile aggiornare le informazioni');
+        return;
+      }
+
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert(
+        'Successo',
+        'Informazioni aggiornate con successo!',
+        [
+          {
+            text: 'OK',
+            onPress: () => router.back(),
+          },
+        ]
+      );
+    } catch (error) {
+      console.error('Exception updating pickup point:', error);
+      Alert.alert('Errore', 'Si è verificato un errore');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={styles.loadingText}>Caricamento...</Text>
+      </View>
+    );
+  }
 
   return (
     <>
@@ -79,6 +175,7 @@ export default function EditPickupPointScreen() {
             style={styles.scrollView}
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
           >
             {/* Basic Info */}
             <View style={styles.section}>
@@ -92,6 +189,7 @@ export default function EditPickupPointScreen() {
                   placeholderTextColor={colors.textTertiary}
                   value={name}
                   onChangeText={setName}
+                  editable={!saving}
                 />
               </View>
 
@@ -103,6 +201,7 @@ export default function EditPickupPointScreen() {
                   placeholderTextColor={colors.textTertiary}
                   value={address}
                   onChangeText={setAddress}
+                  editable={!saving}
                 />
               </View>
 
@@ -114,6 +213,7 @@ export default function EditPickupPointScreen() {
                   placeholderTextColor={colors.textTertiary}
                   value={city}
                   onChangeText={setCity}
+                  editable={!saving}
                 />
               </View>
 
@@ -126,6 +226,7 @@ export default function EditPickupPointScreen() {
                   value={phone}
                   onChangeText={setPhone}
                   keyboardType="phone-pad"
+                  editable={!saving}
                 />
               </View>
 
@@ -139,17 +240,7 @@ export default function EditPickupPointScreen() {
                   onChangeText={setEmail}
                   keyboardType="email-address"
                   autoCapitalize="none"
-                />
-              </View>
-
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Orari di Apertura</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Lun-Ven: 9:00-19:00"
-                  placeholderTextColor={colors.textTertiary}
-                  value={openingHours}
-                  onChangeText={setOpeningHours}
+                  editable={!saving}
                 />
               </View>
 
@@ -161,49 +252,41 @@ export default function EditPickupPointScreen() {
                   placeholderTextColor={colors.textTertiary}
                   value={contactPerson}
                   onChangeText={setContactPerson}
+                  editable={!saving}
                 />
               </View>
             </View>
 
-            {/* Directions for Consumers */}
+            {/* Consumer Information */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Indicazioni per i Consumatori</Text>
+              <Text style={styles.sectionTitle}>Informazioni per i Consumatori</Text>
               <Text style={styles.helperText}>
-                Fornisci indicazioni chiare su come raggiungere il punto di ritiro
+                Orari di apertura, istruzioni per il ritiro, ecc.
               </Text>
               <TextInput
                 style={[styles.input, styles.textArea]}
-                placeholder="Descrivi come raggiungere il punto di ritiro..."
+                placeholder="Orari di apertura:&#10;Lun-Ven: 9:00-19:00&#10;Sab: 9:00-13:00&#10;Dom: Chiuso&#10;&#10;Istruzioni per il ritiro:&#10;Presentarsi con documento d'identità e codice ordine."
                 placeholderTextColor={colors.textTertiary}
-                value={directionsForConsumers}
-                onChangeText={setDirectionsForConsumers}
+                value={openingHours}
+                onChangeText={setOpeningHours}
                 multiline
-                numberOfLines={4}
+                numberOfLines={8}
                 textAlignVertical="top"
-              />
-            </View>
-
-            {/* Shipping Instructions */}
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Istruzioni per i Fornitori</Text>
-              <Text style={styles.helperText}>
-                Fornisci istruzioni per la spedizione degli ordini
-              </Text>
-              <TextInput
-                style={[styles.input, styles.textArea]}
-                placeholder="Descrivi come spedire gli ordini..."
-                placeholderTextColor={colors.textTertiary}
-                value={shippingInstructions}
-                onChangeText={setShippingInstructions}
-                multiline
-                numberOfLines={4}
-                textAlignVertical="top"
+                editable={!saving}
               />
             </View>
 
             {/* Save Button */}
-            <Pressable style={styles.saveButton} onPress={handleSave}>
-              <Text style={styles.saveButtonText}>Salva Modifiche</Text>
+            <Pressable 
+              style={[styles.saveButton, saving && styles.saveButtonDisabled]} 
+              onPress={handleSave}
+              disabled={saving}
+            >
+              {saving ? (
+                <ActivityIndicator color={colors.background} />
+              ) : (
+                <Text style={styles.saveButtonText}>Salva Modifiche</Text>
+              )}
             </Pressable>
           </ScrollView>
         </KeyboardAvoidingView>
@@ -225,6 +308,17 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 24,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: colors.background,
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 14,
+    color: colors.textSecondary,
   },
   section: {
     marginBottom: 32,
@@ -260,7 +354,7 @@ const styles = StyleSheet.create({
     color: colors.text,
   },
   textArea: {
-    minHeight: 120,
+    minHeight: 180,
     paddingTop: 16,
   },
   saveButton: {
@@ -270,6 +364,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 16,
     marginBottom: 32,
+  },
+  saveButtonDisabled: {
+    opacity: 0.5,
   },
   saveButtonText: {
     color: colors.background,

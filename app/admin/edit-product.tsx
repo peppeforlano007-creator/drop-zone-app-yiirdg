@@ -294,22 +294,16 @@ export default function EditProductScreen() {
 
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Condizione *</Text>
-            <View style={styles.radioGroup}>
-              {['nuovo', 'reso da cliente', 'packaging rovinato'].map((cond) => (
-                <Pressable
-                  key={cond}
-                  style={[styles.radioButton, condition === cond && styles.radioButtonActive]}
-                  onPress={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    setCondition(cond);
-                  }}
-                >
-                  <Text style={[styles.radioText, condition === cond && styles.radioTextActive]}>
-                    {cond}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
+            <Text style={styles.helperText}>
+              Puoi inserire qualsiasi condizione (es: nuovo, usato, leggermente graffiato, packaging rovinato, reso da cliente, ecc.)
+            </Text>
+            <TextInput
+              style={styles.input}
+              value={condition}
+              onChangeText={setCondition}
+              placeholder="Es: nuovo, usato, leggermente graffiato"
+              placeholderTextColor={colors.textTertiary}
+            />
           </View>
 
           <View style={styles.inputGroup}>

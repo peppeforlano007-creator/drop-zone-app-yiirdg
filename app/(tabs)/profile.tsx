@@ -10,7 +10,7 @@ import { supabase } from '@/app/integrations/supabase/client';
 import * as Haptics from 'expo-haptics';
 
 export default function ProfileScreen() {
-  const { user, logout, updatePickupPoint } = useAuth();
+  const { logout, user, updatePickupPoint } = useAuth();
   const [selectedPickupPoint, setSelectedPickupPoint] = useState(user?.pickupPoint || '');
   const [pickupPoints, setPickupPoints] = useState<{ id: string; city: string }[]>([]);
   const [loadingPoints, setLoadingPoints] = useState(true);
@@ -175,6 +175,9 @@ export default function ProfileScreen() {
     }
   };
 
+  // Display role as "Utente" instead of "Consumatore"
+  const displayRole = user?.role === 'consumer' ? 'Utente' : user?.role?.toUpperCase();
+
   return (
     <>
       <Stack.Screen
@@ -209,9 +212,9 @@ export default function ProfileScreen() {
               </View>
               <Text style={styles.userName}>{user?.name || 'Utente'}</Text>
               <Text style={styles.userEmail}>{user?.email || 'Email non disponibile'}</Text>
-              {user?.role && (
+              {displayRole && (
                 <View style={styles.roleBadge}>
-                  <Text style={styles.roleText}>{user.role.toUpperCase()}</Text>
+                  <Text style={styles.roleText}>{displayRole}</Text>
                 </View>
               )}
             </View>

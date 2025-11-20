@@ -20,11 +20,7 @@ import * as Haptics from 'expo-haptics';
 import { supabase } from '@/app/integrations/supabase/client';
 import { ProductCondition } from '@/types/Product';
 
-const CONDITIONS: { value: ProductCondition; label: string }[] = [
-  { value: 'nuovo', label: 'Nuovo' },
-  { value: 'reso da cliente', label: 'Reso da Cliente' },
-  { value: 'packaging rovinato', label: 'Packaging Rovinato' },
-];
+// Removed fixed conditions - now free-form input
 
 export default function AddProductScreen() {
   const { listId, supplierId } = useLocalSearchParams<{ listId: string; supplierId: string }>();
@@ -35,7 +31,7 @@ export default function AddProductScreen() {
   const [originalPrice, setOriginalPrice] = useState('');
   const [sizes, setSizes] = useState('');
   const [colors, setColors] = useState('');
-  const [condition, setCondition] = useState<ProductCondition>('nuovo');
+  const [condition, setCondition] = useState('nuovo');
   const [category, setCategory] = useState('');
   const [brand, setBrand] = useState('');
   const [stock, setStock] = useState('1');
@@ -288,36 +284,17 @@ export default function AddProductScreen() {
 
               <View style={styles.inputContainer}>
                 <Text style={styles.inputLabel}>Condizione *</Text>
-                <View style={styles.conditionList}>
-                  {CONDITIONS.map((cond) => (
-                    <Pressable
-                      key={cond.value}
-                      style={({ pressed }) => [
-                        styles.conditionCard,
-                        condition === cond.value && styles.conditionCardSelected,
-                        pressed && styles.conditionCardPressed,
-                      ]}
-                      onPress={() => {
-                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                        setCondition(cond.value);
-                      }}
-                      disabled={loading}
-                    >
-                      <IconSymbol
-                        ios_icon_name={condition === cond.value ? "checkmark.circle.fill" : "circle"}
-                        android_material_icon_name={condition === cond.value ? "check_circle" : "radio_button_unchecked"}
-                        size={24}
-                        color={condition === cond.value ? colors.primary : colors.textTertiary}
-                      />
-                      <Text style={[
-                        styles.conditionCardText,
-                        condition === cond.value && styles.conditionCardTextSelected,
-                      ]}>
-                        {cond.label}
-                      </Text>
-                    </Pressable>
-                  ))}
-                </View>
+                <Text style={styles.inputHint}>
+                  Puoi inserire qualsiasi condizione (es: nuovo, usato, leggermente graffiato, packaging rovinato, reso da cliente, ecc.)
+                </Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Es: nuovo, usato, leggermente graffiato"
+                  placeholderTextColor={colors.textTertiary}
+                  value={condition}
+                  onChangeText={setCondition}
+                  editable={!loading}
+                />
               </View>
 
               <View style={styles.inputContainer}>

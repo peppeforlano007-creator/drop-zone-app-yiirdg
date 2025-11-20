@@ -148,11 +148,8 @@ export default function CreateListScreen() {
           return;
         }
 
+        // Accept any condition - no validation needed
         const condition = row.condizione || 'nuovo';
-        if (!['nuovo', 'reso da cliente', 'packaging rovinato'].includes(condition)) {
-          errors.push(`Riga ${rowNum}: Condizione non valida (deve essere: nuovo, reso da cliente, o packaging rovinato)`);
-          return;
-        }
 
         if (row.sku) {
           skuGroups[row.sku] = (skuGroups[row.sku] || 0) + 1;

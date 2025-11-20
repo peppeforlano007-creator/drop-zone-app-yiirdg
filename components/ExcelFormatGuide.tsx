@@ -111,8 +111,8 @@ export default function ExcelFormatGuide({ onClose }: ExcelFormatGuideProps) {
             </View>
             <View style={styles.field}>
               <Text style={styles.fieldName}>condizione</Text>
-              <Text style={styles.fieldDescription}>Condizione del prodotto</Text>
-              <Text style={styles.fieldExample}>Valori: nuovo, reso da cliente, packaging rovinato</Text>
+              <Text style={styles.fieldDescription}>Condizione del prodotto (campo libero)</Text>
+              <Text style={styles.fieldExample}>Es: nuovo, usato, leggermente graffiato, packaging rovinato, reso da cliente, come nuovo, ricondizionato, ecc.</Text>
             </View>
             <View style={styles.field}>
               <Text style={styles.fieldName}>categoria</Text>

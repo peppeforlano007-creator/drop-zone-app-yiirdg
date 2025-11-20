@@ -1,12 +1,12 @@
 
 import "react-native-reanimated";
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { useFonts } from "expo-font";
 import { Stack, router } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { SystemBars } from "react-native-edge-to-edge";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { useColorScheme, Alert } from "react-native";
+import { useColorScheme, Alert, View, Text, StyleSheet, Animated } from "react-native";
 import { useNetworkState } from "expo-network";
 import {
   DarkTheme,
@@ -27,18 +27,75 @@ export const unstable_settings = {
   initialRouteName: "login",
 };
 
+// Custom Splash Screen Component
+function CustomSplashScreen({ onFinish }: { onFinish: () => void }) {
+  const fadeAnim = React.useRef(new Animated.Value(0)).current;
+  const scaleAnim = React.useRef(new Animated.Value(0.3)).current;
+
+  React.useEffect(() => {
+    // Fade in and scale animation
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 800,
+        useNativeDriver: true,
+      }),
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        friction: 4,
+        tension: 40,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    // Auto-hide after 2 seconds
+    const timer = setTimeout(() => {
+      Animated.timing(fadeAnim, {
+        toValue: 0,
+        duration: 500,
+        useNativeDriver: true,
+      }).start(() => {
+        onFinish();
+      });
+    }, 2000);
+
+    return () => clearTimeout(timer);
+  }, []);
+
+  return (
+    <Animated.View
+      style={[
+        styles.splashContainer,
+        {
+          opacity: fadeAnim,
+        },
+      ]}
+    >
+      <Animated.View
+        style={{
+          transform: [{ scale: scaleAnim }],
+        }}
+      >
+        <Text style={styles.splashLogo}>DROPMARKET</Text>
+        <Text style={styles.splashTagline}>Il tuo marketplace dinamico</Text>
+      </Animated.View>
+    </Animated.View>
+  );
+}
+
 export default function RootLayout() {
   const colorScheme = useColorScheme();
   const networkState = useNetworkState();
   const [loaded] = useFonts({
     SpaceMono: require("../assets/fonts/SpaceMono-Regular.ttf"),
   });
+  const [showCustomSplash, setShowCustomSplash] = useState(true);
 
   useEffect(() => {
-    if (loaded) {
+    if (loaded && !showCustomSplash) {
       SplashScreen.hideAsync();
     }
-  }, [loaded]);
+  }, [loaded, showCustomSplash]);
 
   React.useEffect(() => {
     if (
@@ -52,8 +109,8 @@ export default function RootLayout() {
     }
   }, [networkState.isConnected, networkState.isInternetReachable]);
 
-  if (!loaded) {
-    return null;
+  if (!loaded || showCustomSplash) {
+    return <CustomSplashScreen onFinish={() => setShowCustomSplash(false)} />;
   }
 
   const CustomDefaultTheme: Theme = {
@@ -146,3 +203,27 @@ export default function RootLayout() {
     </>
   );
 }
+
+const styles = StyleSheet.create({
+  splashContainer: {
+    flex: 1,
+    backgroundColor: '#000000',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  splashLogo: {
+    fontSize: 48,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    letterSpacing: 2,
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  splashTagline: {
+    fontSize: 16,
+    fontWeight: '400',
+    color: '#CCCCCC',
+    textAlign: 'center',
+    letterSpacing: 1,
+  },
+});

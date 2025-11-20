@@ -152,6 +152,23 @@ export default function EditPickupPointScreen() {
         return;
       }
 
+      // Update all consumer profiles associated with this pickup point
+      // This ensures consumers see updated pickup point information
+      console.log('Updating consumer profiles for pickup point:', pickupPointId);
+      const { error: profilesError } = await supabase
+        .from('profiles')
+        .update({
+          updated_at: new Date().toISOString(),
+        })
+        .eq('pickup_point_id', pickupPointId);
+
+      if (profilesError) {
+        console.warn('Warning: Could not update consumer profiles:', profilesError);
+        // Don't fail the whole operation if this fails
+      } else {
+        console.log('Consumer profiles updated successfully');
+      }
+
       // Log activity
       await logPickupPointActivity.updated(name, pickupPointId);
 
