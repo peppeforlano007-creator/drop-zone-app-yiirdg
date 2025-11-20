@@ -42,27 +42,27 @@ function CustomSplashScreen({ onFinish }: { onFinish: () => void }) {
       Animated.timing(fadeAnim, {
         toValue: 1,
         duration: 800,
-        useNativeDriver: true,
+        useNativeDriver: false,
       }),
       Animated.spring(scaleAnim, {
         toValue: 1,
         friction: 4,
         tension: 40,
-        useNativeDriver: true,
+        useNativeDriver: false,
       }),
     ]).start(() => {
       // Phase 2: Show slogan (800-1200ms)
       Animated.timing(sloganOpacityAnim, {
         toValue: 1,
         duration: 400,
-        useNativeDriver: true,
+        useNativeDriver: false,
       }).start(() => {
         // Phase 3: White circle grows and background transitions (1200-2200ms)
         Animated.parallel([
           Animated.timing(circleScaleAnim, {
             toValue: 1,
             duration: 1000,
-            useNativeDriver: true,
+            useNativeDriver: false,
           }),
           Animated.timing(bgColorAnim, {
             toValue: 1,
@@ -72,7 +72,7 @@ function CustomSplashScreen({ onFinish }: { onFinish: () => void }) {
           Animated.timing(logoScaleAnim, {
             toValue: 1.1,
             duration: 500,
-            useNativeDriver: true,
+            useNativeDriver: false,
           }),
         ]).start(() => {
           // Phase 4: Fade out everything (2200-2700ms)
@@ -80,7 +80,7 @@ function CustomSplashScreen({ onFinish }: { onFinish: () => void }) {
             Animated.timing(fadeAnim, {
               toValue: 0,
               duration: 500,
-              useNativeDriver: true,
+              useNativeDriver: false,
             }).start(() => {
               onFinish();
             });
