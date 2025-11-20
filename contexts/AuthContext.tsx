@@ -247,6 +247,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       console.log('AuthProvider: Auth state changed:', _event, session?.user?.id);
       setSession(session);
+      
+      // Handle SIGNED_OUT event immediately
+      if (_event === 'SIGNED_OUT') {
+        console.log('AuthProvider: User signed out, clearing state');
+        setUser(null);
+        setLoading(false);
+        return;
+      }
+      
       if (session) {
         loadUserProfile(session.user.id);
       } else {
@@ -345,11 +354,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = async () => {
     try {
       console.log('AuthProvider: Logging out user');
-      await supabase.auth.signOut();
+      
+      // Clear user state immediately to prevent navigation issues
       setUser(null);
       setSession(null);
+      setLoading(false);
+      
+      // Then sign out from Supabase
+      await supabase.auth.signOut();
+      
+      console.log('AuthProvider: Logout complete');
     } catch (error) {
       console.error('AuthProvider: Logout exception:', error);
+      // Even if there's an error, ensure state is cleared
+      setUser(null);
+      setSession(null);
+      setLoading(false);
     }
   };
 

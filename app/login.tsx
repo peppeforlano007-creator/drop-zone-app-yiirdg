@@ -28,7 +28,7 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const [showResendEmail, setShowResendEmail] = useState(false);
   const [resendingEmail, setResendingEmail] = useState(false);
-  const [whatsappNumber, setWhatsappNumber] = useState('393123456789'); // Default fallback
+  const [whatsappNumber, setWhatsappNumber] = useState(''); // No fallback number
   const [loadingWhatsapp, setLoadingWhatsapp] = useState(true);
 
   useEffect(() => {
@@ -76,7 +76,6 @@ export default function LoginScreen() {
 
       if (error) {
         console.error('Error loading WhatsApp number:', error);
-        // Don't show alert, just use fallback
         return;
       }
 
@@ -84,17 +83,25 @@ export default function LoginScreen() {
         console.log('WhatsApp number loaded successfully:', data.setting_value);
         setWhatsappNumber(data.setting_value);
       } else {
-        console.log('No WhatsApp number found in database, using fallback');
+        console.log('No WhatsApp number found in database');
       }
     } catch (error) {
       console.error('Exception loading WhatsApp number:', error);
-      // Don't show alert, just use fallback
     } finally {
       setLoadingWhatsapp(false);
     }
   };
 
   const handleSupport = async () => {
+    if (!whatsappNumber) {
+      Alert.alert(
+        'Supporto Non Disponibile',
+        'Il numero di supporto non è stato configurato. Contatta l\'amministratore.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     
     const message = encodeURIComponent('Ciao, ho bisogno di supporto.');
@@ -365,10 +372,10 @@ export default function LoginScreen() {
               <Pressable
                 style={({ pressed }) => [
                   styles.supportButton,
-                  (pressed || loadingWhatsapp) && styles.supportButtonPressed,
+                  (pressed || loadingWhatsapp || !whatsappNumber) && styles.supportButtonPressed,
                 ]}
                 onPress={handleSupport}
-                disabled={loading || resendingEmail || loadingWhatsapp}
+                disabled={loading || resendingEmail || loadingWhatsapp || !whatsappNumber}
               >
                 {loadingWhatsapp ? (
                   <ActivityIndicator color={colors.primary} size="small" />
@@ -378,9 +385,12 @@ export default function LoginScreen() {
                       ios_icon_name="questionmark.circle.fill"
                       android_material_icon_name="help"
                       size={20}
-                      color={colors.primary}
+                      color={whatsappNumber ? colors.primary : colors.textTertiary}
                     />
-                    <Text style={styles.supportButtonText}>
+                    <Text style={[
+                      styles.supportButtonText,
+                      !whatsappNumber && styles.supportButtonTextDisabled
+                    ]}>
                       Hai bisogno di aiuto?
                     </Text>
                   </>
@@ -572,6 +582,9 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: colors.primary,
+  },
+  supportButtonTextDisabled: {
+    color: colors.textTertiary,
   },
   divider: {
     flexDirection: 'row',

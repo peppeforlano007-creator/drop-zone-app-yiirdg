@@ -102,6 +102,89 @@ export default function PickupPointsScreen() {
     router.push('/admin/create-pickup-point');
   };
 
+  const handleDeletePickupPoint = async (pointId: string, pointName: string, usersCount: number, dropsCount: number) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    
+    // Check if there are associated users or drops
+    if (usersCount > 0 || dropsCount > 0) {
+      Alert.alert(
+        'Impossibile Eliminare',
+        `Non puoi eliminare il punto di ritiro "${pointName}" perché ha:\n\n` +
+        (usersCount > 0 ? `• ${usersCount} utent${usersCount === 1 ? 'e' : 'i'} associat${usersCount === 1 ? 'o' : 'i'}\n` : '') +
+        (dropsCount > 0 ? `• ${dropsCount} drop attiv${dropsCount === 1 ? 'o' : 'i'}\n` : '') +
+        '\nRimuovi prima tutte le associazioni.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+    
+    Alert.alert(
+      'Elimina Punto di Ritiro',
+      `Sei sicuro di voler eliminare definitivamente il punto di ritiro "${pointName}"?\n\n⚠️ Questa azione non può essere annullata!`,
+      [
+        {
+          text: 'Annulla',
+          style: 'cancel',
+        },
+        {
+          text: 'Elimina',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              console.log('Deleting pickup point:', pointId);
+              
+              // First, check if there are any associated pickup_point users
+              const { data: pickupUsers, error: usersError } = await supabase
+                .from('profiles')
+                .select('user_id')
+                .eq('pickup_point_id', pointId)
+                .eq('role', 'pickup_point');
+
+              if (usersError) {
+                console.error('Error checking pickup point users:', usersError);
+                Alert.alert('Errore', 'Impossibile verificare gli utenti associati');
+                return;
+              }
+
+              // Delete associated pickup_point users from auth
+              if (pickupUsers && pickupUsers.length > 0) {
+                console.log(`Found ${pickupUsers.length} pickup point users to delete`);
+                
+                for (const user of pickupUsers) {
+                  const { error: deleteAuthError } = await supabase.auth.admin.deleteUser(user.user_id);
+                  if (deleteAuthError) {
+                    console.error('Error deleting auth user:', deleteAuthError);
+                  }
+                }
+              }
+
+              // Delete the pickup point
+              const { error: deleteError } = await supabase
+                .from('pickup_points')
+                .delete()
+                .eq('id', pointId);
+
+              if (deleteError) {
+                console.error('Error deleting pickup point:', deleteError);
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+                Alert.alert('Errore', 'Impossibile eliminare il punto di ritiro: ' + deleteError.message);
+                return;
+              }
+
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              Alert.alert('Eliminato', `Il punto di ritiro "${pointName}" è stato eliminato con successo.`);
+              loadPickupPoints();
+            } catch (error) {
+              console.error('Exception deleting pickup point:', error);
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+              Alert.alert('Errore', 'Si è verificato un errore imprevisto');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const handleApprovePickupPoint = async (pointId: string, pointName: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     
@@ -426,6 +509,21 @@ export default function PickupPointsScreen() {
                 color={colors.background}
               />
               <Text style={styles.editButtonText}>Modifica</Text>
+            </Pressable>
+            <Pressable
+              style={({ pressed }) => [
+                styles.deleteButton,
+                pressed && styles.buttonPressed,
+              ]}
+              onPress={() => handleDeletePickupPoint(point.id, point.name, point.users_count, point.active_drops_count)}
+            >
+              <IconSymbol
+                ios_icon_name="trash.fill"
+                android_material_icon_name="delete"
+                size={20}
+                color={colors.background}
+              />
+              <Text style={styles.deleteButtonText}>Elimina</Text>
             </Pressable>
           </View>
         )}
@@ -758,6 +856,21 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   editButtonText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.background,
+  },
+  deleteButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.error,
+    paddingVertical: 12,
+    borderRadius: 8,
+    gap: 6,
+  },
+  deleteButtonText: {
     fontSize: 14,
     fontWeight: '700',
     color: colors.background,

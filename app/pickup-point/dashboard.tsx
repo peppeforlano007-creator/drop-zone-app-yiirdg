@@ -234,12 +234,21 @@ export default function PickupPointDashboardScreen() {
             setLoggingOut(true);
             try {
               console.log('PickupPoint Dashboard: Logging out...');
+              
+              // Clear user state first to prevent navigation issues
               await logout();
+              
+              // Small delay to ensure state is cleared
+              await new Promise(resolve => setTimeout(resolve, 100));
+              
               console.log('PickupPoint Dashboard: Logout complete, redirecting to login...');
+              
+              // Use replace to prevent back navigation
               router.replace('/login');
             } catch (error) {
               console.error('PickupPoint Dashboard: Logout error:', error);
-              Alert.alert('Errore', 'Si è verificato un errore durante il logout');
+              // Even if there's an error, try to navigate to login
+              router.replace('/login');
             } finally {
               setLoggingOut(false);
             }
