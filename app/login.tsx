@@ -93,10 +93,13 @@ export default function LoginScreen() {
   };
 
   const handleSupport = async () => {
+    console.log('Support button pressed. WhatsApp number:', whatsappNumber);
+    
     if (!whatsappNumber || whatsappNumber.trim() === '') {
+      console.log('WhatsApp number not configured');
       Alert.alert(
-        'Supporto Non Disponibile',
-        'Il numero di supporto non è stato configurato. Contatta l\'amministratore.',
+        'Contatta il Supporto Clienti',
+        'Il numero di supporto WhatsApp non è stato ancora configurato. Contatta l\'amministratore per assistenza.',
         [{ text: 'OK' }]
       );
       return;
@@ -108,21 +111,28 @@ export default function LoginScreen() {
     const whatsappUrl = `whatsapp://send?phone=${whatsappNumber}&text=${message}`;
     const whatsappWebUrl = `https://wa.me/${whatsappNumber}?text=${message}`;
     
+    console.log('Opening WhatsApp with number:', whatsappNumber);
+    console.log('WhatsApp URL:', whatsappUrl);
+    console.log('WhatsApp Web URL:', whatsappWebUrl);
+    
     try {
       // Try to open WhatsApp app first
       const canOpen = await Linking.canOpenURL(whatsappUrl);
+      console.log('Can open WhatsApp app:', canOpen);
       
       if (canOpen) {
+        console.log('Opening WhatsApp app...');
         await Linking.openURL(whatsappUrl);
       } else {
         // If WhatsApp app is not installed, open WhatsApp Web
+        console.log('WhatsApp app not available, opening WhatsApp Web...');
         await Linking.openURL(whatsappWebUrl);
       }
     } catch (error) {
       console.error('Error opening WhatsApp:', error);
       Alert.alert(
         'Errore',
-        'Impossibile aprire WhatsApp. Assicurati di avere WhatsApp installato sul tuo dispositivo.',
+        'Impossibile aprire WhatsApp. Assicurati di avere WhatsApp installato sul tuo dispositivo o prova ad aprire WhatsApp Web manualmente.',
         [
           {
             text: 'OK',

@@ -8,6 +8,7 @@ import { SystemBars } from "react-native-edge-to-edge";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { useColorScheme, Alert, View, Text, StyleSheet, Animated } from "react-native";
 import { useNetworkState } from "expo-network";
+import * as Linking from "expo-linking";
 import {
   DarkTheme,
   DefaultTheme,
@@ -19,6 +20,7 @@ import { Button } from "@/components/button";
 import { WidgetProvider } from "@/contexts/WidgetContext";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { PaymentProvider } from "@/contexts/PaymentContext";
+import { supabase } from "@/app/integrations/supabase/client";
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -180,6 +182,73 @@ export default function RootLayout() {
   });
   const [showCustomSplash, setShowCustomSplash] = useState(true);
 
+  // Handle deep links for email confirmation and password reset
+  useEffect(() => {
+    const handleDeepLink = async (url: string) => {
+      console.log('Deep link received:', url);
+      
+      try {
+        const { hostname, path, queryParams } = Linking.parse(url);
+        console.log('Parsed deep link:', { hostname, path, queryParams });
+
+        // Handle email confirmation
+        if (path === 'email-confirmed' || hostname === 'email-confirmed') {
+          console.log('Email confirmation deep link detected');
+          Alert.alert(
+            'Email Confermata!',
+            'La tua email è stata confermata con successo. Ora puoi accedere all\'app.',
+            [{ text: 'OK', onPress: () => router.replace('/login') }]
+          );
+          return;
+        }
+
+        // Handle password reset
+        if (path === 'update-password' || hostname === 'update-password') {
+          console.log('Password reset deep link detected');
+          
+          // Check if we have a valid session from the link
+          const { data: { session }, error } = await supabase.auth.getSession();
+          
+          if (error || !session) {
+            console.error('No valid session for password reset:', error);
+            Alert.alert(
+              'Link Scaduto',
+              'Il link per il recupero password è scaduto o non è valido. Richiedi un nuovo link.',
+              [{ text: 'OK', onPress: () => router.replace('/forgot-password') }]
+            );
+          } else {
+            console.log('Valid session found, navigating to update-password');
+            router.replace('/update-password');
+          }
+          return;
+        }
+
+        // Handle other deep links if needed
+        console.log('Unhandled deep link path:', path);
+      } catch (error) {
+        console.error('Error handling deep link:', error);
+      }
+    };
+
+    // Get the initial URL if the app was opened via a deep link
+    Linking.getInitialURL().then((url) => {
+      if (url) {
+        console.log('Initial URL:', url);
+        handleDeepLink(url);
+      }
+    });
+
+    // Listen for deep links while the app is running
+    const subscription = Linking.addEventListener('url', ({ url }) => {
+      console.log('URL event:', url);
+      handleDeepLink(url);
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, []);
+
   useEffect(() => {
     if (loaded && !showCustomSplash) {
       SplashScreen.hideAsync();
@@ -240,19 +309,29 @@ export default function RootLayout() {
                 {/* Login Screen */}
                 <Stack.Screen name="login" options={{ headerShown: false }} />
 
+                {/* Auth Screens */}
+                <Stack.Screen name="forgot-password" options={{ headerShown: false }} />
+                <Stack.Screen name="update-password" options={{ headerShown: false }} />
+                <Stack.Screen name="register/consumer" options={{ headerShown: false }} />
+
                 {/* Main app with tabs */}
                 <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+
+                {/* Admin Screens */}
+                <Stack.Screen name="admin" options={{ headerShown: false }} />
 
                 {/* Supplier Screens */}
                 <Stack.Screen name="supplier/dashboard" options={{ headerShown: false }} />
                 <Stack.Screen name="supplier/import-list" options={{ headerShown: false }} />
 
                 {/* Pickup Point Screens */}
-                <Stack.Screen name="pickup-point/dashboard" options={{ headerShown: false }} />
-                <Stack.Screen name="pickup-point/edit" options={{ headerShown: false }} />
+                <Stack.Screen name="pickup-point" options={{ headerShown: false }} />
 
                 {/* Drop Details */}
                 <Stack.Screen name="drop-details" options={{ headerShown: false }} />
+
+                {/* Profile Screens */}
+                <Stack.Screen name="edit-profile" options={{ headerShown: false }} />
 
                 {/* Payment Screens */}
                 <Stack.Screen name="add-payment-method" options={{ headerShown: false }} />
