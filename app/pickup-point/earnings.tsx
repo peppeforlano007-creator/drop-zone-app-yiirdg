@@ -1,20 +1,23 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
-  Pressable,
+  ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack } from 'expo-router';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
-import * as Haptics from 'expo-haptics';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/app/integrations/supabase/client';
 
-interface EarningsData {
+interface MonthlyEarnings {
   month: string;
+  year: number;
   ordersDelivered: number;
   commission: number;
   status: 'paid' | 'pending' | 'processing';
@@ -22,71 +25,157 @@ interface EarningsData {
 
 interface OrderCommission {
   id: string;
-  orderNumber: string;
-  customerName: string;
-  deliveredDate: Date;
+  order_number: string;
+  customer_name: string;
+  completed_at: string;
   commission: number;
-  status: 'paid' | 'pending';
+  status: string;
 }
 
 export default function EarningsScreen() {
-  const [selectedPeriod, setSelectedPeriod] = useState<'month' | 'year'>('month');
+  const { user } = useAuth();
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [monthlyEarnings, setMonthlyEarnings] = useState<MonthlyEarnings[]>([]);
+  const [recentOrders, setRecentOrders] = useState<OrderCommission[]>([]);
+  const [pickupPoint, setPickupPoint] = useState<any>(null);
 
-  const monthlyEarnings: EarningsData[] = [
-    { month: 'Gennaio 2025', ordersDelivered: 45, commission: 112.50, status: 'paid' },
-    { month: 'Febbraio 2025', ordersDelivered: 52, commission: 130.00, status: 'paid' },
-    { month: 'Marzo 2025', ordersDelivered: 38, commission: 95.00, status: 'processing' },
-    { month: 'Aprile 2025', ordersDelivered: 28, commission: 70.00, status: 'pending' },
-  ];
+  useEffect(() => {
+    loadEarningsData();
+  }, []);
 
-  const recentOrders: OrderCommission[] = [
-    {
-      id: '1',
-      orderNumber: 'ORD-2025-1234',
-      customerName: 'Mario Rossi',
-      deliveredDate: new Date('2025-04-15'),
-      commission: 2.50,
-      status: 'pending',
-    },
-    {
-      id: '2',
-      orderNumber: 'ORD-2025-1233',
-      customerName: 'Laura Bianchi',
-      deliveredDate: new Date('2025-04-14'),
-      commission: 2.50,
-      status: 'pending',
-    },
-    {
-      id: '3',
-      orderNumber: 'ORD-2025-1232',
-      customerName: 'Giuseppe Verdi',
-      deliveredDate: new Date('2025-04-13'),
-      commission: 2.50,
-      status: 'pending',
-    },
-    {
-      id: '4',
-      orderNumber: 'ORD-2025-1231',
-      customerName: 'Anna Neri',
-      deliveredDate: new Date('2025-03-28'),
-      commission: 2.50,
-      status: 'paid',
-    },
-    {
-      id: '5',
-      orderNumber: 'ORD-2025-1230',
-      customerName: 'Marco Gialli',
-      deliveredDate: new Date('2025-03-27'),
-      commission: 2.50,
-      status: 'paid',
-    },
-  ];
+  const loadEarningsData = async () => {
+    if (!user?.pickupPointId) {
+      console.error('No pickup point ID found');
+      setLoading(false);
+      setRefreshing(false);
+      return;
+    }
+
+    try {
+      console.log('Loading earnings data for pickup point:', user.pickupPointId);
+
+      // Load pickup point data to get commission rate
+      const { data: ppData, error: ppError } = await supabase
+        .from('pickup_points')
+        .select('*')
+        .eq('id', user.pickupPointId)
+        .single();
+
+      if (ppError) {
+        console.error('Error loading pickup point:', ppError);
+      } else {
+        setPickupPoint(ppData);
+      }
+
+      const commissionRate = ppData?.commission_rate || 5;
+
+      // Load all completed orders
+      const { data: ordersData, error: ordersError } = await supabase
+        .from('orders')
+        .select(`
+          id,
+          order_number,
+          total_value,
+          commission_amount,
+          status,
+          completed_at,
+          order_items (
+            user_id
+          )
+        `)
+        .eq('pickup_point_id', user.pickupPointId)
+        .eq('status', 'completed')
+        .order('completed_at', { ascending: false });
+
+      if (ordersError) {
+        console.error('Error loading orders:', ordersError);
+      } else {
+        console.log('Completed orders loaded:', ordersData?.length || 0);
+
+        // Group orders by month
+        const monthlyData: { [key: string]: MonthlyEarnings } = {};
+        
+        if (ordersData && ordersData.length > 0) {
+          for (const order of ordersData) {
+            const date = new Date(order.completed_at);
+            const monthKey = `${date.getFullYear()}-${date.getMonth()}`;
+            const monthName = date.toLocaleDateString('it-IT', { month: 'long', year: 'numeric' });
+            const monthNameCapitalized = monthName.charAt(0).toUpperCase() + monthName.slice(1);
+
+            if (!monthlyData[monthKey]) {
+              monthlyData[monthKey] = {
+                month: monthNameCapitalized,
+                year: date.getFullYear(),
+                ordersDelivered: 0,
+                commission: 0,
+                status: 'paid', // You can implement logic to determine if it's paid or pending
+              };
+            }
+
+            monthlyData[monthKey].ordersDelivered += 1;
+            monthlyData[monthKey].commission += Number(order.commission_amount) || (Number(order.total_value) * commissionRate / 100);
+          }
+        }
+
+        // Convert to array and sort by date (most recent first)
+        const monthlyArray = Object.values(monthlyData).sort((a, b) => {
+          return b.year - a.year || b.month.localeCompare(a.month);
+        });
+
+        setMonthlyEarnings(monthlyArray);
+
+        // Load recent orders with customer names
+        const recentOrdersWithCustomers = await Promise.all(
+          (ordersData || []).slice(0, 10).map(async (order) => {
+            let customerName = 'Cliente';
+            
+            if (order.order_items && order.order_items.length > 0) {
+              const userId = order.order_items[0].user_id;
+              const { data: profileData } = await supabase
+                .from('profiles')
+                .select('full_name')
+                .eq('user_id', userId)
+                .single();
+              
+              if (profileData?.full_name) {
+                customerName = profileData.full_name;
+              }
+            }
+
+            return {
+              id: order.id,
+              order_number: order.order_number,
+              customer_name: customerName,
+              completed_at: order.completed_at,
+              commission: Number(order.commission_amount) || (Number(order.total_value) * commissionRate / 100),
+              status: order.status,
+            };
+          })
+        );
+
+        setRecentOrders(recentOrdersWithCustomers);
+      }
+    } catch (error) {
+      console.error('Error loading earnings data:', error);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  const handleRefresh = () => {
+    setRefreshing(true);
+    loadEarningsData();
+  };
 
   const totalEarnings = monthlyEarnings.reduce((sum, item) => sum + item.commission, 0);
   const totalOrders = monthlyEarnings.reduce((sum, item) => sum + item.ordersDelivered, 0);
   const pendingEarnings = monthlyEarnings
     .filter(item => item.status === 'pending')
     .reduce((sum, item) => sum + item.commission, 0);
+
+  const commissionPerOrder = pickupPoint?.commission_rate || 5;
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -114,13 +203,23 @@ export default function EarningsScreen() {
     }
   };
 
-  const formatDate = (date: Date) => {
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
     return date.toLocaleDateString('it-IT', {
       day: '2-digit',
       month: 'short',
       year: 'numeric',
     });
   };
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={styles.loadingText}>Caricamento guadagni...</Text>
+      </View>
+    );
+  }
 
   return (
     <>
@@ -135,17 +234,30 @@ export default function EarningsScreen() {
           style={styles.scrollView} 
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+          }
         >
           {/* Summary Cards */}
           <View style={styles.summaryContainer}>
             <View style={styles.summaryCard}>
-              <IconSymbol name="eurosign.circle.fill" size={32} color={colors.text} />
+              <IconSymbol 
+                ios_icon_name="eurosign.circle.fill" 
+                android_material_icon_name="euro"
+                size={32} 
+                color={colors.success} 
+              />
               <Text style={styles.summaryValue}>€{totalEarnings.toFixed(2)}</Text>
               <Text style={styles.summaryLabel}>Totale Guadagnato</Text>
             </View>
 
             <View style={styles.summaryCard}>
-              <IconSymbol name="shippingbox.fill" size={32} color={colors.text} />
+              <IconSymbol 
+                ios_icon_name="shippingbox.fill" 
+                android_material_icon_name="inventory_2"
+                size={32} 
+                color={colors.primary} 
+              />
               <Text style={styles.summaryValue}>{totalOrders}</Text>
               <Text style={styles.summaryLabel}>Ordini Consegnati</Text>
             </View>
@@ -153,26 +265,41 @@ export default function EarningsScreen() {
 
           <View style={styles.summaryContainer}>
             <View style={styles.summaryCard}>
-              <IconSymbol name="clock.fill" size={32} color="#F59E0B" />
+              <IconSymbol 
+                ios_icon_name="clock.fill" 
+                android_material_icon_name="schedule"
+                size={32} 
+                color="#F59E0B" 
+              />
               <Text style={styles.summaryValue}>€{pendingEarnings.toFixed(2)}</Text>
               <Text style={styles.summaryLabel}>In Attesa</Text>
             </View>
 
             <View style={styles.summaryCard}>
-              <IconSymbol name="chart.line.uptrend.xyaxis" size={32} color="#10B981" />
-              <Text style={styles.summaryValue}>€2.50</Text>
-              <Text style={styles.summaryLabel}>Per Ordine</Text>
+              <IconSymbol 
+                ios_icon_name="chart.line.uptrend.xyaxis" 
+                android_material_icon_name="trending_up"
+                size={32} 
+                color="#10B981" 
+              />
+              <Text style={styles.summaryValue}>{commissionPerOrder}%</Text>
+              <Text style={styles.summaryLabel}>Commissione</Text>
             </View>
           </View>
 
           {/* Info Card */}
           <View style={styles.infoCard}>
             <View style={styles.infoHeader}>
-              <IconSymbol name="info.circle.fill" size={20} color={colors.text} />
+              <IconSymbol 
+                ios_icon_name="info.circle.fill" 
+                android_material_icon_name="info"
+                size={20} 
+                color={colors.info} 
+              />
               <Text style={styles.infoTitle}>Come funziona</Text>
             </View>
             <Text style={styles.infoText}>
-              - Guadagni €2.50 per ogni ordine consegnato{'\n'}
+              - Guadagni il {commissionPerOrder}% su ogni ordine consegnato{'\n'}
               - Le commissioni vengono calcolate mensilmente{'\n'}
               - Il pagamento avviene entro il 15 del mese successivo{'\n'}
               - I pagamenti vengono effettuati tramite bonifico bancario
@@ -180,70 +307,107 @@ export default function EarningsScreen() {
           </View>
 
           {/* Monthly Earnings */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Storico Mensile</Text>
+          {monthlyEarnings.length > 0 && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Storico Mensile</Text>
 
-            {monthlyEarnings.map((item, index) => (
-              <View key={index} style={styles.earningsCard}>
-                <View style={styles.earningsHeader}>
-                  <Text style={styles.earningsMonth}>{item.month}</Text>
-                  <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) + '20' }]}>
-                    <Text style={[styles.statusText, { color: getStatusColor(item.status) }]}>
-                      {getStatusText(item.status)}
-                    </Text>
-                  </View>
-                </View>
-
-                <View style={styles.earningsDetails}>
-                  <View style={styles.earningsRow}>
-                    <View style={styles.earningsItem}>
-                      <IconSymbol name="shippingbox" size={18} color={colors.textSecondary} />
-                      <Text style={styles.earningsItemLabel}>Ordini</Text>
-                      <Text style={styles.earningsItemValue}>{item.ordersDelivered}</Text>
-                    </View>
-
-                    <View style={styles.earningsDivider} />
-
-                    <View style={styles.earningsItem}>
-                      <IconSymbol name="eurosign" size={18} color={colors.textSecondary} />
-                      <Text style={styles.earningsItemLabel}>Commissione</Text>
-                      <Text style={styles.earningsItemValue}>€{item.commission.toFixed(2)}</Text>
-                    </View>
-                  </View>
-                </View>
-              </View>
-            ))}
-          </View>
-
-          {/* Recent Orders */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Ordini Recenti</Text>
-
-            {recentOrders.map((order) => (
-              <View key={order.id} style={styles.orderCard}>
-                <View style={styles.orderHeader}>
-                  <View style={styles.orderInfo}>
-                    <Text style={styles.orderNumber}>{order.orderNumber}</Text>
-                    <Text style={styles.orderCustomer}>{order.customerName}</Text>
-                  </View>
-                  <View style={styles.orderRight}>
-                    <Text style={styles.orderCommission}>€{order.commission.toFixed(2)}</Text>
-                    <View style={[styles.orderStatusBadge, { backgroundColor: getStatusColor(order.status) + '20' }]}>
-                      <Text style={[styles.orderStatusText, { color: getStatusColor(order.status) }]}>
-                        {getStatusText(order.status)}
+              {monthlyEarnings.map((item, index) => (
+                <View key={index} style={styles.earningsCard}>
+                  <View style={styles.earningsHeader}>
+                    <Text style={styles.earningsMonth}>{item.month}</Text>
+                    <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) + '20' }]}>
+                      <Text style={[styles.statusText, { color: getStatusColor(item.status) }]}>
+                        {getStatusText(item.status)}
                       </Text>
                     </View>
                   </View>
+
+                  <View style={styles.earningsDetails}>
+                    <View style={styles.earningsRow}>
+                      <View style={styles.earningsItem}>
+                        <IconSymbol 
+                          ios_icon_name="shippingbox" 
+                          android_material_icon_name="inventory_2"
+                          size={18} 
+                          color={colors.textSecondary} 
+                        />
+                        <Text style={styles.earningsItemLabel}>Ordini</Text>
+                        <Text style={styles.earningsItemValue}>{item.ordersDelivered}</Text>
+                      </View>
+
+                      <View style={styles.earningsDivider} />
+
+                      <View style={styles.earningsItem}>
+                        <IconSymbol 
+                          ios_icon_name="eurosign" 
+                          android_material_icon_name="euro"
+                          size={18} 
+                          color={colors.textSecondary} 
+                        />
+                        <Text style={styles.earningsItemLabel}>Commissione</Text>
+                        <Text style={styles.earningsItemValue}>€{item.commission.toFixed(2)}</Text>
+                      </View>
+                    </View>
+                  </View>
                 </View>
-                <Text style={styles.orderDate}>Consegnato: {formatDate(order.deliveredDate)}</Text>
-              </View>
-            ))}
-          </View>
+              ))}
+            </View>
+          )}
+
+          {/* Recent Orders */}
+          {recentOrders.length > 0 && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Ordini Recenti</Text>
+
+              {recentOrders.map((order) => (
+                <View key={order.id} style={styles.orderCard}>
+                  <View style={styles.orderHeader}>
+                    <View style={styles.orderInfo}>
+                      <Text style={styles.orderNumber}>{order.order_number}</Text>
+                      <Text style={styles.orderCustomer}>{order.customer_name}</Text>
+                    </View>
+                    <View style={styles.orderRight}>
+                      <Text style={styles.orderCommission}>€{order.commission.toFixed(2)}</Text>
+                      <View style={[styles.orderStatusBadge, { backgroundColor: colors.success + '20' }]}>
+                        <Text style={[styles.orderStatusText, { color: colors.success }]}>
+                          Completato
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                  <Text style={styles.orderDate}>Consegnato: {formatDate(order.completed_at)}</Text>
+                </View>
+              ))}
+            </View>
+          )}
+
+          {/* Empty State */}
+          {monthlyEarnings.length === 0 && recentOrders.length === 0 && (
+            <View style={styles.emptyState}>
+              <IconSymbol 
+                ios_icon_name="chart.bar" 
+                android_material_icon_name="bar_chart"
+                size={64} 
+                color={colors.textTertiary} 
+              />
+              <Text style={styles.emptyStateText}>
+                Nessun guadagno registrato
+              </Text>
+              <Text style={styles.emptyStateSubtext}>
+                I guadagni appariranno qui quando gli ordini verranno completati
+              </Text>
+            </View>
+          )}
 
           {/* Bank Info */}
           <View style={styles.bankCard}>
             <View style={styles.bankHeader}>
-              <IconSymbol name="creditcard.fill" size={24} color={colors.text} />
+              <IconSymbol 
+                ios_icon_name="creditcard.fill" 
+                android_material_icon_name="credit_card"
+                size={24} 
+                color={colors.text} 
+              />
               <Text style={styles.bankTitle}>Conto per Pagamenti</Text>
             </View>
             <Text style={styles.bankText}>
@@ -261,6 +425,17 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: colors.background,
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 14,
+    color: colors.textSecondary,
   },
   scrollView: {
     flex: 1,
@@ -295,9 +470,9 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   infoCard: {
-    backgroundColor: colors.card,
+    backgroundColor: colors.info + '10',
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.info + '30',
     borderRadius: 12,
     padding: 16,
     margin: 12,
@@ -433,6 +608,25 @@ const styles = StyleSheet.create({
   orderDate: {
     fontSize: 12,
     color: colors.textSecondary,
+  },
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 64,
+    paddingHorizontal: 32,
+  },
+  emptyStateText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.textSecondary,
+    marginTop: 16,
+    textAlign: 'center',
+  },
+  emptyStateSubtext: {
+    fontSize: 14,
+    color: colors.textTertiary,
+    marginTop: 8,
+    textAlign: 'center',
   },
   bankCard: {
     backgroundColor: colors.card,
