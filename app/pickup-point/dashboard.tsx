@@ -34,6 +34,8 @@ interface Stats {
   pendingPickups: number;
   completedToday: number;
   totalEarnings: number;
+  activeDrops: number;
+  totalBookings: number;
 }
 
 export default function PickupPointDashboardScreen() {
@@ -47,6 +49,8 @@ export default function PickupPointDashboardScreen() {
     pendingPickups: 0,
     completedToday: 0,
     totalEarnings: 0,
+    activeDrops: 0,
+    totalBookings: 0,
   });
 
   useEffect(() => {
@@ -71,6 +75,8 @@ export default function PickupPointDashboardScreen() {
     }
 
     try {
+      console.log('Loading dashboard data for pickup point:', user.pickupPointId);
+
       // Load pickup point data
       const { data: ppData, error: ppError } = await supabase
         .from('pickup_points')
@@ -82,61 +88,124 @@ export default function PickupPointDashboardScreen() {
         console.error('Error loading pickup point:', ppError);
         Alert.alert('Errore', 'Impossibile caricare i dati del punto di ritiro');
       } else {
+        console.log('Pickup point loaded:', ppData?.name);
         setPickupPoint(ppData);
       }
 
-      // Load stats
-      // Active orders
-      const { count: activeCount } = await supabase
+      // Load active orders count
+      const { count: activeCount, error: activeError } = await supabase
         .from('orders')
         .select('*', { count: 'exact', head: true })
         .eq('pickup_point_id', user.pickupPointId)
-        .in('status', ['pending', 'confirmed', 'in_transit', 'arrived']);
+        .in('status', ['pending', 'confirmed', 'in_transit', 'arrived', 'ready_for_pickup']);
 
-      // Pending pickups
-      const { count: pendingCount } = await supabase
-        .from('order_items')
-        .select('*', { count: 'exact', head: true })
-        .eq('pickup_status', 'ready')
-        .in('order_id', 
-          supabase
-            .from('orders')
-            .select('id')
-            .eq('pickup_point_id', user.pickupPointId)
-        );
+      if (activeError) {
+        console.error('Error loading active orders:', activeError);
+      } else {
+        console.log('Active orders count:', activeCount);
+      }
 
-      // Completed today
+      // Load pending pickups - first get order IDs for this pickup point
+      const { data: orderIds, error: orderIdsError } = await supabase
+        .from('orders')
+        .select('id')
+        .eq('pickup_point_id', user.pickupPointId);
+
+      let pendingCount = 0;
+      if (orderIdsError) {
+        console.error('Error loading order IDs:', orderIdsError);
+      } else if (orderIds && orderIds.length > 0) {
+        const ids = orderIds.map(o => o.id);
+        const { count, error: pendingError } = await supabase
+          .from('order_items')
+          .select('*', { count: 'exact', head: true })
+          .eq('pickup_status', 'ready')
+          .in('order_id', ids);
+
+        if (pendingError) {
+          console.error('Error loading pending pickups:', pendingError);
+        } else {
+          pendingCount = count || 0;
+          console.log('Pending pickups count:', pendingCount);
+        }
+      }
+
+      // Load completed today - first get order IDs, then query order_items
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-      const { count: completedCount } = await supabase
-        .from('order_items')
-        .select('*', { count: 'exact', head: true })
-        .eq('pickup_status', 'picked_up')
-        .gte('picked_up_at', today.toISOString())
-        .in('order_id',
-          supabase
-            .from('orders')
-            .select('id')
-            .eq('pickup_point_id', user.pickupPointId)
-        );
+      
+      let completedCount = 0;
+      if (orderIds && orderIds.length > 0) {
+        const ids = orderIds.map(o => o.id);
+        const { count, error: completedError } = await supabase
+          .from('order_items')
+          .select('*', { count: 'exact', head: true })
+          .eq('pickup_status', 'picked_up')
+          .gte('picked_up_at', today.toISOString())
+          .in('order_id', ids);
 
-      // Total earnings (commission from completed orders)
-      const { data: ordersData } = await supabase
+        if (completedError) {
+          console.error('Error loading completed pickups:', completedError);
+        } else {
+          completedCount = count || 0;
+          console.log('Completed today count:', completedCount);
+        }
+      }
+
+      // Load total earnings from completed orders
+      const { data: ordersData, error: ordersError } = await supabase
         .from('orders')
         .select('commission_amount')
         .eq('pickup_point_id', user.pickupPointId)
         .eq('status', 'completed');
 
-      const totalEarnings = ordersData?.reduce((sum, order) => sum + (Number(order.commission_amount) || 0), 0) || 0;
+      let totalEarnings = 0;
+      if (ordersError) {
+        console.error('Error loading earnings:', ordersError);
+      } else {
+        totalEarnings = ordersData?.reduce((sum, order) => sum + (Number(order.commission_amount) || 0), 0) || 0;
+        console.log('Total earnings:', totalEarnings);
+      }
+
+      // Load active drops count for this pickup point
+      const { count: dropsCount, error: dropsError } = await supabase
+        .from('drops')
+        .select('*', { count: 'exact', head: true })
+        .eq('pickup_point_id', user.pickupPointId)
+        .eq('status', 'active');
+
+      if (dropsError) {
+        console.error('Error loading active drops:', dropsError);
+      } else {
+        console.log('Active drops count:', dropsCount);
+      }
+
+      // Load total bookings for this pickup point
+      const { count: bookingsCount, error: bookingsError } = await supabase
+        .from('bookings')
+        .select('*', { count: 'exact', head: true })
+        .eq('pickup_point_id', user.pickupPointId)
+        .in('status', ['active', 'confirmed']);
+
+      if (bookingsError) {
+        console.error('Error loading bookings:', bookingsError);
+      } else {
+        console.log('Total bookings count:', bookingsCount);
+      }
 
       setStats({
         activeOrders: activeCount || 0,
-        pendingPickups: pendingCount || 0,
-        completedToday: completedCount || 0,
+        pendingPickups: pendingCount,
+        completedToday: completedCount,
         totalEarnings,
+        activeDrops: dropsCount || 0,
+        totalBookings: bookingsCount || 0,
       });
+
+      console.log('Dashboard data loaded successfully');
     } catch (error) {
       console.error('Error loading dashboard data:', error);
+      Alert.alert('Errore', 'Si è verificato un errore durante il caricamento dei dati');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -295,6 +364,28 @@ export default function PickupPointDashboardScreen() {
               <Text style={styles.statValue}>€{stats.totalEarnings.toFixed(2)}</Text>
               <Text style={styles.statLabel}>Guadagni Totali</Text>
             </View>
+
+            <View style={styles.statCard}>
+              <IconSymbol
+                ios_icon_name="flame.fill"
+                android_material_icon_name="local_fire_department"
+                size={32}
+                color={colors.error}
+              />
+              <Text style={styles.statValue}>{stats.activeDrops}</Text>
+              <Text style={styles.statLabel}>Drop Attivi</Text>
+            </View>
+
+            <View style={styles.statCard}>
+              <IconSymbol
+                ios_icon_name="cart.fill"
+                android_material_icon_name="shopping_cart"
+                size={32}
+                color={colors.success}
+              />
+              <Text style={styles.statValue}>{stats.totalBookings}</Text>
+              <Text style={styles.statLabel}>Prenotazioni Totali</Text>
+            </View>
           </View>
 
           {/* Quick Actions */}
@@ -425,6 +516,25 @@ export default function PickupPointDashboardScreen() {
               </View>
             </View>
           )}
+
+          {/* Real-time Data Info */}
+          <View style={styles.section}>
+            <View style={styles.realTimeCard}>
+              <IconSymbol
+                ios_icon_name="arrow.clockwise.circle.fill"
+                android_material_icon_name="sync"
+                size={24}
+                color={colors.success}
+              />
+              <View style={styles.realTimeContent}>
+                <Text style={styles.realTimeTitle}>Dati in Tempo Reale</Text>
+                <Text style={styles.realTimeText}>
+                  Tutti i dati visualizzati sono aggiornati in tempo reale dal database dell&apos;app.
+                  Scorri verso il basso per aggiornare.
+                </Text>
+              </View>
+            </View>
+          </View>
         </ScrollView>
       </SafeAreaView>
     </>
@@ -620,6 +730,30 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 13,
     color: colors.text,
+    lineHeight: 18,
+  },
+  realTimeCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: colors.success + '10',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: colors.success + '30',
+    gap: 12,
+  },
+  realTimeContent: {
+    flex: 1,
+  },
+  realTimeTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 4,
+  },
+  realTimeText: {
+    fontSize: 13,
+    color: colors.textSecondary,
     lineHeight: 18,
   },
 });
