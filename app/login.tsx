@@ -319,7 +319,7 @@ export default function LoginScreen() {
                   />
                 </View>
                 <View style={styles.registerCardContent}>
-                  <Text style={styles.registerCardTitle}>Consumatore</Text>
+                  <Text style={styles.registerCardTitle}>Utente</Text>
                   <Text style={styles.registerCardDescription}>
                     Prenota prodotti e partecipa ai drop
                   </Text>

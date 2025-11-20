@@ -217,7 +217,7 @@ export default function RegisterConsumerScreen() {
       <Stack.Screen
         options={{
           headerShown: true,
-          title: 'Registrazione Consumatore',
+          title: 'Registrazione Utente',
           headerBackTitle: 'Indietro',
         }}
       />

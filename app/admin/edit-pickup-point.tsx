@@ -129,7 +129,10 @@ export default function EditPickupPointScreen() {
       setSaving(true);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-      const { error } = await supabase
+      console.log('Admin: Updating pickup point:', pickupPointId);
+
+      // Update pickup point
+      const { error: updateError } = await supabase
         .from('pickup_points')
         .update({
           name: name.trim(),
@@ -146,39 +149,52 @@ export default function EditPickupPointScreen() {
         })
         .eq('id', pickupPointId);
 
-      if (error) {
-        console.error('Error updating pickup point:', error);
+      if (updateError) {
+        console.error('Error updating pickup point:', updateError);
         Alert.alert('Errore', 'Impossibile aggiornare il punto di ritiro');
         return;
       }
 
+      console.log('Admin: Pickup point updated successfully');
+
       // Update all consumer profiles associated with this pickup point
       // This ensures consumers see updated pickup point information
-      console.log('Updating consumer profiles for pickup point:', pickupPointId);
+      console.log('Admin: Updating consumer profiles for pickup point:', pickupPointId);
       const { error: profilesError } = await supabase
         .from('profiles')
         .update({
           updated_at: new Date().toISOString(),
         })
-        .eq('pickup_point_id', pickupPointId);
+        .eq('pickup_point_id', pickupPointId)
+        .eq('role', 'consumer');
 
       if (profilesError) {
-        console.warn('Warning: Could not update consumer profiles:', profilesError);
+        console.warn('Admin: Warning - Could not update consumer profiles:', profilesError);
         // Don't fail the whole operation if this fails
       } else {
-        console.log('Consumer profiles updated successfully');
+        console.log('Admin: Consumer profiles updated successfully');
+      }
+
+      // If commission rate is 0, we should hide earnings from consumers
+      // This is handled in the UI by checking the commission_rate value
+      if (rate === 0) {
+        console.log('Admin: Commission rate set to 0 - earnings will be hidden from consumers');
       }
 
       // Log activity
       await logPickupPointActivity.updated(name, pickupPointId);
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert('Successo', 'Punto di ritiro aggiornato con successo', [
-        {
-          text: 'OK',
-          onPress: () => router.back(),
-        },
-      ]);
+      Alert.alert(
+        'Successo',
+        'Punto di ritiro aggiornato con successo.\n\nLe modifiche sono state sincronizzate con i profili dei consumatori.',
+        [
+          {
+            text: 'OK',
+            onPress: () => router.back(),
+          },
+        ]
+      );
     } catch (error) {
       console.error('Error updating pickup point:', error);
       Alert.alert('Errore', 'Si è verificato un errore');
@@ -306,6 +322,9 @@ export default function EditPickupPointScreen() {
 
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Commissione (%) *</Text>
+            <Text style={styles.helperText}>
+              Imposta a 0 per nascondere i guadagni ai consumatori
+            </Text>
             <TextInput
               style={styles.input}
               value={commissionRate}
@@ -354,6 +373,18 @@ export default function EditPickupPointScreen() {
                 </Pressable>
               ))}
             </View>
+          </View>
+
+          <View style={styles.infoBox}>
+            <IconSymbol
+              ios_icon_name="info.circle.fill"
+              android_material_icon_name="info"
+              size={18}
+              color={colors.info}
+            />
+            <Text style={styles.infoText}>
+              Le modifiche verranno sincronizzate automaticamente con tutti i profili dei consumatori associati a questo punto di ritiro.
+            </Text>
           </View>
 
           <Pressable
@@ -488,6 +519,23 @@ const styles = StyleSheet.create({
   },
   radioTextActive: {
     color: '#FFF',
+  },
+  infoBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: colors.info + '10',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: colors.info + '30',
+    gap: 12,
+    marginBottom: 16,
+  },
+  infoText: {
+    flex: 1,
+    fontSize: 13,
+    color: colors.text,
+    lineHeight: 20,
   },
   saveButton: {
     backgroundColor: colors.primary,

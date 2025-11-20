@@ -27,13 +27,17 @@ export const unstable_settings = {
   initialRouteName: "login",
 };
 
-// Custom Splash Screen Component
+// Enhanced Custom Splash Screen Component with growing circle animation
 function CustomSplashScreen({ onFinish }: { onFinish: () => void }) {
-  const fadeAnim = React.useRef(new Animated.Value(0)).current;
+  const fadeAnim = React.useRef(new Animated.Value(1)).current;
   const scaleAnim = React.useRef(new Animated.Value(0.3)).current;
+  const circleScaleAnim = React.useRef(new Animated.Value(0)).current;
+  const bgColorAnim = React.useRef(new Animated.Value(0)).current;
+  const logoScaleAnim = React.useRef(new Animated.Value(1)).current;
+  const sloganOpacityAnim = React.useRef(new Animated.Value(0)).current;
 
   React.useEffect(() => {
-    // Fade in and scale animation
+    // Phase 1: Logo appears and scales up (0-800ms)
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
@@ -46,38 +50,109 @@ function CustomSplashScreen({ onFinish }: { onFinish: () => void }) {
         tension: 40,
         useNativeDriver: true,
       }),
-    ]).start();
-
-    // Auto-hide after 2 seconds
-    const timer = setTimeout(() => {
-      Animated.timing(fadeAnim, {
-        toValue: 0,
-        duration: 500,
+    ]).start(() => {
+      // Phase 2: Show slogan (800-1200ms)
+      Animated.timing(sloganOpacityAnim, {
+        toValue: 1,
+        duration: 400,
         useNativeDriver: true,
       }).start(() => {
-        onFinish();
+        // Phase 3: White circle grows and background transitions (1200-2200ms)
+        Animated.parallel([
+          Animated.timing(circleScaleAnim, {
+            toValue: 1,
+            duration: 1000,
+            useNativeDriver: true,
+          }),
+          Animated.timing(bgColorAnim, {
+            toValue: 1,
+            duration: 1000,
+            useNativeDriver: false,
+          }),
+          Animated.timing(logoScaleAnim, {
+            toValue: 1.1,
+            duration: 500,
+            useNativeDriver: true,
+          }),
+        ]).start(() => {
+          // Phase 4: Fade out everything (2200-2700ms)
+          setTimeout(() => {
+            Animated.timing(fadeAnim, {
+              toValue: 0,
+              duration: 500,
+              useNativeDriver: true,
+            }).start(() => {
+              onFinish();
+            });
+          }, 300);
+        });
       });
-    }, 2000);
-
-    return () => clearTimeout(timer);
+    });
   }, []);
+
+  const backgroundColor = bgColorAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['#000000', '#FFFFFF'],
+  });
+
+  const logoColor = bgColorAnim.interpolate({
+    inputRange: [0, 0.5, 1],
+    outputRange: ['#FFFFFF', '#FFFFFF', '#000000'],
+  });
+
+  const sloganColor = bgColorAnim.interpolate({
+    inputRange: [0, 0.5, 1],
+    outputRange: ['#CCCCCC', '#999999', '#666666'],
+  });
 
   return (
     <Animated.View
       style={[
         styles.splashContainer,
         {
+          backgroundColor,
           opacity: fadeAnim,
         },
       ]}
     >
+      {/* Growing white circle */}
+      <Animated.View
+        style={[
+          styles.whiteCircle,
+          {
+            transform: [
+              {
+                scale: circleScaleAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0, 20], // Grows to 20x its original size
+                }),
+              },
+            ],
+          },
+        ]}
+      />
+
+      {/* Logo and slogan */}
       <Animated.View
         style={{
-          transform: [{ scale: scaleAnim }],
+          transform: [{ scale: Animated.multiply(scaleAnim, logoScaleAnim) }],
+          zIndex: 10,
         }}
       >
-        <Text style={styles.splashLogo}>DROPMARKET</Text>
-        <Text style={styles.splashTagline}>Il tuo marketplace dinamico</Text>
+        <Text style={[styles.splashLogo, { color: logoColor as any }]}>
+          DROPMARKET
+        </Text>
+        <Animated.Text
+          style={[
+            styles.splashTagline,
+            {
+              color: sloganColor as any,
+              opacity: sloganOpacityAnim,
+            },
+          ]}
+        >
+          Prenota insieme, risparmia di più
+        </Animated.Text>
       </Animated.View>
     </Animated.View>
   );
@@ -207,23 +282,28 @@ export default function RootLayout() {
 const styles = StyleSheet.create({
   splashContainer: {
     flex: 1,
-    backgroundColor: '#000000',
     justifyContent: 'center',
     alignItems: 'center',
+    overflow: 'hidden',
+  },
+  whiteCircle: {
+    position: 'absolute',
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: '#FFFFFF',
   },
   splashLogo: {
     fontSize: 48,
     fontWeight: '900',
-    color: '#FFFFFF',
     letterSpacing: 2,
     textAlign: 'center',
     marginBottom: 16,
   },
   splashTagline: {
     fontSize: 16,
-    fontWeight: '400',
-    color: '#CCCCCC',
+    fontWeight: '500',
     textAlign: 'center',
-    letterSpacing: 1,
+    letterSpacing: 0.5,
   },
 });
