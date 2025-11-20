@@ -102,6 +102,78 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       console.log('AuthProvider: Profile loaded successfully:', profile.role);
 
+      // Special handling for pickup_point users
+      if (profile.role === 'pickup_point') {
+        // Check if pickup_point_id is missing
+        if (!profile.pickup_point_id) {
+          console.error('AuthProvider: Pickup point user missing pickup_point_id, attempting to fix...');
+          
+          // Try to find the pickup point by email
+          const { data: pickupPoint, error: pickupError } = await supabase
+            .from('pickup_points')
+            .select('id, city, name')
+            .eq('email', profile.email)
+            .single();
+
+          if (pickupError || !pickupPoint) {
+            console.error('AuthProvider: Could not find pickup point for email:', profile.email, pickupError);
+            
+            Alert.alert(
+              'Errore Configurazione',
+              `Il tuo account punto di ritiro non è configurato correttamente. Nessun punto di ritiro trovato per l'email ${profile.email}.\n\nContatta l'amministratore per assistenza.`,
+              [
+                {
+                  text: 'OK',
+                  onPress: () => {
+                    supabase.auth.signOut();
+                  }
+                }
+              ]
+            );
+            setLoading(false);
+            return;
+          }
+
+          // Update the profile with the correct pickup_point_id
+          console.log('AuthProvider: Found pickup point, updating profile:', pickupPoint.id);
+          const { error: updateError } = await supabase
+            .from('profiles')
+            .update({ pickup_point_id: pickupPoint.id })
+            .eq('user_id', userId);
+
+          if (updateError) {
+            console.error('AuthProvider: Error updating profile with pickup_point_id:', updateError);
+            
+            Alert.alert(
+              'Errore Aggiornamento',
+              'Impossibile aggiornare il profilo con l\'ID del punto di ritiro. Contatta l\'amministratore.',
+              [
+                {
+                  text: 'OK',
+                  onPress: () => {
+                    supabase.auth.signOut();
+                  }
+                }
+              ]
+            );
+            setLoading(false);
+            return;
+          }
+
+          // Update the local profile data
+          profile.pickup_point_id = pickupPoint.id;
+          
+          console.log('AuthProvider: Profile updated successfully with pickup_point_id:', pickupPoint.id);
+          
+          // Show success message
+          Alert.alert(
+            'Configurazione Completata',
+            `Il tuo account è stato configurato correttamente per il punto di ritiro "${pickupPoint.name}".`,
+            [{ text: 'OK' }]
+          );
+        }
+      }
+
       // Now get the pickup point if it exists
       let pickupPointCity: string | undefined;
       if (profile.pickup_point_id) {
