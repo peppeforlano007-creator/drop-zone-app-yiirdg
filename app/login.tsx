@@ -28,7 +28,7 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const [showResendEmail, setShowResendEmail] = useState(false);
   const [resendingEmail, setResendingEmail] = useState(false);
-  const [whatsappNumber, setWhatsappNumber] = useState(''); // No fallback number
+  const [whatsappNumber, setWhatsappNumber] = useState('');
   const [loadingWhatsapp, setLoadingWhatsapp] = useState(true);
 
   useEffect(() => {
@@ -368,14 +368,15 @@ export default function LoginScreen() {
                 )}
               </Pressable>
 
-              {/* Support Button */}
+              {/* Support Button - Fixed to be always clickable when not loading */}
               <Pressable
                 style={({ pressed }) => [
                   styles.supportButton,
-                  (pressed || loadingWhatsapp || !whatsappNumber) && styles.supportButtonPressed,
+                  pressed && styles.supportButtonPressed,
+                  loadingWhatsapp && styles.supportButtonDisabled,
                 ]}
                 onPress={handleSupport}
-                disabled={loading || resendingEmail || loadingWhatsapp || !whatsappNumber}
+                disabled={loadingWhatsapp}
               >
                 {loadingWhatsapp ? (
                   <ActivityIndicator color={colors.primary} size="small" />
@@ -385,12 +386,9 @@ export default function LoginScreen() {
                       ios_icon_name="questionmark.circle.fill"
                       android_material_icon_name="help"
                       size={20}
-                      color={whatsappNumber ? colors.primary : colors.textTertiary}
+                      color={colors.primary}
                     />
-                    <Text style={[
-                      styles.supportButtonText,
-                      !whatsappNumber && styles.supportButtonTextDisabled
-                    ]}>
+                    <Text style={styles.supportButtonText}>
                       Hai bisogno di aiuto?
                     </Text>
                   </>
@@ -578,13 +576,13 @@ const styles = StyleSheet.create({
   supportButtonPressed: {
     opacity: 0.7,
   },
+  supportButtonDisabled: {
+    opacity: 0.5,
+  },
   supportButtonText: {
     fontSize: 14,
     fontWeight: '600',
     color: colors.primary,
-  },
-  supportButtonTextDisabled: {
-    color: colors.textTertiary,
   },
   divider: {
     flexDirection: 'row',

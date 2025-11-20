@@ -41,7 +41,7 @@ export default function SettingsScreen() {
     auto_complete_drops: false,
     enable_notifications: true,
     maintenance_mode: false,
-    whatsapp_support_number: '393123456789',
+    whatsapp_support_number: '',
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -256,28 +256,54 @@ export default function SettingsScreen() {
             </View>
           )}
 
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Supporto Clienti</Text>
+          {/* WhatsApp Support Section - Highlighted at the top */}
+          <View style={styles.highlightedSection}>
+            <View style={styles.sectionHeader}>
+              <IconSymbol
+                ios_icon_name="bubble.left.and.bubble.right.fill"
+                android_material_icon_name="support_agent"
+                size={24}
+                color={colors.primary}
+              />
+              <Text style={styles.highlightedSectionTitle}>Supporto Clienti WhatsApp</Text>
+            </View>
             
-            <View style={styles.settingItem}>
+            <View style={styles.highlightedCard}>
               <View style={styles.settingInfo}>
                 <Text style={styles.settingLabel}>Numero WhatsApp Assistenza</Text>
                 <Text style={styles.settingDescription}>
-                  Numero WhatsApp per il supporto clienti (formato: codice paese + numero senza + o spazi)
+                  Questo numero verrà utilizzato nel pulsante &quot;Hai bisogno di aiuto?&quot; nella schermata di accesso
+                </Text>
+                <Text style={styles.settingExample}>
+                  Formato: codice paese + numero (senza + o spazi)
                 </Text>
                 <Text style={styles.settingExample}>
                   Esempio: 393123456789 per +39 312 345 6789
                 </Text>
               </View>
+              <TextInput
+                style={styles.textInput}
+                value={settings.whatsapp_support_number}
+                onChangeText={(text) => updateSetting('whatsapp_support_number', text.replace(/[^0-9]/g, ''))}
+                placeholder="393123456789"
+                placeholderTextColor={colors.textTertiary}
+                keyboardType="phone-pad"
+                maxLength={15}
+              />
+              {settings.whatsapp_support_number && (
+                <View style={styles.previewBox}>
+                  <IconSymbol
+                    ios_icon_name="checkmark.circle.fill"
+                    android_material_icon_name="check_circle"
+                    size={16}
+                    color={colors.success}
+                  />
+                  <Text style={styles.previewText}>
+                    Numero configurato: +{settings.whatsapp_support_number}
+                  </Text>
+                </View>
+              )}
             </View>
-            <TextInput
-              style={styles.textInput}
-              value={settings.whatsapp_support_number}
-              onChangeText={(text) => updateSetting('whatsapp_support_number', text.replace(/[^0-9]/g, ''))}
-              placeholder="393123456789"
-              keyboardType="phone-pad"
-              maxLength={15}
-            />
           </View>
 
           <View style={styles.section}>
@@ -569,6 +595,46 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: colors.primary,
   },
+  highlightedSection: {
+    marginBottom: 24,
+    backgroundColor: colors.primary + '08',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 2,
+    borderColor: colors.primary + '30',
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 16,
+  },
+  highlightedSectionTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: colors.primary,
+  },
+  highlightedCard: {
+    backgroundColor: colors.card,
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  previewBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.success + '15',
+    borderRadius: 8,
+    padding: 12,
+    marginTop: 12,
+    gap: 8,
+  },
+  previewText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.success,
+  },
   section: {
     marginBottom: 24,
   },
@@ -623,14 +689,15 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   textInput: {
-    backgroundColor: colors.card,
-    borderRadius: 12,
+    backgroundColor: colors.background,
+    borderRadius: 8,
     padding: 16,
     fontSize: 16,
+    fontWeight: '600',
     color: colors.text,
     borderWidth: 1,
     borderColor: colors.border,
-    marginBottom: 12,
+    marginTop: 12,
   },
   dangerZone: {
     marginTop: 24,
