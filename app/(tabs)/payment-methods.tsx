@@ -46,7 +46,7 @@ export default function PaymentMethodsScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     Alert.alert(
       'Rimuovi Metodo di Pagamento',
-      `Sei sicuro di voler rimuovere ${method.brand} •••• ${method.last4}?`,
+      `Sei sicuro di voler rimuovere ${method.brand || 'questa carta'} •••• ${method.last4 || ''}?`,
       [
         { text: 'Annulla', style: 'cancel' },
         {
@@ -128,8 +128,8 @@ export default function PaymentMethodsScreen() {
 
           {paymentMethods.length > 0 ? (
             <View style={styles.methodsList}>
-              {paymentMethods.map(method => (
-                <View key={method.id} style={styles.methodCard}>
+              {paymentMethods.map((method, index) => (
+                <View key={index} style={styles.methodCard}>
                   <View style={styles.methodHeader}>
                     <View style={styles.methodInfo}>
                       <IconSymbol
@@ -140,15 +140,16 @@ export default function PaymentMethodsScreen() {
                       />
                       <View style={styles.methodDetails}>
                         <Text style={styles.methodBrand}>
-                          {method.brand?.toUpperCase() || 'CARTA'}
+                          {method.brand ? method.brand.toUpperCase() : 'CARTA'}
                         </Text>
-                        <Text style={styles.methodNumber}>•••• {method.last4}</Text>
-                        {method.expiryMonth && method.expiryYear && (
+                        <Text style={styles.methodNumber}>
+                          •••• {method.last4 || ''}
+                        </Text>
+                        {method.expiryMonth && method.expiryYear ? (
                           <Text style={styles.methodExpiry}>
-                            Scade {method.expiryMonth.toString().padStart(2, '0')}/
-                            {method.expiryYear.toString().slice(-2)}
+                            Scade {method.expiryMonth.toString().padStart(2, '0')}/{method.expiryYear.toString().slice(-2)}
                           </Text>
-                        )}
+                        ) : null}
                       </View>
                     </View>
                     {method.isDefault && (
