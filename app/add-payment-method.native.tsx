@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -17,9 +17,10 @@ import { Stack, router } from 'expo-router';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 import { usePayment } from '@/contexts/PaymentContext';
-import { supabase } from '@/app/integrations/supabase/client';
+import { supabase, testSupabaseConnection } from '@/app/integrations/supabase/client';
 import * as Haptics from 'expo-haptics';
 import { CardField, useStripe } from '@stripe/stripe-react-native';
+import * as Network from 'expo-network';
 
 export default function AddPaymentMethodScreen() {
   const { refreshPaymentMethods } = usePayment();
@@ -29,8 +30,104 @@ export default function AddPaymentMethodScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [cardDetails, setCardDetails] = useState<any>(null);
   const [showTestInfo, setShowTestInfo] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState<'checking' | 'connected' | 'disconnected'>('checking');
+
+  // Check network and Supabase connection on mount
+  useEffect(() => {
+    checkConnections();
+  }, []);
+
+  const checkConnections = async () => {
+    try {
+      console.log('=== CHECKING CONNECTIONS ===');
+      
+      // Check network connectivity
+      const networkState = await Network.getNetworkStateAsync();
+      console.log('Network state:', networkState);
+      
+      if (!networkState.isConnected || !networkState.isInternetReachable) {
+        console.error('No internet connection');
+        setConnectionStatus('disconnected');
+        Alert.alert(
+          'Nessuna Connessione',
+          'Verifica la tua connessione internet e riprova.'
+        );
+        return;
+      }
+
+      // Test Supabase connection
+      const connectionTest = await testSupabaseConnection();
+      console.log('Supabase connection test result:', connectionTest);
+      
+      if (!connectionTest.success) {
+        console.error('Supabase connection failed:', connectionTest.error);
+        setConnectionStatus('disconnected');
+        
+        // Check if it's a schema error
+        if (connectionTest.error?.code === 'PGRST204') {
+          Alert.alert(
+            'Errore Database',
+            'Il database non è configurato correttamente. Contatta il supporto.\n\nCodice: PGRST204 - Schema cache error',
+            [
+              {
+                text: 'Dettagli',
+                onPress: () => {
+                  Alert.alert(
+                    'Dettagli Tecnici',
+                    'La tabella payment_methods non ha tutte le colonne necessarie.\n\n' +
+                    'Colonne richieste:\n' +
+                    '- card_brand\n' +
+                    '- card_last4\n' +
+                    '- card_exp_month\n' +
+                    '- card_exp_year\n' +
+                    '- stripe_payment_method_id\n\n' +
+                    'Contatta l\'amministratore per applicare la migrazione del database.'
+                  );
+                }
+              },
+              { text: 'OK' }
+            ]
+          );
+        } else {
+          Alert.alert(
+            'Errore Connessione',
+            'Impossibile connettersi al server. Verifica la tua connessione e riprova.\n\n' +
+            `Dettagli: ${connectionTest.error?.message || 'Unknown error'}`
+          );
+        }
+        return;
+      }
+
+      console.log('All connections OK');
+      setConnectionStatus('connected');
+    } catch (error: any) {
+      console.error('Error checking connections:', error);
+      setConnectionStatus('disconnected');
+      Alert.alert(
+        'Errore',
+        'Impossibile verificare la connessione.\n\n' +
+        `Dettagli: ${error.message || 'Unknown error'}`
+      );
+    }
+  };
 
   const handleAddCard = async () => {
+    // Check connection status first
+    if (connectionStatus !== 'connected') {
+      Alert.alert(
+        'Nessuna Connessione',
+        'Verifica la tua connessione internet prima di continuare.',
+        [
+          {
+            text: 'Riprova',
+            onPress: () => checkConnections()
+          },
+          { text: 'Annulla', style: 'cancel' }
+        ]
+      );
+      return;
+    }
+
     if (!cardholderName.trim()) {
       Alert.alert('Errore', 'Inserisci il nome del titolare della carta');
       return;
@@ -48,7 +145,14 @@ export default function AddPaymentMethodScreen() {
       console.log('=== STARTING PAYMENT METHOD CREATION ===');
       console.log('Card details from CardField:', JSON.stringify(cardDetails, null, 2));
       
+      // Check network again before proceeding
+      const networkState = await Network.getNetworkStateAsync();
+      if (!networkState.isConnected || !networkState.isInternetReachable) {
+        throw new Error('Connessione internet persa. Verifica la tua connessione e riprova.');
+      }
+
       // Create payment method with Stripe
+      console.log('Creating payment method with Stripe...');
       const { paymentMethod, error } = await stripe.createPaymentMethod({
         paymentMethodType: 'Card',
         billingDetails: {
@@ -58,7 +162,10 @@ export default function AddPaymentMethodScreen() {
 
       if (error) {
         console.error('Stripe error:', error);
-        Alert.alert('Errore Stripe', error.message || 'Impossibile aggiungere la carta');
+        Alert.alert(
+          'Errore Stripe', 
+          error.message || 'Impossibile aggiungere la carta.\n\nVerifica i dati inseriti e riprova.'
+        );
         setIsLoading(false);
         return;
       }
@@ -73,9 +180,15 @@ export default function AddPaymentMethodScreen() {
       console.log('Full payment method object:', JSON.stringify(paymentMethod, null, 2));
 
       // Get current user
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      
+      if (userError) {
+        console.error('Error getting user:', userError);
+        throw new Error('Errore di autenticazione. Effettua nuovamente il login.');
+      }
+
       if (!user) {
-        Alert.alert('Errore', 'Utente non autenticato');
+        Alert.alert('Errore', 'Utente non autenticato. Effettua il login.');
         setIsLoading(false);
         return;
       }
@@ -83,6 +196,7 @@ export default function AddPaymentMethodScreen() {
       console.log('Current user ID:', user.id);
 
       // Check if this exact payment method already exists (by stripe_payment_method_id)
+      console.log('Checking for existing payment methods...');
       const { data: existingByStripeId, error: checkStripeError } = await supabase
         .from('payment_methods')
         .select('id, stripe_payment_method_id, card_last4, card_brand')
@@ -92,6 +206,32 @@ export default function AddPaymentMethodScreen() {
 
       if (checkStripeError) {
         console.error('Error checking existing methods by Stripe ID:', checkStripeError);
+        
+        // If it's a schema error, show detailed message
+        if (checkStripeError.code === 'PGRST204') {
+          Alert.alert(
+            'Errore Database',
+            'Il database non è configurato correttamente.\n\n' +
+            'Codice: PGRST204\n' +
+            'Messaggio: ' + checkStripeError.message + '\n\n' +
+            'La tabella payment_methods non ha tutte le colonne necessarie. ' +
+            'Contatta l\'amministratore per applicare la migrazione del database.',
+            [
+              {
+                text: 'Copia Errore',
+                onPress: () => {
+                  // In a real app, you'd copy to clipboard
+                  console.log('Error details:', JSON.stringify(checkStripeError, null, 2));
+                }
+              },
+              { text: 'OK' }
+            ]
+          );
+          setIsLoading(false);
+          return;
+        }
+        
+        throw checkStripeError;
       }
 
       if (existingByStripeId && existingByStripeId.length > 0) {
@@ -178,6 +318,19 @@ export default function AddPaymentMethodScreen() {
 
       if (checkCardError) {
         console.error('Error checking existing methods by card details:', checkCardError);
+        
+        // If it's a schema error, show detailed message
+        if (checkCardError.code === 'PGRST204') {
+          Alert.alert(
+            'Errore Database',
+            'Il database non è configurato correttamente.\n\n' +
+            'Codice: PGRST204\n' +
+            'Messaggio: ' + checkCardError.message + '\n\n' +
+            'Contatta l\'amministratore.'
+          );
+          setIsLoading(false);
+          return;
+        }
       }
 
       if (existingByCard && existingByCard.length > 0) {
@@ -200,7 +353,18 @@ export default function AddPaymentMethodScreen() {
       console.error('Error:', error);
       console.error('Error message:', error.message);
       console.error('Error stack:', error.stack);
-      Alert.alert('Errore', error.message || 'Impossibile aggiungere la carta');
+      
+      let errorMessage = 'Impossibile aggiungere la carta';
+      
+      if (error.message?.includes('network') || error.message?.includes('fetch')) {
+        errorMessage = 'Errore di rete. Verifica la tua connessione internet e riprova.';
+      } else if (error.code === 'PGRST204') {
+        errorMessage = 'Errore database (PGRST204). Contatta il supporto.';
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      Alert.alert('Errore', errorMessage);
       setIsLoading(false);
     }
   };
@@ -224,6 +388,12 @@ export default function AddPaymentMethodScreen() {
         expYear 
       });
 
+      // Check network before saving
+      const networkState = await Network.getNetworkStateAsync();
+      if (!networkState.isConnected || !networkState.isInternetReachable) {
+        throw new Error('Connessione internet persa. Verifica la tua connessione e riprova.');
+      }
+
       // Check if user has any payment methods to determine if this should be default
       const { data: userMethods, error: countError } = await supabase
         .from('payment_methods')
@@ -233,6 +403,10 @@ export default function AddPaymentMethodScreen() {
 
       if (countError) {
         console.error('Error counting user methods:', countError);
+        
+        if (countError.code === 'PGRST204') {
+          throw new Error('Database non configurato correttamente (PGRST204). Contatta il supporto.');
+        }
       }
 
       const isFirstMethod = !userMethods || userMethods.length === 0;
@@ -281,10 +455,19 @@ export default function AddPaymentMethodScreen() {
         console.error('Error hint:', dbError.hint);
         console.error('Full error object:', JSON.stringify(dbError, null, 2));
         
-        Alert.alert(
-          'Errore Database',
-          `Impossibile salvare il metodo di pagamento.\n\nCodice: ${dbError.code}\nMessaggio: ${dbError.message}\n\nContatta il supporto se il problema persiste.`
-        );
+        let errorMessage = 'Impossibile salvare il metodo di pagamento.';
+        
+        if (dbError.code === 'PGRST204') {
+          errorMessage = 'Database non configurato correttamente.\n\n' +
+            'Codice: PGRST204\n' +
+            'Messaggio: ' + dbError.message + '\n\n' +
+            'La tabella payment_methods non ha tutte le colonne necessarie. ' +
+            'Contatta l\'amministratore per applicare la migrazione del database.';
+        } else if (dbError.message) {
+          errorMessage += '\n\n' + dbError.message;
+        }
+        
+        Alert.alert('Errore Database', errorMessage);
         setIsLoading(false);
         return;
       }
@@ -313,7 +496,16 @@ export default function AddPaymentMethodScreen() {
       console.error('Error:', error);
       console.error('Error message:', error.message);
       console.error('Error stack:', error.stack);
-      Alert.alert('Errore', error.message || 'Impossibile salvare la carta');
+      
+      let errorMessage = 'Impossibile salvare la carta';
+      
+      if (error.message?.includes('network') || error.message?.includes('fetch')) {
+        errorMessage = 'Errore di rete. Verifica la tua connessione internet e riprova.';
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      Alert.alert('Errore', errorMessage);
       setIsLoading(false);
     }
   };
@@ -339,6 +531,31 @@ export default function AddPaymentMethodScreen() {
             contentContainerStyle={styles.contentContainer}
             keyboardShouldPersistTaps="handled"
           >
+            {connectionStatus === 'disconnected' && (
+              <View style={styles.connectionWarning}>
+                <IconSymbol ios_icon_name="wifi.slash" android_material_icon_name="wifi_off" size={24} color="#dc2626" />
+                <View style={styles.connectionWarningTextContainer}>
+                  <Text style={styles.connectionWarningTitle}>Nessuna Connessione</Text>
+                  <Text style={styles.connectionWarningText}>
+                    Verifica la tua connessione internet
+                  </Text>
+                </View>
+                <Pressable 
+                  style={styles.retryButton}
+                  onPress={checkConnections}
+                >
+                  <Text style={styles.retryButtonText}>Riprova</Text>
+                </Pressable>
+              </View>
+            )}
+
+            {connectionStatus === 'checking' && (
+              <View style={styles.connectionChecking}>
+                <ActivityIndicator color={colors.text} />
+                <Text style={styles.connectionCheckingText}>Verifica connessione...</Text>
+              </View>
+            )}
+
             <View style={styles.cardPreview}>
               <View style={styles.cardPreviewInner}>
                 <IconSymbol ios_icon_name="creditcard.fill" android_material_icon_name="credit_card" size={40} color={colors.text} />
@@ -368,6 +585,7 @@ export default function AddPaymentMethodScreen() {
                   value={cardholderName}
                   onChangeText={setCardholderName}
                   autoCapitalize="words"
+                  editable={connectionStatus === 'connected'}
                 />
               </View>
 
@@ -390,6 +608,7 @@ export default function AddPaymentMethodScreen() {
                     console.log('Card details changed:', JSON.stringify(details, null, 2));
                     setCardDetails(details);
                   }}
+                  disabled={connectionStatus !== 'connected'}
                 />
               </View>
 
@@ -440,16 +659,21 @@ export default function AddPaymentMethodScreen() {
 
           <View style={styles.footer}>
             <Pressable
-              style={[styles.addButton, isLoading && styles.addButtonDisabled]}
+              style={[
+                styles.addButton, 
+                (isLoading || connectionStatus !== 'connected') && styles.addButtonDisabled
+              ]}
               onPress={handleAddCard}
-              disabled={isLoading}
+              disabled={isLoading || connectionStatus !== 'connected'}
             >
               {isLoading ? (
                 <ActivityIndicator color={colors.background} />
               ) : (
                 <>
                   <IconSymbol ios_icon_name="checkmark.circle.fill" android_material_icon_name="check_circle" size={24} color={colors.background} />
-                  <Text style={styles.addButtonText}>Aggiungi Carta</Text>
+                  <Text style={styles.addButtonText}>
+                    {connectionStatus === 'connected' ? 'Aggiungi Carta' : 'Connessione in corso...'}
+                  </Text>
                 </>
               )}
             </Pressable>
@@ -475,6 +699,56 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingTop: 40,
     paddingBottom: 120,
+  },
+  connectionWarning: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 16,
+    backgroundColor: '#fee2e2',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#dc2626',
+    marginBottom: 20,
+  },
+  connectionWarningTextContainer: {
+    flex: 1,
+  },
+  connectionWarningTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#991b1b',
+    marginBottom: 2,
+  },
+  connectionWarningText: {
+    fontSize: 12,
+    color: '#991b1b',
+  },
+  retryButton: {
+    backgroundColor: '#dc2626',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  retryButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#ffffff',
+  },
+  connectionChecking: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 16,
+    backgroundColor: colors.card,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginBottom: 20,
+  },
+  connectionCheckingText: {
+    fontSize: 14,
+    color: colors.textSecondary,
   },
   cardPreview: {
     backgroundColor: colors.card,
