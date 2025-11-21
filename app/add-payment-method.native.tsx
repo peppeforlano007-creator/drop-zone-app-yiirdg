@@ -28,6 +28,7 @@ export default function AddPaymentMethodScreen() {
   const [cardholderName, setCardholderName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [cardDetails, setCardDetails] = useState<any>(null);
+  const [showTestInfo, setShowTestInfo] = useState(false);
 
   const handleAddCard = async () => {
     if (!cardholderName.trim()) {
@@ -213,12 +214,41 @@ export default function AddPaymentMethodScreen() {
                 </Text>
               </View>
 
-              <View style={styles.testModeNote}>
+              <Pressable 
+                style={styles.testModeNote}
+                onPress={() => setShowTestInfo(!showTestInfo)}
+              >
                 <IconSymbol ios_icon_name="info.circle.fill" android_material_icon_name="info" size={20} color="#3b82f6" />
-                <Text style={styles.testModeText}>
-                  Modalità Test: Usa la carta 4242 4242 4242 4242 per testare i pagamenti
-                </Text>
-              </View>
+                <View style={styles.testModeTextContainer}>
+                  <Text style={styles.testModeTitle}>
+                    Modalità Test - Tocca per {showTestInfo ? 'nascondere' : 'vedere'} i dettagli
+                  </Text>
+                  {showTestInfo && (
+                    <View style={styles.testCardDetails}>
+                      <Text style={styles.testCardDetailTitle}>Carta di Test Completa:</Text>
+                      <View style={styles.testCardDetailRow}>
+                        <Text style={styles.testCardDetailLabel}>Numero Carta:</Text>
+                        <Text style={styles.testCardDetailValue}>4242 4242 4242 4242</Text>
+                      </View>
+                      <View style={styles.testCardDetailRow}>
+                        <Text style={styles.testCardDetailLabel}>Nome Titolare:</Text>
+                        <Text style={styles.testCardDetailValue}>Qualsiasi nome (es. Mario Rossi)</Text>
+                      </View>
+                      <View style={styles.testCardDetailRow}>
+                        <Text style={styles.testCardDetailLabel}>Data Scadenza:</Text>
+                        <Text style={styles.testCardDetailValue}>Qualsiasi data futura (es. 12/25)</Text>
+                      </View>
+                      <View style={styles.testCardDetailRow}>
+                        <Text style={styles.testCardDetailLabel}>CVC:</Text>
+                        <Text style={styles.testCardDetailValue}>Qualsiasi 3 cifre (es. 123)</Text>
+                      </View>
+                      <Text style={styles.testCardNote}>
+                        💡 Puoi usare qualsiasi nome, data futura e CVC. Solo il numero della carta deve essere esattamente 4242 4242 4242 4242
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              </Pressable>
             </View>
           </ScrollView>
 
@@ -342,7 +372,7 @@ const styles = StyleSheet.create({
   },
   testModeNote: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     gap: 8,
     padding: 16,
     backgroundColor: '#dbeafe',
@@ -350,11 +380,47 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#3b82f6',
   },
-  testModeText: {
+  testModeTextContainer: {
     flex: 1,
+  },
+  testModeTitle: {
+    fontSize: 14,
+    color: '#1e40af',
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  testCardDetails: {
+    marginTop: 12,
+    gap: 8,
+  },
+  testCardDetailTitle: {
     fontSize: 13,
     color: '#1e40af',
-    fontWeight: '500',
+    fontWeight: '700',
+    marginBottom: 8,
+  },
+  testCardDetailRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 4,
+  },
+  testCardDetailLabel: {
+    fontSize: 12,
+    color: '#1e40af',
+    fontWeight: '600',
+  },
+  testCardDetailValue: {
+    fontSize: 12,
+    color: '#1e40af',
+    fontWeight: '400',
+  },
+  testCardNote: {
+    fontSize: 11,
+    color: '#1e40af',
+    fontStyle: 'italic',
+    marginTop: 8,
+    lineHeight: 16,
   },
   footer: {
     padding: 20,
