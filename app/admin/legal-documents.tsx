@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Stack, router } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import {
   View,
   Text,
@@ -54,6 +54,7 @@ const DOCUMENT_TYPES = [
 ];
 
 export default function LegalDocumentsScreen() {
+  const router = useRouter();
   const [documents, setDocuments] = useState<LegalDocument[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingDoc, setEditingDoc] = useState<LegalDocument | null>(null);
