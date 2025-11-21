@@ -99,20 +99,6 @@ export default function AddPaymentMethodScreen() {
         return;
       }
 
-      // Check if user has any payment methods to determine if this should be default
-      const { data: userMethods, error: countError } = await supabase
-        .from('payment_methods')
-        .select('id')
-        .eq('user_id', user.id)
-        .eq('status', 'active');
-
-      if (countError) {
-        console.error('Error counting user methods:', countError);
-      }
-
-      const isFirstMethod = !userMethods || userMethods.length === 0;
-      console.log('Is first payment method:', isFirstMethod);
-
       // Extract card details properly from Stripe response
       const last4 = paymentMethod.card?.last4 || '';
       const brand = paymentMethod.card?.brand || 'card';
@@ -129,6 +115,20 @@ export default function AddPaymentMethodScreen() {
         return;
       }
 
+      // Check if user has any payment methods to determine if this should be default
+      const { data: userMethods, error: countError } = await supabase
+        .from('payment_methods')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('status', 'active');
+
+      if (countError) {
+        console.error('Error counting user methods:', countError);
+      }
+
+      const isFirstMethod = !userMethods || userMethods.length === 0;
+      console.log('Is first payment method:', isFirstMethod);
+
       // If this is the first method, unset any existing defaults (safety measure)
       if (isFirstMethod) {
         await supabase
@@ -137,17 +137,16 @@ export default function AddPaymentMethodScreen() {
           .eq('user_id', user.id);
       }
 
-      // Save payment method to database with proper card details
+      // Save payment method to database with correct column names
       const { data: insertedMethod, error: dbError } = await supabase
         .from('payment_methods')
         .insert({
           user_id: user.id,
           stripe_payment_method_id: paymentMethod.id,
-          type: 'card',
-          last4: last4,
-          brand: brand,
-          exp_month: expMonth,
-          exp_year: expYear,
+          card_last4: last4,
+          card_brand: brand,
+          card_exp_month: expMonth,
+          card_exp_year: expYear,
           is_default: isFirstMethod,
           status: 'active',
         })

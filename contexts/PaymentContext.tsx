@@ -11,7 +11,6 @@ import { supabase } from '@/app/integrations/supabase/client';
 
 export interface PaymentMethod {
   id: string;
-  type: 'card' | 'paypal' | 'bank_transfer';
   last4?: string;
   brand?: string;
   expiryMonth?: number;
@@ -81,17 +80,16 @@ export function PaymentProvider({ children }: { children: ReactNode }) {
       // Filter out invalid payment methods (missing essential data)
       const validMethods = (data || []).filter(pm => {
         const hasValidStripeId = pm.stripe_payment_method_id && pm.stripe_payment_method_id.length > 0;
-        const hasValidLast4 = pm.last4 && pm.last4.length > 0;
+        const hasValidLast4 = pm.card_last4 && pm.card_last4.length > 0;
         return hasValidStripeId && hasValidLast4;
       });
 
       const methods: PaymentMethod[] = validMethods.map(pm => ({
         id: pm.id,
-        type: pm.type as 'card' | 'paypal' | 'bank_transfer',
-        last4: pm.last4 || '',
-        brand: pm.brand || '',
-        expiryMonth: pm.exp_month || 0,
-        expiryYear: pm.exp_year || 0,
+        last4: pm.card_last4 || '',
+        brand: pm.card_brand || '',
+        expiryMonth: pm.card_exp_month || 0,
+        expiryYear: pm.card_exp_year || 0,
         isDefault: pm.is_default || false,
         stripePaymentMethodId: pm.stripe_payment_method_id,
       }));
@@ -101,7 +99,7 @@ export function PaymentProvider({ children }: { children: ReactNode }) {
       // If we filtered out invalid methods, clean them up from the database
       const invalidMethods = (data || []).filter(pm => {
         const hasValidStripeId = pm.stripe_payment_method_id && pm.stripe_payment_method_id.length > 0;
-        const hasValidLast4 = pm.last4 && pm.last4.length > 0;
+        const hasValidLast4 = pm.card_last4 && pm.card_last4.length > 0;
         return !hasValidStripeId || !hasValidLast4;
       });
 
