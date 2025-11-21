@@ -26,47 +26,143 @@ export default function MyDataScreen() {
 
   const handleExportData = async () => {
     Alert.alert(
-      'Esporta i Tuoi Dati',
-      'I tuoi dati personali verranno esportati in formato JSON. Riceverai una copia via email e potrai anche salvarla sul tuo dispositivo, come previsto dal GDPR.',
+      'Scarica i Tuoi Dati',
+      'I tuoi dati personali verranno scaricati in formato JSON sul tuo dispositivo, come previsto dal GDPR.',
       [
         { text: 'Annulla', style: 'cancel' },
         {
-          text: 'Richiedi Esportazione',
+          text: 'Scarica',
           onPress: async () => {
             try {
               setLoading(true);
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-              // Get the current session
-              const { data: { session } } = await supabase.auth.getSession();
-              
-              if (!session) {
-                throw new Error('Sessione non valida');
+              console.log('📤 Starting data export...');
+
+              // Collect all user data directly from the client
+              const userData: any = {
+                user_info: {
+                  id: user?.id,
+                  email: user?.email,
+                  created_at: user?.created_at,
+                },
+              };
+
+              // Get profile data
+              const { data: profile } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('user_id', user?.id)
+                .single();
+
+              if (profile) {
+                userData.profile = profile;
               }
 
-              console.log('📤 Calling export-user-data Edge Function...');
+              // Get bookings
+              const { data: bookings } = await supabase
+                .from('bookings')
+                .select(`
+                  *,
+                  products (name, description, original_price),
+                  drops (name, status),
+                  pickup_points (name, address, city)
+                `)
+                .eq('user_id', user?.id);
 
-              // Call the Edge Function to export data
-              const { data, error } = await supabase.functions.invoke('export-user-data', {
-                headers: {
-                  Authorization: `Bearer ${session.access_token}`,
-                },
+              if (bookings && bookings.length > 0) {
+                userData.bookings = bookings;
+              }
+
+              // Get user interests
+              const { data: interests } = await supabase
+                .from('user_interests')
+                .select(`
+                  *,
+                  products (name, description),
+                  pickup_points (name, city)
+                `)
+                .eq('user_id', user?.id);
+
+              if (interests && interests.length > 0) {
+                userData.interests = interests;
+              }
+
+              // Get payment methods (without sensitive data)
+              const { data: paymentMethods } = await supabase
+                .from('payment_methods')
+                .select('id, card_brand, card_last4, card_exp_month, card_exp_year, is_default, status, created_at')
+                .eq('user_id', user?.id);
+
+              if (paymentMethods && paymentMethods.length > 0) {
+                userData.payment_methods = paymentMethods;
+              }
+
+              // Get notifications
+              const { data: notifications } = await supabase
+                .from('notifications')
+                .select('*')
+                .eq('user_id', user?.id)
+                .order('created_at', { ascending: false })
+                .limit(100);
+
+              if (notifications && notifications.length > 0) {
+                userData.notifications = notifications;
+              }
+
+              // Get user consents
+              const { data: consents } = await supabase
+                .from('user_consents')
+                .select('*')
+                .eq('user_id', user?.id);
+
+              if (consents && consents.length > 0) {
+                userData.consents = consents;
+              }
+
+              // Get activity logs
+              const { data: activityLogs } = await supabase
+                .from('activity_logs')
+                .select('*')
+                .eq('user_id', user?.id)
+                .order('created_at', { ascending: false })
+                .limit(100);
+
+              if (activityLogs && activityLogs.length > 0) {
+                userData.activity_logs = activityLogs;
+              }
+
+              // Add export metadata
+              userData.export_info = {
+                exported_at: new Date().toISOString(),
+                export_format: 'JSON',
+                gdpr_compliant: true,
+              };
+
+              console.log('✅ Data collection completed');
+              console.log('📊 Data summary:', {
+                bookings: bookings?.length || 0,
+                interests: interests?.length || 0,
+                payment_methods: paymentMethods?.length || 0,
+                notifications: notifications?.length || 0,
+                consents: consents?.length || 0,
+                activity_logs: activityLogs?.length || 0,
               });
 
-              if (error) {
-                console.error('Error calling export function:', error);
-                throw new Error(error.message || 'Impossibile esportare i dati');
-              }
-
-              console.log('✅ Export response received');
-              console.log('📧 Email sent:', data?.email_sent);
-
-              if (!data || !data.success) {
-                throw new Error(data?.error || 'Errore durante l\'esportazione');
-              }
+              // Create a data export request record
+              await supabase
+                .from('data_requests')
+                .insert({
+                  user_id: user?.id,
+                  request_type: 'export',
+                  status: 'completed',
+                  requested_at: new Date().toISOString(),
+                  completed_at: new Date().toISOString(),
+                  notes: 'Data exported successfully (direct download)',
+                });
 
               // Create a formatted JSON string
-              const jsonData = JSON.stringify(data.data, null, 2);
+              const jsonData = JSON.stringify(userData, null, 2);
               const fileName = `dati_personali_${new Date().toISOString().split('T')[0]}.json`;
 
               if (Platform.OS === 'web') {
@@ -83,19 +179,11 @@ export default function MyDataScreen() {
 
                 Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
                 
-                if (data.email_sent) {
-                  Alert.alert(
-                    'Esportazione Completata! ✅',
-                    `I tuoi dati sono stati esportati con successo.\n\n📧 Ti abbiamo inviato una copia via email a ${user?.email}\n\n💾 Il file "${fileName}" è stato anche scaricato sul tuo dispositivo.`,
-                    [{ text: 'OK' }]
-                  );
-                } else {
-                  Alert.alert(
-                    'Esportazione Completata! ✅',
-                    `I tuoi dati sono stati esportati con successo.\n\n💾 Il file "${fileName}" è stato scaricato sul tuo dispositivo.\n\n⚠️ NOTA: ${data.email_error || 'L\'invio via email non è disponibile al momento. Contatta l\'amministratore per maggiori informazioni.'}`,
-                    [{ text: 'OK' }]
-                  );
-                }
+                Alert.alert(
+                  'Download Completato! ✅',
+                  `I tuoi dati sono stati scaricati con successo.\n\n💾 Il file "${fileName}" è stato salvato sul tuo dispositivo.`,
+                  [{ text: 'OK' }]
+                );
               } else {
                 // For mobile, save to file system and share
                 const fileUri = `${FileSystem.documentDirectory}${fileName}`;
@@ -118,19 +206,11 @@ export default function MyDataScreen() {
 
                 Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
                 
-                if (data.email_sent) {
-                  Alert.alert(
-                    'Esportazione Completata! ✅',
-                    `I tuoi dati sono stati esportati con successo.\n\n📧 Ti abbiamo inviato una copia via email a ${user?.email}\n\n💾 Il file "${fileName}" è stato anche salvato sul tuo dispositivo e puoi condividerlo o salvarlo dove preferisci.`,
-                    [{ text: 'OK' }]
-                  );
-                } else {
-                  Alert.alert(
-                    'Esportazione Completata! ✅',
-                    `I tuoi dati sono stati esportati con successo.\n\n💾 Il file "${fileName}" è stato salvato sul tuo dispositivo e puoi condividerlo o salvarlo dove preferisci.\n\n⚠️ NOTA: ${data.email_error || 'L\'invio via email non è disponibile al momento. Contatta l\'amministratore per maggiori informazioni.'}`,
-                    [{ text: 'OK' }]
-                  );
-                }
+                Alert.alert(
+                  'Download Completato! ✅',
+                  `I tuoi dati sono stati esportati con successo.\n\n💾 Il file "${fileName}" è stato salvato e puoi condividerlo o salvarlo dove preferisci.`,
+                  [{ text: 'OK' }]
+                );
               }
             } catch (error) {
               console.error('Exception exporting data:', error);
@@ -379,9 +459,9 @@ export default function MyDataScreen() {
                     color={colors.primary}
                   />
                   <View style={styles.actionContent}>
-                    <Text style={styles.actionTitle}>Esporta i Tuoi Dati</Text>
+                    <Text style={styles.actionTitle}>Scarica i Tuoi Dati</Text>
                     <Text style={styles.actionDescription}>
-                      Ricevi i tuoi dati via email e salvali sul dispositivo
+                      Scarica tutti i tuoi dati in formato JSON sul tuo dispositivo
                     </Text>
                   </View>
                   <IconSymbol

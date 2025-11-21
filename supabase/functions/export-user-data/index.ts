@@ -157,159 +157,24 @@ serve(async (req) => {
       activity_logs: activityLogs?.length || 0,
     });
 
-    // ============================================================================
-    // EMAIL SENDING (OPTIONAL - REQUIRES EMAIL SERVICE CONFIGURATION)
-    // ============================================================================
-    // 
-    // To enable automatic email sending, uncomment the code below and configure
-    // an email service (Resend, SendGrid, AWS SES, etc.)
-    // 
-    // See docs/EMAIL_SERVICE_SETUP.md for detailed instructions
-    //
-    // Example with Resend:
-    // ----------------------------------------------------------------------------
-    /*
-    const resendApiKey = Deno.env.get('RESEND_API_KEY');
-    
-    if (resendApiKey) {
-      try {
-        console.log('📧 Sending email to:', user.email);
-        
-        const emailResponse = await fetch('https://api.resend.com/emails', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${resendApiKey}`,
-          },
-          body: JSON.stringify({
-            from: 'noreply@tuodominio.com', // Replace with your verified domain
-            to: user.email,
-            subject: 'I Tuoi Dati Personali - Esportazione GDPR',
-            html: `
-              <!DOCTYPE html>
-              <html>
-              <head>
-                <meta charset="utf-8">
-                <style>
-                  body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-                  .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-                  .header { background: #4F46E5; color: white; padding: 20px; border-radius: 8px 8px 0 0; }
-                  .content { background: #f9fafb; padding: 20px; border-radius: 0 0 8px 8px; }
-                  .button { display: inline-block; background: #4F46E5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin: 10px 0; }
-                  pre { background: #1f2937; color: #f3f4f6; padding: 15px; border-radius: 6px; overflow-x: auto; font-size: 12px; }
-                  .footer { margin-top: 20px; padding-top: 20px; border-top: 1px solid #e5e7eb; font-size: 12px; color: #6b7280; }
-                </style>
-              </head>
-              <body>
-                <div class="container">
-                  <div class="header">
-                    <h1 style="margin: 0;">🔒 Esportazione Dati GDPR</h1>
-                  </div>
-                  <div class="content">
-                    <h2>Ciao!</h2>
-                    <p>Come richiesto, abbiamo esportato tutti i tuoi dati personali in formato JSON.</p>
-                    
-                    <p><strong>Cosa contiene questo file:</strong></p>
-                    <ul>
-                      <li>Informazioni del profilo</li>
-                      <li>Prenotazioni e ordini</li>
-                      <li>Interessi e preferenze</li>
-                      <li>Metodi di pagamento (solo ultimi 4 cifre)</li>
-                      <li>Notifiche</li>
-                      <li>Consensi GDPR</li>
-                      <li>Log delle attività</li>
-                    </ul>
-
-                    <p>Puoi scaricare il file allegato o visualizzare i dati qui sotto.</p>
-
-                    <details>
-                      <summary style="cursor: pointer; font-weight: bold; margin: 10px 0;">📄 Visualizza Dati (clicca per espandere)</summary>
-                      <pre>${JSON.stringify(userData, null, 2)}</pre>
-                    </details>
-
-                    <div class="footer">
-                      <p><strong>⚠️ Importante:</strong></p>
-                      <ul>
-                        <li>Questi dati sono personali e sensibili. Conservali in modo sicuro.</li>
-                        <li>Se non hai richiesto questa esportazione, contattaci immediatamente.</li>
-                        <li>Questa esportazione è conforme al GDPR (Regolamento UE 2016/679).</li>
-                      </ul>
-                      <p>Per qualsiasi domanda, contattaci tramite l'app.</p>
-                    </div>
-                  </div>
-                </div>
-              </body>
-              </html>
-            `,
-            attachments: [
-              {
-                filename: `dati_personali_${new Date().toISOString().split('T')[0]}.json`,
-                content: btoa(JSON.stringify(userData, null, 2)),
-              },
-            ],
-          }),
-        });
-
-        if (!emailResponse.ok) {
-          const errorText = await emailResponse.text();
-          console.error('❌ Error sending email:', errorText);
-          throw new Error(`Failed to send email: ${errorText}`);
-        }
-
-        const emailResult = await emailResponse.json();
-        console.log('✅ Email sent successfully:', emailResult);
-
-        // Update the data request with email sent status
-        await supabase
-          .from('data_requests')
-          .update({
-            status: 'completed',
-            completed_at: new Date().toISOString(),
-            notes: `Data exported and email sent successfully to ${user.email}`,
-          })
-          .eq('user_id', user.id)
-          .eq('request_type', 'export')
-          .eq('status', 'processing');
-
-        return new Response(
-          JSON.stringify({
-            success: true,
-            message: 'Esportazione completata! Controlla la tua email.',
-            email_sent: true,
-          }),
-          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-
-      } catch (emailError) {
-        console.error('❌ Exception sending email:', emailError);
-        // Continue even if email fails - return data to client
-      }
-    } else {
-      console.log('ℹ️ RESEND_API_KEY not configured - email sending disabled');
-    }
-    */
-    // ============================================================================
-
     // Update the data request to completed
     await supabase
       .from('data_requests')
       .update({
         status: 'completed',
         completed_at: new Date().toISOString(),
-        notes: 'Data exported successfully (returned to client)',
+        notes: 'Data exported successfully (file download)',
       })
       .eq('user_id', user.id)
       .eq('request_type', 'export')
       .eq('status', 'processing');
 
-    // Return data directly to client since email is not configured
+    // Return data directly to client for download
     return new Response(
       JSON.stringify({
         success: true,
         message: 'Esportazione completata con successo',
         data: userData,
-        email_sent: false,
-        note: 'Per abilitare l\'invio automatico via email, configura un servizio email. Vedi docs/EMAIL_SERVICE_SETUP.md',
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
