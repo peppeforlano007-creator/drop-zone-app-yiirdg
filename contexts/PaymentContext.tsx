@@ -44,6 +44,7 @@ interface PaymentContextType {
   capturePayment: (authorizationId: string, finalAmount: number, finalDiscount: number) => Promise<boolean>;
   cancelAuthorization: (authorizationId: string) => Promise<boolean>;
   getDefaultPaymentMethod: () => PaymentMethod | undefined;
+  hasPaymentMethod: () => boolean;
   refreshPaymentMethods: () => Promise<void>;
 }
 
@@ -285,6 +286,10 @@ export function PaymentProvider({ children }: { children: ReactNode }) {
     return paymentMethods.find(m => m.isDefault);
   };
 
+  const hasPaymentMethod = () => {
+    return paymentMethods.length > 0;
+  };
+
   return (
     <PaymentContext.Provider
       value={{
@@ -298,6 +303,7 @@ export function PaymentProvider({ children }: { children: ReactNode }) {
         capturePayment,
         cancelAuthorization,
         getDefaultPaymentMethod,
+        hasPaymentMethod,
         refreshPaymentMethods,
       }}
     >
