@@ -10,12 +10,15 @@ import {
   Pressable,
   Alert,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
 import { supabase } from '@/app/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import * as Haptics from 'expo-haptics';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
 
 export default function MyDataScreen() {
   const { user } = useAuth();
@@ -24,7 +27,7 @@ export default function MyDataScreen() {
   const handleExportData = async () => {
     Alert.alert(
       'Esporta i Tuoi Dati',
-      'Riceverai un\'email con tutti i tuoi dati personali in formato JSON immediatamente, come previsto dal GDPR.',
+      'I tuoi dati personali verranno esportati in formato JSON. Riceverai una copia via email e potrai anche salvarla sul tuo dispositivo, come previsto dal GDPR.',
       [
         { text: 'Annulla', style: 'cancel' },
         {
@@ -41,7 +44,9 @@ export default function MyDataScreen() {
                 throw new Error('Sessione non valida');
               }
 
-              // Call the Edge Function to export data and send email
+              console.log('📤 Calling export-user-data Edge Function...');
+
+              // Call the Edge Function to export data
               const { data, error } = await supabase.functions.invoke('export-user-data', {
                 headers: {
                   Authorization: `Bearer ${session.access_token}`,
@@ -53,14 +58,80 @@ export default function MyDataScreen() {
                 throw new Error(error.message || 'Impossibile esportare i dati');
               }
 
-              console.log('Export response:', data);
+              console.log('✅ Export response received');
+              console.log('📧 Email sent:', data?.email_sent);
 
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-              Alert.alert(
-                'Esportazione Completata! ✅',
-                'I tuoi dati sono stati esportati con successo. Riceverai un\'email a breve con tutti i tuoi dati personali in formato JSON.\n\nControlla anche la cartella spam se non vedi l\'email nella posta in arrivo.',
-                [{ text: 'OK' }]
-              );
+              if (!data || !data.success) {
+                throw new Error(data?.error || 'Errore durante l\'esportazione');
+              }
+
+              // Create a formatted JSON string
+              const jsonData = JSON.stringify(data.data, null, 2);
+              const fileName = `dati_personali_${new Date().toISOString().split('T')[0]}.json`;
+
+              if (Platform.OS === 'web') {
+                // For web, create a download link
+                const blob = new Blob([jsonData], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = fileName;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                
+                if (data.email_sent) {
+                  Alert.alert(
+                    'Esportazione Completata! ✅',
+                    `I tuoi dati sono stati esportati con successo.\n\n📧 Ti abbiamo inviato una copia via email a ${user?.email}\n\n💾 Il file "${fileName}" è stato anche scaricato sul tuo dispositivo.`,
+                    [{ text: 'OK' }]
+                  );
+                } else {
+                  Alert.alert(
+                    'Esportazione Completata! ✅',
+                    `I tuoi dati sono stati esportati con successo.\n\n💾 Il file "${fileName}" è stato scaricato sul tuo dispositivo.\n\n⚠️ NOTA: ${data.email_error || 'L\'invio via email non è disponibile al momento. Contatta l\'amministratore per maggiori informazioni.'}`,
+                    [{ text: 'OK' }]
+                  );
+                }
+              } else {
+                // For mobile, save to file system and share
+                const fileUri = `${FileSystem.documentDirectory}${fileName}`;
+                await FileSystem.writeAsStringAsync(fileUri, jsonData, {
+                  encoding: FileSystem.EncodingType.UTF8,
+                });
+
+                console.log('📁 File saved to:', fileUri);
+
+                // Check if sharing is available
+                const isAvailable = await Sharing.isAvailableAsync();
+                
+                if (isAvailable) {
+                  await Sharing.shareAsync(fileUri, {
+                    mimeType: 'application/json',
+                    dialogTitle: 'Salva i Tuoi Dati',
+                    UTI: 'public.json',
+                  });
+                }
+
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                
+                if (data.email_sent) {
+                  Alert.alert(
+                    'Esportazione Completata! ✅',
+                    `I tuoi dati sono stati esportati con successo.\n\n📧 Ti abbiamo inviato una copia via email a ${user?.email}\n\n💾 Il file "${fileName}" è stato anche salvato sul tuo dispositivo e puoi condividerlo o salvarlo dove preferisci.`,
+                    [{ text: 'OK' }]
+                  );
+                } else {
+                  Alert.alert(
+                    'Esportazione Completata! ✅',
+                    `I tuoi dati sono stati esportati con successo.\n\n💾 Il file "${fileName}" è stato salvato sul tuo dispositivo e puoi condividerlo o salvarlo dove preferisci.\n\n⚠️ NOTA: ${data.email_error || 'L\'invio via email non è disponibile al momento. Contatta l\'amministratore per maggiori informazioni.'}`,
+                    [{ text: 'OK' }]
+                  );
+                }
+              }
             } catch (error) {
               console.error('Exception exporting data:', error);
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -310,7 +381,7 @@ export default function MyDataScreen() {
                   <View style={styles.actionContent}>
                     <Text style={styles.actionTitle}>Esporta i Tuoi Dati</Text>
                     <Text style={styles.actionDescription}>
-                      Ricevi immediatamente un&apos;email con tutti i tuoi dati in formato JSON
+                      Ricevi i tuoi dati via email e salvali sul dispositivo
                     </Text>
                   </View>
                   <IconSymbol
