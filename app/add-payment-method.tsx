@@ -14,21 +14,35 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, router } from 'expo-router';
-import { CardField, useStripe } from '@stripe/stripe-react-native';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 import { usePayment } from '@/contexts/PaymentContext';
 import { supabase } from '@/app/integrations/supabase/client';
 import * as Haptics from 'expo-haptics';
 
+// Conditionally import Stripe components only on native platforms
+let CardField: any = null;
+let useStripe: any = null;
+
+if (Platform.OS !== 'web') {
+  const stripeModule = require('@stripe/stripe-react-native');
+  CardField = stripeModule.CardField;
+  useStripe = stripeModule.useStripe;
+}
+
 export default function AddPaymentMethodScreen() {
   const { addPaymentMethod } = usePayment();
-  const { createPaymentMethod } = useStripe();
+  const stripe = Platform.OS !== 'web' && useStripe ? useStripe() : null;
   const [cardholderName, setCardholderName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [cardDetails, setCardDetails] = useState<any>(null);
 
   const handleAddCard = async () => {
+    if (Platform.OS === 'web') {
+      Alert.alert('Non Disponibile', 'L\'aggiunta di carte di pagamento non è disponibile su web. Usa l\'app mobile.');
+      return;
+    }
+
     if (!cardholderName.trim()) {
       Alert.alert('Errore', 'Inserisci il nome del titolare della carta');
       return;
@@ -46,7 +60,7 @@ export default function AddPaymentMethodScreen() {
       console.log('Creating payment method with Stripe...');
       
       // Create payment method with Stripe
-      const { paymentMethod, error } = await createPaymentMethod({
+      const { paymentMethod, error } = await stripe.createPaymentMethod({
         paymentMethodType: 'Card',
         billingDetails: {
           name: cardholderName,
@@ -151,92 +165,109 @@ export default function AddPaymentMethodScreen() {
             contentContainerStyle={styles.contentContainer}
             keyboardShouldPersistTaps="handled"
           >
-            <View style={styles.cardPreview}>
-              <View style={styles.cardPreviewInner}>
-                <IconSymbol ios_icon_name="creditcard.fill" android_material_icon_name="credit_card" size={40} color={colors.text} />
-                <Text style={styles.cardPreviewNumber}>
-                  {cardDetails?.last4 ? `•••• •••• •••• ${cardDetails.last4}` : '•••• •••• •••• ••••'}
+            {Platform.OS === 'web' ? (
+              <View style={styles.webNotice}>
+                <IconSymbol ios_icon_name="exclamationmark.triangle.fill" android_material_icon_name="warning" size={48} color="#f59e0b" />
+                <Text style={styles.webNoticeTitle}>Non Disponibile su Web</Text>
+                <Text style={styles.webNoticeText}>
+                  L&apos;aggiunta di carte di pagamento è disponibile solo sull&apos;app mobile. 
+                  Scarica l&apos;app per iOS o Android per aggiungere metodi di pagamento.
                 </Text>
-                <View style={styles.cardPreviewFooter}>
-                  <Text style={styles.cardPreviewName}>
-                    {cardholderName.toUpperCase() || 'NOME TITOLARE'}
-                  </Text>
-                  <Text style={styles.cardPreviewExpiry}>
-                    {cardDetails?.expiryMonth && cardDetails?.expiryYear
-                      ? `${cardDetails.expiryMonth.toString().padStart(2, '0')}/${cardDetails.expiryYear.toString().slice(-2)}`
-                      : 'MM/AA'}
-                  </Text>
+              </View>
+            ) : (
+              <>
+                <View style={styles.cardPreview}>
+                  <View style={styles.cardPreviewInner}>
+                    <IconSymbol ios_icon_name="creditcard.fill" android_material_icon_name="credit_card" size={40} color={colors.text} />
+                    <Text style={styles.cardPreviewNumber}>
+                      {cardDetails?.last4 ? `•••• •••• •••• ${cardDetails.last4}` : '•••• •••• •••• ••••'}
+                    </Text>
+                    <View style={styles.cardPreviewFooter}>
+                      <Text style={styles.cardPreviewName}>
+                        {cardholderName.toUpperCase() || 'NOME TITOLARE'}
+                      </Text>
+                      <Text style={styles.cardPreviewExpiry}>
+                        {cardDetails?.expiryMonth && cardDetails?.expiryYear
+                          ? `${cardDetails.expiryMonth.toString().padStart(2, '0')}/${cardDetails.expiryYear.toString().slice(-2)}`
+                          : 'MM/AA'}
+                      </Text>
+                    </View>
+                  </View>
                 </View>
-              </View>
-            </View>
 
-            <View style={styles.form}>
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Nome Titolare</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Mario Rossi"
-                  placeholderTextColor={colors.textTertiary}
-                  value={cardholderName}
-                  onChangeText={setCardholderName}
-                  autoCapitalize="words"
-                />
-              </View>
+                <View style={styles.form}>
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.label}>Nome Titolare</Text>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Mario Rossi"
+                      placeholderTextColor={colors.textTertiary}
+                      value={cardholderName}
+                      onChangeText={setCardholderName}
+                      autoCapitalize="words"
+                    />
+                  </View>
 
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Dettagli Carta</Text>
-                <CardField
-                  postalCodeEnabled={false}
-                  placeholders={{
-                    number: '4242 4242 4242 4242',
-                  }}
-                  cardStyle={{
-                    backgroundColor: colors.card,
-                    textColor: colors.text,
-                    borderColor: colors.border,
-                    borderWidth: 1,
-                    borderRadius: 8,
-                  }}
-                  style={styles.cardField}
-                  onCardChange={(details) => {
-                    console.log('Card details changed:', details);
-                    setCardDetails(details);
-                  }}
-                />
-              </View>
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.label}>Dettagli Carta</Text>
+                    {CardField && (
+                      <CardField
+                        postalCodeEnabled={false}
+                        placeholders={{
+                          number: '4242 4242 4242 4242',
+                        }}
+                        cardStyle={{
+                          backgroundColor: colors.card,
+                          textColor: colors.text,
+                          borderColor: colors.border,
+                          borderWidth: 1,
+                          borderRadius: 8,
+                        }}
+                        style={styles.cardField}
+                        onCardChange={(details) => {
+                          console.log('Card details changed:', details);
+                          setCardDetails(details);
+                        }}
+                      />
+                    )}
+                  </View>
 
-              <View style={styles.securityNote}>
-                <IconSymbol ios_icon_name="lock.shield.fill" android_material_icon_name="security" size={20} color={colors.textSecondary} />
-                <Text style={styles.securityText}>
-                  I tuoi dati sono protetti con crittografia SSL. Utilizziamo Stripe per processare i pagamenti in modo sicuro.
-                </Text>
-              </View>
+                  <View style={styles.securityNote}>
+                    <IconSymbol ios_icon_name="lock.shield.fill" android_material_icon_name="security" size={20} color={colors.textSecondary} />
+                    <Text style={styles.securityText}>
+                      I tuoi dati sono protetti con crittografia SSL. Utilizziamo Stripe per processare i pagamenti in modo sicuro.
+                    </Text>
+                  </View>
 
-              <View style={styles.testModeNote}>
-                <IconSymbol ios_icon_name="info.circle.fill" android_material_icon_name="info" size={20} color="#3b82f6" />
-                <Text style={styles.testModeText}>
-                  Modalità Test: Usa la carta 4242 4242 4242 4242 per testare i pagamenti
-                </Text>
-              </View>
-            </View>
+                  <View style={styles.testModeNote}>
+                    <IconSymbol ios_icon_name="info.circle.fill" android_material_icon_name="info" size={20} color="#3b82f6" />
+                    <Text style={styles.testModeText}>
+                      Modalità Test: Usa la carta 4242 4242 4242 4242 per testare i pagamenti
+                    </Text>
+                  </View>
+                </View>
+              </>
+            )}
           </ScrollView>
 
-          <View style={styles.footer}>
-            <Pressable
-              style={[styles.addButton, isLoading && styles.addButtonDisabled]}
-              onPress={handleAddCard}
-              disabled={isLoading}
-            >
-              {isLoading ? (
-                <ActivityIndicator color={colors.background} />
-              ) : (
-                <>
-                  <IconSymbol ios_icon_name="checkmark.circle.fill" android_material_icon_name="check_circle" size={24} color={colors.background} />
-                  <Text style={styles.addButtonText}>Aggiungi Carta</Text>
-                </>
-              )}
-            </Pressable>
-          </View>
+          {Platform.OS !== 'web' && (
+            <View style={styles.footer}>
+              <Pressable
+                style={[styles.addButton, isLoading && styles.addButtonDisabled]}
+                onPress={handleAddCard}
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <ActivityIndicator color={colors.background} />
+                ) : (
+                  <>
+                    <IconSymbol ios_icon_name="checkmark.circle.fill" android_material_icon_name="check_circle" size={24} color={colors.background} />
+                    <Text style={styles.addButtonText}>Aggiungi Carta</Text>
+                  </>
+                )}
+              </Pressable>
+            </View>
+          )}
         </KeyboardAvoidingView>
       </SafeAreaView>
     </>
@@ -258,6 +289,25 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingTop: 40,
     paddingBottom: 120,
+  },
+  webNotice: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 40,
+    gap: 20,
+  },
+  webNoticeTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: colors.text,
+    textAlign: 'center',
+  },
+  webNoticeText: {
+    fontSize: 16,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 24,
   },
   cardPreview: {
     backgroundColor: colors.card,

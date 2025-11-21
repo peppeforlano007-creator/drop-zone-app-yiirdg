@@ -6,7 +6,7 @@ import { Stack, router } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { SystemBars } from "react-native-edge-to-edge";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { useColorScheme, Alert, View, Text, StyleSheet, Animated } from "react-native";
+import { useColorScheme, Alert, View, Text, StyleSheet, Animated, Platform } from "react-native";
 import { useNetworkState } from "expo-network";
 import * as Linking from "expo-linking";
 import {
@@ -16,12 +16,14 @@ import {
   ThemeProvider,
 } from "@react-navigation/native";
 import { StatusBar } from "expo-status-bar";
-import { StripeProvider } from "@stripe/stripe-react-native";
 import { Button } from "@/components/button";
 import { WidgetProvider } from "@/contexts/WidgetContext";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { PaymentProvider } from "@/contexts/PaymentContext";
 import { supabase } from "@/app/integrations/supabase/client";
+
+// Import font
+import SpaceMonoFont from "../assets/fonts/SpaceMono-Regular.ttf";
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -178,11 +180,54 @@ function CustomSplashScreen({ onFinish }: { onFinish: () => void }) {
   );
 }
 
+// Stripe Provider Wrapper Component
+function StripeProviderWrapper({ children }: { children: React.ReactNode }) {
+  const [StripeProvider, setStripeProvider] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    // Only load Stripe on native platforms
+    if (Platform.OS !== 'web') {
+      import('@stripe/stripe-react-native')
+        .then((module) => {
+          console.log('Stripe module loaded successfully');
+          setStripeProvider(() => module.StripeProvider);
+          setIsLoading(false);
+        })
+        .catch((error) => {
+          console.error('Error loading Stripe module:', error);
+          setIsLoading(false);
+        });
+    } else {
+      // On web, skip Stripe loading
+      setIsLoading(false);
+    }
+  }, []);
+
+  if (isLoading) {
+    return null;
+  }
+
+  if (Platform.OS !== 'web' && StripeProvider) {
+    return (
+      <StripeProvider
+        publishableKey={STRIPE_PUBLISHABLE_KEY}
+        merchantIdentifier="merchant.com.dropmarket"
+        urlScheme="dropmarket"
+      >
+        {children}
+      </StripeProvider>
+    );
+  }
+
+  return <>{children}</>;
+}
+
 export default function RootLayout() {
   const colorScheme = useColorScheme();
   const networkState = useNetworkState();
   const [loaded] = useFonts({
-    SpaceMono: require("../assets/fonts/SpaceMono-Regular.ttf"),
+    SpaceMono: SpaceMonoFont,
   });
   const [showCustomSplash, setShowCustomSplash] = useState(true);
 
@@ -303,14 +348,11 @@ export default function RootLayout() {
       notification: "rgb(255, 69, 58)", // System Red (Dark Mode)
     },
   };
+
   return (
     <>
       <StatusBar style="auto" animated />
-      <StripeProvider
-        publishableKey={STRIPE_PUBLISHABLE_KEY}
-        merchantIdentifier="merchant.com.dropmarket"
-        urlScheme="dropmarket"
-      >
+      <StripeProviderWrapper>
         <ThemeProvider
           value={colorScheme === "dark" ? CustomDarkTheme : CustomDefaultTheme}
         >
@@ -381,7 +423,7 @@ export default function RootLayout() {
             </PaymentProvider>
           </AuthProvider>
         </ThemeProvider>
-      </StripeProvider>
+      </StripeProviderWrapper>
     </>
   );
 }
