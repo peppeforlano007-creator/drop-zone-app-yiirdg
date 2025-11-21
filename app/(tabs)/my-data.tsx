@@ -24,7 +24,7 @@ export default function MyDataScreen() {
   const handleExportData = async () => {
     Alert.alert(
       'Esporta i Tuoi Dati',
-      'Riceverai un\'email con tutti i tuoi dati personali in formato JSON entro 30 giorni, come previsto dal GDPR.',
+      'Riceverai un\'email con tutti i tuoi dati personali in formato JSON immediatamente, come previsto dal GDPR.',
       [
         { text: 'Annulla', style: 'cancel' },
         {
@@ -34,32 +34,39 @@ export default function MyDataScreen() {
               setLoading(true);
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-              // Log the data export request
-              const { error } = await supabase
-                .from('data_requests')
-                .insert({
-                  user_id: user?.id,
-                  request_type: 'export',
-                  status: 'pending',
-                  requested_at: new Date().toISOString(),
-                });
+              // Get the current session
+              const { data: { session } } = await supabase.auth.getSession();
+              
+              if (!session) {
+                throw new Error('Sessione non valida');
+              }
+
+              // Call the Edge Function to export data and send email
+              const { data, error } = await supabase.functions.invoke('export-user-data', {
+                headers: {
+                  Authorization: `Bearer ${session.access_token}`,
+                },
+              });
 
               if (error) {
-                console.error('Error creating export request:', error);
-                throw new Error('Impossibile creare la richiesta di esportazione');
+                console.error('Error calling export function:', error);
+                throw new Error(error.message || 'Impossibile esportare i dati');
               }
+
+              console.log('Export response:', data);
 
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
               Alert.alert(
-                'Richiesta Inviata',
-                'La tua richiesta di esportazione dati è stata registrata. Riceverai un\'email con i tuoi dati entro 30 giorni.'
+                'Esportazione Completata! ✅',
+                'I tuoi dati sono stati esportati con successo. Riceverai un\'email a breve con tutti i tuoi dati personali in formato JSON.\n\nControlla anche la cartella spam se non vedi l\'email nella posta in arrivo.',
+                [{ text: 'OK' }]
               );
             } catch (error) {
               console.error('Exception exporting data:', error);
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
               Alert.alert(
                 'Errore',
-                error instanceof Error ? error.message : 'Si è verificato un errore'
+                error instanceof Error ? error.message : 'Si è verificato un errore durante l\'esportazione dei dati'
               );
             } finally {
               setLoading(false);
@@ -285,6 +292,7 @@ export default function MyDataScreen() {
                 styles.actionButton,
                 styles.exportButton,
                 pressed && styles.actionButtonPressed,
+                loading && styles.actionButtonDisabled,
               ]}
               onPress={handleExportData}
               disabled={loading}
@@ -302,7 +310,7 @@ export default function MyDataScreen() {
                   <View style={styles.actionContent}>
                     <Text style={styles.actionTitle}>Esporta i Tuoi Dati</Text>
                     <Text style={styles.actionDescription}>
-                      Ricevi una copia di tutti i tuoi dati in formato JSON
+                      Ricevi immediatamente un&apos;email con tutti i tuoi dati in formato JSON
                     </Text>
                   </View>
                   <IconSymbol
@@ -514,6 +522,9 @@ const styles = StyleSheet.create({
   },
   actionButtonPressed: {
     opacity: 0.7,
+  },
+  actionButtonDisabled: {
+    opacity: 0.5,
   },
   viewDataButton: {
     borderColor: colors.primary + '30',

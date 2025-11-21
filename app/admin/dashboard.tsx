@@ -604,6 +604,70 @@ export default function AdminDashboard() {
                 styles.actionCard,
                 pressed && styles.actionCardPressed,
               ]}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.push('/admin/data-requests');
+              }}
+            >
+              <View style={styles.actionIconContainer}>
+                <IconSymbol
+                  ios_icon_name="shield.fill"
+                  android_material_icon_name="shield"
+                  size={24}
+                  color="#8B5CF6"
+                />
+              </View>
+              <View style={styles.actionContent}>
+                <Text style={styles.actionTitle}>Richieste Dati GDPR</Text>
+                <Text style={styles.actionDescription}>
+                  Esportazioni e cancellazioni dati
+                </Text>
+              </View>
+              <IconSymbol
+                ios_icon_name="chevron.right"
+                android_material_icon_name="chevron_right"
+                size={20}
+                color={colors.textTertiary}
+              />
+            </Pressable>
+
+            <Pressable
+              style={({ pressed }) => [
+                styles.actionCard,
+                pressed && styles.actionCardPressed,
+              ]}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.push('/admin/legal-documents');
+              }}
+            >
+              <View style={styles.actionIconContainer}>
+                <IconSymbol
+                  ios_icon_name="doc.text.fill"
+                  android_material_icon_name="gavel"
+                  size={24}
+                  color="#10B981"
+                />
+              </View>
+              <View style={styles.actionContent}>
+                <Text style={styles.actionTitle}>Documenti Legali</Text>
+                <Text style={styles.actionDescription}>
+                  Privacy, Termini e Cookie Policy
+                </Text>
+              </View>
+              <IconSymbol
+                ios_icon_name="chevron.right"
+                android_material_icon_name="chevron_right"
+                size={20}
+                color={colors.textTertiary}
+              />
+            </Pressable>
+
+            <Pressable
+              style={({ pressed }) => [
+                styles.actionCard,
+                pressed && styles.actionCardPressed,
+              ]}
               onPress={handleTesting}
             >
               <View style={styles.actionIconContainer}>
