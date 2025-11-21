@@ -1,5 +1,5 @@
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -20,9 +20,13 @@ import * as Haptics from 'expo-haptics';
 export default function PaymentMethodsScreen() {
   const { paymentMethods, loading, removePaymentMethod, setDefaultPaymentMethod, refreshPaymentMethods } = usePayment();
 
-  useEffect(() => {
+  const loadPaymentMethods = useCallback(() => {
     refreshPaymentMethods();
-  }, []);
+  }, [refreshPaymentMethods]);
+
+  useEffect(() => {
+    loadPaymentMethods();
+  }, [loadPaymentMethods]);
 
   const handleAddCard = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);

@@ -1,5 +1,5 @@
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -20,9 +20,13 @@ import * as Haptics from 'expo-haptics';
 export default function SubscriptionsScreen() {
   const { subscriptions, activeSubscription, loading, cancelSubscription, refreshSubscriptions } = useSubscription();
 
-  useEffect(() => {
+  const loadSubscriptions = useCallback(() => {
     refreshSubscriptions();
-  }, []);
+  }, [refreshSubscriptions]);
+
+  useEffect(() => {
+    loadSubscriptions();
+  }, [loadSubscriptions]);
 
   const handleCancelSubscription = (subscriptionId: string, planName: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);

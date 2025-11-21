@@ -206,7 +206,7 @@ export default function PickupPointDashboardScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [user?.pickupPointId]);
+  }, [user?.pickupPointId, user?.email]);
 
   useEffect(() => {
     loadDashboardData();

@@ -25,13 +25,18 @@ let CardField: any = null;
 let useStripe: any = null;
 
 if (Platform.OS !== 'web') {
-  const stripeModule = require('@stripe/stripe-react-native');
-  CardField = stripeModule.CardField;
-  useStripe = stripeModule.useStripe;
+  try {
+    const stripeModule = require('@stripe/stripe-react-native');
+    CardField = stripeModule.CardField;
+    useStripe = stripeModule.useStripe;
+  } catch (error) {
+    console.error('Error loading Stripe module:', error);
+  }
 }
 
 export default function AddPaymentMethodScreen() {
   const { addPaymentMethod } = usePayment();
+  // Call useStripe unconditionally at the top level
   const stripe = Platform.OS !== 'web' && useStripe ? useStripe() : null;
   const [cardholderName, setCardholderName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -50,6 +55,11 @@ export default function AddPaymentMethodScreen() {
 
     if (!cardDetails?.complete) {
       Alert.alert('Errore', 'Completa i dettagli della carta');
+      return;
+    }
+
+    if (!stripe) {
+      Alert.alert('Errore', 'Stripe non è disponibile');
       return;
     }
 
