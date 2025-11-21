@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import {
   View,
   Text,
@@ -32,6 +32,7 @@ interface PlatformSettings {
 }
 
 export default function SettingsScreen() {
+  const router = useRouter();
   const [settings, setSettings] = useState<PlatformSettings>({
     drop_duration_days: 5,
     min_drop_value: 5000,
