@@ -83,6 +83,20 @@ export default function AdminLayout() {
           headerShown: true,
         }}
       />
+      <Stack.Screen
+        name="legal-documents"
+        options={{
+          title: 'Documenti Legali',
+          headerShown: true,
+        }}
+      />
+      <Stack.Screen
+        name="settings"
+        options={{
+          title: 'Impostazioni',
+          headerShown: true,
+        }}
+      />
     </Stack>
   );
 }
