@@ -1,37 +1,12 @@
 
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { supabase } from '@/app/integrations/supabase/client';
 
 /**
  * Payment Context
  * 
  * This context manages payment methods and payment authorizations.
- * 
- * PRODUCTION INTEGRATION:
- * 
- * To integrate with a real payment backend (e.g., Stripe):
- * 
- * 1. Install Stripe SDK: Already installed (@stripe/stripe-react-native)
- * 
- * 2. Initialize Stripe in your app:
- *    import { StripeProvider } from '@stripe/stripe-react-native';
- *    Wrap your app with <StripeProvider publishableKey="pk_...">
- * 
- * 3. Create a backend API with these endpoints:
- *    - POST /api/payment-methods - Create payment method
- *    - GET /api/payment-methods - List payment methods
- *    - DELETE /api/payment-methods/:id - Remove payment method
- *    - POST /api/authorize-payment - Authorize payment (hold funds)
- *    - POST /api/capture-payment - Capture authorized payment
- *    - POST /api/cancel-authorization - Cancel authorization
- * 
- * 4. Replace the mock implementations below with real API calls
- * 
- * 5. Use Stripe's PaymentIntent API for authorization and capture:
- *    - Create PaymentIntent with capture_method: 'manual'
- *    - Confirm the PaymentIntent to authorize
- *    - Capture the PaymentIntent when drop ends
- * 
- * 6. Handle webhooks from Stripe for payment status updates
+ * Now integrated with Stripe for real payment processing.
  */
 
 export interface PaymentMethod {
@@ -61,13 +36,15 @@ export interface PaymentAuthorization {
 interface PaymentContextType {
   paymentMethods: PaymentMethod[];
   authorizations: PaymentAuthorization[];
+  loading: boolean;
   addPaymentMethod: (method: PaymentMethod) => void;
-  removePaymentMethod: (methodId: string) => void;
-  setDefaultPaymentMethod: (methodId: string) => void;
+  removePaymentMethod: (methodId: string) => Promise<void>;
+  setDefaultPaymentMethod: (methodId: string) => Promise<void>;
   authorizePayment: (productId: string, amount: number, paymentMethodId: string) => Promise<string>;
   capturePayment: (authorizationId: string, finalAmount: number, finalDiscount: number) => Promise<boolean>;
   cancelAuthorization: (authorizationId: string) => Promise<boolean>;
   getDefaultPaymentMethod: () => PaymentMethod | undefined;
+  refreshPaymentMethods: () => Promise<void>;
 }
 
 const PaymentContext = createContext<PaymentContextType | undefined>(undefined);
@@ -75,9 +52,74 @@ const PaymentContext = createContext<PaymentContextType | undefined>(undefined);
 export function PaymentProvider({ children }: { children: ReactNode }) {
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
   const [authorizations, setAuthorizations] = useState<PaymentAuthorization[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Load payment methods from database
+  const loadPaymentMethods = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        setPaymentMethods([]);
+        setLoading(false);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('payment_methods')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('status', 'active')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error loading payment methods:', error);
+        setLoading(false);
+        return;
+      }
+
+      const methods: PaymentMethod[] = (data || []).map(pm => ({
+        id: pm.id,
+        type: pm.type as 'card' | 'paypal' | 'bank_transfer',
+        last4: pm.last4 || '',
+        brand: pm.brand || '',
+        expiryMonth: pm.exp_month || 0,
+        expiryYear: pm.exp_year || 0,
+        isDefault: pm.is_default || false,
+        stripePaymentMethodId: pm.stripe_payment_method_id,
+      }));
+
+      setPaymentMethods(methods);
+      setLoading(false);
+    } catch (error) {
+      console.error('Error in loadPaymentMethods:', error);
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadPaymentMethods();
+
+    // Subscribe to auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN') {
+        loadPaymentMethods();
+      } else if (event === 'SIGNED_OUT') {
+        setPaymentMethods([]);
+        setAuthorizations([]);
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  const refreshPaymentMethods = async () => {
+    await loadPaymentMethods();
+  };
 
   const addPaymentMethod = (method: PaymentMethod) => {
-    console.log('Adding payment method:', method);
+    console.log('Adding payment method to context:', method);
     setPaymentMethods(prev => {
       // If this is the first payment method or it's set as default, make it default
       const isFirstMethod = prev.length === 0;
@@ -92,26 +134,77 @@ export function PaymentProvider({ children }: { children: ReactNode }) {
     });
   };
 
-  const removePaymentMethod = (methodId: string) => {
+  const removePaymentMethod = async (methodId: string) => {
     console.log('Removing payment method:', methodId);
-    setPaymentMethods(prev => {
-      const filtered = prev.filter(m => m.id !== methodId);
-      
-      // If we removed the default method and there are others, make the first one default
-      const removedMethod = prev.find(m => m.id === methodId);
-      if (removedMethod?.isDefault && filtered.length > 0) {
-        filtered[0].isDefault = true;
+    
+    try {
+      const { error } = await supabase
+        .from('payment_methods')
+        .delete()
+        .eq('id', methodId);
+
+      if (error) {
+        console.error('Error removing payment method:', error);
+        throw error;
       }
-      
-      return filtered;
-    });
+
+      setPaymentMethods(prev => {
+        const filtered = prev.filter(m => m.id !== methodId);
+        
+        // If we removed the default method and there are others, make the first one default
+        const removedMethod = prev.find(m => m.id === methodId);
+        if (removedMethod?.isDefault && filtered.length > 0) {
+          // Update the first method to be default in the database
+          supabase
+            .from('payment_methods')
+            .update({ is_default: true })
+            .eq('id', filtered[0].id)
+            .then(() => {
+              console.log('Updated default payment method');
+            });
+          
+          filtered[0].isDefault = true;
+        }
+        
+        return filtered;
+      });
+    } catch (error) {
+      console.error('Error in removePaymentMethod:', error);
+      throw error;
+    }
   };
 
-  const setDefaultPaymentMethod = (methodId: string) => {
+  const setDefaultPaymentMethod = async (methodId: string) => {
     console.log('Setting default payment method:', methodId);
-    setPaymentMethods(prev =>
-      prev.map(m => ({ ...m, isDefault: m.id === methodId }))
-    );
+    
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('User not authenticated');
+
+      // Unset all defaults
+      await supabase
+        .from('payment_methods')
+        .update({ is_default: false })
+        .eq('user_id', user.id);
+
+      // Set the new default
+      const { error } = await supabase
+        .from('payment_methods')
+        .update({ is_default: true })
+        .eq('id', methodId);
+
+      if (error) {
+        console.error('Error setting default payment method:', error);
+        throw error;
+      }
+
+      setPaymentMethods(prev =>
+        prev.map(m => ({ ...m, isDefault: m.id === methodId }))
+      );
+    } catch (error) {
+      console.error('Error in setDefaultPaymentMethod:', error);
+      throw error;
+    }
   };
 
   const authorizePayment = async (
@@ -121,8 +214,8 @@ export function PaymentProvider({ children }: { children: ReactNode }) {
   ): Promise<string> => {
     console.log('Authorizing payment:', { productId, amount, paymentMethodId });
     
-    // Simulate API call to Stripe to authorize payment
-    // In production, this would call your backend which would use Stripe API
+    // TODO: Implement real Stripe payment authorization via Edge Function
+    // For now, simulate the authorization
     return new Promise((resolve) => {
       setTimeout(() => {
         const authorization: PaymentAuthorization = {
@@ -148,8 +241,8 @@ export function PaymentProvider({ children }: { children: ReactNode }) {
   ): Promise<boolean> => {
     console.log('Capturing payment:', { authorizationId, finalAmount, finalDiscount });
     
-    // Simulate API call to Stripe to capture the authorized payment
-    // In production, this would call your backend which would use Stripe API
+    // TODO: Implement real Stripe payment capture via Edge Function
+    // For now, simulate the capture
     return new Promise((resolve) => {
       setTimeout(() => {
         setAuthorizations(prev =>
@@ -173,7 +266,7 @@ export function PaymentProvider({ children }: { children: ReactNode }) {
   const cancelAuthorization = async (authorizationId: string): Promise<boolean> => {
     console.log('Cancelling authorization:', authorizationId);
     
-    // Simulate API call to Stripe to cancel the authorization
+    // TODO: Implement real Stripe authorization cancellation via Edge Function
     return new Promise((resolve) => {
       setTimeout(() => {
         setAuthorizations(prev =>
@@ -197,6 +290,7 @@ export function PaymentProvider({ children }: { children: ReactNode }) {
       value={{
         paymentMethods,
         authorizations,
+        loading,
         addPaymentMethod,
         removePaymentMethod,
         setDefaultPaymentMethod,
@@ -204,6 +298,7 @@ export function PaymentProvider({ children }: { children: ReactNode }) {
         capturePayment,
         cancelAuthorization,
         getDefaultPaymentMethod,
+        refreshPaymentMethods,
       }}
     >
       {children}

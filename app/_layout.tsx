@@ -16,6 +16,7 @@ import {
   ThemeProvider,
 } from "@react-navigation/native";
 import { StatusBar } from "expo-status-bar";
+import { StripeProvider } from "@stripe/stripe-react-native";
 import { Button } from "@/components/button";
 import { WidgetProvider } from "@/contexts/WidgetContext";
 import { AuthProvider } from "@/contexts/AuthContext";
@@ -28,6 +29,9 @@ SplashScreen.preventAutoHideAsync();
 export const unstable_settings = {
   initialRouteName: "login",
 };
+
+// Stripe Test Publishable Key
+const STRIPE_PUBLISHABLE_KEY = "pk_test_51SVuQlKzWSUQAh5P3T91A8guW6DgLWSTnGvlENlkzvFrUyEWs9MZNnGR0jY0By0n8WbWhoS7wdkpu7R87fNLZDGh00ESjWhShJ";
 
 // Enhanced Custom Splash Screen Component with improved animation
 function CustomSplashScreen({ onFinish }: { onFinish: () => void }) {
@@ -302,6 +306,11 @@ export default function RootLayout() {
   return (
     <>
       <StatusBar style="auto" animated />
+      <StripeProvider
+        publishableKey={STRIPE_PUBLISHABLE_KEY}
+        merchantIdentifier="merchant.com.dropmarket"
+        urlScheme="dropmarket"
+      >
         <ThemeProvider
           value={colorScheme === "dark" ? CustomDarkTheme : CustomDefaultTheme}
         >
@@ -372,6 +381,7 @@ export default function RootLayout() {
             </PaymentProvider>
           </AuthProvider>
         </ThemeProvider>
+      </StripeProvider>
     </>
   );
 }

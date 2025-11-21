@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   Pressable,
   Alert,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, router } from 'expo-router';
@@ -17,16 +18,24 @@ import { usePayment, PaymentMethod } from '@/contexts/PaymentContext';
 import * as Haptics from 'expo-haptics';
 
 export default function PaymentMethodsScreen() {
-  const { paymentMethods, removePaymentMethod, setDefaultPaymentMethod } = usePayment();
+  const { paymentMethods, loading, removePaymentMethod, setDefaultPaymentMethod, refreshPaymentMethods } = usePayment();
+
+  useEffect(() => {
+    refreshPaymentMethods();
+  }, []);
 
   const handleAddCard = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     router.push('/add-payment-method');
   };
 
-  const handleSetDefault = (methodId: string) => {
+  const handleSetDefault = async (methodId: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setDefaultPaymentMethod(methodId);
+    try {
+      await setDefaultPaymentMethod(methodId);
+    } catch (error: any) {
+      Alert.alert('Errore', error.message || 'Impossibile impostare il metodo predefinito');
+    }
   };
 
   const handleRemove = (method: PaymentMethod) => {
@@ -39,7 +48,14 @@ export default function PaymentMethodsScreen() {
         {
           text: 'Rimuovi',
           style: 'destructive',
-          onPress: () => removePaymentMethod(method.id),
+          onPress: async () => {
+            try {
+              await removePaymentMethod(method.id);
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            } catch (error: any) {
+              Alert.alert('Errore', error.message || 'Impossibile rimuovere il metodo di pagamento');
+            }
+          },
         },
       ]
     );
@@ -57,6 +73,28 @@ export default function PaymentMethodsScreen() {
         return 'creditcard';
     }
   };
+
+  if (loading) {
+    return (
+      <>
+        <Stack.Screen
+          options={{
+            title: 'Metodi di Pagamento',
+            headerStyle: {
+              backgroundColor: colors.background,
+            },
+            headerTintColor: colors.text,
+          }}
+        />
+        <SafeAreaView style={styles.safeArea} edges={['bottom']}>
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={colors.text} />
+            <Text style={styles.loadingText}>Caricamento...</Text>
+          </View>
+        </SafeAreaView>
+      </>
+    );
+  }
 
   return (
     <>
@@ -91,7 +129,8 @@ export default function PaymentMethodsScreen() {
                   <View style={styles.methodHeader}>
                     <View style={styles.methodInfo}>
                       <IconSymbol
-                        name={getCardIcon(method.brand)}
+                        ios_icon_name={getCardIcon(method.brand)}
+                        android_material_icon_name="credit_card"
                         size={32}
                         color={colors.text}
                       />
@@ -121,7 +160,7 @@ export default function PaymentMethodsScreen() {
                         style={styles.actionButton}
                         onPress={() => handleSetDefault(method.id)}
                       >
-                        <IconSymbol name="checkmark.circle" size={20} color={colors.text} />
+                        <IconSymbol ios_icon_name="checkmark.circle" android_material_icon_name="check_circle" size={20} color={colors.text} />
                         <Text style={styles.actionText}>Imposta come predefinita</Text>
                       </Pressable>
                     )}
@@ -129,7 +168,7 @@ export default function PaymentMethodsScreen() {
                       style={[styles.actionButton, styles.removeButton]}
                       onPress={() => handleRemove(method)}
                     >
-                      <IconSymbol name="trash" size={20} color="#ef4444" />
+                      <IconSymbol ios_icon_name="trash" android_material_icon_name="delete" size={20} color="#ef4444" />
                       <Text style={[styles.actionText, styles.removeText]}>Rimuovi</Text>
                     </Pressable>
                   </View>
@@ -138,7 +177,7 @@ export default function PaymentMethodsScreen() {
             </View>
           ) : (
             <View style={styles.emptyState}>
-              <IconSymbol name="creditcard" size={64} color={colors.textTertiary} />
+              <IconSymbol ios_icon_name="creditcard" android_material_icon_name="credit_card" size={64} color={colors.textTertiary} />
               <Text style={styles.emptyTitle}>Nessun metodo di pagamento</Text>
               <Text style={styles.emptyText}>
                 Aggiungi una carta per prenotare i prodotti nei drop attivi
@@ -147,17 +186,28 @@ export default function PaymentMethodsScreen() {
           )}
 
           <Pressable style={styles.addButton} onPress={handleAddCard}>
-            <IconSymbol name="plus.circle.fill" size={24} color={colors.text} />
+            <IconSymbol ios_icon_name="plus.circle.fill" android_material_icon_name="add_circle" size={24} color={colors.text} />
             <Text style={styles.addButtonText}>Aggiungi Metodo di Pagamento</Text>
           </Pressable>
 
           <View style={styles.infoCard}>
-            <IconSymbol name="lock.shield.fill" size={24} color={colors.text} />
+            <IconSymbol ios_icon_name="lock.shield.fill" android_material_icon_name="security" size={24} color={colors.text} />
             <View style={styles.infoContent}>
               <Text style={styles.infoTitle}>Pagamenti Sicuri</Text>
               <Text style={styles.infoText}>
                 I tuoi dati di pagamento sono protetti con crittografia di livello bancario.
                 Utilizziamo Stripe per processare i pagamenti in modo sicuro.
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.testModeCard}>
+            <IconSymbol ios_icon_name="info.circle.fill" android_material_icon_name="info" size={24} color="#3b82f6" />
+            <View style={styles.infoContent}>
+              <Text style={styles.testModeTitle}>Modalità Test Attiva</Text>
+              <Text style={styles.testModeText}>
+                L&apos;app è in modalità test. Usa la carta 4242 4242 4242 4242 per testare i pagamenti.
+                Nessun addebito reale verrà effettuato.
               </Text>
             </View>
           </View>
@@ -204,6 +254,16 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 16,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: colors.textSecondary,
   },
   contentContainer: {
     paddingTop: 80,
@@ -362,6 +422,28 @@ const styles = StyleSheet.create({
   infoText: {
     fontSize: 13,
     color: colors.textSecondary,
+    lineHeight: 20,
+  },
+  testModeCard: {
+    flexDirection: 'row',
+    backgroundColor: '#dbeafe',
+    borderRadius: 12,
+    padding: 24,
+    marginHorizontal: 20,
+    marginTop: 24,
+    borderWidth: 1,
+    borderColor: '#3b82f6',
+    gap: 16,
+  },
+  testModeTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1e40af',
+    marginBottom: 12,
+  },
+  testModeText: {
+    fontSize: 13,
+    color: '#1e40af',
     lineHeight: 20,
   },
   howItWorksCard: {

@@ -14,104 +14,102 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, router } from 'expo-router';
+import { CardField, useStripe } from '@stripe/stripe-react-native';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 import { usePayment } from '@/contexts/PaymentContext';
+import { supabase } from '@/app/integrations/supabase/client';
 import * as Haptics from 'expo-haptics';
 
 export default function AddPaymentMethodScreen() {
   const { addPaymentMethod } = usePayment();
-  const [cardNumber, setCardNumber] = useState('');
-  const [expiryDate, setExpiryDate] = useState('');
-  const [cvv, setCvv] = useState('');
+  const { createPaymentMethod } = useStripe();
   const [cardholderName, setCardholderName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-
-  const formatCardNumber = (text: string) => {
-    const cleaned = text.replace(/\s/g, '');
-    const chunks = cleaned.match(/.{1,4}/g);
-    return chunks ? chunks.join(' ') : cleaned;
-  };
-
-  const formatExpiryDate = (text: string) => {
-    const cleaned = text.replace(/\D/g, '');
-    if (cleaned.length >= 2) {
-      return cleaned.slice(0, 2) + '/' + cleaned.slice(2, 4);
-    }
-    return cleaned;
-  };
-
-  const getCardBrand = (number: string): string => {
-    const cleaned = number.replace(/\s/g, '');
-    if (cleaned.startsWith('4')) return 'Visa';
-    if (cleaned.startsWith('5')) return 'Mastercard';
-    if (cleaned.startsWith('3')) return 'Amex';
-    return 'Card';
-  };
-
-  const validateCard = (): boolean => {
-    const cleanedNumber = cardNumber.replace(/\s/g, '');
-    
-    if (cleanedNumber.length < 13 || cleanedNumber.length > 19) {
-      Alert.alert('Errore', 'Numero carta non valido');
-      return false;
-    }
-
-    if (!expiryDate.match(/^\d{2}\/\d{2}$/)) {
-      Alert.alert('Errore', 'Data di scadenza non valida (MM/AA)');
-      return false;
-    }
-
-    const [month, year] = expiryDate.split('/').map(Number);
-    if (month < 1 || month > 12) {
-      Alert.alert('Errore', 'Mese non valido');
-      return false;
-    }
-
-    const currentYear = new Date().getFullYear() % 100;
-    const currentMonth = new Date().getMonth() + 1;
-    if (year < currentYear || (year === currentYear && month < currentMonth)) {
-      Alert.alert('Errore', 'Carta scaduta');
-      return false;
-    }
-
-    if (cvv.length < 3 || cvv.length > 4) {
-      Alert.alert('Errore', 'CVV non valido');
-      return false;
-    }
-
-    if (cardholderName.trim().length < 3) {
-      Alert.alert('Errore', 'Nome titolare non valido');
-      return false;
-    }
-
-    return true;
-  };
+  const [cardDetails, setCardDetails] = useState<any>(null);
 
   const handleAddCard = async () => {
-    if (!validateCard()) return;
+    if (!cardholderName.trim()) {
+      Alert.alert('Errore', 'Inserisci il nome del titolare della carta');
+      return;
+    }
+
+    if (!cardDetails?.complete) {
+      Alert.alert('Errore', 'Completa i dettagli della carta');
+      return;
+    }
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setIsLoading(true);
 
-    // Simulate API call to Stripe
-    // In production, you would use Stripe's createPaymentMethod API
-    setTimeout(() => {
-      const cleanedNumber = cardNumber.replace(/\s/g, '');
-      const [month, year] = expiryDate.split('/').map(Number);
+    try {
+      console.log('Creating payment method with Stripe...');
       
-      const paymentMethod = {
-        id: `pm_${Date.now()}`,
+      // Create payment method with Stripe
+      const { paymentMethod, error } = await createPaymentMethod({
+        paymentMethodType: 'Card',
+        billingDetails: {
+          name: cardholderName,
+        },
+      });
+
+      if (error) {
+        console.error('Stripe error:', error);
+        Alert.alert('Errore', error.message || 'Impossibile aggiungere la carta');
+        setIsLoading(false);
+        return;
+      }
+
+      if (!paymentMethod) {
+        Alert.alert('Errore', 'Impossibile creare il metodo di pagamento');
+        setIsLoading(false);
+        return;
+      }
+
+      console.log('Payment method created:', paymentMethod.id);
+
+      // Get current user
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        Alert.alert('Errore', 'Utente non autenticato');
+        setIsLoading(false);
+        return;
+      }
+
+      // Save payment method to database
+      const { error: dbError } = await supabase
+        .from('payment_methods')
+        .insert({
+          user_id: user.id,
+          stripe_payment_method_id: paymentMethod.id,
+          type: 'card',
+          last4: paymentMethod.card?.last4 || '',
+          brand: paymentMethod.card?.brand || 'card',
+          exp_month: paymentMethod.card?.expMonth || 0,
+          exp_year: paymentMethod.card?.expYear || 0,
+          is_default: false,
+        });
+
+      if (dbError) {
+        console.error('Database error:', dbError);
+        Alert.alert('Errore', 'Impossibile salvare il metodo di pagamento');
+        setIsLoading(false);
+        return;
+      }
+
+      // Add to local context
+      const newPaymentMethod = {
+        id: paymentMethod.id,
         type: 'card' as const,
-        last4: cleanedNumber.slice(-4),
-        brand: getCardBrand(cardNumber),
-        expiryMonth: month,
-        expiryYear: 2000 + year,
+        last4: paymentMethod.card?.last4 || '',
+        brand: paymentMethod.card?.brand || 'card',
+        expiryMonth: paymentMethod.card?.expMonth || 0,
+        expiryYear: paymentMethod.card?.expYear || 0,
         isDefault: false,
-        stripePaymentMethodId: `pm_stripe_${Date.now()}`,
+        stripePaymentMethodId: paymentMethod.id,
       };
 
-      addPaymentMethod(paymentMethod);
+      addPaymentMethod(newPaymentMethod);
       setIsLoading(false);
       
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -125,7 +123,11 @@ export default function AddPaymentMethodScreen() {
           },
         ]
       );
-    }, 1500);
+    } catch (error: any) {
+      console.error('Error adding card:', error);
+      Alert.alert('Errore', error.message || 'Impossibile aggiungere la carta');
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -151,40 +153,24 @@ export default function AddPaymentMethodScreen() {
           >
             <View style={styles.cardPreview}>
               <View style={styles.cardPreviewInner}>
-                <IconSymbol name="creditcard.fill" size={40} color={colors.text} />
+                <IconSymbol ios_icon_name="creditcard.fill" android_material_icon_name="credit_card" size={40} color={colors.text} />
                 <Text style={styles.cardPreviewNumber}>
-                  {cardNumber || '•••• •••• •••• ••••'}
+                  {cardDetails?.last4 ? `•••• •••• •••• ${cardDetails.last4}` : '•••• •••• •••• ••••'}
                 </Text>
                 <View style={styles.cardPreviewFooter}>
                   <Text style={styles.cardPreviewName}>
                     {cardholderName.toUpperCase() || 'NOME TITOLARE'}
                   </Text>
                   <Text style={styles.cardPreviewExpiry}>
-                    {expiryDate || 'MM/AA'}
+                    {cardDetails?.expiryMonth && cardDetails?.expiryYear
+                      ? `${cardDetails.expiryMonth.toString().padStart(2, '0')}/${cardDetails.expiryYear.toString().slice(-2)}`
+                      : 'MM/AA'}
                   </Text>
                 </View>
               </View>
             </View>
 
             <View style={styles.form}>
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Numero Carta</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="1234 5678 9012 3456"
-                  placeholderTextColor={colors.textTertiary}
-                  value={cardNumber}
-                  onChangeText={(text) => {
-                    const cleaned = text.replace(/\D/g, '');
-                    if (cleaned.length <= 19) {
-                      setCardNumber(formatCardNumber(cleaned));
-                    }
-                  }}
-                  keyboardType="number-pad"
-                  maxLength={23}
-                />
-              </View>
-
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Nome Titolare</Text>
                 <TextInput
@@ -197,49 +183,39 @@ export default function AddPaymentMethodScreen() {
                 />
               </View>
 
-              <View style={styles.row}>
-                <View style={[styles.inputGroup, styles.halfWidth]}>
-                  <Text style={styles.label}>Scadenza</Text>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="MM/AA"
-                    placeholderTextColor={colors.textTertiary}
-                    value={expiryDate}
-                    onChangeText={(text) => {
-                      const cleaned = text.replace(/\D/g, '');
-                      if (cleaned.length <= 4) {
-                        setExpiryDate(formatExpiryDate(cleaned));
-                      }
-                    }}
-                    keyboardType="number-pad"
-                    maxLength={5}
-                  />
-                </View>
-
-                <View style={[styles.inputGroup, styles.halfWidth]}>
-                  <Text style={styles.label}>CVV</Text>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="123"
-                    placeholderTextColor={colors.textTertiary}
-                    value={cvv}
-                    onChangeText={(text) => {
-                      const cleaned = text.replace(/\D/g, '');
-                      if (cleaned.length <= 4) {
-                        setCvv(cleaned);
-                      }
-                    }}
-                    keyboardType="number-pad"
-                    maxLength={4}
-                    secureTextEntry
-                  />
-                </View>
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Dettagli Carta</Text>
+                <CardField
+                  postalCodeEnabled={false}
+                  placeholders={{
+                    number: '4242 4242 4242 4242',
+                  }}
+                  cardStyle={{
+                    backgroundColor: colors.card,
+                    textColor: colors.text,
+                    borderColor: colors.border,
+                    borderWidth: 1,
+                    borderRadius: 8,
+                  }}
+                  style={styles.cardField}
+                  onCardChange={(details) => {
+                    console.log('Card details changed:', details);
+                    setCardDetails(details);
+                  }}
+                />
               </View>
 
               <View style={styles.securityNote}>
-                <IconSymbol name="lock.shield.fill" size={20} color={colors.textSecondary} />
+                <IconSymbol ios_icon_name="lock.shield.fill" android_material_icon_name="security" size={20} color={colors.textSecondary} />
                 <Text style={styles.securityText}>
-                  I tuoi dati sono protetti con crittografia SSL
+                  I tuoi dati sono protetti con crittografia SSL. Utilizziamo Stripe per processare i pagamenti in modo sicuro.
+                </Text>
+              </View>
+
+              <View style={styles.testModeNote}>
+                <IconSymbol ios_icon_name="info.circle.fill" android_material_icon_name="info" size={20} color="#3b82f6" />
+                <Text style={styles.testModeText}>
+                  Modalità Test: Usa la carta 4242 4242 4242 4242 per testare i pagamenti
                 </Text>
               </View>
             </View>
@@ -255,7 +231,7 @@ export default function AddPaymentMethodScreen() {
                 <ActivityIndicator color={colors.background} />
               ) : (
                 <>
-                  <IconSymbol name="checkmark.circle.fill" size={24} color={colors.background} />
+                  <IconSymbol ios_icon_name="checkmark.circle.fill" android_material_icon_name="check_circle" size={24} color={colors.background} />
                   <Text style={styles.addButtonText}>Aggiungi Carta</Text>
                 </>
               )}
@@ -343,12 +319,10 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: colors.text,
   },
-  row: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  halfWidth: {
-    flex: 1,
+  cardField: {
+    width: '100%',
+    height: 50,
+    marginVertical: 8,
   },
   securityNote: {
     flexDirection: 'row',
@@ -364,6 +338,22 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 13,
     color: colors.textSecondary,
+  },
+  testModeNote: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    padding: 16,
+    backgroundColor: '#dbeafe',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#3b82f6',
+  },
+  testModeText: {
+    flex: 1,
+    fontSize: 13,
+    color: '#1e40af',
+    fontWeight: '500',
   },
   footer: {
     padding: 20,
