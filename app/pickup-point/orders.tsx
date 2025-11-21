@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -52,11 +52,7 @@ export default function OrdersScreen() {
   const [activeOrders, setActiveOrders] = useState<Order[]>([]);
   const [completedOrders, setCompletedOrders] = useState<Order[]>([]);
 
-  useEffect(() => {
-    loadOrders();
-  }, []);
-
-  const loadOrders = async () => {
+  const loadOrders = useCallback(async () => {
     if (!user?.pickupPointId) {
       console.error('No pickup point ID found');
       setLoading(false);
@@ -180,7 +176,11 @@ export default function OrdersScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [user?.pickupPointId]);
+
+  useEffect(() => {
+    loadOrders();
+  }, [loadOrders]);
 
   const handleRefresh = () => {
     setRefreshing(true);

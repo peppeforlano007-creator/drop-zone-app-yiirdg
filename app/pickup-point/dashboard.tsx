@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -53,11 +53,7 @@ export default function PickupPointDashboardScreen() {
     totalBookings: 0,
   });
 
-  useEffect(() => {
-    loadDashboardData();
-  }, []);
-
-  const loadDashboardData = async () => {
+  const loadDashboardData = useCallback(async () => {
     if (!user?.pickupPointId) {
       console.error('No pickup point ID found for user:', user?.email);
       Alert.alert(
@@ -210,7 +206,11 @@ export default function PickupPointDashboardScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [user?.pickupPointId]);
+
+  useEffect(() => {
+    loadDashboardData();
+  }, [loadDashboardData]);
 
   const handleRefresh = () => {
     setRefreshing(true);

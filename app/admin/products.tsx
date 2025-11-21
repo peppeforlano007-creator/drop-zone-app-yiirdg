@@ -175,7 +175,7 @@ export default function ProductsScreen() {
 
   useEffect(() => {
     loadProducts(0, false);
-  }, []);
+  }, [loadProducts]);
 
   useEffect(() => {
     filterProducts();

@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -40,11 +40,7 @@ export default function EarningsScreen() {
   const [recentOrders, setRecentOrders] = useState<OrderCommission[]>([]);
   const [pickupPoint, setPickupPoint] = useState<any>(null);
 
-  useEffect(() => {
-    loadEarningsData();
-  }, []);
-
-  const loadEarningsData = async () => {
+  const loadEarningsData = useCallback(async () => {
     if (!user?.pickupPointId) {
       console.error('No pickup point ID found');
       setLoading(false);
@@ -162,7 +158,11 @@ export default function EarningsScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [user?.pickupPointId]);
+
+  useEffect(() => {
+    loadEarningsData();
+  }, [loadEarningsData]);
 
   const handleRefresh = () => {
     setRefreshing(true);

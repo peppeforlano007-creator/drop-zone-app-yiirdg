@@ -1,5 +1,7 @@
 
+// eslint-disable-next-line import/no-unresolved
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+// eslint-disable-next-line import/no-unresolved
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.81.1';
 
 const corsHeaders = {
