@@ -81,19 +81,19 @@ export default function AddPaymentMethodScreen() {
       }
 
       // Check if this exact payment method already exists (by stripe_payment_method_id)
-      const { data: existingMethods, error: checkError } = await supabase
+      const { data: existingByStripeId, error: checkStripeError } = await supabase
         .from('payment_methods')
-        .select('id, stripe_payment_method_id')
+        .select('id, stripe_payment_method_id, card_last4, card_brand')
         .eq('user_id', user.id)
         .eq('stripe_payment_method_id', paymentMethod.id)
         .eq('status', 'active');
 
-      if (checkError) {
-        console.error('Error checking existing methods:', checkError);
+      if (checkStripeError) {
+        console.error('Error checking existing methods by Stripe ID:', checkStripeError);
       }
 
-      if (existingMethods && existingMethods.length > 0) {
-        console.log('Payment method already exists:', existingMethods[0]);
+      if (existingByStripeId && existingByStripeId.length > 0) {
+        console.log('Payment method with this Stripe ID already exists:', existingByStripeId[0]);
         Alert.alert('Carta già aggiunta', 'Questa carta è già stata aggiunta al tuo account');
         setIsLoading(false);
         return;
@@ -108,18 +108,62 @@ export default function AddPaymentMethodScreen() {
       console.log('Extracted card details:', { last4, brand, expMonth, expYear });
 
       // Validate that we have the essential card details
-      if (!last4 || last4.length === 0) {
-        console.error('Missing last4 digits from Stripe response');
+      if (!last4 || last4.length !== 4) {
+        console.error('Invalid last4 digits from Stripe response:', last4);
         Alert.alert('Errore', 'Impossibile ottenere i dettagli della carta. Riprova.');
         setIsLoading(false);
         return;
       }
 
+      // Additional check: see if a card with same last4 and brand already exists
+      const { data: existingByCard, error: checkCardError } = await supabase
+        .from('payment_methods')
+        .select('id, card_last4, card_brand, stripe_payment_method_id')
+        .eq('user_id', user.id)
+        .eq('card_last4', last4)
+        .eq('card_brand', brand)
+        .eq('status', 'active');
+
+      if (checkCardError) {
+        console.error('Error checking existing methods by card details:', checkCardError);
+      }
+
+      if (existingByCard && existingByCard.length > 0) {
+        console.log('Card with same last4 and brand already exists:', existingByCard);
+        Alert.alert(
+          'Carta simile già presente',
+          `Una carta ${brand.toUpperCase()} che termina con ${last4} è già presente nel tuo account. Vuoi aggiungerla comunque?`,
+          [
+            { text: 'Annulla', style: 'cancel', onPress: () => setIsLoading(false) },
+            { text: 'Aggiungi', onPress: () => proceedWithSave(user.id, paymentMethod.id, last4, brand, expMonth, expYear) },
+          ]
+        );
+        return;
+      }
+
+      // Proceed with saving
+      await proceedWithSave(user.id, paymentMethod.id, last4, brand, expMonth, expYear);
+    } catch (error: any) {
+      console.error('Error adding card:', error);
+      Alert.alert('Errore', error.message || 'Impossibile aggiungere la carta');
+      setIsLoading(false);
+    }
+  };
+
+  const proceedWithSave = async (
+    userId: string,
+    stripePaymentMethodId: string,
+    last4: string,
+    brand: string,
+    expMonth: number,
+    expYear: number
+  ) => {
+    try {
       // Check if user has any payment methods to determine if this should be default
       const { data: userMethods, error: countError } = await supabase
         .from('payment_methods')
         .select('id')
-        .eq('user_id', user.id)
+        .eq('user_id', userId)
         .eq('status', 'active');
 
       if (countError) {
@@ -134,15 +178,15 @@ export default function AddPaymentMethodScreen() {
         await supabase
           .from('payment_methods')
           .update({ is_default: false })
-          .eq('user_id', user.id);
+          .eq('user_id', userId);
       }
 
       // Save payment method to database with correct column names
       const { data: insertedMethod, error: dbError } = await supabase
         .from('payment_methods')
         .insert({
-          user_id: user.id,
-          stripe_payment_method_id: paymentMethod.id,
+          user_id: userId,
+          stripe_payment_method_id: stripePaymentMethodId,
           card_last4: last4,
           card_brand: brand,
           card_exp_month: expMonth,
@@ -179,8 +223,8 @@ export default function AddPaymentMethodScreen() {
         ]
       );
     } catch (error: any) {
-      console.error('Error adding card:', error);
-      Alert.alert('Errore', error.message || 'Impossibile aggiungere la carta');
+      console.error('Error in proceedWithSave:', error);
+      Alert.alert('Errore', error.message || 'Impossibile salvare la carta');
       setIsLoading(false);
     }
   };

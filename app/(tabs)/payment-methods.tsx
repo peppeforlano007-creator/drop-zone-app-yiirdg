@@ -44,9 +44,13 @@ export default function PaymentMethodsScreen() {
 
   const handleRemove = (method: PaymentMethod) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    
+    const brandText = method.brand ? method.brand.toUpperCase() : 'questa carta';
+    const last4Text = method.last4 ? ` •••• ${method.last4}` : '';
+    
     Alert.alert(
       'Rimuovi Metodo di Pagamento',
-      `Sei sicuro di voler rimuovere ${method.brand || 'questa carta'} •••• ${method.last4 || ''}?`,
+      `Sei sicuro di voler rimuovere ${brandText}${last4Text}?`,
       [
         { text: 'Annulla', style: 'cancel' },
         {
@@ -129,7 +133,7 @@ export default function PaymentMethodsScreen() {
           {paymentMethods.length > 0 ? (
             <View style={styles.methodsList}>
               {paymentMethods.map((method, index) => (
-                <View key={index} style={styles.methodCard}>
+                <View key={method.id || index} style={styles.methodCard}>
                   <View style={styles.methodHeader}>
                     <View style={styles.methodInfo}>
                       <IconSymbol
@@ -143,7 +147,7 @@ export default function PaymentMethodsScreen() {
                           {method.brand ? method.brand.toUpperCase() : 'CARTA'}
                         </Text>
                         <Text style={styles.methodNumber}>
-                          •••• {method.last4 || ''}
+                          •••• {method.last4 || '****'}
                         </Text>
                         {method.expiryMonth && method.expiryYear ? (
                           <Text style={styles.methodExpiry}>

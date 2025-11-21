@@ -54,6 +54,46 @@ export function PaymentProvider({ children }: { children: ReactNode }) {
   const [authorizations, setAuthorizations] = useState<PaymentAuthorization[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Validate payment method data
+  const isValidPaymentMethod = (pm: any): boolean => {
+    // Must have a valid Stripe payment method ID
+    if (!pm.stripe_payment_method_id || pm.stripe_payment_method_id.length === 0) {
+      console.log('Invalid payment method: missing stripe_payment_method_id', pm.id);
+      return false;
+    }
+
+    // Must have valid last4 digits (exactly 4 digits)
+    if (!pm.card_last4 || pm.card_last4.length !== 4) {
+      console.log('Invalid payment method: invalid card_last4', pm.id, pm.card_last4);
+      return false;
+    }
+
+    // Must have a card brand
+    if (!pm.card_brand || pm.card_brand.length === 0) {
+      console.log('Invalid payment method: missing card_brand', pm.id);
+      return false;
+    }
+
+    // Must have valid expiry data
+    if (!pm.card_exp_month || !pm.card_exp_year) {
+      console.log('Invalid payment method: missing expiry data', pm.id);
+      return false;
+    }
+
+    // Check if card is expired
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth() + 1; // JavaScript months are 0-indexed
+
+    if (pm.card_exp_year < currentYear || 
+        (pm.card_exp_year === currentYear && pm.card_exp_month < currentMonth)) {
+      console.log('Invalid payment method: card expired', pm.id, `${pm.card_exp_month}/${pm.card_exp_year}`);
+      return false;
+    }
+
+    return true;
+  };
+
   // Load payment methods from database
   const loadPaymentMethods = async () => {
     try {
@@ -77,49 +117,54 @@ export function PaymentProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      // Filter out invalid payment methods (missing essential data)
-      const validMethods = (data || []).filter(pm => {
-        const hasValidStripeId = pm.stripe_payment_method_id && pm.stripe_payment_method_id.length > 0;
-        const hasValidLast4 = pm.card_last4 && pm.card_last4.length > 0;
-        return hasValidStripeId && hasValidLast4;
-      });
+      console.log('Loaded payment methods from database:', data?.length || 0);
+
+      // Filter out invalid payment methods
+      const validMethods = (data || []).filter(isValidPaymentMethod);
 
       const methods: PaymentMethod[] = validMethods.map(pm => ({
         id: pm.id,
-        last4: pm.card_last4 || '',
-        brand: pm.card_brand || '',
-        expiryMonth: pm.card_exp_month || 0,
-        expiryYear: pm.card_exp_year || 0,
+        last4: pm.card_last4,
+        brand: pm.card_brand,
+        expiryMonth: pm.card_exp_month,
+        expiryYear: pm.card_exp_year,
         isDefault: pm.is_default || false,
         stripePaymentMethodId: pm.stripe_payment_method_id,
       }));
 
-      console.log('Loaded valid payment methods:', methods.length, 'out of', (data || []).length);
+      console.log('Valid payment methods:', methods.length, 'out of', (data || []).length);
       
-      // If we filtered out invalid methods, clean them up from the database
-      const invalidMethods = (data || []).filter(pm => {
-        const hasValidStripeId = pm.stripe_payment_method_id && pm.stripe_payment_method_id.length > 0;
-        const hasValidLast4 = pm.card_last4 && pm.card_last4.length > 0;
-        return !hasValidStripeId || !hasValidLast4;
-      });
+      // If we filtered out invalid methods, mark them as inactive in the database
+      const invalidMethods = (data || []).filter(pm => !isValidPaymentMethod(pm));
 
       if (invalidMethods.length > 0) {
         console.log('Found', invalidMethods.length, 'invalid payment methods, marking as inactive');
         const invalidIds = invalidMethods.map(pm => pm.id);
-        await supabase
+        
+        // Mark invalid methods as inactive
+        const { error: updateError } = await supabase
           .from('payment_methods')
           .update({ status: 'inactive' })
           .in('id', invalidIds);
+
+        if (updateError) {
+          console.error('Error marking invalid methods as inactive:', updateError);
+        }
       }
 
       // Ensure at least one method is default if we have methods
       if (methods.length > 0 && !methods.some(m => m.isDefault)) {
         console.log('No default payment method found, setting first as default');
-        await supabase
+        const { error: updateError } = await supabase
           .from('payment_methods')
           .update({ is_default: true })
           .eq('id', methods[0].id);
-        methods[0].isDefault = true;
+
+        if (updateError) {
+          console.error('Error setting default payment method:', updateError);
+        } else {
+          methods[0].isDefault = true;
+        }
       }
 
       setPaymentMethods(methods);
@@ -156,6 +201,13 @@ export function PaymentProvider({ children }: { children: ReactNode }) {
   const addPaymentMethod = (method: PaymentMethod) => {
     console.log('Adding payment method to context:', method);
     setPaymentMethods(prev => {
+      // Check if this method already exists
+      const exists = prev.some(m => m.id === method.id);
+      if (exists) {
+        console.log('Payment method already exists in context, skipping');
+        return prev;
+      }
+
       // If this is the first payment method or it's set as default, make it default
       const isFirstMethod = prev.length === 0;
       const newMethod = { ...method, isDefault: isFirstMethod || method.isDefault };
@@ -173,9 +225,10 @@ export function PaymentProvider({ children }: { children: ReactNode }) {
     console.log('Removing payment method:', methodId);
     
     try {
+      // Mark as inactive instead of deleting
       const { error } = await supabase
         .from('payment_methods')
-        .delete()
+        .update({ status: 'inactive' })
         .eq('id', methodId);
 
       if (error) {
