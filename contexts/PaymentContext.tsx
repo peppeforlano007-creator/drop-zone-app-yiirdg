@@ -56,33 +56,35 @@ export function PaymentProvider({ children }: { children: ReactNode }) {
 
   // Validate payment method data
   const isValidPaymentMethod = (pm: any): boolean => {
+    console.log('Validating payment method:', pm.id);
+
     // Must have a valid Stripe payment method ID
     if (!pm.stripe_payment_method_id || pm.stripe_payment_method_id.length === 0) {
-      console.log('Invalid payment method: missing stripe_payment_method_id', pm.id);
+      console.log('❌ Invalid: missing stripe_payment_method_id', pm.id);
       return false;
     }
 
-    // Must have valid last4 digits (at least 4 characters, we'll normalize it)
+    // Must have valid last4 digits (at least 4 characters)
     if (!pm.card_last4 || pm.card_last4.length < 4) {
-      console.log('Invalid payment method: invalid card_last4', pm.id, pm.card_last4);
+      console.log('❌ Invalid: invalid card_last4', pm.id, pm.card_last4);
       return false;
     }
 
     // Must have a card brand
     if (!pm.card_brand || pm.card_brand.length === 0) {
-      console.log('Invalid payment method: missing card_brand', pm.id);
+      console.log('❌ Invalid: missing card_brand', pm.id);
       return false;
     }
 
     // Must have valid expiry data
     if (!pm.card_exp_month || !pm.card_exp_year) {
-      console.log('Invalid payment method: missing expiry data', pm.id);
+      console.log('❌ Invalid: missing expiry data', pm.id);
       return false;
     }
 
     // Validate expiry month is between 1 and 12
     if (pm.card_exp_month < 1 || pm.card_exp_month > 12) {
-      console.log('Invalid payment method: invalid expiry month', pm.id, pm.card_exp_month);
+      console.log('❌ Invalid: invalid expiry month', pm.id, pm.card_exp_month);
       return false;
     }
 
@@ -93,22 +95,28 @@ export function PaymentProvider({ children }: { children: ReactNode }) {
 
     if (pm.card_exp_year < currentYear || 
         (pm.card_exp_year === currentYear && pm.card_exp_month < currentMonth)) {
-      console.log('Invalid payment method: card expired', pm.id, `${pm.card_exp_month}/${pm.card_exp_year}`);
+      console.log('❌ Invalid: card expired', pm.id, `${pm.card_exp_month}/${pm.card_exp_year}`);
       return false;
     }
 
+    console.log('✅ Valid payment method:', pm.id);
     return true;
   };
 
   // Load payment methods from database
   const loadPaymentMethods = async () => {
     try {
+      console.log('=== LOADING PAYMENT METHODS ===');
+      
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
+        console.log('No user authenticated');
         setPaymentMethods([]);
         setLoading(false);
         return;
       }
+
+      console.log('Loading payment methods for user:', user.id);
 
       const { data, error } = await supabase
         .from('payment_methods')
@@ -119,11 +127,17 @@ export function PaymentProvider({ children }: { children: ReactNode }) {
 
       if (error) {
         console.error('Error loading payment methods:', error);
+        console.error('Error code:', error.code);
+        console.error('Error message:', error.message);
+        console.error('Error details:', error.details);
         setLoading(false);
         return;
       }
 
       console.log('Loaded payment methods from database:', data?.length || 0);
+      if (data && data.length > 0) {
+        console.log('Payment methods data:', JSON.stringify(data, null, 2));
+      }
 
       // Filter out invalid payment methods
       const validMethods = (data || []).filter(isValidPaymentMethod);
@@ -155,6 +169,8 @@ export function PaymentProvider({ children }: { children: ReactNode }) {
 
         if (updateError) {
           console.error('Error marking invalid methods as inactive:', updateError);
+        } else {
+          console.log('Successfully marked invalid methods as inactive');
         }
       }
 
@@ -170,13 +186,16 @@ export function PaymentProvider({ children }: { children: ReactNode }) {
           console.error('Error setting default payment method:', updateError);
         } else {
           methods[0].isDefault = true;
+          console.log('Set first method as default:', methods[0].id);
         }
       }
 
+      console.log('Final payment methods:', methods.length);
       setPaymentMethods(methods);
       setLoading(false);
     } catch (error) {
-      console.error('Error in loadPaymentMethods:', error);
+      console.error('=== ERROR IN loadPaymentMethods ===');
+      console.error('Error:', error);
       setLoading(false);
     }
   };
@@ -186,6 +205,7 @@ export function PaymentProvider({ children }: { children: ReactNode }) {
 
     // Subscribe to auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log('Auth state changed:', event);
       if (event === 'SIGNED_IN') {
         loadPaymentMethods();
       } else if (event === 'SIGNED_OUT') {
@@ -200,7 +220,7 @@ export function PaymentProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const refreshPaymentMethods = async () => {
-    console.log('Refreshing payment methods...');
+    console.log('=== REFRESHING PAYMENT METHODS ===');
     await loadPaymentMethods();
   };
 
@@ -228,7 +248,8 @@ export function PaymentProvider({ children }: { children: ReactNode }) {
   };
 
   const removePaymentMethod = async (methodId: string) => {
-    console.log('Removing payment method:', methodId);
+    console.log('=== REMOVING PAYMENT METHOD ===');
+    console.log('Method ID:', methodId);
     
     try {
       // Mark as inactive instead of deleting
@@ -242,12 +263,15 @@ export function PaymentProvider({ children }: { children: ReactNode }) {
         throw error;
       }
 
+      console.log('Successfully marked payment method as inactive');
+
       setPaymentMethods(prev => {
         const filtered = prev.filter(m => m.id !== methodId);
         
         // If we removed the default method and there are others, make the first one default
         const removedMethod = prev.find(m => m.id === methodId);
         if (removedMethod?.isDefault && filtered.length > 0) {
+          console.log('Removed default method, setting new default');
           // Update the first method to be default in the database
           supabase
             .from('payment_methods')
@@ -263,13 +287,15 @@ export function PaymentProvider({ children }: { children: ReactNode }) {
         return filtered;
       });
     } catch (error) {
-      console.error('Error in removePaymentMethod:', error);
+      console.error('=== ERROR IN removePaymentMethod ===');
+      console.error('Error:', error);
       throw error;
     }
   };
 
   const setDefaultPaymentMethod = async (methodId: string) => {
-    console.log('Setting default payment method:', methodId);
+    console.log('=== SETTING DEFAULT PAYMENT METHOD ===');
+    console.log('Method ID:', methodId);
     
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -292,11 +318,14 @@ export function PaymentProvider({ children }: { children: ReactNode }) {
         throw error;
       }
 
+      console.log('Successfully set default payment method');
+
       setPaymentMethods(prev =>
         prev.map(m => ({ ...m, isDefault: m.id === methodId }))
       );
     } catch (error) {
-      console.error('Error in setDefaultPaymentMethod:', error);
+      console.error('=== ERROR IN setDefaultPaymentMethod ===');
+      console.error('Error:', error);
       throw error;
     }
   };
@@ -306,7 +335,10 @@ export function PaymentProvider({ children }: { children: ReactNode }) {
     amount: number,
     paymentMethodId: string
   ): Promise<string> => {
-    console.log('Authorizing payment:', { productId, amount, paymentMethodId });
+    console.log('=== AUTHORIZING PAYMENT ===');
+    console.log('Product ID:', productId);
+    console.log('Amount:', amount);
+    console.log('Payment Method ID:', paymentMethodId);
     
     // TODO: Implement real Stripe payment authorization via Edge Function
     // For now, simulate the authorization
@@ -323,6 +355,7 @@ export function PaymentProvider({ children }: { children: ReactNode }) {
         };
         
         setAuthorizations(prev => [...prev, authorization]);
+        console.log('Payment authorized:', authorization.id);
         resolve(authorization.id);
       }, 1000);
     });
@@ -333,7 +366,10 @@ export function PaymentProvider({ children }: { children: ReactNode }) {
     finalAmount: number,
     finalDiscount: number
   ): Promise<boolean> => {
-    console.log('Capturing payment:', { authorizationId, finalAmount, finalDiscount });
+    console.log('=== CAPTURING PAYMENT ===');
+    console.log('Authorization ID:', authorizationId);
+    console.log('Final Amount:', finalAmount);
+    console.log('Final Discount:', finalDiscount);
     
     // TODO: Implement real Stripe payment capture via Edge Function
     // For now, simulate the capture
@@ -352,13 +388,15 @@ export function PaymentProvider({ children }: { children: ReactNode }) {
               : auth
           )
         );
+        console.log('Payment captured successfully');
         resolve(true);
       }, 1000);
     });
   };
 
   const cancelAuthorization = async (authorizationId: string): Promise<boolean> => {
-    console.log('Cancelling authorization:', authorizationId);
+    console.log('=== CANCELLING AUTHORIZATION ===');
+    console.log('Authorization ID:', authorizationId);
     
     // TODO: Implement real Stripe authorization cancellation via Edge Function
     return new Promise((resolve) => {
@@ -370,6 +408,7 @@ export function PaymentProvider({ children }: { children: ReactNode }) {
               : auth
           )
         );
+        console.log('Authorization cancelled successfully');
         resolve(true);
       }, 500);
     });
@@ -377,14 +416,14 @@ export function PaymentProvider({ children }: { children: ReactNode }) {
 
   const getDefaultPaymentMethod = () => {
     const defaultMethod = paymentMethods.find(m => m.isDefault);
-    console.log('Getting default payment method:', defaultMethod);
+    console.log('Getting default payment method:', defaultMethod?.id || 'none');
     return defaultMethod;
   };
 
   const hasPaymentMethod = () => {
     // Check if there are any valid payment methods
     const hasValid = paymentMethods.length > 0;
-    console.log('Checking for valid payment methods:', hasValid, 'total:', paymentMethods.length);
+    console.log('Has valid payment methods:', hasValid, 'total:', paymentMethods.length);
     return hasValid;
   };
 

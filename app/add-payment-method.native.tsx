@@ -45,7 +45,7 @@ export default function AddPaymentMethodScreen() {
     setIsLoading(true);
 
     try {
-      console.log('Creating payment method with Stripe...');
+      console.log('=== STARTING PAYMENT METHOD CREATION ===');
       console.log('Card details from CardField:', JSON.stringify(cardDetails, null, 2));
       
       // Create payment method with Stripe
@@ -58,7 +58,7 @@ export default function AddPaymentMethodScreen() {
 
       if (error) {
         console.error('Stripe error:', error);
-        Alert.alert('Errore', error.message || 'Impossibile aggiungere la carta');
+        Alert.alert('Errore Stripe', error.message || 'Impossibile aggiungere la carta');
         setIsLoading(false);
         return;
       }
@@ -80,6 +80,8 @@ export default function AddPaymentMethodScreen() {
         return;
       }
 
+      console.log('Current user ID:', user.id);
+
       // Check if this exact payment method already exists (by stripe_payment_method_id)
       const { data: existingByStripeId, error: checkStripeError } = await supabase
         .from('payment_methods')
@@ -100,30 +102,30 @@ export default function AddPaymentMethodScreen() {
       }
 
       // Extract card details from multiple possible sources
-      // The Stripe SDK can return card details in different formats
       let last4 = '';
       let brand = 'card';
       let expMonth = 0;
       let expYear = 0;
 
-      // Try to get from paymentMethod.Card (capital C)
+      console.log('=== EXTRACTING CARD DETAILS ===');
+
+      // Try different paths to get card details
       if (paymentMethod.Card) {
         console.log('Found Card object (capital C):', JSON.stringify(paymentMethod.Card, null, 2));
         last4 = paymentMethod.Card.last4 || '';
         brand = paymentMethod.Card.brand || 'card';
-        expMonth = paymentMethod.Card.expMonth || 0;
-        expYear = paymentMethod.Card.expYear || 0;
-      }
-      // Try to get from paymentMethod.card (lowercase c)
-      else if (paymentMethod.card) {
+        expMonth = paymentMethod.Card.expMonth || paymentMethod.Card.exp_month || 0;
+        expYear = paymentMethod.Card.expYear || paymentMethod.Card.exp_year || 0;
+      } else if (paymentMethod.card) {
         console.log('Found card object (lowercase c):', JSON.stringify(paymentMethod.card, null, 2));
         last4 = paymentMethod.card.last4 || '';
         brand = paymentMethod.card.brand || 'card';
-        expMonth = paymentMethod.card.expMonth || 0;
-        expYear = paymentMethod.card.expYear || 0;
+        expMonth = paymentMethod.card.expMonth || paymentMethod.card.exp_month || 0;
+        expYear = paymentMethod.card.expYear || paymentMethod.card.exp_year || 0;
       }
+
       // Fallback to cardDetails from CardField
-      else if (cardDetails) {
+      if (!last4 && cardDetails) {
         console.log('Using cardDetails from CardField as fallback');
         last4 = cardDetails.last4 || '';
         brand = cardDetails.brand || 'card';
@@ -133,24 +135,28 @@ export default function AddPaymentMethodScreen() {
 
       console.log('Extracted card details:', { last4, brand, expMonth, expYear });
 
-      // Validate that we have the essential card details
+      // Validate last4
       if (!last4 || last4.length < 4) {
-        console.error('Invalid or missing last4 digits. Full paymentMethod:', JSON.stringify(paymentMethod, null, 2));
+        console.error('=== VALIDATION ERROR: Invalid last4 ===');
+        console.error('last4 value:', last4);
+        console.error('Full paymentMethod:', JSON.stringify(paymentMethod, null, 2));
         console.error('CardDetails:', JSON.stringify(cardDetails, null, 2));
         Alert.alert(
           'Errore',
-          'Impossibile ottenere i dettagli della carta. Riprova.\n\nDettagli tecnici: last4 non valido o mancante'
+          'Impossibile ottenere i dettagli della carta. Riprova.\n\nDettagli tecnici: last4 non valido o mancante dalla risposta di Stripe'
         );
         setIsLoading(false);
         return;
       }
 
-      // Ensure last4 is exactly 4 digits (trim if longer, pad if shorter)
+      // Normalize last4 to exactly 4 digits
       last4 = last4.slice(-4).padStart(4, '0');
+      console.log('Normalized last4:', last4);
 
       // Validate expiry data
       if (!expMonth || !expYear || expMonth < 1 || expMonth > 12) {
-        console.error('Invalid expiry data:', { expMonth, expYear });
+        console.error('=== VALIDATION ERROR: Invalid expiry data ===');
+        console.error('expMonth:', expMonth, 'expYear:', expYear);
         Alert.alert(
           'Errore',
           'Impossibile ottenere la data di scadenza della carta. Riprova.'
@@ -158,6 +164,8 @@ export default function AddPaymentMethodScreen() {
         setIsLoading(false);
         return;
       }
+
+      console.log('Validated expiry:', { expMonth, expYear });
 
       // Additional check: see if a card with same last4 and brand already exists
       const { data: existingByCard, error: checkCardError } = await supabase
@@ -188,7 +196,9 @@ export default function AddPaymentMethodScreen() {
       // Proceed with saving
       await proceedWithSave(user.id, paymentMethod.id, last4, brand, expMonth, expYear);
     } catch (error: any) {
-      console.error('Error adding card:', error);
+      console.error('=== ERROR IN handleAddCard ===');
+      console.error('Error:', error);
+      console.error('Error message:', error.message);
       console.error('Error stack:', error.stack);
       Alert.alert('Errore', error.message || 'Impossibile aggiungere la carta');
       setIsLoading(false);
@@ -204,7 +214,15 @@ export default function AddPaymentMethodScreen() {
     expYear: number
   ) => {
     try {
-      console.log('Proceeding with save:', { userId, stripePaymentMethodId, last4, brand, expMonth, expYear });
+      console.log('=== PROCEEDING WITH SAVE ===');
+      console.log('Data to save:', { 
+        userId, 
+        stripePaymentMethodId, 
+        last4, 
+        brand, 
+        expMonth, 
+        expYear 
+      });
 
       // Check if user has any payment methods to determine if this should be default
       const { data: userMethods, error: countError } = await supabase
@@ -222,36 +240,57 @@ export default function AddPaymentMethodScreen() {
 
       // If this is the first method, unset any existing defaults (safety measure)
       if (isFirstMethod) {
-        await supabase
+        console.log('Unsetting existing defaults...');
+        const { error: unsetError } = await supabase
           .from('payment_methods')
           .update({ is_default: false })
           .eq('user_id', userId);
+        
+        if (unsetError) {
+          console.error('Error unsetting defaults:', unsetError);
+        }
       }
 
-      // Save payment method to database with correct column names
+      // Prepare the data object for insertion
+      const insertData = {
+        user_id: userId,
+        stripe_payment_method_id: stripePaymentMethodId,
+        card_last4: last4,
+        card_brand: brand,
+        card_exp_month: expMonth,
+        card_exp_year: expYear,
+        is_default: isFirstMethod,
+        status: 'active',
+      };
+
+      console.log('=== INSERTING INTO DATABASE ===');
+      console.log('Insert data:', JSON.stringify(insertData, null, 2));
+
+      // Save payment method to database
       const { data: insertedMethod, error: dbError } = await supabase
         .from('payment_methods')
-        .insert({
-          user_id: userId,
-          stripe_payment_method_id: stripePaymentMethodId,
-          card_last4: last4,
-          card_brand: brand,
-          card_exp_month: expMonth,
-          card_exp_year: expYear,
-          is_default: isFirstMethod,
-          status: 'active',
-        })
+        .insert(insertData)
         .select()
         .single();
 
       if (dbError) {
-        console.error('Database error:', dbError);
-        Alert.alert('Errore', 'Impossibile salvare il metodo di pagamento: ' + dbError.message);
+        console.error('=== DATABASE ERROR ===');
+        console.error('Error code:', dbError.code);
+        console.error('Error message:', dbError.message);
+        console.error('Error details:', dbError.details);
+        console.error('Error hint:', dbError.hint);
+        console.error('Full error object:', JSON.stringify(dbError, null, 2));
+        
+        Alert.alert(
+          'Errore Database',
+          `Impossibile salvare il metodo di pagamento.\n\nCodice: ${dbError.code}\nMessaggio: ${dbError.message}\n\nContatta il supporto se il problema persiste.`
+        );
         setIsLoading(false);
         return;
       }
 
-      console.log('Payment method saved to database successfully:', insertedMethod);
+      console.log('=== PAYMENT METHOD SAVED SUCCESSFULLY ===');
+      console.log('Inserted method:', JSON.stringify(insertedMethod, null, 2));
 
       // Refresh payment methods from database
       await refreshPaymentMethods();
@@ -270,7 +309,9 @@ export default function AddPaymentMethodScreen() {
         ]
       );
     } catch (error: any) {
-      console.error('Error in proceedWithSave:', error);
+      console.error('=== ERROR IN proceedWithSave ===');
+      console.error('Error:', error);
+      console.error('Error message:', error.message);
       console.error('Error stack:', error.stack);
       Alert.alert('Errore', error.message || 'Impossibile salvare la carta');
       setIsLoading(false);
