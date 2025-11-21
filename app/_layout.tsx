@@ -6,7 +6,7 @@ import { Stack, router } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { SystemBars } from "react-native-edge-to-edge";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { useColorScheme, Alert, View, Text, StyleSheet, Animated, Platform } from "react-native";
+import { useColorScheme, Alert, View, Text, StyleSheet, Animated } from "react-native";
 import { useNetworkState } from "expo-network";
 import * as Linking from "expo-linking";
 import {
@@ -16,10 +16,10 @@ import {
   ThemeProvider,
 } from "@react-navigation/native";
 import { StatusBar } from "expo-status-bar";
-import { Button } from "@/components/button";
 import { WidgetProvider } from "@/contexts/WidgetContext";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { PaymentProvider } from "@/contexts/PaymentContext";
+import { SubscriptionProvider } from "@/contexts/SubscriptionContext";
 import { supabase } from "@/app/integrations/supabase/client";
 
 // Import font
@@ -31,9 +31,6 @@ SplashScreen.preventAutoHideAsync();
 export const unstable_settings = {
   initialRouteName: "login",
 };
-
-// Stripe Test Publishable Key
-const STRIPE_PUBLISHABLE_KEY = "pk_test_51SVuQlKzWSUQAh5P3T91A8guW6DgLWSTnGvlENlkzvFrUyEWs9MZNnGR0jY0By0n8WbWhoS7wdkpu7R87fNLZDGh00ESjWhShJ";
 
 // Enhanced Custom Splash Screen Component with improved animation
 function CustomSplashScreen({ onFinish }: { onFinish: () => void }) {
@@ -180,49 +177,6 @@ function CustomSplashScreen({ onFinish }: { onFinish: () => void }) {
   );
 }
 
-// Stripe Provider Wrapper Component
-function StripeProviderWrapper({ children }: { children: React.ReactNode }) {
-  const [StripeProvider, setStripeProvider] = useState<any>(null);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    // Only load Stripe on native platforms
-    if (Platform.OS !== 'web') {
-      import('@stripe/stripe-react-native')
-        .then((module) => {
-          console.log('Stripe module loaded successfully');
-          setStripeProvider(() => module.StripeProvider);
-          setIsLoading(false);
-        })
-        .catch((error) => {
-          console.error('Error loading Stripe module:', error);
-          setIsLoading(false);
-        });
-    } else {
-      // On web, skip Stripe loading
-      setIsLoading(false);
-    }
-  }, []);
-
-  if (isLoading) {
-    return null;
-  }
-
-  if (Platform.OS !== 'web' && StripeProvider) {
-    return (
-      <StripeProvider
-        publishableKey={STRIPE_PUBLISHABLE_KEY}
-        merchantIdentifier="merchant.com.dropmarket"
-        urlScheme="dropmarket"
-      >
-        {children}
-      </StripeProvider>
-    );
-  }
-
-  return <>{children}</>;
-}
-
 export default function RootLayout() {
   const colorScheme = useColorScheme();
   const networkState = useNetworkState();
@@ -352,78 +306,79 @@ export default function RootLayout() {
   return (
     <>
       <StatusBar style="auto" animated />
-      <StripeProviderWrapper>
-        <ThemeProvider
-          value={colorScheme === "dark" ? CustomDarkTheme : CustomDefaultTheme}
-        >
-          <AuthProvider>
-            <PaymentProvider>
+      <ThemeProvider
+        value={colorScheme === "dark" ? CustomDarkTheme : CustomDefaultTheme}
+      >
+        <AuthProvider>
+          <PaymentProvider>
+            <SubscriptionProvider>
               <WidgetProvider>
                 <GestureHandlerRootView>
-                <Stack>
-                {/* Login Screen */}
-                <Stack.Screen name="login" options={{ headerShown: false }} />
+                  <Stack>
+                    {/* Login Screen */}
+                    <Stack.Screen name="login" options={{ headerShown: false }} />
 
-                {/* Auth Screens */}
-                <Stack.Screen name="forgot-password" options={{ headerShown: false }} />
-                <Stack.Screen name="update-password" options={{ headerShown: false }} />
-                <Stack.Screen name="register/consumer" options={{ headerShown: false }} />
+                    {/* Auth Screens */}
+                    <Stack.Screen name="forgot-password" options={{ headerShown: false }} />
+                    <Stack.Screen name="update-password" options={{ headerShown: false }} />
+                    <Stack.Screen name="register/consumer" options={{ headerShown: false }} />
 
-                {/* Main app with tabs */}
-                <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                    {/* Main app with tabs */}
+                    <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
 
-                {/* Admin Screens */}
-                <Stack.Screen name="admin" options={{ headerShown: false }} />
+                    {/* Admin Screens */}
+                    <Stack.Screen name="admin" options={{ headerShown: false }} />
 
-                {/* Supplier Screens */}
-                <Stack.Screen name="supplier/dashboard" options={{ headerShown: false }} />
-                <Stack.Screen name="supplier/import-list" options={{ headerShown: false }} />
+                    {/* Supplier Screens */}
+                    <Stack.Screen name="supplier/dashboard" options={{ headerShown: false }} />
+                    <Stack.Screen name="supplier/import-list" options={{ headerShown: false }} />
 
-                {/* Pickup Point Screens */}
-                <Stack.Screen name="pickup-point" options={{ headerShown: false }} />
+                    {/* Pickup Point Screens */}
+                    <Stack.Screen name="pickup-point" options={{ headerShown: false }} />
 
-                {/* Drop Details */}
-                <Stack.Screen name="drop-details" options={{ headerShown: false }} />
+                    {/* Drop Details */}
+                    <Stack.Screen name="drop-details" options={{ headerShown: false }} />
 
-                {/* Profile Screens */}
-                <Stack.Screen name="edit-profile" options={{ headerShown: false }} />
+                    {/* Profile Screens */}
+                    <Stack.Screen name="edit-profile" options={{ headerShown: false }} />
 
-                {/* Payment Screens */}
-                <Stack.Screen name="add-payment-method" options={{ headerShown: false }} />
+                    {/* Payment Screens */}
+                    <Stack.Screen name="add-payment-method" options={{ headerShown: false }} />
+                    <Stack.Screen name="subscription-plans" options={{ headerShown: false }} />
 
-                {/* Modal Demo Screens */}
-                <Stack.Screen
-                  name="modal"
-                  options={{
-                    presentation: "modal",
-                    title: "Standard Modal",
-                  }}
-                />
-                <Stack.Screen
-                  name="formsheet"
-                  options={{
-                    presentation: "formSheet",
-                    title: "Form Sheet Modal",
-                    sheetGrabberVisible: true,
-                    sheetAllowedDetents: [0.5, 0.8, 1.0],
-                    sheetCornerRadius: 20,
-                  }}
-                />
-                <Stack.Screen
-                  name="transparent-modal"
-                  options={{
-                    presentation: "transparentModal",
-                    headerShown: false,
-                  }}
-                />
-                </Stack>
-                <SystemBars style={"auto"} />
+                    {/* Modal Demo Screens */}
+                    <Stack.Screen
+                      name="modal"
+                      options={{
+                        presentation: "modal",
+                        title: "Standard Modal",
+                      }}
+                    />
+                    <Stack.Screen
+                      name="formsheet"
+                      options={{
+                        presentation: "formSheet",
+                        title: "Form Sheet Modal",
+                        sheetGrabberVisible: true,
+                        sheetAllowedDetents: [0.5, 0.8, 1.0],
+                        sheetCornerRadius: 20,
+                      }}
+                    />
+                    <Stack.Screen
+                      name="transparent-modal"
+                      options={{
+                        presentation: "transparentModal",
+                        headerShown: false,
+                      }}
+                    />
+                  </Stack>
+                  <SystemBars style={"auto"} />
                 </GestureHandlerRootView>
               </WidgetProvider>
-            </PaymentProvider>
-          </AuthProvider>
-        </ThemeProvider>
-      </StripeProviderWrapper>
+            </SubscriptionProvider>
+          </PaymentProvider>
+        </AuthProvider>
+      </ThemeProvider>
     </>
   );
 }
