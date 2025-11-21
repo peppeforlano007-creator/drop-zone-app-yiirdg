@@ -358,6 +358,34 @@ export default function ProfileScreen() {
               style={styles.settingItem} 
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.push('/(tabs)/subscriptions');
+              }}
+            >
+              <View style={styles.settingContent}>
+                <IconSymbol ios_icon_name="star.circle.fill" android_material_icon_name="star" size={20} color={colors.text} />
+                <Text style={styles.settingText}>I Miei Abbonamenti</Text>
+              </View>
+              <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="chevron_right" size={20} color={colors.textSecondary} />
+            </Pressable>
+
+            <Pressable 
+              style={styles.settingItem} 
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.push('/(tabs)/payment-methods');
+              }}
+            >
+              <View style={styles.settingContent}>
+                <IconSymbol ios_icon_name="creditcard.fill" android_material_icon_name="credit_card" size={20} color={colors.text} />
+                <Text style={styles.settingText}>Metodi di Pagamento</Text>
+              </View>
+              <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="chevron_right" size={20} color={colors.textSecondary} />
+            </Pressable>
+
+            <Pressable 
+              style={styles.settingItem} 
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                 router.push('/(tabs)/my-data');
               }}
             >

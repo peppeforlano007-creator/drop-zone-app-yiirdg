@@ -21,6 +21,7 @@ import { Button } from "@/components/button";
 import { WidgetProvider } from "@/contexts/WidgetContext";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { PaymentProvider } from "@/contexts/PaymentContext";
+import { SubscriptionProvider } from "@/contexts/SubscriptionContext";
 import { supabase } from "@/app/integrations/supabase/client";
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
@@ -316,8 +317,9 @@ export default function RootLayout() {
         >
           <AuthProvider>
             <PaymentProvider>
-              <WidgetProvider>
-                <GestureHandlerRootView>
+              <SubscriptionProvider>
+                <WidgetProvider>
+                  <GestureHandlerRootView>
                 <Stack>
                 {/* Login Screen */}
                 <Stack.Screen name="login" options={{ headerShown: false }} />
@@ -349,6 +351,9 @@ export default function RootLayout() {
                 {/* Payment Screens */}
                 <Stack.Screen name="add-payment-method" options={{ headerShown: false }} />
 
+                {/* Subscription Screens */}
+                <Stack.Screen name="subscription-plans" options={{ headerShown: false }} />
+
                 {/* Modal Demo Screens */}
                 <Stack.Screen
                   name="modal"
@@ -376,8 +381,9 @@ export default function RootLayout() {
                 />
                 </Stack>
                 <SystemBars style={"auto"} />
-                </GestureHandlerRootView>
-              </WidgetProvider>
+                  </GestureHandlerRootView>
+                </WidgetProvider>
+              </SubscriptionProvider>
             </PaymentProvider>
           </AuthProvider>
         </ThemeProvider>
