@@ -43,7 +43,7 @@ export default function EnhancedProductCard({
   const [selectedColor, setSelectedColor] = useState<string | null>(null);
   const [descriptionExpanded, setDescriptionExpanded] = useState(false);
   const [descriptionHeight, setDescriptionHeight] = useState(0);
-  const { getDefaultPaymentMethod, authorizePayment } = usePayment();
+  const { getDefaultPaymentMethod, authorizePayment, hasPaymentMethod } = usePayment();
   
   // Animation values
   const scaleAnim = useRef(new Animated.Value(1)).current;
@@ -111,9 +111,11 @@ export default function EnhancedProductCard({
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     
     if (isInDrop && onBook) {
-      const defaultPaymentMethod = getDefaultPaymentMethod();
+      // Check if user has any payment method
+      const hasPayment = hasPaymentMethod();
+      console.log('Has payment method:', hasPayment);
       
-      if (!defaultPaymentMethod) {
+      if (!hasPayment) {
         Alert.alert(
           'Metodo di Pagamento Richiesto',
           'Devi aggiungere un metodo di pagamento prima di prenotare.',
@@ -128,9 +130,23 @@ export default function EnhancedProductCard({
         return;
       }
 
+      const defaultPaymentMethod = getDefaultPaymentMethod();
+      console.log('Default payment method:', defaultPaymentMethod);
+      
+      if (!defaultPaymentMethod) {
+        Alert.alert(
+          'Errore',
+          'Nessun metodo di pagamento predefinito trovato. Riprova.',
+          [
+            { text: 'OK' },
+          ]
+        );
+        return;
+      }
+
       Alert.alert(
         'Conferma Prenotazione',
-        `Vuoi prenotare ${product.name}?\n\nPrezzo attuale: €${discountedPrice.toFixed(2)} (-${discount.toFixed(1)}%)\n\nBlocchiamo €${originalPrice.toFixed(2)} sulla tua carta ${defaultPaymentMethod.brand} •••• ${defaultPaymentMethod.last4}.\n\nAlla fine del drop, addebiteremo solo l'importo finale con lo sconto raggiunto.`,
+        `Vuoi prenotare ${product.name}?\n\nPrezzo attuale: €${discountedPrice.toFixed(2)} (-${discount.toFixed(1)}%)\n\nBlocchiamo €${originalPrice.toFixed(2)} sulla tua carta ${defaultPaymentMethod.brand?.toUpperCase() || 'CARTA'} •••• ${defaultPaymentMethod.last4}.\n\nAlla fine del drop, addebiteremo solo l'importo finale con lo sconto raggiunto.`,
         [
           { text: 'Annulla', style: 'cancel' },
           {

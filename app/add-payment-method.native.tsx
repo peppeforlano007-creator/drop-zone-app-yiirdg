@@ -22,7 +22,7 @@ import * as Haptics from 'expo-haptics';
 import { CardField, useStripe } from '@stripe/stripe-react-native';
 
 export default function AddPaymentMethodScreen() {
-  const { addPaymentMethod, refreshPaymentMethods } = usePayment();
+  const { refreshPaymentMethods } = usePayment();
   const stripe = useStripe();
   
   const [cardholderName, setCardholderName] = useState('');
@@ -46,6 +46,7 @@ export default function AddPaymentMethodScreen() {
 
     try {
       console.log('Creating payment method with Stripe...');
+      console.log('Card details from CardField:', cardDetails);
       
       // Create payment method with Stripe
       const { paymentMethod, error } = await stripe.createPaymentMethod({
@@ -68,8 +69,8 @@ export default function AddPaymentMethodScreen() {
         return;
       }
 
-      console.log('Payment method created:', paymentMethod.id);
-      console.log('Card details:', paymentMethod.card);
+      console.log('Payment method created successfully:', paymentMethod.id);
+      console.log('Card details from Stripe:', paymentMethod.card);
 
       // Get current user
       const { data: { user } } = await supabase.auth.getUser();
@@ -79,19 +80,21 @@ export default function AddPaymentMethodScreen() {
         return;
       }
 
-      // Check if this payment method already exists
+      // Check if this exact payment method already exists (by stripe_payment_method_id)
       const { data: existingMethods, error: checkError } = await supabase
         .from('payment_methods')
-        .select('id')
+        .select('id, stripe_payment_method_id')
         .eq('user_id', user.id)
-        .eq('stripe_payment_method_id', paymentMethod.id);
+        .eq('stripe_payment_method_id', paymentMethod.id)
+        .eq('status', 'active');
 
       if (checkError) {
         console.error('Error checking existing methods:', checkError);
       }
 
       if (existingMethods && existingMethods.length > 0) {
-        Alert.alert('Errore', 'Questa carta è già stata aggiunta');
+        console.log('Payment method already exists:', existingMethods[0]);
+        Alert.alert('Carta già aggiunta', 'Questa carta è già stata aggiunta al tuo account');
         setIsLoading(false);
         return;
       }
@@ -108,6 +111,31 @@ export default function AddPaymentMethodScreen() {
       }
 
       const isFirstMethod = !userMethods || userMethods.length === 0;
+      console.log('Is first payment method:', isFirstMethod);
+
+      // Extract card details properly from Stripe response
+      const last4 = paymentMethod.card?.last4 || '';
+      const brand = paymentMethod.card?.brand || 'card';
+      const expMonth = paymentMethod.card?.expMonth || 0;
+      const expYear = paymentMethod.card?.expYear || 0;
+
+      console.log('Extracted card details:', { last4, brand, expMonth, expYear });
+
+      // Validate that we have the essential card details
+      if (!last4 || last4.length === 0) {
+        console.error('Missing last4 digits from Stripe response');
+        Alert.alert('Errore', 'Impossibile ottenere i dettagli della carta. Riprova.');
+        setIsLoading(false);
+        return;
+      }
+
+      // If this is the first method, unset any existing defaults (safety measure)
+      if (isFirstMethod) {
+        await supabase
+          .from('payment_methods')
+          .update({ is_default: false })
+          .eq('user_id', user.id);
+      }
 
       // Save payment method to database with proper card details
       const { data: insertedMethod, error: dbError } = await supabase
@@ -116,10 +144,10 @@ export default function AddPaymentMethodScreen() {
           user_id: user.id,
           stripe_payment_method_id: paymentMethod.id,
           type: 'card',
-          last4: paymentMethod.card?.last4 || '',
-          brand: paymentMethod.card?.brand || 'card',
-          exp_month: paymentMethod.card?.expMonth || 0,
-          exp_year: paymentMethod.card?.expYear || 0,
+          last4: last4,
+          brand: brand,
+          exp_month: expMonth,
+          exp_year: expYear,
           is_default: isFirstMethod,
           status: 'active',
         })
@@ -128,12 +156,12 @@ export default function AddPaymentMethodScreen() {
 
       if (dbError) {
         console.error('Database error:', dbError);
-        Alert.alert('Errore', 'Impossibile salvare il metodo di pagamento');
+        Alert.alert('Errore', 'Impossibile salvare il metodo di pagamento: ' + dbError.message);
         setIsLoading(false);
         return;
       }
 
-      console.log('Payment method saved to database:', insertedMethod);
+      console.log('Payment method saved to database successfully:', insertedMethod);
 
       // Refresh payment methods from database
       await refreshPaymentMethods();
@@ -143,7 +171,7 @@ export default function AddPaymentMethodScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert(
         'Carta Aggiunta',
-        'La tua carta è stata aggiunta con successo!',
+        `La tua carta ${brand.toUpperCase()} •••• ${last4} è stata aggiunta con successo!`,
         [
           {
             text: 'OK',

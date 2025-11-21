@@ -78,7 +78,14 @@ export function PaymentProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      const methods: PaymentMethod[] = (data || []).map(pm => ({
+      // Filter out invalid payment methods (missing essential data)
+      const validMethods = (data || []).filter(pm => {
+        const hasValidStripeId = pm.stripe_payment_method_id && pm.stripe_payment_method_id.length > 0;
+        const hasValidLast4 = pm.last4 && pm.last4.length > 0;
+        return hasValidStripeId && hasValidLast4;
+      });
+
+      const methods: PaymentMethod[] = validMethods.map(pm => ({
         id: pm.id,
         type: pm.type as 'card' | 'paypal' | 'bank_transfer',
         last4: pm.last4 || '',
@@ -89,7 +96,34 @@ export function PaymentProvider({ children }: { children: ReactNode }) {
         stripePaymentMethodId: pm.stripe_payment_method_id,
       }));
 
-      console.log('Loaded payment methods:', methods);
+      console.log('Loaded valid payment methods:', methods.length, 'out of', (data || []).length);
+      
+      // If we filtered out invalid methods, clean them up from the database
+      const invalidMethods = (data || []).filter(pm => {
+        const hasValidStripeId = pm.stripe_payment_method_id && pm.stripe_payment_method_id.length > 0;
+        const hasValidLast4 = pm.last4 && pm.last4.length > 0;
+        return !hasValidStripeId || !hasValidLast4;
+      });
+
+      if (invalidMethods.length > 0) {
+        console.log('Found', invalidMethods.length, 'invalid payment methods, marking as inactive');
+        const invalidIds = invalidMethods.map(pm => pm.id);
+        await supabase
+          .from('payment_methods')
+          .update({ status: 'inactive' })
+          .in('id', invalidIds);
+      }
+
+      // Ensure at least one method is default if we have methods
+      if (methods.length > 0 && !methods.some(m => m.isDefault)) {
+        console.log('No default payment method found, setting first as default');
+        await supabase
+          .from('payment_methods')
+          .update({ is_default: true })
+          .eq('id', methods[0].id);
+        methods[0].isDefault = true;
+      }
+
       setPaymentMethods(methods);
       setLoading(false);
     } catch (error) {
@@ -291,15 +325,10 @@ export function PaymentProvider({ children }: { children: ReactNode }) {
   };
 
   const hasPaymentMethod = () => {
-    // Check if there are any payment methods with valid card details
-    const validMethods = paymentMethods.filter(m => 
-      m.last4 && 
-      m.last4.length > 0 && 
-      m.stripePaymentMethodId && 
-      m.stripePaymentMethodId.length > 0
-    );
-    console.log('Checking for valid payment methods:', validMethods.length, 'out of', paymentMethods.length);
-    return validMethods.length > 0;
+    // Check if there are any valid payment methods
+    const hasValid = paymentMethods.length > 0;
+    console.log('Checking for valid payment methods:', hasValid, 'total:', paymentMethods.length);
+    return hasValid;
   };
 
   return (
