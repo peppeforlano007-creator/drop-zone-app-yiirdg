@@ -89,6 +89,7 @@ export function PaymentProvider({ children }: { children: ReactNode }) {
         stripePaymentMethodId: pm.stripe_payment_method_id,
       }));
 
+      console.log('Loaded payment methods:', methods);
       setPaymentMethods(methods);
       setLoading(false);
     } catch (error) {
@@ -116,6 +117,7 @@ export function PaymentProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const refreshPaymentMethods = async () => {
+    console.log('Refreshing payment methods...');
     await loadPaymentMethods();
   };
 
@@ -283,11 +285,21 @@ export function PaymentProvider({ children }: { children: ReactNode }) {
   };
 
   const getDefaultPaymentMethod = () => {
-    return paymentMethods.find(m => m.isDefault);
+    const defaultMethod = paymentMethods.find(m => m.isDefault);
+    console.log('Getting default payment method:', defaultMethod);
+    return defaultMethod;
   };
 
   const hasPaymentMethod = () => {
-    return paymentMethods.length > 0;
+    // Check if there are any payment methods with valid card details
+    const validMethods = paymentMethods.filter(m => 
+      m.last4 && 
+      m.last4.length > 0 && 
+      m.stripePaymentMethodId && 
+      m.stripePaymentMethodId.length > 0
+    );
+    console.log('Checking for valid payment methods:', validMethods.length, 'out of', paymentMethods.length);
+    return validMethods.length > 0;
   };
 
   return (

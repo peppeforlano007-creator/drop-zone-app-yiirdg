@@ -22,7 +22,7 @@ import * as Haptics from 'expo-haptics';
 import { CardField, useStripe } from '@stripe/stripe-react-native';
 
 export default function AddPaymentMethodScreen() {
-  const { addPaymentMethod } = usePayment();
+  const { addPaymentMethod, refreshPaymentMethods } = usePayment();
   const stripe = useStripe();
   
   const [cardholderName, setCardholderName] = useState('');
@@ -69,6 +69,7 @@ export default function AddPaymentMethodScreen() {
       }
 
       console.log('Payment method created:', paymentMethod.id);
+      console.log('Card details:', paymentMethod.card);
 
       // Get current user
       const { data: { user } } = await supabase.auth.getUser();
@@ -78,8 +79,38 @@ export default function AddPaymentMethodScreen() {
         return;
       }
 
-      // Save payment method to database
-      const { error: dbError } = await supabase
+      // Check if this payment method already exists
+      const { data: existingMethods, error: checkError } = await supabase
+        .from('payment_methods')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('stripe_payment_method_id', paymentMethod.id);
+
+      if (checkError) {
+        console.error('Error checking existing methods:', checkError);
+      }
+
+      if (existingMethods && existingMethods.length > 0) {
+        Alert.alert('Errore', 'Questa carta è già stata aggiunta');
+        setIsLoading(false);
+        return;
+      }
+
+      // Check if user has any payment methods to determine if this should be default
+      const { data: userMethods, error: countError } = await supabase
+        .from('payment_methods')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('status', 'active');
+
+      if (countError) {
+        console.error('Error counting user methods:', countError);
+      }
+
+      const isFirstMethod = !userMethods || userMethods.length === 0;
+
+      // Save payment method to database with proper card details
+      const { data: insertedMethod, error: dbError } = await supabase
         .from('payment_methods')
         .insert({
           user_id: user.id,
@@ -89,8 +120,11 @@ export default function AddPaymentMethodScreen() {
           brand: paymentMethod.card?.brand || 'card',
           exp_month: paymentMethod.card?.expMonth || 0,
           exp_year: paymentMethod.card?.expYear || 0,
-          is_default: false,
-        });
+          is_default: isFirstMethod,
+          status: 'active',
+        })
+        .select()
+        .single();
 
       if (dbError) {
         console.error('Database error:', dbError);
@@ -99,19 +133,11 @@ export default function AddPaymentMethodScreen() {
         return;
       }
 
-      // Add to local context
-      const newPaymentMethod = {
-        id: paymentMethod.id,
-        type: 'card' as const,
-        last4: paymentMethod.card?.last4 || '',
-        brand: paymentMethod.card?.brand || 'card',
-        expiryMonth: paymentMethod.card?.expMonth || 0,
-        expiryYear: paymentMethod.card?.expYear || 0,
-        isDefault: false,
-        stripePaymentMethodId: paymentMethod.id,
-      };
+      console.log('Payment method saved to database:', insertedMethod);
 
-      addPaymentMethod(newPaymentMethod);
+      // Refresh payment methods from database
+      await refreshPaymentMethods();
+      
       setIsLoading(false);
       
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
