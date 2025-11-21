@@ -62,8 +62,8 @@ export function PaymentProvider({ children }: { children: ReactNode }) {
       return false;
     }
 
-    // Must have valid last4 digits (exactly 4 digits)
-    if (!pm.card_last4 || pm.card_last4.length !== 4) {
+    // Must have valid last4 digits (at least 4 characters, we'll normalize it)
+    if (!pm.card_last4 || pm.card_last4.length < 4) {
       console.log('Invalid payment method: invalid card_last4', pm.id, pm.card_last4);
       return false;
     }
@@ -77,6 +77,12 @@ export function PaymentProvider({ children }: { children: ReactNode }) {
     // Must have valid expiry data
     if (!pm.card_exp_month || !pm.card_exp_year) {
       console.log('Invalid payment method: missing expiry data', pm.id);
+      return false;
+    }
+
+    // Validate expiry month is between 1 and 12
+    if (pm.card_exp_month < 1 || pm.card_exp_month > 12) {
+      console.log('Invalid payment method: invalid expiry month', pm.id, pm.card_exp_month);
       return false;
     }
 
@@ -124,7 +130,7 @@ export function PaymentProvider({ children }: { children: ReactNode }) {
 
       const methods: PaymentMethod[] = validMethods.map(pm => ({
         id: pm.id,
-        last4: pm.card_last4,
+        last4: pm.card_last4?.slice(-4), // Ensure we only take last 4 digits
         brand: pm.card_brand,
         expiryMonth: pm.card_exp_month,
         expiryYear: pm.card_exp_year,

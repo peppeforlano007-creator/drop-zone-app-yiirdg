@@ -46,7 +46,7 @@ export default function AddPaymentMethodScreen() {
 
     try {
       console.log('Creating payment method with Stripe...');
-      console.log('Card details from CardField:', cardDetails);
+      console.log('Card details from CardField:', JSON.stringify(cardDetails, null, 2));
       
       // Create payment method with Stripe
       const { paymentMethod, error } = await stripe.createPaymentMethod({
@@ -70,7 +70,7 @@ export default function AddPaymentMethodScreen() {
       }
 
       console.log('Payment method created successfully:', paymentMethod.id);
-      console.log('Card details from Stripe:', paymentMethod.card);
+      console.log('Full payment method object:', JSON.stringify(paymentMethod, null, 2));
 
       // Get current user
       const { data: { user } } = await supabase.auth.getUser();
@@ -99,18 +99,62 @@ export default function AddPaymentMethodScreen() {
         return;
       }
 
-      // Extract card details properly from Stripe response
-      const last4 = paymentMethod.card?.last4 || '';
-      const brand = paymentMethod.card?.brand || 'card';
-      const expMonth = paymentMethod.card?.expMonth || 0;
-      const expYear = paymentMethod.card?.expYear || 0;
+      // Extract card details from multiple possible sources
+      // The Stripe SDK can return card details in different formats
+      let last4 = '';
+      let brand = 'card';
+      let expMonth = 0;
+      let expYear = 0;
+
+      // Try to get from paymentMethod.Card (capital C)
+      if (paymentMethod.Card) {
+        console.log('Found Card object (capital C):', JSON.stringify(paymentMethod.Card, null, 2));
+        last4 = paymentMethod.Card.last4 || '';
+        brand = paymentMethod.Card.brand || 'card';
+        expMonth = paymentMethod.Card.expMonth || 0;
+        expYear = paymentMethod.Card.expYear || 0;
+      }
+      // Try to get from paymentMethod.card (lowercase c)
+      else if (paymentMethod.card) {
+        console.log('Found card object (lowercase c):', JSON.stringify(paymentMethod.card, null, 2));
+        last4 = paymentMethod.card.last4 || '';
+        brand = paymentMethod.card.brand || 'card';
+        expMonth = paymentMethod.card.expMonth || 0;
+        expYear = paymentMethod.card.expYear || 0;
+      }
+      // Fallback to cardDetails from CardField
+      else if (cardDetails) {
+        console.log('Using cardDetails from CardField as fallback');
+        last4 = cardDetails.last4 || '';
+        brand = cardDetails.brand || 'card';
+        expMonth = cardDetails.expiryMonth || 0;
+        expYear = cardDetails.expiryYear || 0;
+      }
 
       console.log('Extracted card details:', { last4, brand, expMonth, expYear });
 
       // Validate that we have the essential card details
-      if (!last4 || last4.length !== 4) {
-        console.error('Invalid last4 digits from Stripe response:', last4);
-        Alert.alert('Errore', 'Impossibile ottenere i dettagli della carta. Riprova.');
+      if (!last4 || last4.length < 4) {
+        console.error('Invalid or missing last4 digits. Full paymentMethod:', JSON.stringify(paymentMethod, null, 2));
+        console.error('CardDetails:', JSON.stringify(cardDetails, null, 2));
+        Alert.alert(
+          'Errore',
+          'Impossibile ottenere i dettagli della carta. Riprova.\n\nDettagli tecnici: last4 non valido o mancante'
+        );
+        setIsLoading(false);
+        return;
+      }
+
+      // Ensure last4 is exactly 4 digits (trim if longer, pad if shorter)
+      last4 = last4.slice(-4).padStart(4, '0');
+
+      // Validate expiry data
+      if (!expMonth || !expYear || expMonth < 1 || expMonth > 12) {
+        console.error('Invalid expiry data:', { expMonth, expYear });
+        Alert.alert(
+          'Errore',
+          'Impossibile ottenere la data di scadenza della carta. Riprova.'
+        );
         setIsLoading(false);
         return;
       }
@@ -145,6 +189,7 @@ export default function AddPaymentMethodScreen() {
       await proceedWithSave(user.id, paymentMethod.id, last4, brand, expMonth, expYear);
     } catch (error: any) {
       console.error('Error adding card:', error);
+      console.error('Error stack:', error.stack);
       Alert.alert('Errore', error.message || 'Impossibile aggiungere la carta');
       setIsLoading(false);
     }
@@ -159,6 +204,8 @@ export default function AddPaymentMethodScreen() {
     expYear: number
   ) => {
     try {
+      console.log('Proceeding with save:', { userId, stripePaymentMethodId, last4, brand, expMonth, expYear });
+
       // Check if user has any payment methods to determine if this should be default
       const { data: userMethods, error: countError } = await supabase
         .from('payment_methods')
@@ -224,6 +271,7 @@ export default function AddPaymentMethodScreen() {
       );
     } catch (error: any) {
       console.error('Error in proceedWithSave:', error);
+      console.error('Error stack:', error.stack);
       Alert.alert('Errore', error.message || 'Impossibile salvare la carta');
       setIsLoading(false);
     }
@@ -298,7 +346,7 @@ export default function AddPaymentMethodScreen() {
                   }}
                   style={styles.cardField}
                   onCardChange={(details) => {
-                    console.log('Card details changed:', details);
+                    console.log('Card details changed:', JSON.stringify(details, null, 2));
                     setCardDetails(details);
                   }}
                 />
