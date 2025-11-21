@@ -8,6 +8,7 @@
     "icon": "./assets/images/natively-dark.png",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
+    "scheme": "dropmarket",
     "splash": {
       "image": "./assets/images/natively-dark.png",
       "resizeMode": "contain",
@@ -76,6 +77,5 @@
     "privacy": "public",
     "description": "Drop Zone - Social e-commerce con sconti progressivi basati su prenotazioni collettive",
     "githubUrl": "https://github.com/your-username/drop-zone"
-  },
-  "scheme": "dropzone"
+  }
 }
