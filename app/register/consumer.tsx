@@ -38,6 +38,11 @@ export default function ConsumerRegisterScreen() {
   const [loadingPickupPoints, setLoadingPickupPoints] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  
+  // Legal consents
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [acceptedPrivacy, setAcceptedPrivacy] = useState(false);
+  const [acceptedMarketing, setAcceptedMarketing] = useState(false);
 
   useEffect(() => {
     loadPickupPoints();
@@ -136,6 +141,23 @@ export default function ConsumerRegisterScreen() {
       return;
     }
 
+    // Check legal consents
+    if (!acceptedTerms) {
+      Alert.alert(
+        'Termini e Condizioni',
+        'Devi accettare i Termini e Condizioni per registrarti'
+      );
+      return;
+    }
+
+    if (!acceptedPrivacy) {
+      Alert.alert(
+        'Privacy Policy',
+        'Devi accettare la Privacy Policy per registrarti'
+      );
+      return;
+    }
+
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setLoading(true);
 
@@ -176,6 +198,27 @@ export default function ConsumerRegisterScreen() {
       }
 
       console.log('User registered successfully:', authData.user.id);
+      
+      // Save user consents
+      try {
+        const { error: consentError } = await supabase
+          .from('user_consents')
+          .insert({
+            user_id: authData.user.id,
+            terms_accepted: acceptedTerms,
+            privacy_accepted: acceptedPrivacy,
+            marketing_accepted: acceptedMarketing,
+            consent_date: new Date().toISOString(),
+          });
+
+        if (consentError) {
+          console.error('Error saving consents:', consentError);
+          // Non-blocking error - user is already registered
+        }
+      } catch (consentException) {
+        console.error('Exception saving consents:', consentException);
+        // Non-blocking error
+      }
       
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       
@@ -427,6 +470,106 @@ export default function ConsumerRegisterScreen() {
                 </View>
               )}
 
+              {/* Legal Consents Section */}
+              <View style={styles.legalSection}>
+                <Text style={styles.legalSectionTitle}>Consensi Obbligatori</Text>
+                
+                <Pressable
+                  style={styles.consentItem}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setAcceptedTerms(!acceptedTerms);
+                  }}
+                  disabled={loading}
+                >
+                  <View style={styles.checkbox}>
+                    {acceptedTerms && (
+                      <IconSymbol
+                        ios_icon_name="checkmark"
+                        android_material_icon_name="check"
+                        size={18}
+                        color={colors.primary}
+                      />
+                    )}
+                  </View>
+                  <Text style={styles.consentText}>
+                    Accetto i{' '}
+                    <Text
+                      style={styles.consentLink}
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        router.push('/legal/terms-conditions');
+                      }}
+                    >
+                      Termini e Condizioni
+                    </Text>
+                    {' '}*
+                  </Text>
+                </Pressable>
+
+                <Pressable
+                  style={styles.consentItem}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setAcceptedPrivacy(!acceptedPrivacy);
+                  }}
+                  disabled={loading}
+                >
+                  <View style={styles.checkbox}>
+                    {acceptedPrivacy && (
+                      <IconSymbol
+                        ios_icon_name="checkmark"
+                        android_material_icon_name="check"
+                        size={18}
+                        color={colors.primary}
+                      />
+                    )}
+                  </View>
+                  <Text style={styles.consentText}>
+                    Accetto la{' '}
+                    <Text
+                      style={styles.consentLink}
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        router.push('/legal/privacy-policy');
+                      }}
+                    >
+                      Privacy Policy
+                    </Text>
+                    {' '}e il trattamento dei miei dati personali *
+                  </Text>
+                </Pressable>
+
+                <Text style={styles.legalSectionTitle}>Consensi Facoltativi</Text>
+
+                <Pressable
+                  style={styles.consentItem}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setAcceptedMarketing(!acceptedMarketing);
+                  }}
+                  disabled={loading}
+                >
+                  <View style={styles.checkbox}>
+                    {acceptedMarketing && (
+                      <IconSymbol
+                        ios_icon_name="checkmark"
+                        android_material_icon_name="check"
+                        size={18}
+                        color={colors.primary}
+                      />
+                    )}
+                  </View>
+                  <Text style={styles.consentText}>
+                    Acconsento a ricevere comunicazioni promozionali e newsletter
+                  </Text>
+                </Pressable>
+
+                <Text style={styles.requiredNote}>* Campi obbligatori</Text>
+              </View>
+
               <Pressable
                 style={({ pressed }) => [
                   styles.registerButton,
@@ -624,6 +767,54 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.text,
     lineHeight: 20,
+  },
+  legalSection: {
+    backgroundColor: colors.card,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  legalSectionTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: 12,
+    marginTop: 8,
+  },
+  consentItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 16,
+    gap: 12,
+  },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 2,
+  },
+  consentText: {
+    flex: 1,
+    fontSize: 14,
+    color: colors.text,
+    lineHeight: 20,
+  },
+  consentLink: {
+    color: colors.primary,
+    fontWeight: '600',
+    textDecorationLine: 'underline',
+  },
+  requiredNote: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    fontStyle: 'italic',
+    marginTop: 4,
   },
   registerButton: {
     flexDirection: 'row',

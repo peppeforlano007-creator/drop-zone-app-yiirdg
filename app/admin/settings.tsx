@@ -521,6 +521,42 @@ export default function SettingsScreen() {
             </View>
           </View>
 
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Conformità Legale</Text>
+            
+            <Pressable
+              style={({ pressed }) => [
+                styles.legalManagementButton,
+                pressed && styles.legalManagementButtonPressed,
+              ]}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.push('/admin/legal-documents');
+              }}
+            >
+              <View style={styles.legalManagementContent}>
+                <IconSymbol
+                  ios_icon_name="doc.text.fill"
+                  android_material_icon_name="description"
+                  size={24}
+                  color={colors.primary}
+                />
+                <View style={styles.legalManagementText}>
+                  <Text style={styles.legalManagementTitle}>Gestisci Documenti Legali</Text>
+                  <Text style={styles.legalManagementDescription}>
+                    Privacy Policy, Termini e Condizioni, Cookie Policy
+                  </Text>
+                </View>
+              </View>
+              <IconSymbol
+                ios_icon_name="chevron.right"
+                android_material_icon_name="chevron_right"
+                size={20}
+                color={colors.textSecondary}
+              />
+            </Pressable>
+          </View>
+
           <View style={styles.dangerZone}>
             <Text style={styles.dangerZoneTitle}>Zona Pericolosa</Text>
             
@@ -825,5 +861,38 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: '#fff',
+  },
+  legalManagementButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: colors.card,
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  legalManagementButtonPressed: {
+    opacity: 0.7,
+  },
+  legalManagementContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+  },
+  legalManagementText: {
+    flex: 1,
+  },
+  legalManagementTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 4,
+  },
+  legalManagementDescription: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    lineHeight: 18,
   },
 });

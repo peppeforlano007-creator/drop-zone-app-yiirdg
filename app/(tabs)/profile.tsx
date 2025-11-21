@@ -356,6 +356,20 @@ export default function ProfileScreen() {
 
             <Pressable 
               style={styles.settingItem} 
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.push('/(tabs)/my-data');
+              }}
+            >
+              <View style={styles.settingContent}>
+                <IconSymbol ios_icon_name="shield.fill" android_material_icon_name="shield" size={20} color={colors.text} />
+                <Text style={styles.settingText}>I Miei Dati (GDPR)</Text>
+              </View>
+              <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="chevron_right" size={20} color={colors.textSecondary} />
+            </Pressable>
+
+            <Pressable 
+              style={styles.settingItem} 
               onPress={handleSupport}
               disabled={loadingWhatsapp}
             >
