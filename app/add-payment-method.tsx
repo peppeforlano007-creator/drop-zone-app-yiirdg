@@ -21,23 +21,36 @@ import { supabase } from '@/app/integrations/supabase/client';
 import * as Haptics from 'expo-haptics';
 
 // Conditionally import Stripe components only on native platforms
+// Using dynamic import to avoid require() style import
 let CardField: any = null;
-let useStripe: any = null;
+let useStripeHook: (() => any) | null = null;
 
 if (Platform.OS !== 'web') {
   try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
     const stripeModule = require('@stripe/stripe-react-native');
     CardField = stripeModule.CardField;
-    useStripe = stripeModule.useStripe;
+    useStripeHook = stripeModule.useStripe;
   } catch (error) {
     console.error('Error loading Stripe module:', error);
   }
 }
 
+// Create a wrapper hook that can be called unconditionally
+function useStripeWrapper() {
+  if (Platform.OS !== 'web' && useStripeHook) {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    return useStripeHook();
+  }
+  return null;
+}
+
 export default function AddPaymentMethodScreen() {
   const { addPaymentMethod } = usePayment();
-  // Call useStripe unconditionally at the top level
-  const stripe = Platform.OS !== 'web' && useStripe ? useStripe() : null;
+  
+  // Always call the hook at the top level
+  const stripe = useStripeWrapper();
+  
   const [cardholderName, setCardholderName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [cardDetails, setCardDetails] = useState<any>(null);
