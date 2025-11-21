@@ -16,6 +16,7 @@ import {
 import { supabase } from '@/app/integrations/supabase/client';
 import { errorHandler, ErrorCategory, ErrorSeverity } from '@/utils/errorHandler';
 import { logDropActivity } from '@/utils/activityLogger';
+import { getPlatformSettings } from '@/utils/dropHelpers';
 
 interface SupplierList {
   id: string;
@@ -157,6 +158,7 @@ export default function CreateDropScreen() {
   const [pickupPoints, setPickupPoints] = useState<PickupPoint[]>([]);
   const [selectedList, setSelectedList] = useState<string | null>(null);
   const [selectedPickupPoint, setSelectedPickupPoint] = useState<string | null>(null);
+  const [dropDurationDays, setDropDurationDays] = useState(5); // Default value
 
   useEffect(() => {
     loadData();
@@ -165,6 +167,11 @@ export default function CreateDropScreen() {
   const loadData = async () => {
     try {
       setLoading(true);
+
+      // Load platform settings
+      const platformSettings = await getPlatformSettings();
+      setDropDurationDays(platformSettings.dropDurationDays);
+      console.log('Drop duration loaded from settings:', platformSettings.dropDurationDays);
 
       // Load supplier lists - load separately to avoid RLS issues
       const { data: lists, error: listsError } = await supabase
@@ -245,7 +252,7 @@ export default function CreateDropScreen() {
 
     Alert.alert(
       'Conferma Creazione Drop',
-      `Vuoi creare un drop per:\n\nLista: ${list.name}\nPunto di Ritiro: ${point.name} (${point.city})\n\nIl drop partirà con sconto ${list.min_discount}% e durerà 5 giorni.`,
+      `Vuoi creare un drop per:\n\nLista: ${list.name}\nPunto di Ritiro: ${point.name} (${point.city})\n\nIl drop partirà con sconto ${list.min_discount}% e durerà ${dropDurationDays} ${dropDurationDays === 1 ? 'giorno' : 'giorni'}.`,
       [
         { text: 'Annulla', style: 'cancel' },
         {
@@ -258,9 +265,9 @@ export default function CreateDropScreen() {
               // Get current user for approved_by field
               const { data: { user } } = await supabase.auth.getUser();
 
-              // Calculate end time (5 days from now)
+              // Calculate end time using the configured duration
               const endTime = new Date();
-              endTime.setDate(endTime.getDate() + 5);
+              endTime.setDate(endTime.getDate() + dropDurationDays);
 
               // Create drop with 'approved' status (ready to be activated)
               const { data: drop, error: dropError } = await supabase
@@ -295,7 +302,7 @@ export default function CreateDropScreen() {
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
               Alert.alert(
                 'Drop Creato!',
-                `Il drop "${drop.name}" è stato creato con successo.\n\nStato: Approvato (pronto per l'attivazione)\nSconto iniziale: ${list.min_discount}%\nSconto massimo: ${list.max_discount}%\nDurata: 5 giorni`,
+                `Il drop "${drop.name}" è stato creato con successo.\n\nStato: Approvato (pronto per l'attivazione)\nSconto iniziale: ${list.min_discount}%\nSconto massimo: ${list.max_discount}%\nDurata: ${dropDurationDays} ${dropDurationDays === 1 ? 'giorno' : 'giorni'}`,
                 [
                   {
                     text: 'OK',
@@ -416,7 +423,7 @@ export default function CreateDropScreen() {
 
         <View style={styles.infoBox}>
           <Text style={styles.infoText}>
-            💡 Il drop verrà creato con stato "Approvato" e potrà essere attivato dalla sezione Gestione Drops. Durerà 5 giorni dalla data di attivazione.
+            💡 Il drop verrà creato con stato "Approvato" e potrà essere attivato dalla sezione Gestione Drops. Durerà {dropDurationDays} {dropDurationDays === 1 ? 'giorno' : 'giorni'} dalla data di attivazione.
           </Text>
         </View>
 

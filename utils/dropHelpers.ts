@@ -2,6 +2,52 @@
 import { supabase } from '@/app/integrations/supabase/client';
 
 /**
+ * Get platform settings from the database
+ */
+export async function getPlatformSettings(): Promise<{
+  dropDurationDays: number;
+  minDropValue: number;
+  maxDropValue: number;
+  platformCommissionRate: number;
+}> {
+  try {
+    const { data: settings, error } = await supabase
+      .from('app_settings')
+      .select('setting_key, setting_value')
+      .in('setting_key', ['drop_duration_days', 'min_drop_value', 'max_drop_value', 'platform_commission_rate']);
+
+    if (error) {
+      console.error('Error loading platform settings:', error);
+      // Return defaults
+      return {
+        dropDurationDays: 5,
+        minDropValue: 5000,
+        maxDropValue: 30000,
+        platformCommissionRate: 10,
+      };
+    }
+
+    const settingsMap = new Map(settings?.map(s => [s.setting_key, s.setting_value]) || []);
+
+    return {
+      dropDurationDays: parseInt(settingsMap.get('drop_duration_days') || '5'),
+      minDropValue: parseInt(settingsMap.get('min_drop_value') || '5000'),
+      maxDropValue: parseInt(settingsMap.get('max_drop_value') || '30000'),
+      platformCommissionRate: parseInt(settingsMap.get('platform_commission_rate') || '10'),
+    };
+  } catch (error) {
+    console.error('Exception loading platform settings:', error);
+    // Return defaults
+    return {
+      dropDurationDays: 5,
+      minDropValue: 5000,
+      maxDropValue: 30000,
+      platformCommissionRate: 10,
+    };
+  }
+}
+
+/**
  * Check for drops that have expired and didn't reach minimum value
  * This should be called periodically (e.g., every hour) or when viewing drop management
  */

@@ -22,6 +22,7 @@ import { supabase } from '@/app/integrations/supabase/client';
 import * as DocumentPicker from 'expo-document-picker';
 import * as XLSX from 'xlsx';
 import ExcelFormatGuide from '@/components/ExcelFormatGuide';
+import { getPlatformSettings } from '@/utils/dropHelpers';
 
 interface Supplier {
   user_id: string;
@@ -61,7 +62,26 @@ export default function CreateListScreen() {
 
   useEffect(() => {
     loadSuppliers();
+    loadPlatformSettings();
   }, []);
+
+  const loadPlatformSettings = async () => {
+    try {
+      const settings = await getPlatformSettings();
+      
+      // Set default values from platform settings
+      setMinReservationValue(settings.minDropValue.toString());
+      setMaxReservationValue(settings.maxDropValue.toString());
+      
+      console.log('Platform settings loaded:', {
+        minDropValue: settings.minDropValue,
+        maxDropValue: settings.maxDropValue,
+      });
+    } catch (error) {
+      console.error('Error loading platform settings:', error);
+      // Keep the hardcoded defaults if loading fails
+    }
+  };
 
   const loadSuppliers = async () => {
     try {
@@ -751,6 +771,18 @@ export default function CreateListScreen() {
                 </View>
               </View>
 
+              <View style={styles.settingsHintBox}>
+                <IconSymbol
+                  ios_icon_name="info.circle.fill"
+                  android_material_icon_name="info"
+                  size={16}
+                  color={colors.info}
+                />
+                <Text style={styles.settingsHintText}>
+                  I valori predefiniti provengono dalle impostazioni della piattaforma. Puoi modificarli per questa lista specifica.
+                </Text>
+              </View>
+
               <Text style={styles.requiredNote}>* Campi obbligatori</Text>
 
               <Pressable 
@@ -1081,5 +1113,20 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.textSecondary,
     fontWeight: '600',
+  },
+  settingsHintBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: colors.info + '15',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+    gap: 8,
+  },
+  settingsHintText: {
+    flex: 1,
+    fontSize: 12,
+    color: colors.textSecondary,
+    lineHeight: 16,
   },
 });

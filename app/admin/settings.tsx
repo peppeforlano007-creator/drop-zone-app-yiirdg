@@ -55,25 +55,35 @@ export default function SettingsScreen() {
     try {
       setLoading(true);
       
-      // Load WhatsApp support number from database
-      const { data: whatsappData, error: whatsappError } = await supabase
+      // Load all settings from database
+      const { data: allSettings, error: settingsError } = await supabase
         .from('app_settings')
-        .select('setting_value')
-        .eq('setting_key', 'whatsapp_support_number')
-        .maybeSingle();
+        .select('setting_key, setting_value');
 
-      if (whatsappError) {
-        console.error('Error loading WhatsApp number:', whatsappError);
+      if (settingsError) {
+        console.error('Error loading settings:', settingsError);
         Alert.alert(
           'Attenzione',
-          'Impossibile caricare il numero WhatsApp dal database. Verrà utilizzato il valore predefinito.'
+          'Impossibile caricare le impostazioni dal database. Verranno utilizzati i valori predefiniti.'
         );
-      } else if (whatsappData) {
+      } else if (allSettings) {
+        const settingsMap = new Map(allSettings.map(s => [s.setting_key, s.setting_value]));
+        
         setSettings(prev => ({
           ...prev,
-          whatsapp_support_number: whatsappData.setting_value,
+          whatsapp_support_number: settingsMap.get('whatsapp_support_number') || prev.whatsapp_support_number,
+          drop_duration_days: parseInt(settingsMap.get('drop_duration_days') || String(prev.drop_duration_days)),
+          min_drop_value: parseInt(settingsMap.get('min_drop_value') || String(prev.min_drop_value)),
+          max_drop_value: parseInt(settingsMap.get('max_drop_value') || String(prev.max_drop_value)),
+          platform_commission_rate: parseInt(settingsMap.get('platform_commission_rate') || String(prev.platform_commission_rate)),
         }));
-        console.log('WhatsApp number loaded:', whatsappData.setting_value);
+        
+        console.log('Settings loaded from database:', {
+          whatsapp: settingsMap.get('whatsapp_support_number'),
+          drop_duration: settingsMap.get('drop_duration_days'),
+          min_value: settingsMap.get('min_drop_value'),
+          max_value: settingsMap.get('max_drop_value'),
+        });
       }
     } catch (error) {
       console.error('Exception loading settings:', error);
@@ -86,10 +96,35 @@ export default function SettingsScreen() {
   const handleSaveSettings = async () => {
     // Validate WhatsApp number format
     const phoneRegex = /^[0-9]{10,15}$/;
-    if (!phoneRegex.test(settings.whatsapp_support_number)) {
+    if (settings.whatsapp_support_number && !phoneRegex.test(settings.whatsapp_support_number)) {
       Alert.alert(
         'Errore di Validazione',
         'Il numero WhatsApp deve contenere solo cifre (10-15 caratteri) senza spazi o simboli.\n\nEsempio: 393123456789'
+      );
+      return;
+    }
+
+    // Validate drop settings
+    if (settings.drop_duration_days < 1 || settings.drop_duration_days > 30) {
+      Alert.alert(
+        'Errore di Validazione',
+        'La durata del drop deve essere tra 1 e 30 giorni'
+      );
+      return;
+    }
+
+    if (settings.min_drop_value < 0 || settings.max_drop_value < 0) {
+      Alert.alert(
+        'Errore di Validazione',
+        'I valori minimi e massimi del drop devono essere positivi'
+      );
+      return;
+    }
+
+    if (settings.min_drop_value >= settings.max_drop_value) {
+      Alert.alert(
+        'Errore di Validazione',
+        'Il valore minimo del drop deve essere inferiore al valore massimo'
       );
       return;
     }
@@ -105,87 +140,101 @@ export default function SettingsScreen() {
           onPress: async () => {
             try {
               setSaving(true);
-              console.log('Saving WhatsApp number:', settings.whatsapp_support_number);
+              console.log('Saving settings:', settings);
 
-              // Check if the setting exists
-              const { data: existingData, error: checkError } = await supabase
-                .from('app_settings')
-                .select('id')
-                .eq('setting_key', 'whatsapp_support_number')
-                .maybeSingle();
+              // Define all settings to save
+              const settingsToSave = [
+                {
+                  key: 'whatsapp_support_number',
+                  value: settings.whatsapp_support_number,
+                  description: 'Numero WhatsApp per il supporto clienti (formato: codice paese + numero senza + o spazi)',
+                },
+                {
+                  key: 'drop_duration_days',
+                  value: String(settings.drop_duration_days),
+                  description: 'Durata predefinita di un drop in giorni',
+                },
+                {
+                  key: 'min_drop_value',
+                  value: String(settings.min_drop_value),
+                  description: 'Valore minimo per attivare un drop (in euro)',
+                },
+                {
+                  key: 'max_drop_value',
+                  value: String(settings.max_drop_value),
+                  description: 'Valore massimo per un drop (in euro)',
+                },
+                {
+                  key: 'platform_commission_rate',
+                  value: String(settings.platform_commission_rate),
+                  description: 'Percentuale di commissione della piattaforma',
+                },
+              ];
 
-              if (checkError) {
-                console.error('Error checking existing setting:', checkError);
-                throw new Error(`Errore durante la verifica delle impostazioni esistenti: ${checkError.message}`);
-              }
-
-              let saveError;
-
-              if (existingData) {
-                // Update existing setting
-                console.log('Updating existing setting with id:', existingData.id);
-                const { error } = await supabase
+              // Save each setting
+              for (const setting of settingsToSave) {
+                // Check if the setting exists
+                const { data: existingData, error: checkError } = await supabase
                   .from('app_settings')
-                  .update({ 
-                    setting_value: settings.whatsapp_support_number,
-                    updated_at: new Date().toISOString()
-                  })
-                  .eq('setting_key', 'whatsapp_support_number');
-                
-                saveError = error;
-              } else {
-                // Insert new setting
-                console.log('Inserting new setting...');
-                const { error } = await supabase
-                  .from('app_settings')
-                  .insert({
-                    setting_key: 'whatsapp_support_number',
-                    setting_value: settings.whatsapp_support_number,
-                    description: 'Numero WhatsApp per il supporto clienti (formato: codice paese + numero senza + o spazi)',
-                  });
-                
-                saveError = error;
+                  .select('id')
+                  .eq('setting_key', setting.key)
+                  .maybeSingle();
+
+                if (checkError) {
+                  console.error(`Error checking existing setting ${setting.key}:`, checkError);
+                  throw new Error(`Errore durante la verifica delle impostazioni: ${checkError.message}`);
+                }
+
+                if (existingData) {
+                  // Update existing setting
+                  console.log(`Updating setting ${setting.key}:`, setting.value);
+                  const { error } = await supabase
+                    .from('app_settings')
+                    .update({ 
+                      setting_value: setting.value,
+                      updated_at: new Date().toISOString()
+                    })
+                    .eq('setting_key', setting.key);
+                  
+                  if (error) {
+                    console.error(`Error updating setting ${setting.key}:`, error);
+                    throw new Error(`Errore durante l'aggiornamento di ${setting.key}: ${error.message}`);
+                  }
+                } else {
+                  // Insert new setting
+                  console.log(`Inserting new setting ${setting.key}:`, setting.value);
+                  const { error } = await supabase
+                    .from('app_settings')
+                    .insert({
+                      setting_key: setting.key,
+                      setting_value: setting.value,
+                      description: setting.description,
+                    });
+                  
+                  if (error) {
+                    console.error(`Error inserting setting ${setting.key}:`, error);
+                    throw new Error(`Errore durante l'inserimento di ${setting.key}: ${error.message}`);
+                  }
+                }
               }
 
-              if (saveError) {
-                console.error('Error saving WhatsApp number:', saveError);
-                throw new Error(`Errore durante il salvataggio: ${saveError.message}`);
-              }
-
-              // Verify the save was successful
-              const { data: verifyData, error: verifyError } = await supabase
-                .from('app_settings')
-                .select('setting_value')
-                .eq('setting_key', 'whatsapp_support_number')
-                .single();
-
-              if (verifyError) {
-                console.error('Error verifying save:', verifyError);
-                throw new Error('Impossibile verificare il salvataggio');
-              }
-
-              if (verifyData.setting_value !== settings.whatsapp_support_number) {
-                console.error('Verification mismatch:', {
-                  saved: verifyData.setting_value,
-                  expected: settings.whatsapp_support_number
-                });
-                throw new Error('Il valore salvato non corrisponde al valore inserito');
-              }
-
-              console.log('Save verified successfully:', verifyData.setting_value);
+              console.log('All settings saved successfully');
               
               // Log activity (non-blocking - don't fail if this fails)
               try {
                 await logActivity({
                   action: 'update_settings',
-                  description: 'Impostazioni aggiornate',
+                  description: 'Impostazioni piattaforma aggiornate',
                   metadata: {
                     whatsapp_support_number: settings.whatsapp_support_number,
+                    drop_duration_days: settings.drop_duration_days,
+                    min_drop_value: settings.min_drop_value,
+                    max_drop_value: settings.max_drop_value,
+                    platform_commission_rate: settings.platform_commission_rate,
                   }
                 });
               } catch (logError) {
                 console.error('Failed to log activity (non-critical):', logError);
-                // Don't throw - activity logging failure shouldn't prevent success message
               }
 
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -309,11 +358,20 @@ export default function SettingsScreen() {
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Configurazione Drop</Text>
             
+            <View style={styles.infoBox}>
+              <Text style={styles.infoText}>
+                ℹ️ Queste impostazioni vengono utilizzate quando:
+                {'\n'}• Un drop viene creato manualmente dall&apos;admin
+                {'\n'}• Un drop viene attivato automaticamente quando gli utenti mostrano interesse
+                {'\n'}• Un fornitore importa una nuova lista di prodotti
+              </Text>
+            </View>
+            
             <View style={styles.settingItem}>
               <View style={styles.settingInfo}>
                 <Text style={styles.settingLabel}>Durata Drop (giorni)</Text>
                 <Text style={styles.settingDescription}>
-                  Durata predefinita di un drop attivo
+                  Durata predefinita di un drop attivo dalla data di attivazione
                 </Text>
               </View>
               <TextInput
@@ -329,7 +387,7 @@ export default function SettingsScreen() {
               <View style={styles.settingInfo}>
                 <Text style={styles.settingLabel}>Valore Minimo Drop (€)</Text>
                 <Text style={styles.settingDescription}>
-                  Valore minimo per attivare un drop
+                  Valore minimo di prenotazioni necessario per attivare automaticamente un drop
                 </Text>
               </View>
               <TextInput
@@ -344,7 +402,7 @@ export default function SettingsScreen() {
               <View style={styles.settingInfo}>
                 <Text style={styles.settingLabel}>Valore Massimo Drop (€)</Text>
                 <Text style={styles.settingDescription}>
-                  Valore massimo per un drop
+                  Valore massimo di prenotazioni per un drop (target per sconto massimo)
                 </Text>
               </View>
               <TextInput
@@ -634,6 +692,19 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: colors.success,
+  },
+  infoBox: {
+    backgroundColor: colors.info + '15',
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 16,
+    borderLeftWidth: 4,
+    borderLeftColor: colors.info,
+  },
+  infoText: {
+    fontSize: 13,
+    color: colors.text,
+    lineHeight: 20,
   },
   section: {
     marginBottom: 24,
