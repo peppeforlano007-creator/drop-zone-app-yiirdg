@@ -523,7 +523,7 @@ export default function SettingsScreen() {
           </View>
 
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Gestione</Text>
+            <Text style={styles.sectionTitle}>Conformità Legale</Text>
             
             <Pressable
               style={({ pressed }) => [
@@ -546,38 +546,6 @@ export default function SettingsScreen() {
                   <Text style={styles.legalManagementTitle}>Gestisci Documenti Legali</Text>
                   <Text style={styles.legalManagementDescription}>
                     Privacy Policy, Termini e Condizioni, Cookie Policy
-                  </Text>
-                </View>
-              </View>
-              <IconSymbol
-                ios_icon_name="chevron.right"
-                android_material_icon_name="chevron_right"
-                size={20}
-                color={colors.textSecondary}
-              />
-            </Pressable>
-
-            <Pressable
-              style={({ pressed }) => [
-                styles.legalManagementButton,
-                pressed && styles.legalManagementButtonPressed,
-              ]}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                router.push('/admin/subscriptions');
-              }}
-            >
-              <View style={styles.legalManagementContent}>
-                <IconSymbol
-                  ios_icon_name="star.circle.fill"
-                  android_material_icon_name="star"
-                  size={24}
-                  color={colors.primary}
-                />
-                <View style={styles.legalManagementText}>
-                  <Text style={styles.legalManagementTitle}>Gestisci Abbonamenti</Text>
-                  <Text style={styles.legalManagementDescription}>
-                    Visualizza e gestisci gli abbonamenti degli utenti
                   </Text>
                 </View>
               </View>
