@@ -85,8 +85,8 @@ export default function HomeScreen() {
       const listIds = supplierLists.map(list => list.id);
       console.log(`→ Will fetch products for ${listIds.length} lists`);
       
-      // STEP 2: Get ALL products for these lists - IMPORTANT: Use range to get more than 1000 rows
-      console.log('→ Fetching ALL active products for these lists (removing default 1000 row limit)...');
+      // STEP 2: Get ALL products for these lists with stock > 0 - IMPORTANT: Filter by stock
+      console.log('→ Fetching ALL active products with stock > 0 (removing default 1000 row limit)...');
       
       // Fetch products in batches to avoid hitting limits
       const batchSize = 1000;
@@ -101,6 +101,7 @@ export default function HomeScreen() {
           .select('*')
           .eq('status', 'active')
           .in('supplier_list_id', listIds)
+          .gt('stock', 0) // Only fetch products with stock > 0
           .order('created_at', { ascending: false })
           .range(offset, offset + batchSize - 1);
 
@@ -115,7 +116,7 @@ export default function HomeScreen() {
           hasMore = false;
           console.log(`  No more products found at offset ${offset}`);
         } else {
-          console.log(`  ✓ Fetched ${productsBatch.length} products in this batch`);
+          console.log(`  ✓ Fetched ${productsBatch.length} products in this batch (with stock > 0)`);
           allProducts = allProducts.concat(productsBatch);
           offset += batchSize;
           
@@ -128,10 +129,10 @@ export default function HomeScreen() {
       }
 
       const products = allProducts;
-      console.log(`✓ Found TOTAL of ${products.length} active products across all batches`);
+      console.log(`✓ Found TOTAL of ${products.length} active products with stock > 0 across all batches`);
 
       if (!products || products.length === 0) {
-        console.log('⚠ No products found for active lists');
+        console.log('⚠ No products with stock found for active lists');
         setProductLists([]);
         setLoading(false);
         return;
@@ -144,7 +145,7 @@ export default function HomeScreen() {
         productsPerList.set(p.supplier_list_id, count + 1);
       });
       
-      console.log('Products per list:');
+      console.log('Products per list (with stock > 0):');
       productsPerList.forEach((count, listId) => {
         const list = supplierLists.find(l => l.id === listId);
         console.log(`  - ${list?.name || 'Unknown'} (${listId.substring(0, 8)}...): ${count} products`);
@@ -197,6 +198,13 @@ export default function HomeScreen() {
         
         if (!listData) {
           console.warn(`⚠ Product ${index + 1}/${products.length}: No list data found for list ID: ${listId.substring(0, 8)}..., skipping product ${product.id.substring(0, 8)}...`);
+          skippedProducts++;
+          return;
+        }
+
+        // Skip products with 0 or negative stock
+        if (product.stock <= 0) {
+          console.log(`⚠ Product ${product.id.substring(0, 8)}... has stock ${product.stock}, skipping`);
           skippedProducts++;
           return;
         }
@@ -304,6 +312,69 @@ export default function HomeScreen() {
       setError(`Errore imprevisto: ${error instanceof Error ? error.message : 'Errore sconosciuto'}`);
       setLoading(false);
     }
+  }, []);
+
+  // Subscribe to real-time product updates (stock changes)
+  useEffect(() => {
+    console.log('Setting up real-time subscription for product stock updates in home feed');
+    
+    const channel = supabase
+      .channel('home_product_stock_updates')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'products',
+        },
+        (payload) => {
+          console.log('Product stock update received in home feed:', payload);
+          const updatedProduct = payload.new as any;
+          
+          // If stock is 0 or less, remove the product from all lists
+          if (updatedProduct.stock <= 0) {
+            console.log('Product stock is 0, removing from home feed:', updatedProduct.id);
+            
+            setProductLists(prevLists => {
+              const updatedLists = prevLists.map(list => {
+                // Remove the product from this list if it exists
+                const filteredProducts = list.products.filter(p => p.id !== updatedProduct.id);
+                
+                return {
+                  ...list,
+                  products: filteredProducts,
+                };
+              }).filter(list => list.products.length > 0); // Remove lists with no products
+              
+              console.log(`Updated lists count: ${updatedLists.length} (removed empty lists)`);
+              return updatedLists;
+            });
+          } else {
+            // Update the product stock in the list
+            setProductLists(prevLists => {
+              return prevLists.map(list => {
+                if (list.listId === updatedProduct.supplier_list_id) {
+                  return {
+                    ...list,
+                    products: list.products.map(p => 
+                      p.id === updatedProduct.id 
+                        ? { ...p, stock: updatedProduct.stock }
+                        : p
+                    ),
+                  };
+                }
+                return list;
+              });
+            });
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      console.log('Cleaning up real-time subscription in home feed');
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const loadUserInterests = useCallback(async () => {
@@ -810,7 +881,7 @@ export default function HomeScreen() {
           <Text style={styles.emptyTitle}>Nessun Prodotto Disponibile</Text>
           <Text style={styles.emptyText}>
             Al momento non ci sono prodotti disponibili.{'\n'}
-            I fornitori non hanno ancora caricato articoli.
+            Tutti gli articoli potrebbero essere esauriti o i fornitori non hanno ancora caricato articoli.
           </Text>
           
           {isAdmin && (

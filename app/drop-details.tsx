@@ -102,16 +102,18 @@ export default function DropDetailsScreen() {
       console.log('Drop data loaded:', dropData);
       setDrop(dropData);
 
+      // Load products with stock > 0 only
       const { data: productsData, error: productsError } = await supabase
         .from('products')
         .select('*')
         .eq('supplier_list_id', dropData.supplier_list_id)
-        .eq('status', 'active');
+        .eq('status', 'active')
+        .gt('stock', 0); // Only load products with stock > 0
 
       if (productsError) {
         console.error('Error loading products:', productsError);
       } else {
-        console.log('Products loaded:', productsData?.length);
+        console.log('Products loaded:', productsData?.length, '(with stock > 0)');
         setProducts(productsData || []);
       }
     } catch (error) {
@@ -152,6 +154,48 @@ export default function DropDetailsScreen() {
     loadDropDetails();
     loadUserBookings();
   }, [dropId, loadDropDetails, loadUserBookings]);
+
+  // Subscribe to real-time product updates (stock changes)
+  useEffect(() => {
+    if (!drop) return;
+
+    console.log('Setting up real-time subscription for product stock updates');
+    
+    const channel = supabase
+      .channel('product_stock_updates')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'products',
+          filter: `supplier_list_id=eq.${drop.supplier_list_id}`,
+        },
+        (payload) => {
+          console.log('Product stock update received:', payload);
+          const updatedProduct = payload.new as ProductData;
+          
+          setProducts(prevProducts => {
+            // If stock is 0, remove the product from the list
+            if (updatedProduct.stock <= 0) {
+              console.log('Product stock is 0, removing from list:', updatedProduct.id);
+              return prevProducts.filter(p => p.id !== updatedProduct.id);
+            }
+            
+            // Otherwise, update the product in the list
+            return prevProducts.map(p => 
+              p.id === updatedProduct.id ? updatedProduct : p
+            );
+          });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      console.log('Cleaning up real-time subscription');
+      supabase.removeChannel(channel);
+    };
+  }, [drop]);
 
   // Set up real-time subscription for drop updates
   const handleDropUpdate = useCallback((updatedDrop: any) => {
@@ -308,6 +352,14 @@ export default function DropDetailsScreen() {
       return;
     }
 
+    // Check if product has stock
+    if (product.stock <= 0) {
+      Alert.alert('Prodotto esaurito', 'Questo prodotto non è più disponibile');
+      // Reload products to refresh the list
+      loadDropDetails();
+      return;
+    }
+
     // Get the default payment method
     const paymentMethod = getDefaultPaymentMethod();
     if (!paymentMethod) {
@@ -394,6 +446,38 @@ export default function DropDetailsScreen() {
 
       console.log('✅ Booking created:', booking);
 
+      // Decrement product stock manually
+      console.log('Decrementing product stock...');
+      const { data: updatedProduct, error: stockError } = await supabase
+        .from('products')
+        .update({ 
+          stock: Math.max((product.stock || 1) - 1, 0),
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', productId)
+        .select()
+        .single();
+
+      if (stockError) {
+        console.error('⚠️ Error updating product stock:', stockError);
+        // Don't fail the booking if stock update fails
+      } else {
+        console.log('✅ Product stock updated:', updatedProduct);
+        
+        // Update local state
+        setProducts(prevProducts => {
+          // If stock is now 0, remove the product
+          if (updatedProduct.stock <= 0) {
+            console.log('Product stock is 0, removing from local list');
+            return prevProducts.filter(p => p.id !== productId);
+          }
+          // Otherwise update the product
+          return prevProducts.map(p => 
+            p.id === productId ? updatedProduct : p
+          );
+        });
+      }
+
       // Update drop value and discount
       const currentValue = drop.current_value ?? 0;
       const newValue = currentValue + currentDiscountedPrice;
@@ -437,7 +521,7 @@ export default function DropDetailsScreen() {
         [{ text: 'OK' }]
       );
     }
-  }, [user, hasPaymentMethod, getDefaultPaymentMethod, drop, products, calculateNewDiscount]);
+  }, [user, hasPaymentMethod, getDefaultPaymentMethod, drop, products, calculateNewDiscount, loadDropDetails]);
 
   const handlePressIn = () => {
     Animated.spring(bounceAnim, {
@@ -541,6 +625,25 @@ export default function DropDetailsScreen() {
         <View style={styles.errorContainer}>
           <IconSymbol ios_icon_name="exclamationmark.triangle" android_material_icon_name="error" size={48} color={colors.error} />
           <Text style={styles.errorText}>Drop non trovato</Text>
+          <Pressable style={styles.backButton} onPress={() => router.back()}>
+            <Text style={styles.backButtonText}>Torna indietro</Text>
+          </Pressable>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // Show message if no products available
+  if (products.length === 0) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <Stack.Screen options={{ headerShown: false }} />
+        <View style={styles.errorContainer}>
+          <IconSymbol ios_icon_name="cube.box" android_material_icon_name="inventory_2" size={64} color={colors.textTertiary} />
+          <Text style={styles.errorText}>Tutti i prodotti sono esauriti</Text>
+          <Text style={styles.errorSubtext}>
+            Tutti gli articoli di questo drop sono stati prenotati.
+          </Text>
           <Pressable style={styles.backButton} onPress={() => router.back()}>
             <Text style={styles.backButtonText}>Torna indietro</Text>
           </Pressable>
@@ -766,6 +869,15 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: colors.text,
     fontFamily: 'System',
+    textAlign: 'center',
+  },
+  errorSubtext: {
+    marginTop: 8,
+    fontSize: 14,
+    color: colors.textSecondary,
+    fontFamily: 'System',
+    textAlign: 'center',
+    paddingHorizontal: 32,
   },
   backButton: {
     marginTop: 24,
