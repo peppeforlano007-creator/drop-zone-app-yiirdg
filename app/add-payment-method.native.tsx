@@ -275,7 +275,7 @@ export default function AddPaymentMethodScreen() {
 
       console.log('Extracted card details:', { last4, brand, expMonth, expYear });
 
-      // Validate last4
+      // Validate and normalize last4
       if (!last4 || last4.length < 4) {
         console.error('=== VALIDATION ERROR: Invalid last4 ===');
         console.error('last4 value:', last4);
@@ -293,6 +293,14 @@ export default function AddPaymentMethodScreen() {
       last4 = last4.slice(-4).padStart(4, '0');
       console.log('Normalized last4:', last4);
 
+      // Validate and normalize brand
+      if (!brand || brand.trim() === '') {
+        console.warn('Brand is empty, using default "card"');
+        brand = 'card';
+      }
+      brand = brand.toLowerCase().trim();
+      console.log('Normalized brand:', brand);
+
       // Validate expiry data
       if (!expMonth || !expYear || expMonth < 1 || expMonth > 12) {
         console.error('=== VALIDATION ERROR: Invalid expiry data ===');
@@ -300,6 +308,27 @@ export default function AddPaymentMethodScreen() {
         Alert.alert(
           'Errore',
           'Impossibile ottenere la data di scadenza della carta. Riprova.'
+        );
+        setIsLoading(false);
+        return;
+      }
+
+      // Ensure expYear is a 4-digit year
+      if (expYear < 100) {
+        // If it's a 2-digit year, convert to 4-digit
+        expYear = 2000 + expYear;
+      }
+
+      // Validate that the card is not expired
+      const currentDate = new Date();
+      const currentYear = currentDate.getFullYear();
+      const currentMonth = currentDate.getMonth() + 1;
+
+      if (expYear < currentYear || (expYear === currentYear && expMonth < currentMonth)) {
+        console.error('=== VALIDATION ERROR: Card is expired ===');
+        Alert.alert(
+          'Errore',
+          'La carta è scaduta. Inserisci una carta valida.'
         );
         setIsLoading(false);
         return;
@@ -388,6 +417,25 @@ export default function AddPaymentMethodScreen() {
         expYear 
       });
 
+      // CRITICAL VALIDATION: Ensure all required fields meet the constraint requirements
+      if (!stripePaymentMethodId || stripePaymentMethodId.trim() === '') {
+        throw new Error('stripe_payment_method_id è vuoto');
+      }
+      if (!last4 || last4.length !== 4) {
+        throw new Error(`card_last4 non valido: "${last4}" (lunghezza: ${last4?.length || 0})`);
+      }
+      if (!brand || brand.trim() === '') {
+        throw new Error('card_brand è vuoto');
+      }
+      if (!expMonth || expMonth < 1 || expMonth > 12) {
+        throw new Error(`card_exp_month non valido: ${expMonth}`);
+      }
+      if (!expYear || expYear < new Date().getFullYear()) {
+        throw new Error(`card_exp_year non valido: ${expYear}`);
+      }
+
+      console.log('✅ All required fields validated successfully');
+
       // Check network before saving
       const networkState = await Network.getNetworkStateAsync();
       if (!networkState.isConnected || !networkState.isInternetReachable) {
@@ -425,20 +473,27 @@ export default function AddPaymentMethodScreen() {
         }
       }
 
-      // Prepare the data object for insertion
+      // Prepare the data object for insertion with EXPLICIT values
       const insertData = {
         user_id: userId,
-        stripe_payment_method_id: stripePaymentMethodId,
-        card_last4: last4,
-        card_brand: brand,
-        card_exp_month: expMonth,
-        card_exp_year: expYear,
+        stripe_payment_method_id: stripePaymentMethodId.trim(),
+        card_last4: last4.trim(),
+        card_brand: brand.trim(),
+        card_exp_month: parseInt(String(expMonth), 10),
+        card_exp_year: parseInt(String(expYear), 10),
         is_default: isFirstMethod,
         status: 'active',
       };
 
       console.log('=== INSERTING INTO DATABASE ===');
       console.log('Insert data:', JSON.stringify(insertData, null, 2));
+      console.log('Field validations:');
+      console.log('- stripe_payment_method_id:', insertData.stripe_payment_method_id, '(length:', insertData.stripe_payment_method_id.length, ')');
+      console.log('- card_last4:', insertData.card_last4, '(length:', insertData.card_last4.length, ')');
+      console.log('- card_brand:', insertData.card_brand, '(length:', insertData.card_brand.length, ')');
+      console.log('- card_exp_month:', insertData.card_exp_month, '(type:', typeof insertData.card_exp_month, ')');
+      console.log('- card_exp_year:', insertData.card_exp_year, '(type:', typeof insertData.card_exp_year, ')');
+      console.log('- status:', insertData.status);
 
       // Save payment method to database
       const { data: insertedMethod, error: dbError } = await supabase
@@ -457,7 +512,22 @@ export default function AddPaymentMethodScreen() {
         
         let errorMessage = 'Impossibile salvare il metodo di pagamento.';
         
-        if (dbError.code === 'PGRST204') {
+        if (dbError.code === '23514') {
+          // Check constraint violation
+          errorMessage = 'Errore di validazione database.\n\n' +
+            'Il database ha rifiutato i dati della carta perché non soddisfano i requisiti.\n\n' +
+            'Dettagli tecnici:\n' +
+            `- Codice: ${dbError.code}\n` +
+            `- Messaggio: ${dbError.message}\n\n` +
+            'Questo errore indica che il vincolo "payment_methods_active_requires_details" non è soddisfatto.\n\n' +
+            'Dati inviati:\n' +
+            `- card_last4: "${insertData.card_last4}" (${insertData.card_last4.length} caratteri)\n` +
+            `- card_brand: "${insertData.card_brand}"\n` +
+            `- card_exp_month: ${insertData.card_exp_month}\n` +
+            `- card_exp_year: ${insertData.card_exp_year}\n` +
+            `- stripe_payment_method_id: "${insertData.stripe_payment_method_id}"\n\n` +
+            'Contatta il supporto tecnico con questi dettagli.';
+        } else if (dbError.code === 'PGRST204') {
           errorMessage = 'Database non configurato correttamente.\n\n' +
             'Codice: PGRST204\n' +
             'Messaggio: ' + dbError.message + '\n\n' +
