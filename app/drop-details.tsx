@@ -26,6 +26,7 @@ interface ProductData {
   condition: string;
   category: string | null;
   stock: number;
+  supplier_list_id: string;
 }
 
 interface DropData {
@@ -60,7 +61,7 @@ export default function DropDetailsScreen() {
   const [userBookings, setUserBookings] = useState<Set<string>>(new Set());
   const [timeRemaining, setTimeRemaining] = useState('');
   const bounceAnim = useRef(new Animated.Value(1)).current;
-  const { hasPaymentMethod } = usePayment();
+  const { hasPaymentMethod, getDefaultPaymentMethod } = usePayment();
   const { user } = useAuth();
   const flatListRef = useRef<FlatList>(null);
 
@@ -273,6 +274,11 @@ export default function DropDetailsScreen() {
   }, [drop]);
 
   const handleBook = useCallback(async (productId: string) => {
+    console.log('=== HANDLE BOOK CALLED ===');
+    console.log('Product ID:', productId);
+    console.log('User:', user?.id);
+    console.log('Drop:', drop?.id);
+
     if (!user) {
       Alert.alert('Accesso richiesto', 'Devi effettuare l\'accesso per prenotare');
       router.push('/login');
@@ -302,6 +308,13 @@ export default function DropDetailsScreen() {
       return;
     }
 
+    // Get the default payment method
+    const paymentMethod = getDefaultPaymentMethod();
+    if (!paymentMethod) {
+      Alert.alert('Errore', 'Nessun metodo di pagamento trovato');
+      return;
+    }
+
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
@@ -309,6 +322,21 @@ export default function DropDetailsScreen() {
       const originalPrice = product.original_price ?? 0;
       const currentDiscountedPrice = originalPrice * (1 - currentDiscount / 100);
 
+      console.log('Creating booking with data:', {
+        user_id: user.id,
+        product_id: productId,
+        drop_id: drop.id,
+        pickup_point_id: drop.pickup_point_id,
+        original_price: originalPrice,
+        discount_percentage: currentDiscount,
+        authorized_amount: currentDiscountedPrice,
+        payment_status: 'authorized',
+        status: 'active',
+        payment_method_id: paymentMethod.id,
+        stripe_payment_method_id: paymentMethod.stripePaymentMethodId,
+      });
+
+      // Create booking with all required fields
       const { data: booking, error: bookingError } = await supabase
         .from('bookings')
         .insert({
@@ -321,21 +349,49 @@ export default function DropDetailsScreen() {
           authorized_amount: currentDiscountedPrice,
           payment_status: 'authorized',
           status: 'active',
+          payment_method_id: paymentMethod.id,
+          stripe_payment_method_id: paymentMethod.stripePaymentMethodId || null,
         })
         .select()
         .single();
 
       if (bookingError) {
-        console.error('Error creating booking:', bookingError);
-        Alert.alert('Errore', 'Impossibile creare la prenotazione');
+        console.error('❌ Error creating booking:', bookingError);
+        console.error('Error code:', bookingError.code);
+        console.error('Error message:', bookingError.message);
+        console.error('Error details:', bookingError.details);
+        console.error('Error hint:', bookingError.hint);
+        
+        // Provide more specific error messages
+        let errorMessage = 'Impossibile creare la prenotazione';
+        
+        if (bookingError.code === '23502') {
+          errorMessage = `Campo obbligatorio mancante: ${bookingError.message}`;
+        } else if (bookingError.code === '23503') {
+          errorMessage = 'Riferimento non valido. Verifica che il prodotto e il drop esistano.';
+        } else if (bookingError.message) {
+          errorMessage = `Errore: ${bookingError.message}`;
+        }
+        
+        Alert.alert(
+          'Impossibile creare la prenotazione',
+          `${errorMessage}\n\nCodice: ${bookingError.code || 'unknown'}`,
+          [{ text: 'OK' }]
+        );
         return;
       }
 
-      console.log('Booking created:', booking);
+      console.log('✅ Booking created:', booking);
 
+      // Update drop value and discount
       const currentValue = drop.current_value ?? 0;
       const newValue = currentValue + currentDiscountedPrice;
       const newDiscount = calculateNewDiscount(newValue);
+
+      console.log('Updating drop:', {
+        current_value: newValue,
+        current_discount: newDiscount,
+      });
 
       const { error: updateError } = await supabase
         .from('drops')
@@ -347,7 +403,10 @@ export default function DropDetailsScreen() {
         .eq('id', drop.id);
 
       if (updateError) {
-        console.error('Error updating drop:', updateError);
+        console.error('⚠️ Error updating drop:', updateError);
+        // Don't fail the booking if drop update fails
+      } else {
+        console.log('✅ Drop updated successfully');
       }
 
       setUserBookings(prev => new Set([...prev, productId]));
@@ -359,11 +418,15 @@ export default function DropDetailsScreen() {
       );
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } catch (error) {
-      console.error('Error in handleBook:', error);
-      Alert.alert('Errore', 'Si è verificato un errore durante la prenotazione');
+    } catch (error: any) {
+      console.error('❌ Exception in handleBook:', error);
+      Alert.alert(
+        'Errore',
+        `Si è verificato un errore durante la prenotazione: ${error?.message || 'Errore sconosciuto'}`,
+        [{ text: 'OK' }]
+      );
     }
-  }, [user, hasPaymentMethod, drop, products, calculateNewDiscount]);
+  }, [user, hasPaymentMethod, getDefaultPaymentMethod, drop, products, calculateNewDiscount]);
 
   const handlePressIn = () => {
     Animated.spring(bounceAnim, {
