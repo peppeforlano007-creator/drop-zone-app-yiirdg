@@ -315,6 +315,13 @@ export default function DropDetailsScreen() {
       return;
     }
 
+    console.log('Payment method retrieved:', {
+      id: paymentMethod.id,
+      stripePaymentMethodId: paymentMethod.stripePaymentMethodId,
+      last4: paymentMethod.last4,
+      brand: paymentMethod.brand,
+    });
+
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
@@ -329,11 +336,12 @@ export default function DropDetailsScreen() {
         pickup_point_id: drop.pickup_point_id,
         original_price: originalPrice,
         discount_percentage: currentDiscount,
+        final_price: currentDiscountedPrice,
         authorized_amount: currentDiscountedPrice,
         payment_status: 'authorized',
         status: 'active',
         payment_method_id: paymentMethod.id,
-        stripe_payment_method_id: paymentMethod.stripePaymentMethodId,
+        stripe_payment_method_id: paymentMethod.stripePaymentMethodId || null,
       });
 
       // Create booking with all required fields
@@ -346,6 +354,7 @@ export default function DropDetailsScreen() {
           pickup_point_id: drop.pickup_point_id,
           original_price: originalPrice,
           discount_percentage: currentDiscount,
+          final_price: currentDiscountedPrice,
           authorized_amount: currentDiscountedPrice,
           payment_status: 'authorized',
           status: 'active',
@@ -365,7 +374,9 @@ export default function DropDetailsScreen() {
         // Provide more specific error messages
         let errorMessage = 'Impossibile creare la prenotazione';
         
-        if (bookingError.code === '23502') {
+        if (bookingError.code === 'PGRST204') {
+          errorMessage = `Colonna mancante nel database: ${bookingError.message}\n\nEsegui la migrazione SQL fornita per aggiungere le colonne mancanti.`;
+        } else if (bookingError.code === '23502') {
           errorMessage = `Campo obbligatorio mancante: ${bookingError.message}`;
         } else if (bookingError.code === '23503') {
           errorMessage = 'Riferimento non valido. Verifica che il prodotto e il drop esistano.';

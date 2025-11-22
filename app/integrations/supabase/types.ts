@@ -59,6 +59,9 @@ export type Database = {
           status: string | null
           updated_at: string | null
           user_id: string
+          payment_method_id: string | null
+          stripe_payment_method_id: string | null
+          authorized_amount: number | null
         }
         Insert: {
           created_at?: string | null
@@ -76,6 +79,9 @@ export type Database = {
           status?: string | null
           updated_at?: string | null
           user_id: string
+          payment_method_id?: string | null
+          stripe_payment_method_id?: string | null
+          authorized_amount?: number | null
         }
         Update: {
           created_at?: string | null
@@ -93,6 +99,9 @@ export type Database = {
           status?: string | null
           updated_at?: string | null
           user_id?: string
+          payment_method_id?: string | null
+          stripe_payment_method_id?: string | null
+          authorized_amount?: number | null
         }
         Relationships: [
           {
@@ -114,6 +123,13 @@ export type Database = {
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bookings_payment_method_id_fkey"
+            columns: ["payment_method_id"]
+            isOneToOne: false
+            referencedRelation: "payment_methods"
             referencedColumns: ["id"]
           },
         ]
