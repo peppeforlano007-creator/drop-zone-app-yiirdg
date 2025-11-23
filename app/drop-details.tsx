@@ -446,22 +446,27 @@ export default function DropDetailsScreen() {
 
       console.log('✅ Booking created:', booking);
 
-      // Decrement product stock manually
+      // Decrement product stock - FIXED: Remove .single() to avoid PGRST116 error
       console.log('Decrementing product stock...');
-      const { data: updatedProduct, error: stockError } = await supabase
+      const newStock = Math.max((product.stock || 1) - 1, 0);
+      
+      const { data: updatedProducts, error: stockError } = await supabase
         .from('products')
         .update({ 
-          stock: Math.max((product.stock || 1) - 1, 0),
+          stock: newStock,
           updated_at: new Date().toISOString()
         })
         .eq('id', productId)
-        .select()
-        .single();
+        .select();
 
       if (stockError) {
         console.error('⚠️ Error updating product stock:', stockError);
+        console.error('Stock error code:', stockError.code);
+        console.error('Stock error details:', stockError.details);
+        console.error('Stock error hint:', stockError.hint);
         // Don't fail the booking if stock update fails
-      } else {
+      } else if (updatedProducts && updatedProducts.length > 0) {
+        const updatedProduct = updatedProducts[0];
         console.log('✅ Product stock updated:', updatedProduct);
         
         // Update local state
@@ -476,6 +481,8 @@ export default function DropDetailsScreen() {
             p.id === productId ? updatedProduct : p
           );
         });
+      } else {
+        console.warn('⚠️ No products returned from stock update');
       }
 
       // Update drop value and discount
@@ -508,7 +515,7 @@ export default function DropDetailsScreen() {
 
       Alert.alert(
         'Prenotazione confermata!',
-        `Hai prenotato ${product.name} con uno sconto del ${currentDiscount.toFixed(1)}%.\n\nImporto bloccato: €${currentDiscountedPrice.toFixed(2)}\n\nL'importo finale verrà addebitato alla chiusura del drop in base allo sconto raggiunto.`,
+        `Hai prenotato ${product.name} con uno sconto del ${Math.floor(currentDiscount)}%.\n\nImporto bloccato: €${currentDiscountedPrice.toFixed(2)}\n\nL'importo finale verrà addebitato alla chiusura del drop in base allo sconto raggiunto.`,
         [{ text: 'OK' }]
       );
 
@@ -553,7 +560,7 @@ export default function DropDetailsScreen() {
       ? `\n\n⚠️ URGENTE: Mancano meno di 24 ore e non abbiamo ancora raggiunto l'ordine minimo! Se non raggiungiamo l'obiettivo (€${minReservationValue.toFixed(0)}), il drop verrà annullato e i fondi rilasciati.`
       : '';
 
-    const message = `🔥 Drop attivo: ${drop.name}!\n\n💰 Sconto attuale: ${currentDiscount.toFixed(1)}%\n⏰ Tempo rimanente: ${timeRemaining}\n\n🎯 Più persone prenotano, più lo sconto aumenta!${urgencyMessage}\n\nUnisciti ora! 👇`;
+    const message = `🔥 Drop attivo: ${drop.name}!\n\n💰 Sconto attuale: ${Math.floor(currentDiscount)}%\n⏰ Tempo rimanente: ${timeRemaining}\n\n🎯 Più persone prenotano, più lo sconto aumenta!${urgencyMessage}\n\nUnisciti ora! 👇`;
 
     const url = `whatsapp://send?text=${encodeURIComponent(message)}`;
 
@@ -762,18 +769,18 @@ export default function DropDetailsScreen() {
           </Text>
         </Pressable>
 
-        {/* Current Discount */}
+        {/* Current Discount - FIXED: Always round down using Math.floor */}
         <Pressable style={styles.iconButton}>
           <Animated.View style={[styles.iconCircle, { transform: [{ scale: bounceAnim }] }]}>
-            <Text style={styles.discountText}>{currentDiscount.toFixed(0)}%</Text>
+            <Text style={styles.discountText}>{Math.floor(currentDiscount)}%</Text>
           </Animated.View>
           <Text style={styles.iconLabel}>Sconto</Text>
         </Pressable>
 
-        {/* Max Discount */}
+        {/* Max Discount - FIXED: Always round down using Math.floor */}
         <Pressable style={styles.iconButton}>
           <View style={styles.iconCircle}>
-            <Text style={styles.maxDiscountText}>{maxDiscount.toFixed(0)}%</Text>
+            <Text style={styles.maxDiscountText}>{Math.floor(maxDiscount)}%</Text>
           </View>
           <Text style={styles.iconLabel}>Max</Text>
         </Pressable>
@@ -785,7 +792,7 @@ export default function DropDetailsScreen() {
               <View style={[styles.progressCircleFill, { height: `${valueProgress}%` }]} />
             </View>
             <View style={styles.progressCircleContent}>
-              <Text style={styles.progressPercentage}>{valueProgress.toFixed(0)}%</Text>
+              <Text style={styles.progressPercentage}>{Math.floor(valueProgress)}%</Text>
             </View>
           </View>
           <Text style={styles.iconLabel}>Obiettivo</Text>
@@ -823,7 +830,7 @@ export default function DropDetailsScreen() {
             <View style={styles.underfundingContent}>
               <Text style={styles.underfundingTitle}>⚠️ Drop a Rischio!</Text>
               <Text style={styles.underfundingText}>
-                €{currentValue.toFixed(0)} / €{minReservationValue.toFixed(0)} ({underfundingProgress.toFixed(0)}%)
+                €{currentValue.toFixed(0)} / €{minReservationValue.toFixed(0)} ({Math.floor(underfundingProgress)}%)
               </Text>
             </View>
           </View>

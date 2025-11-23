@@ -146,7 +146,7 @@ export default function EnhancedProductCard({
 
       Alert.alert(
         'Conferma Prenotazione',
-        `Vuoi prenotare ${product.name}?\n\nPrezzo attuale: €${discountedPrice.toFixed(2)} (-${discount.toFixed(1)}%)\n\nBlocchiamo €${originalPrice.toFixed(2)} sulla tua carta ${defaultPaymentMethod.brand?.toUpperCase() || 'CARTA'} •••• ${defaultPaymentMethod.last4}.\n\nAlla fine del drop, addebiteremo solo l'importo finale con lo sconto raggiunto.`,
+        `Vuoi prenotare ${product.name}?\n\nPrezzo attuale: €${discountedPrice.toFixed(2)} (-${Math.floor(discount)}%)\n\nBlocchiamo €${originalPrice.toFixed(2)} sulla tua carta ${defaultPaymentMethod.brand?.toUpperCase() || 'CARTA'} •••• ${defaultPaymentMethod.last4}.\n\nAlla fine del drop, addebiteremo solo l'importo finale con lo sconto raggiunto.`,
         [
           { text: 'Annulla', style: 'cancel' },
           {
@@ -283,10 +283,10 @@ export default function EnhancedProductCard({
           </View>
         )}
 
-        {/* Drop badge moved to bottom-left */}
+        {/* Drop badge moved to bottom-left - FIXED: Always round down using Math.floor */}
         {isInDrop && currentDiscount && (
           <View style={styles.dropBadge}>
-            <Text style={styles.dropBadgeText}>Drop -{currentDiscount.toFixed(1)}%</Text>
+            <Text style={styles.dropBadgeText}>Drop -{Math.floor(currentDiscount)}%</Text>
           </View>
         )}
       </Pressable>
@@ -434,12 +434,12 @@ export default function EnhancedProductCard({
             </View>
           )}
 
-          {/* Price row with discount badge moved closer to price */}
+          {/* Price row with discount badge - FIXED: Always round down using Math.floor */}
           <View style={styles.priceRow}>
             <View style={styles.priceInfo}>
               <Text style={styles.discountedPrice}>€{discountedPrice.toFixed(2)}</Text>
               <View style={styles.discountBadge}>
-                <Text style={styles.discountText}>-{discount.toFixed(0)}%</Text>
+                <Text style={styles.discountText}>-{Math.floor(discount)}%</Text>
               </View>
               <Text style={styles.originalPrice}>€{originalPrice.toFixed(2)}</Text>
             </View>

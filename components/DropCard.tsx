@@ -107,14 +107,14 @@ export default function DropCard({ drop }: DropCardProps) {
       <View style={styles.discountContainer}>
         <View style={styles.discountRow}>
           <Text style={styles.discountLabel}>Sconto attuale</Text>
-          <Text style={styles.discountValue}>{currentDiscount.toFixed(0)}%</Text>
+          <Text style={styles.discountValue}>{Math.floor(currentDiscount)}%</Text>
         </View>
         <View style={styles.progressBar}>
           <View style={[styles.progressFill, { width: `${Math.min(Math.max(discountProgress, 0), 100)}%` }]} />
         </View>
         <View style={styles.discountRange}>
-          <Text style={styles.rangeText}>{minDiscount.toFixed(0)}%</Text>
-          <Text style={styles.rangeText}>{maxDiscount.toFixed(0)}%</Text>
+          <Text style={styles.rangeText}>{Math.floor(minDiscount)}%</Text>
+          <Text style={styles.rangeText}>{Math.floor(maxDiscount)}%</Text>
         </View>
       </View>
 
