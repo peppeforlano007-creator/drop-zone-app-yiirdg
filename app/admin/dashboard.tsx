@@ -1,746 +1,273 @@
 
-import { Stack, router } from 'expo-router';
-import { colors } from '@/styles/commonStyles';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { IconSymbol } from '@/components/IconSymbol';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   Pressable,
-  Alert,
+  ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
-import { useAuth } from '@/contexts/AuthContext';
-import React, { useState, useEffect, useCallback } from 'react';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Stack, router } from 'expo-router';
+import { colors } from '@/styles/commonStyles';
+import { IconSymbol } from '@/components/IconSymbol';
 import * as Haptics from 'expo-haptics';
 import { supabase } from '@/app/integrations/supabase/client';
 
-export default function AdminDashboard() {
-  const { logout } = useAuth();
-  const [stats, setStats] = useState({
-    pendingDrops: 0,
-    activeDrops: 0,
+interface DashboardStats {
+  totalUsers: number;
+  totalSuppliers: number;
+  totalPickupPoints: number;
+  activeDrops: number;
+  completedDrops: number;
+  totalBookings: number;
+  totalRevenue: number;
+}
+
+export default function AdminDashboardScreen() {
+  const [stats, setStats] = useState<DashboardStats>({
     totalUsers: 0,
     totalSuppliers: 0,
     totalPickupPoints: 0,
-    totalProducts: 0,
+    activeDrops: 0,
+    completedDrops: 0,
     totalBookings: 0,
+    totalRevenue: 0,
   });
-
-  const loadStats = useCallback(async () => {
-    try {
-      // Load pending drops
-      const { count: pendingDrops } = await supabase
-        .from('drops')
-        .select('*', { count: 'exact', head: true })
-        .eq('status', 'pending_approval');
-
-      // Load active drops
-      const { count: activeDrops } = await supabase
-        .from('drops')
-        .select('*', { count: 'exact', head: true })
-        .eq('status', 'active');
-
-      // Load total users
-      const { count: totalUsers } = await supabase
-        .from('profiles')
-        .select('*', { count: 'exact', head: true });
-
-      // Load total suppliers
-      const { count: totalSuppliers } = await supabase
-        .from('profiles')
-        .select('*', { count: 'exact', head: true })
-        .eq('role', 'supplier');
-
-      // Load total pickup points
-      const { count: totalPickupPoints } = await supabase
-        .from('pickup_points')
-        .select('*', { count: 'exact', head: true });
-
-      // Load total products
-      const { count: totalProducts } = await supabase
-        .from('products')
-        .select('*', { count: 'exact', head: true });
-
-      // Load total bookings
-      const { count: totalBookings } = await supabase
-        .from('bookings')
-        .select('*', { count: 'exact', head: true });
-
-      setStats({
-        pendingDrops: pendingDrops || 0,
-        activeDrops: activeDrops || 0,
-        totalUsers: totalUsers || 0,
-        totalSuppliers: totalSuppliers || 0,
-        totalPickupPoints: totalPickupPoints || 0,
-        totalProducts: totalProducts || 0,
-        totalBookings: totalBookings || 0,
-      });
-    } catch (error) {
-      console.error('Error loading stats:', error);
-    }
-  }, []);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     loadStats();
-  }, [loadStats]);
+  }, []);
 
-  const handleLogout = () => {
-    Alert.alert(
-      'Logout',
-      'Sei sicuro di voler uscire?',
-      [
-        { text: 'Annulla', style: 'cancel' },
-        {
-          text: 'Esci',
-          style: 'destructive',
-          onPress: async () => {
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-            await logout();
-            router.replace('/login');
-          },
-        },
-      ]
+  const loadStats = async () => {
+    try {
+      setLoading(true);
+
+      // Load all stats in parallel
+      const [
+        usersResult,
+        suppliersResult,
+        pickupPointsResult,
+        activeDropsResult,
+        completedDropsResult,
+        bookingsResult,
+      ] = await Promise.all([
+        supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'consumer'),
+        supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'supplier'),
+        supabase.from('pickup_points').select('*', { count: 'exact', head: true }),
+        supabase.from('drops').select('*', { count: 'exact', head: true }).eq('status', 'active'),
+        supabase.from('drops').select('*', { count: 'exact', head: true }).eq('status', 'completed'),
+        supabase.from('bookings').select('final_price').eq('payment_status', 'captured'),
+      ]);
+
+      const totalRevenue = bookingsResult.data?.reduce((sum, b) => sum + (b.final_price || 0), 0) || 0;
+
+      setStats({
+        totalUsers: usersResult.count || 0,
+        totalSuppliers: suppliersResult.count || 0,
+        totalPickupPoints: pickupPointsResult.count || 0,
+        activeDrops: activeDropsResult.count || 0,
+        completedDrops: completedDropsResult.count || 0,
+        totalBookings: bookingsResult.data?.length || 0,
+        totalRevenue,
+      });
+    } catch (error) {
+      console.error('Error loading stats:', error);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  const handleRefresh = () => {
+    setRefreshing(true);
+    loadStats();
+  };
+
+  const menuItems = [
+    {
+      title: 'Gestione Utenti',
+      icon: 'person.3.fill',
+      androidIcon: 'people',
+      route: '/admin/users',
+      color: '#007AFF',
+    },
+    {
+      title: 'Gestione Fornitori',
+      icon: 'building.2.fill',
+      androidIcon: 'business',
+      route: '/admin/suppliers',
+      color: '#FF9500',
+    },
+    {
+      title: 'Punti di Ritiro',
+      icon: 'mappin.circle.fill',
+      androidIcon: 'location_on',
+      route: '/admin/pickup-points',
+      color: '#34C759',
+    },
+    {
+      title: 'Gestione Prodotti',
+      icon: 'cube.box.fill',
+      androidIcon: 'inventory',
+      route: '/admin/products',
+      color: '#5856D6',
+    },
+    {
+      title: 'Gestione Drop',
+      icon: 'flame.fill',
+      androidIcon: 'local_fire_department',
+      route: '/admin/manage-drops',
+      color: '#FF3B30',
+    },
+    {
+      title: 'Gestisci Prenotazioni',
+      icon: 'cart.fill',
+      androidIcon: 'shopping_cart',
+      route: '/admin/bookings',
+      color: '#FF2D55',
+    },
+    {
+      title: 'Esporta Ordini Fornitori',
+      icon: 'square.and.arrow.down.fill',
+      androidIcon: 'download',
+      route: '/admin/export-orders',
+      color: '#32ADE6',
+      badge: stats.completedDrops > 0 ? stats.completedDrops.toString() : undefined,
+    },
+    {
+      title: 'Analytics',
+      icon: 'chart.bar.fill',
+      androidIcon: 'analytics',
+      route: '/admin/analytics',
+      color: '#AF52DE',
+    },
+    {
+      title: 'Testing & Debug',
+      icon: 'wrench.and.screwdriver.fill',
+      androidIcon: 'build',
+      route: '/admin/testing',
+      color: '#8E8E93',
+    },
+  ];
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={styles.loadingText}>Caricamento dashboard...</Text>
+      </View>
     );
-  };
-
-  const handleManageDrops = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    router.push('/admin/manage-drops');
-  };
-
-  const handleTesting = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    router.push('/admin/testing');
-  };
+  }
 
   return (
     <>
       <Stack.Screen
         options={{
           title: 'Admin Dashboard',
-          headerRight: () => (
-            <Pressable
-              onPress={handleLogout}
-              style={({ pressed }) => [
-                styles.headerButton,
-                pressed && styles.headerButtonPressed,
-              ]}
-            >
-              <IconSymbol
-                ios_icon_name="rectangle.portrait.and.arrow.right"
-                android_material_icon_name="logout"
-                size={22}
-                color={colors.primary}
-              />
-            </Pressable>
-          ),
+          headerStyle: { backgroundColor: colors.background },
+          headerTintColor: colors.text,
         }}
       />
-      <SafeAreaView style={styles.safeArea} edges={['bottom']}>
-        <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
-          <View style={styles.header}>
-            <Text style={styles.headerTitle}>Dashboard Amministratore</Text>
-            <Text style={styles.headerSubtitle}>
-              Gestisci drop, utenti e fornitori
-            </Text>
-          </View>
-
-          <View style={styles.statsGrid}>
-            <View style={styles.statCard}>
-              <IconSymbol
-                ios_icon_name="clock.badge.exclamationmark"
-                android_material_icon_name="pending_actions"
-                size={32}
-                color={colors.warning}
-              />
-              <Text style={styles.statValue}>{stats.pendingDrops}</Text>
-              <Text style={styles.statLabel}>Drop in Attesa</Text>
+      <SafeAreaView style={styles.container} edges={['bottom']}>
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+          }
+        >
+          {/* Stats Cards */}
+          <View style={styles.statsContainer}>
+            <View style={styles.statsRow}>
+              <View style={[styles.statCard, { backgroundColor: '#007AFF15' }]}>
+                <IconSymbol ios_icon_name="person.3.fill" android_material_icon_name="people" size={24} color="#007AFF" />
+                <Text style={styles.statValue}>{stats.totalUsers}</Text>
+                <Text style={styles.statLabel}>Utenti</Text>
+              </View>
+              <View style={[styles.statCard, { backgroundColor: '#FF950015' }]}>
+                <IconSymbol ios_icon_name="building.2.fill" android_material_icon_name="business" size={24} color="#FF9500" />
+                <Text style={styles.statValue}>{stats.totalSuppliers}</Text>
+                <Text style={styles.statLabel}>Fornitori</Text>
+              </View>
             </View>
 
-            <View style={styles.statCard}>
-              <IconSymbol
-                ios_icon_name="bolt.circle.fill"
-                android_material_icon_name="flash_on"
-                size={32}
-                color={colors.success}
-              />
-              <Text style={styles.statValue}>{stats.activeDrops}</Text>
-              <Text style={styles.statLabel}>Drop Attivi</Text>
+            <View style={styles.statsRow}>
+              <View style={[styles.statCard, { backgroundColor: '#34C75915' }]}>
+                <IconSymbol ios_icon_name="mappin.circle.fill" android_material_icon_name="location_on" size={24} color="#34C759" />
+                <Text style={styles.statValue}>{stats.totalPickupPoints}</Text>
+                <Text style={styles.statLabel}>Punti Ritiro</Text>
+              </View>
+              <View style={[styles.statCard, { backgroundColor: '#FF3B3015' }]}>
+                <IconSymbol ios_icon_name="flame.fill" android_material_icon_name="local_fire_department" size={24} color="#FF3B30" />
+                <Text style={styles.statValue}>{stats.activeDrops}</Text>
+                <Text style={styles.statLabel}>Drop Attivi</Text>
+              </View>
             </View>
 
-            <View style={styles.statCard}>
-              <IconSymbol
-                ios_icon_name="person.3.fill"
-                android_material_icon_name="group"
-                size={32}
-                color={colors.primary}
-              />
-              <Text style={styles.statValue}>{stats.totalUsers}</Text>
-              <Text style={styles.statLabel}>Utenti</Text>
+            <View style={styles.statsRow}>
+              <View style={[styles.statCard, { backgroundColor: '#5856D615' }]}>
+                <IconSymbol ios_icon_name="checkmark.circle.fill" android_material_icon_name="check_circle" size={24} color="#5856D6" />
+                <Text style={styles.statValue}>{stats.completedDrops}</Text>
+                <Text style={styles.statLabel}>Drop Completati</Text>
+              </View>
+              <View style={[styles.statCard, { backgroundColor: '#FF2D5515' }]}>
+                <IconSymbol ios_icon_name="cart.fill" android_material_icon_name="shopping_cart" size={24} color="#FF2D55" />
+                <Text style={styles.statValue}>{stats.totalBookings}</Text>
+                <Text style={styles.statLabel}>Prenotazioni</Text>
+              </View>
             </View>
 
-            <View style={styles.statCard}>
-              <IconSymbol
-                ios_icon_name="building.2.fill"
-                android_material_icon_name="store"
-                size={32}
-                color={colors.secondary}
-              />
-              <Text style={styles.statValue}>{stats.totalSuppliers}</Text>
-              <Text style={styles.statLabel}>Fornitori</Text>
-            </View>
-
-            <View style={styles.statCard}>
-              <IconSymbol
-                ios_icon_name="cube.box.fill"
-                android_material_icon_name="inventory"
-                size={32}
-                color={colors.info}
-              />
-              <Text style={styles.statValue}>{stats.totalProducts}</Text>
-              <Text style={styles.statLabel}>Prodotti</Text>
-            </View>
-
-            <View style={styles.statCard}>
-              <IconSymbol
-                ios_icon_name="cart.fill"
-                android_material_icon_name="shopping_cart"
-                size={32}
-                color={colors.warning}
-              />
-              <Text style={styles.statValue}>{stats.totalBookings}</Text>
-              <Text style={styles.statLabel}>Prenotazioni</Text>
+            <View style={[styles.revenueCard, { backgroundColor: '#32ADE615' }]}>
+              <IconSymbol ios_icon_name="eurosign.circle.fill" android_material_icon_name="euro" size={32} color="#32ADE6" />
+              <View style={styles.revenueInfo}>
+                <Text style={styles.revenueLabel}>Fatturato Totale</Text>
+                <Text style={styles.revenueValue}>€{stats.totalRevenue.toFixed(2)}</Text>
+              </View>
             </View>
           </View>
 
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Azioni Rapide</Text>
-
-            <Pressable
-              style={({ pressed }) => [
-                styles.actionCard,
-                pressed && styles.actionCardPressed,
-              ]}
-              onPress={handleManageDrops}
-            >
-              <View style={styles.actionIconContainer}>
+          {/* Menu Items */}
+          <View style={styles.menuContainer}>
+            {menuItems.map((item, index) => (
+              <Pressable
+                key={index}
+                style={({ pressed }) => [
+                  styles.menuItem,
+                  pressed && styles.menuItemPressed,
+                ]}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  router.push(item.route as any);
+                }}
+              >
+                <View style={[styles.menuIcon, { backgroundColor: item.color + '15' }]}>
+                  <IconSymbol
+                    ios_icon_name={item.icon}
+                    android_material_icon_name={item.androidIcon}
+                    size={24}
+                    color={item.color}
+                  />
+                </View>
+                <Text style={styles.menuTitle}>{item.title}</Text>
+                {item.badge && (
+                  <View style={[styles.badge, { backgroundColor: item.color }]}>
+                    <Text style={styles.badgeText}>{item.badge}</Text>
+                  </View>
+                )}
                 <IconSymbol
-                  ios_icon_name="square.stack.3d.up.fill"
-                  android_material_icon_name="layers"
-                  size={24}
-                  color={colors.primary}
+                  ios_icon_name="chevron.right"
+                  android_material_icon_name="chevron_right"
+                  size={20}
+                  color={colors.textTertiary}
                 />
-              </View>
-              <View style={styles.actionContent}>
-                <Text style={styles.actionTitle}>Gestisci Drop</Text>
-                <Text style={styles.actionDescription}>
-                  Approva, attiva e disattiva drop
-                </Text>
-              </View>
-              <IconSymbol
-                ios_icon_name="chevron.right"
-                android_material_icon_name="chevron_right"
-                size={20}
-                color={colors.textTertiary}
-              />
-            </Pressable>
-
-            <Pressable
-              style={({ pressed }) => [
-                styles.actionCard,
-                pressed && styles.actionCardPressed,
-              ]}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                router.push('/admin/create-drop');
-              }}
-            >
-              <View style={styles.actionIconContainer}>
-                <IconSymbol
-                  ios_icon_name="plus.circle.fill"
-                  android_material_icon_name="add_circle"
-                  size={24}
-                  color="#10B981"
-                />
-              </View>
-              <View style={styles.actionContent}>
-                <Text style={styles.actionTitle}>Crea Drop Manuale</Text>
-                <Text style={styles.actionDescription}>
-                  Crea un drop senza attendere il valore minimo
-                </Text>
-              </View>
-              <IconSymbol
-                ios_icon_name="chevron.right"
-                android_material_icon_name="chevron_right"
-                size={20}
-                color={colors.textTertiary}
-              />
-            </Pressable>
-
-            <Pressable
-              style={({ pressed }) => [
-                styles.actionCard,
-                pressed && styles.actionCardPressed,
-              ]}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                router.push('/admin/users');
-              }}
-            >
-              <View style={styles.actionIconContainer}>
-                <IconSymbol
-                  ios_icon_name="person.2.fill"
-                  android_material_icon_name="people"
-                  size={24}
-                  color={colors.secondary}
-                />
-              </View>
-              <View style={styles.actionContent}>
-                <Text style={styles.actionTitle}>Gestisci Utenti</Text>
-                <Text style={styles.actionDescription}>
-                  Visualizza e gestisci gli utenti
-                </Text>
-              </View>
-              <IconSymbol
-                ios_icon_name="chevron.right"
-                android_material_icon_name="chevron_right"
-                size={20}
-                color={colors.textTertiary}
-              />
-            </Pressable>
-
-            <Pressable
-              style={({ pressed }) => [
-                styles.actionCard,
-                pressed && styles.actionCardPressed,
-              ]}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                router.push('/admin/suppliers');
-              }}
-            >
-              <View style={styles.actionIconContainer}>
-                <IconSymbol
-                  ios_icon_name="building.2.fill"
-                  android_material_icon_name="store"
-                  size={24}
-                  color={colors.success}
-                />
-              </View>
-              <View style={styles.actionContent}>
-                <Text style={styles.actionTitle}>Gestisci Fornitori</Text>
-                <Text style={styles.actionDescription}>
-                  Approva e gestisci i fornitori
-                </Text>
-              </View>
-              <IconSymbol
-                ios_icon_name="chevron.right"
-                android_material_icon_name="chevron_right"
-                size={20}
-                color={colors.textTertiary}
-              />
-            </Pressable>
-
-            <Pressable
-              style={({ pressed }) => [
-                styles.actionCard,
-                pressed && styles.actionCardPressed,
-              ]}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                router.push('/admin/products');
-              }}
-            >
-              <View style={styles.actionIconContainer}>
-                <IconSymbol
-                  ios_icon_name="cube.box.fill"
-                  android_material_icon_name="inventory"
-                  size={24}
-                  color={colors.info}
-                />
-              </View>
-              <View style={styles.actionContent}>
-                <Text style={styles.actionTitle}>Gestisci Prodotti</Text>
-                <Text style={styles.actionDescription}>
-                  Visualizza e modifica i prodotti
-                </Text>
-              </View>
-              <IconSymbol
-                ios_icon_name="chevron.right"
-                android_material_icon_name="chevron_right"
-                size={20}
-                color={colors.textTertiary}
-              />
-            </Pressable>
-
-            <Pressable
-              style={({ pressed }) => [
-                styles.actionCard,
-                pressed && styles.actionCardPressed,
-              ]}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                router.push('/admin/pickup-points');
-              }}
-            >
-              <View style={styles.actionIconContainer}>
-                <IconSymbol
-                  ios_icon_name="mappin.circle.fill"
-                  android_material_icon_name="location_on"
-                  size={24}
-                  color={colors.warning}
-                />
-              </View>
-              <View style={styles.actionContent}>
-                <Text style={styles.actionTitle}>Punti di Ritiro</Text>
-                <Text style={styles.actionDescription}>
-                  Gestisci i punti di ritiro
-                </Text>
-              </View>
-              <IconSymbol
-                ios_icon_name="chevron.right"
-                android_material_icon_name="chevron_right"
-                size={20}
-                color={colors.textTertiary}
-              />
-            </Pressable>
-
-            <Pressable
-              style={({ pressed }) => [
-                styles.actionCard,
-                pressed && styles.actionCardPressed,
-              ]}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                router.push('/admin/bookings');
-              }}
-            >
-              <View style={styles.actionIconContainer}>
-                <IconSymbol
-                  ios_icon_name="cart.fill"
-                  android_material_icon_name="shopping_cart"
-                  size={24}
-                  color="#10B981"
-                />
-              </View>
-              <View style={styles.actionContent}>
-                <Text style={styles.actionTitle}>Gestisci Prenotazioni</Text>
-                <Text style={styles.actionDescription}>
-                  Visualizza tutte le prenotazioni
-                </Text>
-              </View>
-              <IconSymbol
-                ios_icon_name="chevron.right"
-                android_material_icon_name="chevron_right"
-                size={20}
-                color={colors.textTertiary}
-              />
-            </Pressable>
-
-            <Pressable
-              style={({ pressed }) => [
-                styles.actionCard,
-                pressed && styles.actionCardPressed,
-              ]}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                router.push('/admin/analytics');
-              }}
-            >
-              <View style={styles.actionIconContainer}>
-                <IconSymbol
-                  ios_icon_name="chart.bar.fill"
-                  android_material_icon_name="analytics"
-                  size={24}
-                  color="#8B5CF6"
-                />
-              </View>
-              <View style={styles.actionContent}>
-                <Text style={styles.actionTitle}>Analytics</Text>
-                <Text style={styles.actionDescription}>
-                  Visualizza statistiche dettagliate
-                </Text>
-              </View>
-              <IconSymbol
-                ios_icon_name="chevron.right"
-                android_material_icon_name="chevron_right"
-                size={20}
-                color={colors.textTertiary}
-              />
-            </Pressable>
-
-            <Pressable
-              style={({ pressed }) => [
-                styles.actionCard,
-                pressed && styles.actionCardPressed,
-              ]}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                router.push('/admin/notifications');
-              }}
-            >
-              <View style={styles.actionIconContainer}>
-                <IconSymbol
-                  ios_icon_name="bell.fill"
-                  android_material_icon_name="notifications"
-                  size={24}
-                  color="#F59E0B"
-                />
-              </View>
-              <View style={styles.actionContent}>
-                <Text style={styles.actionTitle}>Invia Notifiche</Text>
-                <Text style={styles.actionDescription}>
-                  Invia notifiche agli utenti
-                </Text>
-              </View>
-              <IconSymbol
-                ios_icon_name="chevron.right"
-                android_material_icon_name="chevron_right"
-                size={20}
-                color={colors.textTertiary}
-              />
-            </Pressable>
-
-            <Pressable
-              style={({ pressed }) => [
-                styles.actionCard,
-                pressed && styles.actionCardPressed,
-              ]}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                router.push('/admin/settings');
-              }}
-            >
-              <View style={styles.actionIconContainer}>
-                <IconSymbol
-                  ios_icon_name="gearshape.fill"
-                  android_material_icon_name="settings"
-                  size={24}
-                  color="#6B7280"
-                />
-              </View>
-              <View style={styles.actionContent}>
-                <Text style={styles.actionTitle}>Impostazioni</Text>
-                <Text style={styles.actionDescription}>
-                  Configura la piattaforma
-                </Text>
-              </View>
-              <IconSymbol
-                ios_icon_name="chevron.right"
-                android_material_icon_name="chevron_right"
-                size={20}
-                color={colors.textTertiary}
-              />
-            </Pressable>
-
-            <Pressable
-              style={({ pressed }) => [
-                styles.actionCard,
-                pressed && styles.actionCardPressed,
-              ]}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                router.push('/admin/reports');
-              }}
-            >
-              <View style={styles.actionIconContainer}>
-                <IconSymbol
-                  ios_icon_name="doc.text.fill"
-                  android_material_icon_name="description"
-                  size={24}
-                  color="#EF4444"
-                />
-              </View>
-              <View style={styles.actionContent}>
-                <Text style={styles.actionTitle}>Report & Export</Text>
-                <Text style={styles.actionDescription}>
-                  Genera ed esporta report
-                </Text>
-              </View>
-              <IconSymbol
-                ios_icon_name="chevron.right"
-                android_material_icon_name="chevron_right"
-                size={20}
-                color={colors.textTertiary}
-              />
-            </Pressable>
-
-            <Pressable
-              style={({ pressed }) => [
-                styles.actionCard,
-                pressed && styles.actionCardPressed,
-              ]}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                router.push('/admin/activity-log');
-              }}
-            >
-              <View style={styles.actionIconContainer}>
-                <IconSymbol
-                  ios_icon_name="list.bullet.clipboard.fill"
-                  android_material_icon_name="history"
-                  size={24}
-                  color="#06B6D4"
-                />
-              </View>
-              <View style={styles.actionContent}>
-                <Text style={styles.actionTitle}>Log Attività</Text>
-                <Text style={styles.actionDescription}>
-                  Visualizza log di sistema
-                </Text>
-              </View>
-              <IconSymbol
-                ios_icon_name="chevron.right"
-                android_material_icon_name="chevron_right"
-                size={20}
-                color={colors.textTertiary}
-              />
-            </Pressable>
-
-            <Pressable
-              style={({ pressed }) => [
-                styles.actionCard,
-                pressed && styles.actionCardPressed,
-              ]}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                router.push('/admin/data-requests');
-              }}
-            >
-              <View style={styles.actionIconContainer}>
-                <IconSymbol
-                  ios_icon_name="shield.fill"
-                  android_material_icon_name="shield"
-                  size={24}
-                  color="#8B5CF6"
-                />
-              </View>
-              <View style={styles.actionContent}>
-                <Text style={styles.actionTitle}>Richieste Dati GDPR</Text>
-                <Text style={styles.actionDescription}>
-                  Esportazioni e cancellazioni dati
-                </Text>
-              </View>
-              <IconSymbol
-                ios_icon_name="chevron.right"
-                android_material_icon_name="chevron_right"
-                size={20}
-                color={colors.textTertiary}
-              />
-            </Pressable>
-
-            <Pressable
-              style={({ pressed }) => [
-                styles.actionCard,
-                pressed && styles.actionCardPressed,
-              ]}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                router.push('/admin/legal-documents');
-              }}
-            >
-              <View style={styles.actionIconContainer}>
-                <IconSymbol
-                  ios_icon_name="doc.text.fill"
-                  android_material_icon_name="gavel"
-                  size={24}
-                  color="#10B981"
-                />
-              </View>
-              <View style={styles.actionContent}>
-                <Text style={styles.actionTitle}>Documenti Legali</Text>
-                <Text style={styles.actionDescription}>
-                  Privacy, Termini e Cookie Policy
-                </Text>
-              </View>
-              <IconSymbol
-                ios_icon_name="chevron.right"
-                android_material_icon_name="chevron_right"
-                size={20}
-                color={colors.textTertiary}
-              />
-            </Pressable>
-
-            <Pressable
-              style={({ pressed }) => [
-                styles.actionCard,
-                pressed && styles.actionCardPressed,
-              ]}
-              onPress={handleTesting}
-            >
-              <View style={styles.actionIconContainer}>
-                <IconSymbol
-                  ios_icon_name="wrench.and.screwdriver.fill"
-                  android_material_icon_name="build"
-                  size={24}
-                  color="#10B981"
-                />
-              </View>
-              <View style={styles.actionContent}>
-                <Text style={styles.actionTitle}>Testing & Diagnostica</Text>
-                <Text style={styles.actionDescription}>
-                  Test funzionalità e performance
-                </Text>
-              </View>
-              <IconSymbol
-                ios_icon_name="chevron.right"
-                android_material_icon_name="chevron_right"
-                size={20}
-                color={colors.textTertiary}
-              />
-            </Pressable>
-
-            <Pressable
-              style={({ pressed }) => [
-                styles.actionCard,
-                pressed && styles.actionCardPressed,
-              ]}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                router.push('/admin/payment-testing');
-              }}
-            >
-              <View style={styles.actionIconContainer}>
-                <IconSymbol
-                  ios_icon_name="creditcard.fill"
-                  android_material_icon_name="credit_card"
-                  size={24}
-                  color="#3B82F6"
-                />
-              </View>
-              <View style={styles.actionContent}>
-                <Text style={styles.actionTitle}>Test Pagamenti</Text>
-                <Text style={styles.actionDescription}>
-                  Carte di test e flusso ordini
-                </Text>
-              </View>
-              <IconSymbol
-                ios_icon_name="chevron.right"
-                android_material_icon_name="chevron_right"
-                size={20}
-                color={colors.textTertiary}
-              />
-            </Pressable>
-          </View>
-
-          <View style={styles.logoutSection}>
-            <Pressable
-              style={({ pressed }) => [
-                styles.logoutButton,
-                pressed && styles.logoutButtonPressed,
-              ]}
-              onPress={handleLogout}
-            >
-              <IconSymbol
-                ios_icon_name="rectangle.portrait.and.arrow.right"
-                android_material_icon_name="logout"
-                size={24}
-                color="#FFFFFF"
-              />
-              <Text style={styles.logoutButtonText}>Esci dall'Account</Text>
-            </Pressable>
+              </Pressable>
+            ))}
           </View>
         </ScrollView>
       </SafeAreaView>
@@ -749,134 +276,114 @@ export default function AdminDashboard() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
+  container: {
     flex: 1,
     backgroundColor: colors.background,
   },
-  container: {
+  loadingContainer: {
     flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: colors.background,
   },
-  contentContainer: {
-    paddingBottom: 40,
-  },
-  header: {
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    marginBottom: 24,
-  },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: colors.text,
-    marginBottom: 4,
-    letterSpacing: -0.5,
-  },
-  headerSubtitle: {
+  loadingText: {
+    marginTop: 16,
     fontSize: 14,
     color: colors.textSecondary,
   },
-  headerButton: {
-    padding: 8,
-    borderRadius: 8,
+  scrollView: {
+    flex: 1,
   },
-  headerButtonPressed: {
-    opacity: 0.6,
+  scrollContent: {
+    padding: 16,
+    paddingBottom: 40,
   },
-  statsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    paddingHorizontal: 12,
-    gap: 12,
+  statsContainer: {
     marginBottom: 24,
+  },
+  statsRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 12,
   },
   statCard: {
     flex: 1,
-    minWidth: '45%',
-    backgroundColor: colors.card,
-    borderRadius: 12,
     padding: 16,
+    borderRadius: 12,
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: colors.border,
+    gap: 8,
   },
   statValue: {
-    fontSize: 32,
+    fontSize: 24,
     fontWeight: '700',
     color: colors.text,
-    marginTop: 8,
   },
   statLabel: {
     fontSize: 12,
     color: colors.textSecondary,
-    marginTop: 4,
     textAlign: 'center',
   },
-  section: {
-    paddingHorizontal: 20,
+  revenueCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 20,
+    borderRadius: 12,
+    gap: 16,
   },
-  sectionTitle: {
-    fontSize: 18,
+  revenueInfo: {
+    flex: 1,
+  },
+  revenueLabel: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginBottom: 4,
+  },
+  revenueValue: {
+    fontSize: 28,
     fontWeight: '700',
     color: colors.text,
-    marginBottom: 16,
   },
-  actionCard: {
+  menuContainer: {
+    gap: 12,
+  },
+  menuItem: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.card,
-    borderRadius: 12,
     padding: 16,
-    marginBottom: 12,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: colors.border,
+    gap: 12,
   },
-  actionCardPressed: {
+  menuItemPressed: {
     opacity: 0.7,
     transform: [{ scale: 0.98 }],
   },
-  actionIconContainer: {
+  menuIcon: {
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: colors.background,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 16,
   },
-  actionContent: {
+  menuTitle: {
     flex: 1,
-  },
-  actionTitle: {
     fontSize: 16,
     fontWeight: '600',
     color: colors.text,
-    marginBottom: 2,
   },
-  actionDescription: {
-    fontSize: 13,
-    color: colors.textSecondary,
-  },
-  logoutSection: {
-    paddingHorizontal: 20,
-    marginTop: 32,
-    marginBottom: 20,
-  },
-  logoutButton: {
-    flexDirection: 'row',
+  badge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    minWidth: 24,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.error,
-    borderRadius: 12,
-    padding: 16,
-    gap: 12,
   },
-  logoutButtonPressed: {
-    opacity: 0.8,
-    transform: [{ scale: 0.98 }],
-  },
-  logoutButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#FFFFFF',
+  badgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#FFF',
   },
 });

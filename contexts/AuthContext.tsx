@@ -200,7 +200,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         pickupPointId: profile.pickup_point_id || undefined,
       };
       
-      console.log('AuthProvider: User data created:', userData.role, userData.email);
+      console.log('AuthProvider: User data created:', {
+        role: userData.role,
+        email: userData.email,
+        pickupPointId: userData.pickupPointId,
+        pickupPoint: userData.pickupPoint,
+      });
+      
       setUser(userData);
       setLoading(false);
     } catch (error) {
@@ -354,6 +360,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = async () => {
     try {
       console.log('AuthProvider: Logging out user');
+      console.log('AuthProvider: Current user before logout:', {
+        id: user?.id,
+        role: user?.role,
+        pickupPointId: user?.pickupPointId,
+      });
       
       // Clear user state immediately to prevent navigation issues
       setUser(null);

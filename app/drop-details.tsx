@@ -396,94 +396,70 @@ export default function DropDetailsScreen() {
         stripe_payment_method_id: paymentMethod.stripePaymentMethodId || null,
       });
 
-      // Create booking with all required fields
-      const { data: booking, error: bookingError } = await supabase
-        .from('bookings')
-        .insert({
-          user_id: user.id,
-          product_id: productId,
-          drop_id: drop.id,
-          pickup_point_id: drop.pickup_point_id,
-          original_price: originalPrice,
-          discount_percentage: currentDiscount,
-          final_price: currentDiscountedPrice,
-          authorized_amount: currentDiscountedPrice,
-          payment_status: 'authorized',
-          status: 'active',
-          payment_method_id: paymentMethod.id,
-          stripe_payment_method_id: paymentMethod.stripePaymentMethodId || null,
-        })
-        .select()
-        .single();
+      // CRITICAL FIX: Use a database transaction to ensure stock is checked and decremented atomically
+      // This prevents over-booking by ensuring stock is checked at the moment of booking
+      
+      // First, check current stock with a FOR UPDATE lock to prevent race conditions
+      const { data: currentProduct, error: stockCheckError } = await supabase
+        .rpc('check_and_decrement_stock', {
+          p_product_id: productId,
+          p_user_id: user.id,
+          p_drop_id: drop.id,
+          p_pickup_point_id: drop.pickup_point_id,
+          p_original_price: originalPrice,
+          p_discount_percentage: currentDiscount,
+          p_final_price: currentDiscountedPrice,
+          p_payment_method_id: paymentMethod.id,
+          p_stripe_payment_method_id: paymentMethod.stripePaymentMethodId || null,
+        });
 
-      if (bookingError) {
-        console.error('❌ Error creating booking:', bookingError);
-        console.error('Error code:', bookingError.code);
-        console.error('Error message:', bookingError.message);
-        console.error('Error details:', bookingError.details);
-        console.error('Error hint:', bookingError.hint);
+      if (stockCheckError) {
+        console.error('❌ Error in check_and_decrement_stock:', stockCheckError);
+        
+        // Check if it's a stock error
+        if (stockCheckError.message?.includes('stock') || stockCheckError.message?.includes('disponibile')) {
+          Alert.alert('Prodotto esaurito', 'Questo prodotto non è più disponibile. Qualcun altro lo ha appena prenotato.');
+          // Reload products to refresh the list
+          loadDropDetails();
+          return;
+        }
         
         // Provide more specific error messages
         let errorMessage = 'Impossibile creare la prenotazione';
         
-        if (bookingError.code === 'PGRST204') {
-          errorMessage = `Colonna mancante nel database: ${bookingError.message}\n\nEsegui la migrazione SQL fornita per aggiungere le colonne mancanti.`;
-        } else if (bookingError.code === '23502') {
-          errorMessage = `Campo obbligatorio mancante: ${bookingError.message}`;
-        } else if (bookingError.code === '23503') {
+        if (stockCheckError.code === 'PGRST204') {
+          errorMessage = `Colonna mancante nel database: ${stockCheckError.message}\n\nEsegui la migrazione SQL fornita per aggiungere le colonne mancanti.`;
+        } else if (stockCheckError.code === '23502') {
+          errorMessage = `Campo obbligatorio mancante: ${stockCheckError.message}`;
+        } else if (stockCheckError.code === '23503') {
           errorMessage = 'Riferimento non valido. Verifica che il prodotto e il drop esistano.';
-        } else if (bookingError.message) {
-          errorMessage = `Errore: ${bookingError.message}`;
+        } else if (stockCheckError.message) {
+          errorMessage = `Errore: ${stockCheckError.message}`;
         }
         
         Alert.alert(
           'Impossibile creare la prenotazione',
-          `${errorMessage}\n\nCodice: ${bookingError.code || 'unknown'}`,
+          `${errorMessage}\n\nCodice: ${stockCheckError.code || 'unknown'}`,
           [{ text: 'OK' }]
         );
         return;
       }
 
-      console.log('✅ Booking created:', booking);
+      console.log('✅ Booking created and stock decremented:', currentProduct);
 
-      // Decrement product stock - FIXED: Remove .single() to avoid PGRST116 error
-      console.log('Decrementing product stock...');
-      const newStock = Math.max((product.stock || 1) - 1, 0);
-      
-      const { data: updatedProducts, error: stockError } = await supabase
-        .from('products')
-        .update({ 
-          stock: newStock,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', productId)
-        .select();
-
-      if (stockError) {
-        console.error('⚠️ Error updating product stock:', stockError);
-        console.error('Stock error code:', stockError.code);
-        console.error('Stock error details:', stockError.details);
-        console.error('Stock error hint:', stockError.hint);
-        // Don't fail the booking if stock update fails
-      } else if (updatedProducts && updatedProducts.length > 0) {
-        const updatedProduct = updatedProducts[0];
-        console.log('✅ Product stock updated:', updatedProduct);
-        
-        // Update local state
-        setProducts(prevProducts => {
-          // If stock is now 0, remove the product
-          if (updatedProduct.stock <= 0) {
-            console.log('Product stock is 0, removing from local list');
-            return prevProducts.filter(p => p.id !== productId);
+      // Update local state - remove product if stock is now 0
+      setProducts(prevProducts => {
+        const updatedProducts = prevProducts.map(p => {
+          if (p.id === productId) {
+            const newStock = Math.max((p.stock || 1) - 1, 0);
+            return { ...p, stock: newStock };
           }
-          // Otherwise update the product
-          return prevProducts.map(p => 
-            p.id === productId ? updatedProduct : p
-          );
+          return p;
         });
-      } else {
-        console.warn('⚠️ No products returned from stock update');
-      }
+        
+        // Filter out products with 0 stock
+        return updatedProducts.filter(p => p.stock > 0);
+      });
 
       // Update drop value and discount
       const currentValue = drop.current_value ?? 0;
