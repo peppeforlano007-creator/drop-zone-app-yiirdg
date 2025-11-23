@@ -606,7 +606,7 @@ export default function DropDetailsScreen() {
           product={productForCard}
           isInDrop={true}
           currentDiscount={drop?.current_discount}
-          onBook={isBooked ? undefined : handleBook}
+          onBook={handleBook}
           isInterested={isBooked}
         />
       </View>

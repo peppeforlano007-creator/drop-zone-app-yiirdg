@@ -252,7 +252,7 @@ export default function BookingsScreen() {
             <View style={styles.priceItem}>
               <Text style={styles.priceLabel}>Sconto</Text>
               <Text style={[styles.priceValue, { color: colors.success }]}>
-                {booking.discount_percentage}%
+                {Math.floor(booking.discount_percentage)}%
               </Text>
             </View>
             <View style={styles.priceItem}>
