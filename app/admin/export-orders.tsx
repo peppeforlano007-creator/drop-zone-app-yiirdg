@@ -24,22 +24,26 @@ interface DropData {
   id: string;
   name: string;
   status: string;
+  updated_at: string | null;
   completed_at: string | null;
   supplier_list_id: string;
   pickup_point_id: string;
   current_discount: number;
-  supplier_lists: {
-    name: string;
-    supplier_id: string;
-    profiles: {
-      full_name: string;
-      email: string;
-    };
-  };
-  pickup_points: {
-    name: string;
-    city: string;
-  };
+}
+
+interface SupplierListData {
+  name: string;
+  supplier_id: string;
+}
+
+interface ProfileData {
+  full_name: string;
+  email: string;
+}
+
+interface PickupPointData {
+  name: string;
+  city: string;
 }
 
 interface OrderData {
@@ -55,6 +59,9 @@ interface OrderData {
 
 export default function ExportOrdersScreen() {
   const [completedDrops, setCompletedDrops] = useState<DropData[]>([]);
+  const [supplierLists, setSupplierLists] = useState<Map<string, SupplierListData>>(new Map());
+  const [profiles, setProfiles] = useState<Map<string, ProfileData>>(new Map());
+  const [pickupPoints, setPickupPoints] = useState<Map<string, PickupPointData>>(new Map());
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState<string | null>(null);
 
@@ -66,47 +73,124 @@ export default function ExportOrdersScreen() {
     try {
       setLoading(true);
       
-      const { data, error } = await supabase
+      // Load completed drops - try with completed_at first, fallback to updated_at
+      const { data: dropsData, error: dropsError } = await supabase
         .from('drops')
-        .select(`
-          id,
-          name,
-          status,
-          completed_at,
-          supplier_list_id,
-          pickup_point_id,
-          current_discount,
-          supplier_lists (
-            name,
-            supplier_id,
-            profiles:profiles!supplier_lists_supplier_id_fkey (
-              full_name,
-              email
-            )
-          ),
-          pickup_points (
-            name,
-            city
-          )
-        `)
+        .select('id, name, status, updated_at, completed_at, supplier_list_id, pickup_point_id, current_discount')
         .eq('status', 'completed')
-        .order('completed_at', { ascending: false })
+        .order('completed_at', { ascending: false, nullsFirst: false })
         .limit(50);
 
-      if (error) {
-        console.error('Error loading completed drops:', error);
-        Alert.alert('Errore', 'Impossibile caricare i drop completati');
+      if (dropsError) {
+        console.error('Error loading completed drops:', dropsError);
+        
+        // If error is about completed_at not existing, try without it
+        if (dropsError.message?.includes('completed_at') || dropsError.code === 'PGRST200') {
+          console.log('Retrying without completed_at field...');
+          const { data: retryData, error: retryError } = await supabase
+            .from('drops')
+            .select('id, name, status, updated_at, supplier_list_id, pickup_point_id, current_discount')
+            .eq('status', 'completed')
+            .order('updated_at', { ascending: false })
+            .limit(50);
+          
+          if (retryError) {
+            Alert.alert('Errore', `Impossibile caricare i drop completati: ${retryError.message}`);
+            return;
+          }
+          
+          // Add null completed_at to match interface
+          const dataWithCompletedAt = retryData?.map(d => ({ ...d, completed_at: null })) || [];
+          await processDropsData(dataWithCompletedAt);
+          return;
+        }
+        
+        Alert.alert('Errore', `Impossibile caricare i drop completati: ${dropsError.message}`);
         return;
       }
 
-      console.log('Completed drops loaded:', data?.length || 0);
-      setCompletedDrops(data || []);
+      await processDropsData(dropsData || []);
     } catch (error) {
       console.error('Error in loadCompletedDrops:', error);
-      Alert.alert('Errore', 'Si è verificato un errore');
+      Alert.alert('Errore', 'Si è verificato un errore durante il caricamento');
     } finally {
       setLoading(false);
     }
+  };
+
+  const processDropsData = async (dropsData: DropData[]) => {
+    if (!dropsData || dropsData.length === 0) {
+      console.log('No completed drops found');
+      setCompletedDrops([]);
+      return;
+    }
+
+    console.log('Completed drops loaded:', dropsData.length);
+
+    // Get unique IDs for batch loading
+    const supplierListIds = [...new Set(dropsData.map(d => d.supplier_list_id))];
+    const pickupPointIds = [...new Set(dropsData.map(d => d.pickup_point_id))];
+
+    // Load supplier lists
+    const { data: listsData, error: listsError } = await supabase
+      .from('supplier_lists')
+      .select('id, name, supplier_id')
+      .in('id', supplierListIds);
+
+    if (listsError) {
+      console.error('Error loading supplier lists:', listsError);
+    }
+
+    // Get supplier IDs and load profiles
+    const supplierIds = listsData?.map(l => l.supplier_id) || [];
+    const { data: profilesData, error: profilesError } = await supabase
+      .from('profiles')
+      .select('user_id, full_name, email')
+      .in('user_id', supplierIds);
+
+    if (profilesError) {
+      console.error('Error loading profiles:', profilesError);
+    }
+
+    // Load pickup points
+    const { data: pointsData, error: pointsError } = await supabase
+      .from('pickup_points')
+      .select('id, name, city')
+      .in('id', pickupPointIds);
+
+    if (pointsError) {
+      console.error('Error loading pickup points:', pointsError);
+    }
+
+    // Create maps for quick lookup
+    const listsMap = new Map<string, SupplierListData>();
+    listsData?.forEach(list => {
+      listsMap.set(list.id, {
+        name: list.name,
+        supplier_id: list.supplier_id,
+      });
+    });
+
+    const profilesMap = new Map<string, ProfileData>();
+    profilesData?.forEach(profile => {
+      profilesMap.set(profile.user_id, {
+        full_name: profile.full_name || 'N/A',
+        email: profile.email || 'N/A',
+      });
+    });
+
+    const pointsMap = new Map<string, PickupPointData>();
+    pointsData?.forEach(point => {
+      pointsMap.set(point.id, {
+        name: point.name,
+        city: point.city,
+      });
+    });
+
+    setCompletedDrops(dropsData);
+    setSupplierLists(listsMap);
+    setProfiles(profilesMap);
+    setPickupPoints(pointsMap);
   };
 
   const exportDropOrders = async (drop: DropData) => {
@@ -116,29 +200,16 @@ export default function ExportOrdersScreen() {
 
       console.log('Exporting orders for drop:', drop.id);
 
-      // Get all bookings for this drop
+      // Get all bookings for this drop with status 'confirmed' or 'completed'
       const { data: bookings, error: bookingsError } = await supabase
         .from('bookings')
-        .select(`
-          id,
-          product_id,
-          final_price,
-          products (
-            name,
-            available_sizes,
-            available_colors
-          ),
-          profiles (
-            full_name,
-            phone
-          )
-        `)
+        .select('id, product_id, final_price, user_id')
         .eq('drop_id', drop.id)
-        .eq('status', 'confirmed');
+        .in('status', ['confirmed', 'completed']);
 
       if (bookingsError) {
         console.error('Error loading bookings:', bookingsError);
-        Alert.alert('Errore', 'Impossibile caricare le prenotazioni');
+        Alert.alert('Errore', `Impossibile caricare le prenotazioni: ${bookingsError.message}`);
         return;
       }
 
@@ -149,12 +220,40 @@ export default function ExportOrdersScreen() {
 
       console.log('Bookings loaded:', bookings.length);
 
+      // Get product details
+      const productIds = [...new Set(bookings.map(b => b.product_id))];
+      const { data: productsData, error: productsError } = await supabase
+        .from('products')
+        .select('id, name, available_sizes, available_colors')
+        .in('id', productIds);
+
+      if (productsError) {
+        console.error('Error loading products:', productsError);
+      }
+
+      // Get user details
+      const userIds = [...new Set(bookings.map(b => b.user_id))];
+      const { data: usersData, error: usersError } = await supabase
+        .from('profiles')
+        .select('user_id, full_name, phone')
+        .in('user_id', userIds);
+
+      if (usersError) {
+        console.error('Error loading users:', usersError);
+      }
+
+      // Create maps
+      const productsMap = new Map(productsData?.map(p => [p.id, p]) || []);
+      const usersMap = new Map(usersData?.map(u => [u.user_id, u]) || []);
+
       // Group bookings by product
       const ordersByProduct = new Map<string, OrderData>();
 
       bookings.forEach((booking: any) => {
         const productId = booking.product_id;
-        const productName = booking.products?.name || 'Prodotto Sconosciuto';
+        const product = productsMap.get(productId);
+        const user = usersMap.get(booking.user_id);
+        const productName = product?.name || 'Prodotto Sconosciuto';
         
         if (ordersByProduct.has(productId)) {
           const existing = ordersByProduct.get(productId)!;
@@ -164,11 +263,11 @@ export default function ExportOrdersScreen() {
             product_id: productId,
             product_name: productName,
             quantity: 1,
-            selected_size: booking.products?.available_sizes?.[0],
-            selected_color: booking.products?.available_colors?.[0],
+            selected_size: product?.available_sizes?.[0],
+            selected_color: product?.available_colors?.[0],
             final_price: booking.final_price,
-            customer_name: booking.profiles?.full_name || 'N/A',
-            customer_phone: booking.profiles?.phone || 'N/A',
+            customer_name: user?.full_name || 'N/A',
+            customer_phone: user?.phone || 'N/A',
           });
         }
       });
@@ -196,13 +295,20 @@ export default function ExportOrdersScreen() {
       const totalValue = ordersArray.reduce((sum, order) => sum + (order.final_price * order.quantity), 0);
       const totalItems = ordersArray.reduce((sum, order) => sum + order.quantity, 0);
 
+      const supplierList = supplierLists.get(drop.supplier_list_id);
+      const supplierProfile = supplierList ? profiles.get(supplierList.supplier_id) : null;
+      const pickupPoint = pickupPoints.get(drop.pickup_point_id);
+
+      // Use completed_at if available, otherwise use updated_at
+      const completionDate = drop.completed_at || drop.updated_at;
+
       const summaryData = [
         { 'Campo': 'Drop', 'Valore': drop.name },
-        { 'Campo': 'Fornitore', 'Valore': drop.supplier_lists?.profiles?.full_name || 'N/A' },
-        { 'Campo': 'Email Fornitore', 'Valore': drop.supplier_lists?.profiles?.email || 'N/A' },
-        { 'Campo': 'Punto di Ritiro', 'Valore': `${drop.pickup_points?.name} - ${drop.pickup_points?.city}` },
+        { 'Campo': 'Fornitore', 'Valore': supplierProfile?.full_name || 'N/A' },
+        { 'Campo': 'Email Fornitore', 'Valore': supplierProfile?.email || 'N/A' },
+        { 'Campo': 'Punto di Ritiro', 'Valore': pickupPoint ? `${pickupPoint.name} - ${pickupPoint.city}` : 'N/A' },
         { 'Campo': 'Sconto Finale', 'Valore': `${Math.floor(drop.current_discount)}%` },
-        { 'Campo': 'Data Completamento', 'Valore': drop.completed_at ? new Date(drop.completed_at).toLocaleDateString('it-IT') : 'N/A' },
+        { 'Campo': 'Data Completamento', 'Valore': completionDate ? new Date(completionDate).toLocaleDateString('it-IT') : 'N/A' },
         { 'Campo': 'Totale Articoli', 'Valore': totalItems.toString() },
         { 'Campo': 'Valore Totale', 'Valore': `€${totalValue.toFixed(2)}` },
       ];
@@ -255,11 +361,18 @@ export default function ExportOrdersScreen() {
 
   const renderDrop = (drop: DropData) => {
     const isExporting = exporting === drop.id;
-    const supplierName = drop.supplier_lists?.profiles?.full_name || 'Fornitore Sconosciuto';
-    const supplierEmail = drop.supplier_lists?.profiles?.email || 'N/A';
-    const pickupPoint = `${drop.pickup_points?.name || 'N/A'} - ${drop.pickup_points?.city || 'N/A'}`;
-    const completedDate = drop.completed_at 
-      ? new Date(drop.completed_at).toLocaleDateString('it-IT', {
+    const supplierList = supplierLists.get(drop.supplier_list_id);
+    const supplierProfile = supplierList ? profiles.get(supplierList.supplier_id) : null;
+    const pickupPoint = pickupPoints.get(drop.pickup_point_id);
+    
+    const supplierName = supplierProfile?.full_name || 'Fornitore Sconosciuto';
+    const supplierEmail = supplierProfile?.email || 'N/A';
+    const pickupPointText = pickupPoint ? `${pickupPoint.name} - ${pickupPoint.city}` : 'N/A';
+    
+    // Use completed_at if available, otherwise use updated_at
+    const completionDate = drop.completed_at || drop.updated_at;
+    const completedDate = completionDate
+      ? new Date(completionDate).toLocaleDateString('it-IT', {
           day: '2-digit',
           month: 'short',
           year: 'numeric',
@@ -296,7 +409,7 @@ export default function ExportOrdersScreen() {
                 size={14} 
                 color={colors.textSecondary} 
               />
-              {' '}{pickupPoint}
+              {' '}{pickupPointText}
             </Text>
             <Text style={styles.dropDetail}>
               <IconSymbol 

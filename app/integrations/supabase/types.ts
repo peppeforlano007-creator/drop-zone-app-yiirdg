@@ -148,6 +148,7 @@ export type Database = {
           supplier_list_id: string
           target_value: number
           updated_at: string | null
+          completed_at: string | null
         }
         Insert: {
           created_at?: string | null
@@ -162,6 +163,7 @@ export type Database = {
           supplier_list_id: string
           target_value: number
           updated_at?: string | null
+          completed_at?: string | null
         }
         Update: {
           created_at?: string | null
@@ -176,6 +178,7 @@ export type Database = {
           supplier_list_id?: string
           target_value?: number
           updated_at?: string | null
+          completed_at?: string | null
         }
         Relationships: [
           {

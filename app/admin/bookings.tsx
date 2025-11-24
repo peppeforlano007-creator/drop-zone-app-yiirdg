@@ -90,12 +90,14 @@ export default function BookingsScreen() {
     try {
       setLoading(true);
       
+      console.log('Loading bookings...');
+      
       // Load bookings first
       const { data: bookingsData, error: bookingsError } = await supabase
         .from('bookings')
         .select('*')
         .order('created_at', { ascending: false })
-        .limit(200);
+        .limit(500);
 
       if (bookingsError) {
         console.error('Error loading bookings:', bookingsError);
@@ -103,21 +105,45 @@ export default function BookingsScreen() {
         return;
       }
 
+      console.log('Bookings loaded:', bookingsData?.length || 0);
+
       if (!bookingsData || bookingsData.length === 0) {
         setBookings([]);
         return;
       }
+
+      // Count bookings by status
+      const statusCounts = bookingsData.reduce((acc, b) => {
+        acc[b.status || 'unknown'] = (acc[b.status || 'unknown'] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+      console.log('Bookings by status:', statusCounts);
 
       // Load related data separately
       const userIds = [...new Set(bookingsData.map(b => b.user_id))];
       const productIds = [...new Set(bookingsData.map(b => b.product_id))];
       const dropIds = [...new Set(bookingsData.map(b => b.drop_id))];
 
+      console.log('Loading related data...');
+      console.log('- Users:', userIds.length);
+      console.log('- Products:', productIds.length);
+      console.log('- Drops:', dropIds.length);
+
       const [profilesResult, productsResult, dropsResult] = await Promise.all([
         supabase.from('profiles').select('user_id, full_name, email').in('user_id', userIds),
         supabase.from('products').select('id, name, image_url').in('id', productIds),
         supabase.from('drops').select('id, name, status').in('id', dropIds),
       ]);
+
+      if (profilesResult.error) {
+        console.error('Error loading profiles:', profilesResult.error);
+      }
+      if (productsResult.error) {
+        console.error('Error loading products:', productsResult.error);
+      }
+      if (dropsResult.error) {
+        console.error('Error loading drops:', dropsResult.error);
+      }
 
       // Create maps for quick lookup
       const profilesMap = new Map(profilesResult.data?.map(p => [p.user_id, p]) || []);
@@ -132,6 +158,7 @@ export default function BookingsScreen() {
         drops: dropsMap.get(booking.drop_id) || { name: 'N/A', status: 'unknown' },
       }));
 
+      console.log('Bookings enriched successfully');
       setBookings(enrichedBookings);
     } catch (error) {
       console.error('Error loading bookings:', error);
@@ -227,7 +254,10 @@ export default function BookingsScreen() {
         ]}
         onPress={() => {
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-          Alert.alert('Prenotazione', `ID: ${booking.id}`);
+          Alert.alert(
+            'Dettagli Prenotazione',
+            `ID: ${booking.id}\n\nCliente: ${booking.profiles?.full_name}\nEmail: ${booking.profiles?.email}\n\nProdotto: ${booking.products?.name}\nDrop: ${booking.drops?.name}\n\nStato: ${getStatusLabel(booking.status)}\nPagamento: ${getPaymentStatusLabel(booking.payment_status)}\n\nPrezzo Originale: €${booking.original_price.toFixed(2)}\nSconto: ${Math.floor(booking.discount_percentage)}%\nPrezzo Finale: €${booking.final_price.toFixed(2)}`
+          );
         }}
       >
         <View style={styles.bookingHeader}>

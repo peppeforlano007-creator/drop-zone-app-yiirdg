@@ -24,7 +24,7 @@ export default function CompleteDropScreen() {
     
     Alert.alert(
       'Completa Drop',
-      `Sei sicuro di voler completare il drop "${dropName}"?\n\nQuesto:\n- Catturerà tutti i pagamenti autorizzati\n- Addebiterà l'importo finale con lo sconto raggiunto\n- Chiuderà il drop definitivamente`,
+      `Sei sicuro di voler completare il drop "${dropName}"?\n\nQuesto:\n- Catturerà tutti i pagamenti autorizzati\n- Addebiterà l'importo finale con lo sconto raggiunto\n- Chiuderà il drop definitivamente\n- Confermerà tutte le prenotazioni`,
       [
         { text: 'Annulla', style: 'cancel' },
         {
@@ -34,27 +34,76 @@ export default function CompleteDropScreen() {
             setLoading(true);
             try {
               console.log('Completing drop:', dropId);
+              const now = new Date().toISOString();
 
-              // Update drop status to completed
-              // The database trigger will automatically capture all payments
-              const { error } = await supabase
-                .from('drops')
+              // First, update all bookings to 'confirmed' status
+              const { error: bookingsError } = await supabase
+                .from('bookings')
                 .update({
-                  status: 'completed',
-                  updated_at: new Date().toISOString(),
+                  status: 'confirmed',
+                  updated_at: now,
                 })
-                .eq('id', dropId);
+                .eq('drop_id', dropId)
+                .eq('status', 'active')
+                .eq('payment_status', 'authorized');
 
-              if (error) {
-                console.error('Error completing drop:', error);
-                Alert.alert('Errore', 'Non è stato possibile completare il drop');
+              if (bookingsError) {
+                console.error('Error updating bookings:', bookingsError);
+                Alert.alert('Errore', `Non è stato possibile aggiornare le prenotazioni: ${bookingsError.message}`);
                 return;
               }
+
+              console.log('Bookings updated to confirmed status');
+
+              // Update drop status to completed with completed_at timestamp
+              // Try to set completed_at if the column exists, otherwise just use updated_at
+              const dropUpdate: any = {
+                status: 'completed',
+                updated_at: now,
+              };
+
+              // Try to add completed_at field
+              try {
+                dropUpdate.completed_at = now;
+              } catch (e) {
+                console.log('completed_at field may not exist yet, using updated_at');
+              }
+
+              const { error: dropError } = await supabase
+                .from('drops')
+                .update(dropUpdate)
+                .eq('id', dropId);
+
+              if (dropError) {
+                console.error('Error completing drop:', dropError);
+                
+                // If error is about completed_at not existing, try without it
+                if (dropError.message?.includes('completed_at')) {
+                  console.log('Retrying without completed_at field...');
+                  const { error: retryError } = await supabase
+                    .from('drops')
+                    .update({
+                      status: 'completed',
+                      updated_at: now,
+                    })
+                    .eq('id', dropId);
+                  
+                  if (retryError) {
+                    Alert.alert('Errore', `Non è stato possibile completare il drop: ${retryError.message}`);
+                    return;
+                  }
+                } else {
+                  Alert.alert('Errore', `Non è stato possibile completare il drop: ${dropError.message}`);
+                  return;
+                }
+              }
+
+              console.log('Drop completed successfully');
 
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
               Alert.alert(
                 'Drop Completato! ✅',
-                'Il drop è stato completato con successo. Tutti i pagamenti sono stati catturati.',
+                'Il drop è stato completato con successo. Tutti i pagamenti sono stati catturati e le prenotazioni confermate.',
                 [
                   {
                     text: 'OK',
@@ -64,7 +113,7 @@ export default function CompleteDropScreen() {
               );
             } catch (error) {
               console.error('Error in handleCompleteDrop:', error);
-              Alert.alert('Errore', 'Si è verificato un errore');
+              Alert.alert('Errore', 'Si è verificato un errore imprevisto');
             } finally {
               setLoading(false);
             }
@@ -108,6 +157,17 @@ export default function CompleteDropScreen() {
                   color="#4CAF50" 
                 />
                 <Text style={styles.infoText}>
+                  Tutte le prenotazioni attive verranno confermate
+                </Text>
+              </View>
+              <View style={styles.infoItem}>
+                <IconSymbol 
+                  ios_icon_name="checkmark" 
+                  android_material_icon_name="check" 
+                  size={16} 
+                  color="#4CAF50" 
+                />
+                <Text style={styles.infoText}>
                   Tutti i pagamenti autorizzati verranno catturati
                 </Text>
               </View>
@@ -141,7 +201,7 @@ export default function CompleteDropScreen() {
                   color="#4CAF50" 
                 />
                 <Text style={styles.infoText}>
-                  Gli ordini verranno creati per il fornitore
+                  Gli ordini saranno disponibili per l&apos;esportazione
                 </Text>
               </View>
             </View>
