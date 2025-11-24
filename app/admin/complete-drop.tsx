@@ -24,7 +24,7 @@ export default function CompleteDropScreen() {
     
     Alert.alert(
       'Completa Drop',
-      `Sei sicuro di voler completare il drop "${dropName}"?\n\nQuesto:\n- Catturerà tutti i pagamenti autorizzati\n- Addebiterà l'importo finale con lo sconto raggiunto\n- Chiuderà il drop definitivamente\n- Confermerà tutte le prenotazioni`,
+      `Sei sicuro di voler completare il drop "${dropName}"?\n\nQuesto:\n- Catturerà tutti i pagamenti autorizzati su Stripe\n- Addebiterà l'importo finale con lo sconto raggiunto\n- Creerà gli ordini per i fornitori\n- Chiuderà il drop definitivamente\n- Confermerà tutte le prenotazioni`,
       [
         { text: 'Annulla', style: 'cancel' },
         {
@@ -33,87 +33,57 @@ export default function CompleteDropScreen() {
           onPress: async () => {
             setLoading(true);
             try {
-              console.log('Completing drop:', dropId);
-              const now = new Date().toISOString();
+              console.log('🎯 Starting drop completion process for:', dropId);
 
-              // First, update all bookings to 'confirmed' status
-              const { error: bookingsError } = await supabase
-                .from('bookings')
-                .update({
-                  status: 'confirmed',
-                  updated_at: now,
-                })
-                .eq('drop_id', dropId)
-                .eq('status', 'active')
-                .eq('payment_status', 'authorized');
+              // Call the Edge Function to capture payments and create orders
+              const { data, error } = await supabase.functions.invoke('capture-drop-payments', {
+                body: { dropId: dropId as string },
+              });
 
-              if (bookingsError) {
-                console.error('Error updating bookings:', bookingsError);
-                Alert.alert('Errore', `Non è stato possibile aggiornare le prenotazioni: ${bookingsError.message}`);
+              if (error) {
+                console.error('❌ Error calling capture-drop-payments:', error);
+                Alert.alert(
+                  'Errore',
+                  `Non è stato possibile completare il drop: ${error.message}\n\nVerifica che la funzione Edge sia deployata correttamente.`
+                );
                 return;
               }
 
-              console.log('Bookings updated to confirmed status');
+              console.log('✅ Drop completion response:', data);
 
-              // Update drop status to completed with completed_at timestamp
-              // Try to set completed_at if the column exists, otherwise just use updated_at
-              const dropUpdate: any = {
-                status: 'completed',
-                updated_at: now,
-              };
-
-              // Try to add completed_at field
-              try {
-                dropUpdate.completed_at = now;
-              } catch (e) {
-                console.log('completed_at field may not exist yet, using updated_at');
-              }
-
-              const { error: dropError } = await supabase
-                .from('drops')
-                .update(dropUpdate)
-                .eq('id', dropId);
-
-              if (dropError) {
-                console.error('Error completing drop:', dropError);
+              if (data?.success) {
+                const summary = data.summary;
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
                 
-                // If error is about completed_at not existing, try without it
-                if (dropError.message?.includes('completed_at')) {
-                  console.log('Retrying without completed_at field...');
-                  const { error: retryError } = await supabase
-                    .from('drops')
-                    .update({
-                      status: 'completed',
-                      updated_at: now,
-                    })
-                    .eq('id', dropId);
-                  
-                  if (retryError) {
-                    Alert.alert('Errore', `Non è stato possibile completare il drop: ${retryError.message}`);
-                    return;
-                  }
-                } else {
-                  Alert.alert('Errore', `Non è stato possibile completare il drop: ${dropError.message}`);
-                  return;
-                }
+                Alert.alert(
+                  'Drop Completato! ✅',
+                  `Il drop è stato completato con successo!\n\n` +
+                  `📊 Riepilogo:\n` +
+                  `• Prenotazioni catturate: ${summary.capturedCount}/${summary.totalBookings}\n` +
+                  `• Pagamenti Stripe: ${summary.stripeCapturedCount}\n` +
+                  `• Totale addebitato: €${summary.totalCharged}\n` +
+                  `• Risparmio totale: €${summary.totalSavings} (${summary.averageSavingsPercentage})\n` +
+                  `• Ordini creati: ${summary.ordersCreated || 0}\n\n` +
+                  `${data.stripeEnabled ? '✅ Pagamenti reali su Stripe' : '⚠️ Modalità simulazione (Stripe non configurato)'}`,
+                  [
+                    {
+                      text: 'OK',
+                      onPress: () => router.back(),
+                    },
+                  ]
+                );
+              } else {
+                Alert.alert(
+                  'Attenzione',
+                  data?.message || 'Il drop è stato completato ma potrebbero esserci stati problemi.'
+                );
               }
-
-              console.log('Drop completed successfully');
-
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            } catch (error: any) {
+              console.error('❌ Error in handleCompleteDrop:', error);
               Alert.alert(
-                'Drop Completato! ✅',
-                'Il drop è stato completato con successo. Tutti i pagamenti sono stati catturati e le prenotazioni confermate.',
-                [
-                  {
-                    text: 'OK',
-                    onPress: () => router.back(),
-                  },
-                ]
+                'Errore',
+                `Si è verificato un errore imprevisto: ${error.message}`
               );
-            } catch (error) {
-              console.error('Error in handleCompleteDrop:', error);
-              Alert.alert('Errore', 'Si è verificato un errore imprevisto');
             } finally {
               setLoading(false);
             }
@@ -157,18 +127,7 @@ export default function CompleteDropScreen() {
                   color="#4CAF50" 
                 />
                 <Text style={styles.infoText}>
-                  Tutte le prenotazioni attive verranno confermate
-                </Text>
-              </View>
-              <View style={styles.infoItem}>
-                <IconSymbol 
-                  ios_icon_name="checkmark" 
-                  android_material_icon_name="check" 
-                  size={16} 
-                  color="#4CAF50" 
-                />
-                <Text style={styles.infoText}>
-                  Tutti i pagamenti autorizzati verranno catturati
+                  Tutti i pagamenti autorizzati verranno catturati su Stripe
                 </Text>
               </View>
               <View style={styles.infoItem}>
@@ -190,6 +149,28 @@ export default function CompleteDropScreen() {
                   color="#4CAF50" 
                 />
                 <Text style={styles.infoText}>
+                  Verranno creati gli ordini per i fornitori e i punti di ritiro
+                </Text>
+              </View>
+              <View style={styles.infoItem}>
+                <IconSymbol 
+                  ios_icon_name="checkmark" 
+                  android_material_icon_name="check" 
+                  size={16} 
+                  color="#4CAF50" 
+                />
+                <Text style={styles.infoText}>
+                  Tutte le prenotazioni attive verranno confermate
+                </Text>
+              </View>
+              <View style={styles.infoItem}>
+                <IconSymbol 
+                  ios_icon_name="checkmark" 
+                  android_material_icon_name="check" 
+                  size={16} 
+                  color="#4CAF50" 
+                />
+                <Text style={styles.infoText}>
                   Il drop verrà chiuso definitivamente
                 </Text>
               </View>
@@ -201,10 +182,22 @@ export default function CompleteDropScreen() {
                   color="#4CAF50" 
                 />
                 <Text style={styles.infoText}>
-                  Gli ordini saranno disponibili per l&apos;esportazione
+                  Gli ordini saranno visibili nei punti di ritiro
                 </Text>
               </View>
             </View>
+          </View>
+
+          <View style={styles.warningCard}>
+            <IconSymbol 
+              ios_icon_name="exclamationmark.triangle.fill" 
+              android_material_icon_name="warning" 
+              size={20} 
+              color="#FF9800" 
+            />
+            <Text style={styles.warningText}>
+              Assicurati di aver configurato STRIPE_SECRET_KEY in Supabase per catturare i pagamenti reali.
+            </Text>
           </View>
 
           <Pressable
@@ -272,7 +265,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card,
     borderRadius: 12,
     padding: 20,
-    marginBottom: 32,
+    marginBottom: 16,
     borderWidth: 1,
     borderColor: colors.border,
   },
@@ -295,6 +288,22 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.textSecondary,
     lineHeight: 20,
+  },
+  warningCard: {
+    flexDirection: 'row',
+    backgroundColor: '#FF980020',
+    borderWidth: 1,
+    borderColor: '#FF980040',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 32,
+    gap: 12,
+  },
+  warningText: {
+    flex: 1,
+    fontSize: 13,
+    color: colors.text,
+    lineHeight: 18,
   },
   button: {
     backgroundColor: '#4CAF50',

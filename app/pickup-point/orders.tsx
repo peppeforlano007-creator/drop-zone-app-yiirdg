@@ -26,6 +26,7 @@ interface OrderItem {
   final_price: number;
   pickup_status: string;
   picked_up_at?: string;
+  user_id: string;
 }
 
 interface Order {
@@ -54,7 +55,11 @@ export default function OrdersScreen() {
 
   const loadOrders = useCallback(async () => {
     if (!user?.pickupPointId) {
-      console.error('No pickup point ID found');
+      console.error('No pickup point ID found for user:', user?.id);
+      Alert.alert(
+        'Errore',
+        'Nessun punto di ritiro associato a questo account. Contatta l\'amministratore.'
+      );
       setLoading(false);
       setRefreshing(false);
       return;
@@ -92,7 +97,7 @@ export default function OrdersScreen() {
 
       if (activeError) {
         console.error('Error loading active orders:', activeError);
-        Alert.alert('Errore', 'Impossibile caricare gli ordini attivi');
+        Alert.alert('Errore', `Impossibile caricare gli ordini attivi: ${activeError.message}`);
       } else {
         console.log('Active orders loaded:', activeData?.length || 0);
         
@@ -100,14 +105,22 @@ export default function OrdersScreen() {
         const ordersWithProfiles = await Promise.all(
           (activeData || []).map(async (order) => {
             if (order.order_items && order.order_items.length > 0) {
+              // Get the first user_id from order items
               const userId = order.order_items[0].user_id;
-              const { data: profileData } = await supabase
-                .from('profiles')
-                .select('full_name, phone')
-                .eq('user_id', userId)
-                .single();
               
-              return { ...order, profiles: profileData };
+              if (userId) {
+                const { data: profileData, error: profileError } = await supabase
+                  .from('profiles')
+                  .select('full_name, phone')
+                  .eq('user_id', userId)
+                  .single();
+                
+                if (profileError) {
+                  console.warn(`Could not load profile for user ${userId}:`, profileError);
+                }
+                
+                return { ...order, profiles: profileData || undefined };
+              }
             }
             return order;
           })
@@ -146,7 +159,7 @@ export default function OrdersScreen() {
 
       if (completedError) {
         console.error('Error loading completed orders:', completedError);
-        Alert.alert('Errore', 'Impossibile caricare gli ordini completati');
+        Alert.alert('Errore', `Impossibile caricare gli ordini completati: ${completedError.message}`);
       } else {
         console.log('Completed orders loaded:', completedData?.length || 0);
         
@@ -155,13 +168,20 @@ export default function OrdersScreen() {
           (completedData || []).map(async (order) => {
             if (order.order_items && order.order_items.length > 0) {
               const userId = order.order_items[0].user_id;
-              const { data: profileData } = await supabase
-                .from('profiles')
-                .select('full_name, phone')
-                .eq('user_id', userId)
-                .single();
               
-              return { ...order, profiles: profileData };
+              if (userId) {
+                const { data: profileData, error: profileError } = await supabase
+                  .from('profiles')
+                  .select('full_name, phone')
+                  .eq('user_id', userId)
+                  .single();
+                
+                if (profileError) {
+                  console.warn(`Could not load profile for user ${userId}:`, profileError);
+                }
+                
+                return { ...order, profiles: profileData || undefined };
+              }
             }
             return order;
           })
@@ -169,14 +189,14 @@ export default function OrdersScreen() {
         
         setCompletedOrders(ordersWithProfiles);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading orders:', error);
-      Alert.alert('Errore', 'Si è verificato un errore durante il caricamento degli ordini');
+      Alert.alert('Errore', `Si è verificato un errore: ${error.message}`);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [user?.pickupPointId]);
+  }, [user?.pickupPointId, user?.id]);
 
   useEffect(() => {
     loadOrders();
@@ -274,7 +294,7 @@ export default function OrdersScreen() {
                 Alert.alert('Successo', 'Il cliente è stato notificato che l\'ordine è pronto per il ritiro.');
                 loadOrders();
               }
-            } catch (error) {
+            } catch (error: any) {
               console.error('Error marking order as arrived:', error);
               Alert.alert('Errore', 'Si è verificato un errore');
             }
@@ -328,13 +348,13 @@ export default function OrdersScreen() {
                 console.error('Error updating order items:', itemsError);
               }
 
-              const commissionAmount = order.total_value * 0.05; // Assuming 5% commission
+              const commissionAmount = order.total_value * 0.05; // 5% commission
               Alert.alert(
                 'Successo', 
                 `Ordine completato! La commissione di €${commissionAmount.toFixed(2)} è stata aggiunta al tuo conto.`
               );
               loadOrders();
-            } catch (error) {
+            } catch (error: any) {
               console.error('Error marking order as picked up:', error);
               Alert.alert('Errore', 'Si è verificato un errore');
             }
@@ -376,6 +396,7 @@ export default function OrdersScreen() {
     const customerName = order.profiles?.full_name || 'Cliente';
     const customerPhone = order.profiles?.phone || 'N/A';
     const daysInStorage = calculateDaysInStorage(order.arrived_at);
+    const hasItems = order.order_items && order.order_items.length > 0;
 
     return (
       <View key={order.id} style={styles.orderCard}>
@@ -434,16 +455,19 @@ export default function OrdersScreen() {
         {/* Products */}
         <View style={styles.productsSection}>
           <Text style={styles.productsLabel}>Prodotti:</Text>
-          {order.order_items && order.order_items.length > 0 ? (
+          {hasItems ? (
             order.order_items.map((item, index) => (
               <Text key={index} style={styles.productItem}>
                 • {item.product_name}
                 {item.selected_size && ` - Taglia: ${item.selected_size}`}
                 {item.selected_color && ` - Colore: ${item.selected_color}`}
+                {` - €${item.final_price.toFixed(2)}`}
               </Text>
             ))
           ) : (
-            <Text style={styles.productItem}>Nessun prodotto</Text>
+            <Text style={styles.productItemEmpty}>
+              Nessun prodotto (ordine potrebbe essere stato creato prima della configurazione Stripe)
+            </Text>
           )}
         </View>
 
@@ -776,6 +800,12 @@ const styles = StyleSheet.create({
     color: colors.text,
     marginBottom: 4,
     lineHeight: 20,
+  },
+  productItemEmpty: {
+    fontSize: 13,
+    color: colors.textTertiary,
+    fontStyle: 'italic',
+    lineHeight: 18,
   },
   valueSection: {
     flexDirection: 'row',

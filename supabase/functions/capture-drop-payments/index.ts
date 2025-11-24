@@ -23,8 +23,21 @@ interface BookingData {
   discount_percentage: number;
   payment_status: string;
   payment_intent_id?: string;
+  pickup_point_id: string;
+  selected_size?: string;
+  selected_color?: string;
   products: {
     name: string;
+    supplier_id: string;
+  };
+}
+
+interface OrdersBySupplier {
+  [supplierId: string]: {
+    supplier_id: string;
+    pickup_point_id: string;
+    bookings: BookingData[];
+    total_value: number;
   };
 }
 
@@ -73,9 +86,11 @@ serve(async (req) => {
         name,
         current_discount,
         status,
+        pickup_point_id,
         supplier_lists (
           min_discount,
-          max_discount
+          max_discount,
+          supplier_id
         )
       `)
       .eq('id', dropId)
@@ -103,8 +118,12 @@ serve(async (req) => {
         discount_percentage,
         payment_status,
         payment_intent_id,
+        pickup_point_id,
+        selected_size,
+        selected_color,
         products (
-          name
+          name,
+          supplier_id
         )
       `)
       .eq('drop_id', dropId)
@@ -123,7 +142,8 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ 
           message: 'No authorized bookings to capture',
-          capturedCount: 0 
+          capturedCount: 0,
+          ordersCreated: 0
         }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
@@ -131,7 +151,7 @@ serve(async (req) => {
 
     console.log(`📦 Found ${bookings.length} bookings to capture`);
 
-    // Calculate final prices and update bookings
+    // Calculate final prices and capture payments
     const finalDiscount = drop.current_discount;
     const captureResults = [];
     let totalAuthorized = 0;
@@ -140,7 +160,7 @@ serve(async (req) => {
 
     for (const booking of bookings as BookingData[]) {
       try {
-        // Calcola il prezzo finale in base allo sconto finale raggiunto
+        // Calculate final price based on final discount
         const finalPrice = Number(booking.original_price) * (1 - finalDiscount / 100);
         const authorizedAmount = Number(booking.authorized_amount);
         const savings = authorizedAmount - finalPrice;
@@ -185,7 +205,7 @@ serve(async (req) => {
             console.error(`❌ Stripe capture error for booking ${booking.id}:`, error.message);
             stripeError = error.message;
             
-            // If Stripe capture fails, we still update the booking but mark it as failed
+            // If Stripe capture fails, mark booking as failed
             const { error: updateError } = await supabase
               .from('bookings')
               .update({
@@ -258,11 +278,114 @@ serve(async (req) => {
       }
     }
 
+    // Group bookings by supplier and pickup point to create orders
+    console.log('\n📦 Creating orders...');
+    const ordersBySupplier: OrdersBySupplier = {};
+    
+    for (const booking of bookings as BookingData[]) {
+      const supplierId = booking.products.supplier_id;
+      const pickupPointId = booking.pickup_point_id;
+      const key = `${supplierId}_${pickupPointId}`;
+      
+      if (!ordersBySupplier[key]) {
+        ordersBySupplier[key] = {
+          supplier_id: supplierId,
+          pickup_point_id: pickupPointId,
+          bookings: [],
+          total_value: 0,
+        };
+      }
+      
+      // Only add successfully captured bookings
+      const captureResult = captureResults.find(r => r.bookingId === booking.id);
+      if (captureResult?.success) {
+        ordersBySupplier[key].bookings.push(booking);
+        const finalPrice = Number(booking.original_price) * (1 - finalDiscount / 100);
+        ordersBySupplier[key].total_value += finalPrice;
+      }
+    }
+
+    const ordersCreated = [];
+    for (const [key, orderData] of Object.entries(ordersBySupplier)) {
+      try {
+        // Generate order number
+        const orderNumber = `ORD-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+        const commissionAmount = orderData.total_value * 0.05; // 5% commission
+
+        console.log(`📝 Creating order ${orderNumber} for supplier ${orderData.supplier_id}`);
+
+        // Create order
+        const { data: order, error: orderError } = await supabase
+          .from('orders')
+          .insert({
+            order_number: orderNumber,
+            drop_id: dropId,
+            supplier_id: orderData.supplier_id,
+            pickup_point_id: orderData.pickup_point_id,
+            status: 'confirmed',
+            total_value: orderData.total_value,
+            commission_amount: commissionAmount,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+          .select()
+          .single();
+
+        if (orderError) {
+          console.error(`❌ Error creating order:`, orderError);
+          continue;
+        }
+
+        console.log(`✅ Order created: ${order.id}`);
+
+        // Create order items
+        const orderItems = orderData.bookings.map(booking => {
+          const finalPrice = Number(booking.original_price) * (1 - finalDiscount / 100);
+          return {
+            order_id: order.id,
+            booking_id: booking.id,
+            product_id: booking.product_id,
+            product_name: booking.products.name,
+            user_id: booking.user_id,
+            original_price: booking.original_price,
+            final_price: finalPrice,
+            discount_percentage: finalDiscount,
+            selected_size: booking.selected_size,
+            selected_color: booking.selected_color,
+            pickup_status: 'pending',
+            created_at: new Date().toISOString(),
+          };
+        });
+
+        const { error: itemsError } = await supabase
+          .from('order_items')
+          .insert(orderItems);
+
+        if (itemsError) {
+          console.error(`❌ Error creating order items:`, itemsError);
+        } else {
+          console.log(`✅ Created ${orderItems.length} order items`);
+        }
+
+        ordersCreated.push({
+          orderId: order.id,
+          orderNumber: orderNumber,
+          supplierId: orderData.supplier_id,
+          pickupPointId: orderData.pickup_point_id,
+          totalValue: orderData.total_value.toFixed(2),
+          itemsCount: orderItems.length,
+        });
+      } catch (error: any) {
+        console.error(`❌ Error creating order for supplier ${orderData.supplier_id}:`, error);
+      }
+    }
+
     // Update drop status to completed
     const { error: dropUpdateError } = await supabase
       .from('drops')
       .update({
         status: 'completed',
+        completed_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
       .eq('id', dropId);
@@ -284,12 +407,13 @@ serve(async (req) => {
     console.log(`   💰 Total Authorized: €${totalAuthorized.toFixed(2)}`);
     console.log(`   💳 Total Charged: €${totalCharged.toFixed(2)}`);
     console.log(`   🎉 Total Savings: €${totalSavings.toFixed(2)}`);
-    console.log(`   📈 Average Savings: ${((totalSavings / totalAuthorized) * 100).toFixed(1)}%\n`);
+    console.log(`   📈 Average Savings: ${((totalSavings / totalAuthorized) * 100).toFixed(1)}%`);
+    console.log(`   📦 Orders Created: ${ordersCreated.length}\n`);
 
     return new Response(
       JSON.stringify({
         success: true,
-        message: 'Payment capture completed',
+        message: 'Payment capture and order creation completed',
         dropId,
         dropName: drop.name,
         finalDiscount: finalDiscount.toFixed(1) + '%',
@@ -303,8 +427,10 @@ serve(async (req) => {
           totalCharged: totalCharged.toFixed(2),
           totalSavings: totalSavings.toFixed(2),
           averageSavingsPercentage: ((totalSavings / totalAuthorized) * 100).toFixed(1) + '%',
+          ordersCreated: ordersCreated.length,
         },
         results: captureResults,
+        orders: ordersCreated,
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
