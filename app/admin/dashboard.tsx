@@ -8,6 +8,7 @@ import {
   Pressable,
   ActivityIndicator,
   RefreshControl,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, router } from 'expo-router';
@@ -15,6 +16,7 @@ import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 import * as Haptics from 'expo-haptics';
 import { supabase } from '@/app/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface DashboardStats {
   totalUsers: number;
@@ -27,6 +29,7 @@ interface DashboardStats {
 }
 
 export default function AdminDashboardScreen() {
+  const { logout } = useAuth();
   const [stats, setStats] = useState<DashboardStats>({
     totalUsers: 0,
     totalSuppliers: 0,
@@ -86,6 +89,30 @@ export default function AdminDashboardScreen() {
   const handleRefresh = () => {
     setRefreshing(true);
     loadStats();
+  };
+
+  const handleLogout = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    Alert.alert(
+      'Logout',
+      'Sei sicuro di voler uscire?',
+      [
+        { text: 'Annulla', style: 'cancel' },
+        {
+          text: 'Esci',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await logout();
+              router.replace('/login');
+            } catch (error) {
+              console.error('Error during logout:', error);
+              Alert.alert('Errore', 'Si è verificato un errore durante il logout');
+            }
+          },
+        },
+      ]
+    );
   };
 
   const menuItems = [
@@ -171,6 +198,22 @@ export default function AdminDashboardScreen() {
           title: 'Admin Dashboard',
           headerStyle: { backgroundColor: colors.background },
           headerTintColor: colors.text,
+          headerRight: () => (
+            <Pressable
+              onPress={handleLogout}
+              style={({ pressed }) => [
+                styles.logoutButton,
+                pressed && styles.logoutButtonPressed,
+              ]}
+            >
+              <IconSymbol
+                ios_icon_name="rectangle.portrait.and.arrow.right"
+                android_material_icon_name="logout"
+                size={24}
+                color={colors.error}
+              />
+            </Pressable>
+          ),
         }}
       />
       <SafeAreaView style={styles.container} edges={['bottom']}>
@@ -269,6 +312,23 @@ export default function AdminDashboardScreen() {
               </Pressable>
             ))}
           </View>
+
+          {/* Logout Button at Bottom */}
+          <Pressable
+            style={({ pressed }) => [
+              styles.logoutButtonBottom,
+              pressed && styles.logoutButtonBottomPressed,
+            ]}
+            onPress={handleLogout}
+          >
+            <IconSymbol
+              ios_icon_name="rectangle.portrait.and.arrow.right"
+              android_material_icon_name="logout"
+              size={20}
+              color={colors.error}
+            />
+            <Text style={styles.logoutButtonText}>Esci</Text>
+          </Pressable>
         </ScrollView>
       </SafeAreaView>
     </>
@@ -345,6 +405,7 @@ const styles = StyleSheet.create({
   },
   menuContainer: {
     gap: 12,
+    marginBottom: 24,
   },
   menuItem: {
     flexDirection: 'row',
@@ -385,5 +446,32 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     color: '#FFF',
+  },
+  logoutButton: {
+    padding: 8,
+    marginRight: 8,
+  },
+  logoutButtonPressed: {
+    opacity: 0.6,
+  },
+  logoutButtonBottom: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: colors.card,
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.error + '40',
+  },
+  logoutButtonBottomPressed: {
+    opacity: 0.7,
+    transform: [{ scale: 0.98 }],
+  },
+  logoutButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.error,
   },
 });

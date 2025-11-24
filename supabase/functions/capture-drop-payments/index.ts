@@ -2,6 +2,7 @@
 /* eslint-disable import/no-unresolved */
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.81.1';
+import Stripe from 'https://esm.sh/stripe@14.21.0?target=deno';
 /* eslint-enable import/no-unresolved */
 
 const corsHeaders = {
@@ -38,6 +39,20 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Initialize Stripe
+    const stripeSecretKey = Deno.env.get('STRIPE_SECRET_KEY');
+    let stripe: Stripe | null = null;
+    
+    if (stripeSecretKey) {
+      stripe = new Stripe(stripeSecretKey, {
+        apiVersion: '2023-10-16',
+        httpClient: Stripe.createFetchHttpClient(),
+      });
+      console.log('✅ Stripe initialized successfully');
+    } else {
+      console.warn('⚠️ STRIPE_SECRET_KEY not found - running in simulation mode');
+    }
 
     const { dropId } = await req.json() as DropPaymentCaptureRequest;
 
@@ -144,22 +159,62 @@ serve(async (req) => {
           savingsPercentage: ((savings / authorizedAmount) * 100).toFixed(1) + '%'
         });
 
-        // In produzione, qui chiameresti l'API di Stripe per catturare il pagamento:
-        // 
-        // if (booking.payment_intent_id) {
-        //   const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY')!);
-        //   
-        //   const paymentIntent = await stripe.paymentIntents.capture(
-        //     booking.payment_intent_id,
-        //     {
-        //       amount_to_capture: Math.round(finalPrice * 100), // Amount in cents
-        //     }
-        //   );
-        //   
-        //   console.log('✅ Stripe payment captured:', paymentIntent.id);
-        // }
+        // Capture payment with Stripe if available and payment_intent_id exists
+        let stripeCaptured = false;
+        let stripeError = null;
+
+        if (stripe && booking.payment_intent_id) {
+          try {
+            console.log(`🔄 Capturing Stripe payment intent: ${booking.payment_intent_id}`);
+            
+            const paymentIntent = await stripe.paymentIntents.capture(
+              booking.payment_intent_id,
+              {
+                amount_to_capture: Math.round(finalPrice * 100), // Amount in cents
+              }
+            );
+            
+            console.log(`✅ Stripe payment captured successfully:`, {
+              id: paymentIntent.id,
+              amount: paymentIntent.amount_received / 100,
+              status: paymentIntent.status,
+            });
+            
+            stripeCaptured = true;
+          } catch (error: any) {
+            console.error(`❌ Stripe capture error for booking ${booking.id}:`, error.message);
+            stripeError = error.message;
+            
+            // If Stripe capture fails, we still update the booking but mark it as failed
+            const { error: updateError } = await supabase
+              .from('bookings')
+              .update({
+                payment_status: 'failed',
+                status: 'cancelled',
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', booking.id);
+
+            if (updateError) {
+              console.error(`❌ Error updating failed booking ${booking.id}:`, updateError);
+            }
+
+            captureResults.push({
+              bookingId: booking.id,
+              productName: booking.products.name,
+              success: false,
+              error: `Stripe capture failed: ${stripeError}`,
+            });
+            
+            continue; // Skip to next booking
+          }
+        } else if (!booking.payment_intent_id) {
+          console.warn(`⚠️ No payment_intent_id for booking ${booking.id} - simulating capture`);
+        } else {
+          console.warn(`⚠️ Stripe not initialized - simulating capture for booking ${booking.id}`);
+        }
         
-        // Per ora, simuliamo la cattura aggiornando il booking
+        // Update booking in database
         const { error: updateError } = await supabase
           .from('bookings')
           .update({
@@ -185,13 +240,14 @@ serve(async (req) => {
             bookingId: booking.id,
             productName: booking.products.name,
             success: true,
+            stripeCaptured,
             authorizedAmount: authorizedAmount.toFixed(2),
             finalPrice: finalPrice.toFixed(2),
             savings: savings.toFixed(2),
             savingsPercentage: ((savings / authorizedAmount) * 100).toFixed(1) + '%',
           });
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error(`❌ Error processing booking ${booking.id}:`, error);
         captureResults.push({
           bookingId: booking.id,
@@ -219,9 +275,11 @@ serve(async (req) => {
 
     const successCount = captureResults.filter(r => r.success).length;
     const failureCount = captureResults.filter(r => !r.success).length;
+    const stripeCount = captureResults.filter(r => r.success && r.stripeCaptured).length;
 
     console.log(`\n📊 CAPTURE SUMMARY:`);
     console.log(`   ✅ Succeeded: ${successCount}`);
+    console.log(`   💳 Stripe Captured: ${stripeCount}`);
     console.log(`   ❌ Failed: ${failureCount}`);
     console.log(`   💰 Total Authorized: €${totalAuthorized.toFixed(2)}`);
     console.log(`   💳 Total Charged: €${totalCharged.toFixed(2)}`);
@@ -235,9 +293,11 @@ serve(async (req) => {
         dropId,
         dropName: drop.name,
         finalDiscount: finalDiscount.toFixed(1) + '%',
+        stripeEnabled: !!stripe,
         summary: {
           totalBookings: bookings.length,
           capturedCount: successCount,
+          stripeCapturedCount: stripeCount,
           failedCount: failureCount,
           totalAuthorized: totalAuthorized.toFixed(2),
           totalCharged: totalCharged.toFixed(2),
@@ -249,7 +309,7 @@ serve(async (req) => {
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('❌ Error in capture-drop-payments:', error);
     return new Response(
       JSON.stringify({ 
