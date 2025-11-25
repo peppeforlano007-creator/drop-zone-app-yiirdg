@@ -2,7 +2,6 @@
 /* eslint-disable import/no-unresolved */
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.81.1';
-import Stripe from 'https://esm.sh/stripe@14.21.0?target=deno';
 /* eslint-enable import/no-unresolved */
 
 const corsHeaders = {
@@ -10,7 +9,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-interface DropPaymentCaptureRequest {
+interface DropCompletionRequest {
   dropId: string;
 }
 
@@ -19,16 +18,18 @@ interface BookingData {
   user_id: string;
   product_id: string;
   original_price: number;
-  authorized_amount: number;
   discount_percentage: number;
   payment_status: string;
-  payment_intent_id?: string;
   pickup_point_id: string;
   selected_size?: string;
   selected_color?: string;
   products: {
     name: string;
     supplier_id: string;
+  };
+  profiles: {
+    full_name: string;
+    email: string;
   };
 }
 
@@ -53,21 +54,7 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Initialize Stripe
-    const stripeSecretKey = Deno.env.get('STRIPE_SECRET_KEY');
-    let stripe: Stripe | null = null;
-    
-    if (stripeSecretKey) {
-      stripe = new Stripe(stripeSecretKey, {
-        apiVersion: '2023-10-16',
-        httpClient: Stripe.createFetchHttpClient(),
-      });
-      console.log('✅ Stripe initialized successfully');
-    } else {
-      console.warn('⚠️ STRIPE_SECRET_KEY not found - running in simulation mode');
-    }
-
-    const { dropId } = await req.json() as DropPaymentCaptureRequest;
+    const { dropId } = await req.json() as DropCompletionRequest;
 
     if (!dropId) {
       return new Response(
@@ -76,7 +63,7 @@ serve(async (req) => {
       );
     }
 
-    console.log('🎯 Starting payment capture for drop:', dropId);
+    console.log('🎯 Starting drop completion for:', dropId);
 
     // Get drop details
     const { data: drop, error: dropError } = await supabase
@@ -106,7 +93,7 @@ serve(async (req) => {
 
     console.log(`📊 Drop "${drop.name}" - Final discount: ${drop.current_discount}%`);
 
-    // Get all authorized bookings for this drop
+    // Get all active bookings for this drop (COD payment method)
     const { data: bookings, error: bookingsError } = await supabase
       .from('bookings')
       .select(`
@@ -114,20 +101,23 @@ serve(async (req) => {
         user_id,
         product_id,
         original_price,
-        authorized_amount,
         discount_percentage,
         payment_status,
-        payment_intent_id,
         pickup_point_id,
         selected_size,
         selected_color,
         products (
           name,
           supplier_id
+        ),
+        profiles:user_id (
+          full_name,
+          email
         )
       `)
       .eq('drop_id', dropId)
-      .eq('payment_status', 'authorized');
+      .eq('status', 'active')
+      .eq('payment_method', 'cod');
 
     if (bookingsError) {
       console.error('❌ Error fetching bookings:', bookingsError);
@@ -138,101 +128,53 @@ serve(async (req) => {
     }
 
     if (!bookings || bookings.length === 0) {
-      console.log('ℹ️ No authorized bookings found for drop:', dropId);
+      console.log('ℹ️ No active bookings found for drop:', dropId);
       return new Response(
         JSON.stringify({ 
-          message: 'No authorized bookings to capture',
-          capturedCount: 0,
-          ordersCreated: 0
+          success: true,
+          message: 'No active bookings to confirm',
+          summary: {
+            totalBookings: 0,
+            confirmedCount: 0,
+            finalDiscount: '0',
+            totalAmount: '0',
+            totalSavings: '0',
+            ordersCreated: 0
+          }
         }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log(`📦 Found ${bookings.length} bookings to capture`);
+    console.log(`📦 Found ${bookings.length} bookings to confirm`);
 
-    // Calculate final prices and capture payments
+    // Calculate final prices and confirm bookings
     const finalDiscount = drop.current_discount;
-    const captureResults = [];
-    let totalAuthorized = 0;
-    let totalCharged = 0;
+    const confirmResults = [];
+    let totalOriginal = 0;
+    let totalFinal = 0;
     let totalSavings = 0;
 
     for (const booking of bookings as BookingData[]) {
       try {
         // Calculate final price based on final discount
         const finalPrice = Number(booking.original_price) * (1 - finalDiscount / 100);
-        const authorizedAmount = Number(booking.authorized_amount);
-        const savings = authorizedAmount - finalPrice;
+        const originalPrice = Number(booking.original_price);
+        const savings = originalPrice - finalPrice;
 
-        totalAuthorized += authorizedAmount;
-        totalCharged += finalPrice;
+        totalOriginal += originalPrice;
+        totalFinal += finalPrice;
         totalSavings += savings;
 
-        console.log(`💳 Booking ${booking.id}:`, {
+        console.log(`💰 Booking ${booking.id}:`, {
           product: booking.products.name,
-          originalPrice: booking.original_price,
-          authorizedAmount: authorizedAmount.toFixed(2),
+          user: booking.profiles?.full_name || 'Unknown',
+          originalPrice: originalPrice.toFixed(2),
           finalPrice: finalPrice.toFixed(2),
           finalDiscount: finalDiscount.toFixed(1),
           savings: savings.toFixed(2),
-          savingsPercentage: ((savings / authorizedAmount) * 100).toFixed(1) + '%'
+          savingsPercentage: ((savings / originalPrice) * 100).toFixed(1) + '%'
         });
-
-        // Capture payment with Stripe if available and payment_intent_id exists
-        let stripeCaptured = false;
-        let stripeError = null;
-
-        if (stripe && booking.payment_intent_id) {
-          try {
-            console.log(`🔄 Capturing Stripe payment intent: ${booking.payment_intent_id}`);
-            
-            const paymentIntent = await stripe.paymentIntents.capture(
-              booking.payment_intent_id,
-              {
-                amount_to_capture: Math.round(finalPrice * 100), // Amount in cents
-              }
-            );
-            
-            console.log(`✅ Stripe payment captured successfully:`, {
-              id: paymentIntent.id,
-              amount: paymentIntent.amount_received / 100,
-              status: paymentIntent.status,
-            });
-            
-            stripeCaptured = true;
-          } catch (error: any) {
-            console.error(`❌ Stripe capture error for booking ${booking.id}:`, error.message);
-            stripeError = error.message;
-            
-            // If Stripe capture fails, mark booking as failed
-            const { error: updateError } = await supabase
-              .from('bookings')
-              .update({
-                payment_status: 'failed',
-                status: 'cancelled',
-                updated_at: new Date().toISOString(),
-              })
-              .eq('id', booking.id);
-
-            if (updateError) {
-              console.error(`❌ Error updating failed booking ${booking.id}:`, updateError);
-            }
-
-            captureResults.push({
-              bookingId: booking.id,
-              productName: booking.products.name,
-              success: false,
-              error: `Stripe capture failed: ${stripeError}`,
-            });
-            
-            continue; // Skip to next booking
-          }
-        } else if (!booking.payment_intent_id) {
-          console.warn(`⚠️ No payment_intent_id for booking ${booking.id} - simulating capture`);
-        } else {
-          console.warn(`⚠️ Stripe not initialized - simulating capture for booking ${booking.id}`);
-        }
         
         // Update booking in database
         const { error: updateError } = await supabase
@@ -240,7 +182,7 @@ serve(async (req) => {
           .update({
             final_price: finalPrice,
             discount_percentage: finalDiscount,
-            payment_status: 'captured',
+            payment_status: 'pending',
             status: 'confirmed',
             updated_at: new Date().toISOString(),
           })
@@ -248,28 +190,54 @@ serve(async (req) => {
 
         if (updateError) {
           console.error(`❌ Error updating booking ${booking.id}:`, updateError);
-          captureResults.push({
+          confirmResults.push({
             bookingId: booking.id,
             productName: booking.products.name,
             success: false,
             error: updateError.message,
           });
         } else {
-          console.log(`✅ Successfully captured payment for booking ${booking.id}`);
-          captureResults.push({
+          console.log(`✅ Successfully confirmed booking ${booking.id}`);
+          
+          // Create notification for user
+          const { error: notifError } = await supabase
+            .from('notifications')
+            .insert({
+              user_id: booking.user_id,
+              title: `Drop Completato: ${drop.name}`,
+              message: `Il drop è terminato con uno sconto del ${Math.floor(finalDiscount)}%!\n\n` +
+                      `Prodotto: ${booking.products.name}\n` +
+                      `Prezzo originale: €${originalPrice.toFixed(2)}\n` +
+                      `Prezzo finale: €${finalPrice.toFixed(2)}\n` +
+                      `Risparmio: €${savings.toFixed(2)} (${Math.floor((savings / originalPrice) * 100)}%)\n\n` +
+                      `Dovrai pagare €${finalPrice.toFixed(2)} in contanti al momento del ritiro.\n\n` +
+                      `Ti notificheremo quando l'ordine sarà pronto per il ritiro!`,
+              type: 'drop_completed',
+              related_id: dropId,
+              related_type: 'drop',
+              read: false,
+            });
+
+          if (notifError) {
+            console.error(`⚠️ Error creating notification for user ${booking.user_id}:`, notifError);
+          } else {
+            console.log(`📧 Notification sent to user ${booking.user_id}`);
+          }
+          
+          confirmResults.push({
             bookingId: booking.id,
             productName: booking.products.name,
+            userName: booking.profiles?.full_name || 'Unknown',
             success: true,
-            stripeCaptured,
-            authorizedAmount: authorizedAmount.toFixed(2),
+            originalPrice: originalPrice.toFixed(2),
             finalPrice: finalPrice.toFixed(2),
             savings: savings.toFixed(2),
-            savingsPercentage: ((savings / authorizedAmount) * 100).toFixed(1) + '%',
+            savingsPercentage: ((savings / originalPrice) * 100).toFixed(1) + '%',
           });
         }
       } catch (error: any) {
         console.error(`❌ Error processing booking ${booking.id}:`, error);
-        captureResults.push({
+        confirmResults.push({
           bookingId: booking.id,
           productName: booking.products?.name || 'Unknown',
           success: false,
@@ -296,9 +264,9 @@ serve(async (req) => {
         };
       }
       
-      // Only add successfully captured bookings
-      const captureResult = captureResults.find(r => r.bookingId === booking.id);
-      if (captureResult?.success) {
+      // Only add successfully confirmed bookings
+      const confirmResult = confirmResults.find(r => r.bookingId === booking.id);
+      if (confirmResult?.success) {
         ordersBySupplier[key].bookings.push(booking);
         const finalPrice = Number(booking.original_price) * (1 - finalDiscount / 100);
         ordersBySupplier[key].total_value += finalPrice;
@@ -396,47 +364,42 @@ serve(async (req) => {
       console.log('✅ Drop status updated to completed');
     }
 
-    const successCount = captureResults.filter(r => r.success).length;
-    const failureCount = captureResults.filter(r => !r.success).length;
-    const stripeCount = captureResults.filter(r => r.success && r.stripeCaptured).length;
+    const successCount = confirmResults.filter(r => r.success).length;
+    const failureCount = confirmResults.filter(r => !r.success).length;
 
-    console.log(`\n📊 CAPTURE SUMMARY:`);
-    console.log(`   ✅ Succeeded: ${successCount}`);
-    console.log(`   💳 Stripe Captured: ${stripeCount}`);
+    console.log(`\n📊 COMPLETION SUMMARY:`);
+    console.log(`   ✅ Confirmed: ${successCount}`);
     console.log(`   ❌ Failed: ${failureCount}`);
-    console.log(`   💰 Total Authorized: €${totalAuthorized.toFixed(2)}`);
-    console.log(`   💳 Total Charged: €${totalCharged.toFixed(2)}`);
+    console.log(`   💰 Total Original: €${totalOriginal.toFixed(2)}`);
+    console.log(`   💳 Total Final (COD): €${totalFinal.toFixed(2)}`);
     console.log(`   🎉 Total Savings: €${totalSavings.toFixed(2)}`);
-    console.log(`   📈 Average Savings: ${((totalSavings / totalAuthorized) * 100).toFixed(1)}%`);
+    console.log(`   📈 Average Savings: ${((totalSavings / totalOriginal) * 100).toFixed(1)}%`);
     console.log(`   📦 Orders Created: ${ordersCreated.length}\n`);
 
     return new Response(
       JSON.stringify({
         success: true,
-        message: 'Payment capture and order creation completed',
+        message: 'Drop completion and order creation completed',
         dropId,
         dropName: drop.name,
         finalDiscount: finalDiscount.toFixed(1) + '%',
-        stripeEnabled: !!stripe,
         summary: {
           totalBookings: bookings.length,
-          capturedCount: successCount,
-          stripeCapturedCount: stripeCount,
+          confirmedCount: successCount,
           failedCount: failureCount,
-          totalAuthorized: totalAuthorized.toFixed(2),
-          totalCharged: totalCharged.toFixed(2),
+          finalDiscount: finalDiscount.toFixed(1) + '%',
+          totalAmount: totalFinal.toFixed(2),
           totalSavings: totalSavings.toFixed(2),
-          averageSavingsPercentage: ((totalSavings / totalAuthorized) * 100).toFixed(1) + '%',
           ordersCreated: ordersCreated.length,
         },
-        results: captureResults,
+        results: confirmResults,
         orders: ordersCreated,
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
   } catch (error: any) {
-    console.error('❌ Error in capture-drop-payments:', error);
+    console.error('❌ Error in complete-drop:', error);
     return new Response(
       JSON.stringify({ 
         success: false,

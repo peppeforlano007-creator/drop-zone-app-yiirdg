@@ -1,9 +1,9 @@
 
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Pressable } from 'react-native';
-import { IconSymbol } from './IconSymbol';
-import { colors } from '@/styles/commonStyles';
+import { View, Text, StyleSheet, Pressable, Image } from 'react-native';
 import { router } from 'expo-router';
+import { colors } from '@/styles/commonStyles';
+import { IconSymbol } from './IconSymbol';
 import * as Haptics from 'expo-haptics';
 
 interface DropCardProps {
@@ -36,11 +36,11 @@ export default function DropCard({ drop }: DropCardProps) {
   useEffect(() => {
     const updateTimer = () => {
       const now = new Date().getTime();
-      const end = new Date(drop.end_time).getTime();
-      const distance = end - now;
+      const endTime = new Date(drop.end_time).getTime();
+      const distance = endTime - now;
 
       if (distance < 0) {
-        setTimeRemaining('Scaduto');
+        setTimeRemaining('Terminato');
         return;
       }
 
@@ -48,239 +48,295 @@ export default function DropCard({ drop }: DropCardProps) {
       const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
       const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
 
-      setTimeRemaining(`${days}g ${hours}h ${minutes}m`);
+      const parts = [];
+      if (days > 0) parts.push(`${days}g`);
+      if (hours > 0) parts.push(`${hours}h`);
+      if (minutes > 0) parts.push(`${minutes}m`);
+
+      setTimeRemaining(parts.join(' ') || 'Meno di 1m');
     };
 
     updateTimer();
-    const interval = setInterval(updateTimer, 60000);
+    const interval = setInterval(updateTimer, 60000); // Update every minute
 
     return () => clearInterval(interval);
   }, [drop.end_time]);
 
-  // Safe value extraction with defaults - convert to numbers to ensure proper calculation
-  const minValue = Number(drop.supplier_lists?.min_reservation_value ?? 0);
-  const maxValue = Number(drop.supplier_lists?.max_reservation_value ?? 0);
-  const minDiscount = Number(drop.supplier_lists?.min_discount ?? 0);
-  const maxDiscount = Number(drop.supplier_lists?.max_discount ?? 0);
-  
-  // current_value now represents only card bookings (not user interests)
-  const currentValue = Number(drop.current_value ?? 0);
-  const currentDiscount = Number(drop.current_discount ?? 0);
-
-  // Calculate progress percentages with safe division
-  const progressPercentage = maxValue > minValue 
-    ? ((currentValue - minValue) / (maxValue - minValue)) * 100 
-    : 0;
-  
-  const discountProgress = maxDiscount > minDiscount 
-    ? ((currentDiscount - minDiscount) / (maxDiscount - minDiscount)) * 100 
-    : 0;
-
   const handlePress = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     router.push({
       pathname: '/drop-details',
       params: { dropId: drop.id },
     });
   };
 
+  const currentDiscount = Number(drop.current_discount ?? 0);
+  const currentValue = Number(drop.current_value ?? 0);
+  const minReservationValue = Number(drop.supplier_lists?.min_reservation_value ?? 0);
+  const maxReservationValue = Number(drop.supplier_lists?.max_reservation_value ?? 0);
+  const minDiscount = Number(drop.supplier_lists?.min_discount ?? 0);
+  const maxDiscount = Number(drop.supplier_lists?.max_discount ?? 0);
+
+  const valueProgress = maxReservationValue > 0 
+    ? Math.min((currentValue / maxReservationValue) * 100, 100) 
+    : 0;
+
   return (
-    <Pressable onPress={handlePress} style={styles.container}>
+    <Pressable
+      style={({ pressed }) => [
+        styles.card,
+        pressed && styles.cardPressed,
+      ]}
+      onPress={handlePress}
+    >
       <View style={styles.header}>
-        <View style={styles.locationBadge}>
-          <IconSymbol 
-            ios_icon_name="mappin.circle.fill" 
-            android_material_icon_name="location_on" 
-            size={18} 
-            color={colors.text} 
-          />
-          <Text style={styles.locationText}>{drop.pickup_points?.city ?? 'N/A'}</Text>
+        <View style={styles.headerLeft}>
+          <Text style={styles.dropName} numberOfLines={1}>{drop.name}</Text>
+          <View style={styles.locationRow}>
+            <IconSymbol 
+              ios_icon_name="mappin.circle.fill" 
+              android_material_icon_name="location_on" 
+              size={14} 
+              color={colors.primary} 
+            />
+            <Text style={styles.locationText}>{drop.pickup_points?.city ?? 'N/A'}</Text>
+          </View>
         </View>
         <View style={styles.timerBadge}>
+          <IconSymbol 
+            ios_icon_name="clock.fill" 
+            android_material_icon_name="schedule" 
+            size={12} 
+            color="#FFF" 
+          />
           <Text style={styles.timerText}>{timeRemaining}</Text>
         </View>
       </View>
 
-      <Text style={styles.supplierName}>{drop.supplier_lists?.name ?? 'Fornitore'}</Text>
-      <Text style={styles.dropName}>{drop.name}</Text>
-
-      <View style={styles.discountContainer}>
-        <View style={styles.discountRow}>
-          <Text style={styles.discountLabel}>Sconto attuale</Text>
-          <Text style={styles.discountValue}>{Math.floor(currentDiscount)}%</Text>
+      <View style={styles.statsRow}>
+        <View style={styles.statItem}>
+          <Text style={styles.statLabel}>Sconto Attuale</Text>
+          <Text style={styles.statValue}>{Math.floor(currentDiscount)}%</Text>
         </View>
-        <View style={styles.progressBar}>
-          <View style={[styles.progressFill, { width: `${Math.min(Math.max(discountProgress, 0), 100)}%` }]} />
+        <View style={styles.statDivider} />
+        <View style={styles.statItem}>
+          <Text style={styles.statLabel}>Sconto Max</Text>
+          <Text style={styles.statValue}>{Math.floor(maxDiscount)}%</Text>
         </View>
-        <View style={styles.discountRange}>
-          <Text style={styles.rangeText}>{Math.floor(minDiscount)}%</Text>
-          <Text style={styles.rangeText}>{Math.floor(maxDiscount)}%</Text>
+        <View style={styles.statDivider} />
+        <View style={styles.statItem}>
+          <Text style={styles.statLabel}>Valore Attuale</Text>
+          <Text style={styles.statValue}>€{currentValue.toFixed(0)}</Text>
         </View>
       </View>
 
-      <View style={styles.valueContainer}>
-        <View style={styles.valueRow}>
-          <Text style={styles.valueLabel}>Valore prenotato</Text>
-          <Text style={styles.valueText}>
-            €{currentValue.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-          </Text>
+      <View style={styles.progressSection}>
+        <View style={styles.progressHeader}>
+          <Text style={styles.progressLabel}>Progresso Obiettivo</Text>
+          <Text style={styles.progressPercentage}>{Math.floor(valueProgress)}%</Text>
         </View>
-        <View style={styles.progressBar}>
-          <View style={[styles.progressFill, { width: `${Math.min(Math.max(progressPercentage, 0), 100)}%` }]} />
+        <View style={styles.progressBarContainer}>
+          <View style={[styles.progressBarFill, { width: `${valueProgress}%` }]} />
         </View>
-        <View style={styles.valueRange}>
-          <Text style={styles.rangeText}>
-            €{minValue.toLocaleString('it-IT', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-          </Text>
-          <Text style={styles.rangeText}>
-            €{maxValue.toLocaleString('it-IT', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-          </Text>
+        <View style={styles.progressFooter}>
+          <Text style={styles.progressText}>€{currentValue.toFixed(0)}</Text>
+          <Text style={styles.progressText}>€{maxReservationValue.toFixed(0)}</Text>
         </View>
       </View>
 
       <View style={styles.footer}>
-        <Text style={styles.footerText}>Tocca per vedere i prodotti</Text>
-        <IconSymbol 
-          ios_icon_name="arrow.right" 
-          android_material_icon_name="arrow_forward" 
-          size={16} 
-          color={colors.text} 
-        />
+        <View style={styles.supplierInfo}>
+          <IconSymbol 
+            ios_icon_name="list.bullet.rectangle" 
+            android_material_icon_name="list" 
+            size={14} 
+            color={colors.textSecondary} 
+          />
+          <Text style={styles.supplierText} numberOfLines={1}>
+            {drop.supplier_lists?.name ?? 'N/A'}
+          </Text>
+        </View>
+        <View style={styles.viewButton}>
+          <Text style={styles.viewButtonText}>Visualizza</Text>
+          <IconSymbol 
+            ios_icon_name="chevron.right" 
+            android_material_icon_name="chevron_right" 
+            size={16} 
+            color={colors.primary} 
+          />
+        </View>
       </View>
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    borderRadius: 8,
-    padding: 20,
-    marginHorizontal: 16,
-    marginVertical: 8,
+  card: {
     backgroundColor: colors.card,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
     borderWidth: 1,
     borderColor: colors.border,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  cardPressed: {
+    opacity: 0.8,
+    transform: [{ scale: 0.98 }],
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     marginBottom: 16,
   },
-  locationBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.backgroundSecondary,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    gap: 8,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  locationText: {
-    color: colors.text,
-    fontSize: 13,
-    fontWeight: '700',
-    letterSpacing: 0.3,
-  },
-  timerBadge: {
-    backgroundColor: colors.text,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 4,
-  },
-  timerText: {
-    color: colors.background,
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  supplierName: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: colors.text,
-    marginBottom: 4,
-    letterSpacing: -0.5,
+  headerLeft: {
+    flex: 1,
+    marginRight: 12,
   },
   dropName: {
-    fontSize: 13,
-    color: colors.textSecondary,
-    marginBottom: 20,
-  },
-  discountContainer: {
-    marginBottom: 16,
-  },
-  discountRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  discountLabel: {
-    fontSize: 13,
-    color: colors.textSecondary,
-  },
-  discountValue: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: colors.text,
-    letterSpacing: -0.5,
-  },
-  progressBar: {
-    height: 6,
-    backgroundColor: colors.backgroundSecondary,
-    borderRadius: 3,
-    overflow: 'hidden',
-    marginBottom: 4,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: colors.text,
-  },
-  discountRange: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  rangeText: {
-    fontSize: 11,
-    color: colors.textSecondary,
-  },
-  valueContainer: {
-    marginBottom: 16,
-  },
-  valueRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  valueLabel: {
-    fontSize: 13,
-    color: colors.textSecondary,
-  },
-  valueText: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '700',
     color: colors.text,
+    marginBottom: 6,
+    fontFamily: 'System',
   },
-  valueRange: {
+  locationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  locationText: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    fontWeight: '500',
+    fontFamily: 'System',
+  },
+  timerBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: colors.primary,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+  timerText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#FFF',
+    fontFamily: 'System',
+  },
+  statsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+    backgroundColor: colors.backgroundSecondary,
+    borderRadius: 12,
+    padding: 12,
+  },
+  statItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  statDivider: {
+    width: 1,
+    height: 32,
+    backgroundColor: colors.border,
+  },
+  statLabel: {
+    fontSize: 10,
+    color: colors.textSecondary,
+    marginBottom: 4,
+    fontWeight: '500',
+    fontFamily: 'System',
+    textAlign: 'center',
+  },
+  statValue: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: colors.text,
+    fontFamily: 'System',
+  },
+  progressSection: {
+    marginBottom: 16,
+  },
+  progressHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  progressLabel: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    fontWeight: '600',
+    fontFamily: 'System',
+  },
+  progressPercentage: {
+    fontSize: 12,
+    color: colors.primary,
+    fontWeight: '700',
+    fontFamily: 'System',
+  },
+  progressBarContainer: {
+    height: 8,
+    backgroundColor: colors.backgroundSecondary,
+    borderRadius: 4,
+    overflow: 'hidden',
+    marginBottom: 6,
+  },
+  progressBarFill: {
+    height: '100%',
+    backgroundColor: colors.primary,
+    borderRadius: 4,
+  },
+  progressFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  progressText: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    fontWeight: '600',
+    fontFamily: 'System',
   },
   footer: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
   },
-  footerText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.text,
+  supplierInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flex: 1,
+    marginRight: 12,
+  },
+  supplierText: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    fontWeight: '500',
+    fontFamily: 'System',
+    flex: 1,
+  },
+  viewButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: colors.primary + '15',
+    borderRadius: 8,
+  },
+  viewButtonText: {
+    fontSize: 12,
+    color: colors.primary,
+    fontWeight: '700',
+    fontFamily: 'System',
   },
 });

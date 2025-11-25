@@ -4,7 +4,6 @@ import { View, Text, Image, StyleSheet, Pressable, Dimensions, Alert, ActivityIn
 import { IconSymbol } from './IconSymbol';
 import { colors } from '@/styles/commonStyles';
 import { Product } from '@/types/Product';
-import { usePayment } from '@/contexts/PaymentContext';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import ImageGallery from './ImageGallery';
@@ -45,7 +44,6 @@ export default function EnhancedProductCard({
   const [selectedColor, setSelectedColor] = useState<string | null>(null);
   const [descriptionExpanded, setDescriptionExpanded] = useState(false);
   const [descriptionHeight, setDescriptionHeight] = useState(0);
-  const { getDefaultPaymentMethod, authorizePayment, hasPaymentMethod } = usePayment();
   
   // Animation values
   const scaleAnim = useRef(new Animated.Value(1)).current;

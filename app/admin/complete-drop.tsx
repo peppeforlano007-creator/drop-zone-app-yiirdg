@@ -24,7 +24,7 @@ export default function CompleteDropScreen() {
     
     Alert.alert(
       'Completa Drop',
-      `Sei sicuro di voler completare il drop "${dropName}"?\n\nQuesto:\n- Catturerà tutti i pagamenti autorizzati su Stripe\n- Addebiterà l'importo finale con lo sconto raggiunto\n- Creerà gli ordini per i fornitori\n- Chiuderà il drop definitivamente\n- Confermerà tutte le prenotazioni`,
+      `Sei sicuro di voler completare il drop "${dropName}"?\n\nQuesto:\n- Confermerà tutte le prenotazioni\n- Notificherà gli utenti dell'importo da pagare alla consegna\n- Creerà gli ordini per i fornitori\n- Chiuderà il drop definitivamente`,
       [
         { text: 'Annulla', style: 'cancel' },
         {
@@ -35,13 +35,13 @@ export default function CompleteDropScreen() {
             try {
               console.log('🎯 Starting drop completion process for:', dropId);
 
-              // Call the Edge Function to capture payments and create orders
+              // Call the Edge Function to complete drop and create orders
               const { data, error } = await supabase.functions.invoke('capture-drop-payments', {
                 body: { dropId: dropId as string },
               });
 
               if (error) {
-                console.error('❌ Error calling capture-drop-payments:', error);
+                console.error('❌ Error calling complete-drop:', error);
                 Alert.alert(
                   'Errore',
                   `Non è stato possibile completare il drop: ${error.message}\n\nVerifica che la funzione Edge sia deployata correttamente.`
@@ -59,12 +59,12 @@ export default function CompleteDropScreen() {
                   'Drop Completato! ✅',
                   `Il drop è stato completato con successo!\n\n` +
                   `📊 Riepilogo:\n` +
-                  `• Prenotazioni catturate: ${summary.capturedCount}/${summary.totalBookings}\n` +
-                  `• Pagamenti Stripe: ${summary.stripeCapturedCount}\n` +
-                  `• Totale addebitato: €${summary.totalCharged}\n` +
-                  `• Risparmio totale: €${summary.totalSavings} (${summary.averageSavingsPercentage})\n` +
+                  `• Prenotazioni confermate: ${summary.confirmedCount}/${summary.totalBookings}\n` +
+                  `• Sconto finale: ${summary.finalDiscount}%\n` +
+                  `• Totale da pagare: €${summary.totalAmount}\n` +
+                  `• Risparmio totale: €${summary.totalSavings}\n` +
                   `• Ordini creati: ${summary.ordersCreated || 0}\n\n` +
-                  `${data.stripeEnabled ? '✅ Pagamenti reali su Stripe' : '⚠️ Modalità simulazione (Stripe non configurato)'}`,
+                  `Gli utenti sono stati notificati dell'importo da pagare alla consegna.`,
                   [
                     {
                       text: 'OK',
@@ -127,7 +127,7 @@ export default function CompleteDropScreen() {
                   color="#4CAF50" 
                 />
                 <Text style={styles.infoText}>
-                  Tutti i pagamenti autorizzati verranno catturati su Stripe
+                  Tutte le prenotazioni attive verranno confermate
                 </Text>
               </View>
               <View style={styles.infoItem}>
@@ -138,7 +138,18 @@ export default function CompleteDropScreen() {
                   color="#4CAF50" 
                 />
                 <Text style={styles.infoText}>
-                  Gli utenti pagheranno solo il prezzo finale con lo sconto raggiunto
+                  Gli utenti riceveranno una notifica con lo sconto finale raggiunto
+                </Text>
+              </View>
+              <View style={styles.infoItem}>
+                <IconSymbol 
+                  ios_icon_name="checkmark" 
+                  android_material_icon_name="check" 
+                  size={16} 
+                  color="#4CAF50" 
+                />
+                <Text style={styles.infoText}>
+                  Verrà comunicato l&apos;importo esatto da pagare alla consegna
                 </Text>
               </View>
               <View style={styles.infoItem}>
@@ -150,17 +161,6 @@ export default function CompleteDropScreen() {
                 />
                 <Text style={styles.infoText}>
                   Verranno creati gli ordini per i fornitori e i punti di ritiro
-                </Text>
-              </View>
-              <View style={styles.infoItem}>
-                <IconSymbol 
-                  ios_icon_name="checkmark" 
-                  android_material_icon_name="check" 
-                  size={16} 
-                  color="#4CAF50" 
-                />
-                <Text style={styles.infoText}>
-                  Tutte le prenotazioni attive verranno confermate
                 </Text>
               </View>
               <View style={styles.infoItem}>
@@ -190,13 +190,13 @@ export default function CompleteDropScreen() {
 
           <View style={styles.warningCard}>
             <IconSymbol 
-              ios_icon_name="exclamationmark.triangle.fill" 
-              android_material_icon_name="warning" 
+              ios_icon_name="info.circle.fill" 
+              android_material_icon_name="info" 
               size={20} 
-              color="#FF9800" 
+              color="#2196F3" 
             />
             <Text style={styles.warningText}>
-              Assicurati di aver configurato STRIPE_SECRET_KEY in Supabase per catturare i pagamenti reali.
+              Gli utenti pagheranno in contanti al momento del ritiro dell&apos;ordine presso il punto di ritiro.
             </Text>
           </View>
 
