@@ -32,13 +32,23 @@ export function useRealtimeDrop({ dropId, onUpdate, enabled = true }: UseRealtim
     try {
       const dropData = typeof payload === 'string' ? JSON.parse(payload) : payload;
       
-      // Prevent duplicate updates
+      // Create a unique key for this update including all relevant fields
       const updateKey = `${dropData.id}-${dropData.updated_at}-${dropData.current_value}-${dropData.current_discount}`;
+      
+      // Prevent duplicate updates
       if (lastUpdateRef.current === updateKey) {
         console.log('Duplicate update detected, skipping');
         return;
       }
+      
       lastUpdateRef.current = updateKey;
+      
+      console.log('Processing drop update:', {
+        id: dropData.id,
+        current_discount: dropData.current_discount,
+        current_value: dropData.current_value,
+        updated_at: dropData.updated_at,
+      });
       
       if (onUpdate) {
         onUpdate(dropData);
@@ -120,13 +130,23 @@ export function useRealtimeDrops({ pickupPointId, onUpdate, enabled = true }: Us
     try {
       const dropData = typeof payload === 'string' ? JSON.parse(payload) : payload;
       
-      // Prevent duplicate updates per drop
+      // Create a unique key for this update
       const updateKey = `${dropData.id}-${dropData.updated_at}-${dropData.current_value}-${dropData.current_discount}`;
+      
+      // Prevent duplicate updates per drop
       if (lastUpdateRef.current.get(dropData.id) === updateKey) {
         console.log('Duplicate update detected for drop:', dropData.id, 'skipping');
         return;
       }
+      
       lastUpdateRef.current.set(dropData.id, updateKey);
+      
+      console.log('Processing drops list update:', {
+        id: dropData.id,
+        current_discount: dropData.current_discount,
+        current_value: dropData.current_value,
+        updated_at: dropData.updated_at,
+      });
       
       if (onUpdate) {
         onUpdate(dropData);

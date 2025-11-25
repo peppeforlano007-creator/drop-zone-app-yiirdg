@@ -106,8 +106,7 @@ export default function DropDetailsScreen() {
       });
       setDrop(dropData);
 
-      // Only load products with stock > 0 and active status
-      // Using a more robust query to ensure we never show out-of-stock items
+      // Load products with stock > 0 and active status
       const { data: productsData, error: productsError } = await supabase
         .from('products')
         .select('*')
@@ -119,10 +118,9 @@ export default function DropDetailsScreen() {
       if (productsError) {
         console.error('Error loading products:', productsError);
       } else {
-        console.log('Products loaded:', productsData?.length, '(with stock > 0)');
-        // Double-check: filter out any products with stock <= 0 (defensive programming)
+        // Filter to ensure only products with stock > 0
         const availableProducts = (productsData || []).filter(p => p.stock > 0 && p.status === 'active');
-        console.log('Available products after filter:', availableProducts.length);
+        console.log('Products loaded:', availableProducts.length, 'with stock > 0');
         setProducts(availableProducts);
       }
     } catch (error) {
@@ -183,10 +181,9 @@ export default function DropDetailsScreen() {
         (payload) => {
           console.log('Product stock update received:', payload);
           const updatedProduct = payload.new as ProductData;
-          const oldProduct = payload.old as ProductData;
           
           setProducts(prevProducts => {
-            // If stock is 0 or less, or status is not active, remove from list immediately
+            // Remove product if stock is 0 or less, or status is not active
             if (updatedProduct.stock <= 0 || updatedProduct.status !== 'active') {
               console.log('Product out of stock or inactive, removing from list:', updatedProduct.id, 'stock:', updatedProduct.stock, 'status:', updatedProduct.status);
               const filtered = prevProducts.filter(p => p.id !== updatedProduct.id);
@@ -206,7 +203,7 @@ export default function DropDetailsScreen() {
               return filtered;
             }
             
-            // Update existing product or add if not present (and has stock)
+            // Update existing product if it has stock
             const existingIndex = prevProducts.findIndex(p => p.id === updatedProduct.id);
             if (existingIndex >= 0) {
               const newProducts = [...prevProducts];
@@ -262,6 +259,7 @@ export default function DropDetailsScreen() {
       return newDrop;
     });
 
+    // Animate the discount badge
     Animated.sequence([
       Animated.timing(bounceAnim, {
         toValue: 1.2,
@@ -411,7 +409,9 @@ export default function DropDetailsScreen() {
         status: 'active',
       });
 
-      // Create booking - the database trigger will automatically decrement stock
+      // Create booking - the database trigger will automatically:
+      // 1. Decrement stock
+      // 2. Update drop discount and current_value
       const { data: bookingData, error: bookingError } = await supabase
         .from('bookings')
         .insert({
@@ -454,17 +454,20 @@ export default function DropDetailsScreen() {
 
       console.log('✅ Booking created:', bookingData);
 
-      // Update local state - the real-time subscription will handle the product update
+      // Update local state
       setUserBookings(prev => new Set([...prev, productId]));
 
-      // Reload drop details to get the updated discount and value
-      // The trigger should have updated the drop automatically
-      console.log('✅ Booking created - reloading drop details to get updated values');
-      setTimeout(() => {
-        loadDropDetails();
-      }, 500); // Small delay to allow trigger to complete
-
+      // The real-time subscriptions will handle:
+      // 1. Product stock update (will remove from list if stock = 0)
+      // 2. Drop discount and value update
+      
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      
+      Alert.alert(
+        '✅ Prenotazione confermata!',
+        `Hai prenotato ${product.name} con sconto del ${Math.floor(currentDiscount)}%.\n\nLo sconto potrebbe aumentare se più persone prenotano. Condividi il drop con amici e parenti!`,
+        [{ text: 'OK' }]
+      );
     } catch (error: any) {
       console.error('❌ Exception in handleBook:', error);
       
@@ -486,7 +489,7 @@ export default function DropDetailsScreen() {
         );
       }
     }
-  }, [user, drop, products, calculateNewDiscount, loadDropDetails]);
+  }, [user, drop, products, loadDropDetails]);
 
   const handlePressIn = () => {
     Animated.spring(bounceAnim, {
