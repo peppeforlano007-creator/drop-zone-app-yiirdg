@@ -404,30 +404,9 @@ export default function DropDetailsScreen() {
         return updatedProducts.filter(p => p.stock > 0);
       });
 
-      // Update drop value and discount
-      const currentValue = drop.current_value ?? 0;
-      const newValue = currentValue + currentDiscountedPrice;
-      const newDiscount = calculateNewDiscount(newValue);
-
-      console.log('Updating drop:', {
-        current_value: newValue,
-        current_discount: newDiscount,
-      });
-
-      const { error: updateError } = await supabase
-        .from('drops')
-        .update({
-          current_value: newValue,
-          current_discount: newDiscount,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', drop.id);
-
-      if (updateError) {
-        console.error('⚠️ Error updating drop:', updateError);
-      } else {
-        console.log('✅ Drop updated successfully');
-      }
+      // Note: Drop value and discount are automatically updated by database trigger
+      // The trigger 'trigger_update_drop_discount' on bookings table handles this
+      console.log('✅ Booking created - drop discount will be updated automatically by database trigger');
 
       setUserBookings(prev => new Set([...prev, productId]));
 
