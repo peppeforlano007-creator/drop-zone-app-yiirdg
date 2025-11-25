@@ -327,17 +327,22 @@ export default function HomeScreen() {
           table: 'products',
         },
         (payload) => {
-          console.log('Product stock update received in home feed:', payload);
+          console.log('📡 Product stock update received in home feed:', payload);
           const updatedProduct = payload.new as any;
           
-          // IMPORTANT: Only remove product if stock is 0 or less, regardless of status
+          // CRITICAL FIX: Only remove product if stock is 0 or less
+          // Keep the product visible if it has any stock remaining
           if (updatedProduct.stock <= 0) {
-            console.log('Product stock is 0 or less, removing from home feed:', updatedProduct.id, 'stock:', updatedProduct.stock);
+            console.log('🗑️ Product stock is 0 or less, removing from home feed:', updatedProduct.id, 'stock:', updatedProduct.stock);
             
             setProductLists(prevLists => {
               const updatedLists = prevLists.map(list => {
                 // Remove the product from this list if it exists
                 const filteredProducts = list.products.filter(p => p.id !== updatedProduct.id);
+                
+                if (filteredProducts.length !== list.products.length) {
+                  console.log(`  Removed product ${updatedProduct.id} from list "${list.listName}"`);
+                }
                 
                 return {
                   ...list,
@@ -345,23 +350,28 @@ export default function HomeScreen() {
                 };
               }).filter(list => list.products.length > 0); // Remove lists with no products
               
-              console.log(`Updated lists count: ${updatedLists.length} (removed empty lists)`);
+              console.log(`✓ Updated lists count: ${updatedLists.length} (removed empty lists)`);
               return updatedLists;
             });
           } else {
             // Update the product stock in the list (keep it visible if stock > 0)
-            console.log('Product stock updated, keeping in feed:', updatedProduct.id, 'stock:', updatedProduct.stock);
+            console.log('✅ Product stock updated, keeping in feed:', updatedProduct.id, 'new stock:', updatedProduct.stock);
             setProductLists(prevLists => {
               return prevLists.map(list => {
                 if (list.listId === updatedProduct.supplier_list_id) {
-                  return {
-                    ...list,
-                    products: list.products.map(p => 
-                      p.id === updatedProduct.id 
-                        ? { ...p, stock: updatedProduct.stock }
-                        : p
-                    ),
-                  };
+                  const productExists = list.products.some(p => p.id === updatedProduct.id);
+                  
+                  if (productExists) {
+                    console.log(`  Updating stock for product ${updatedProduct.id} in list "${list.listName}" to ${updatedProduct.stock}`);
+                    return {
+                      ...list,
+                      products: list.products.map(p => 
+                        p.id === updatedProduct.id 
+                          ? { ...p, stock: updatedProduct.stock }
+                          : p
+                      ),
+                    };
+                  }
                 }
                 return list;
               });
