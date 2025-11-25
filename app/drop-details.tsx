@@ -430,22 +430,23 @@ export default function DropDetailsScreen() {
         .single();
 
       if (bookingError) {
-        console.error('❌ Error creating booking:', bookingError);
-        
         // Check if it's a stock error (P0001 error code)
         if (bookingError.code === 'P0001' || 
             bookingError.message?.toLowerCase().includes('esaurito') ||
             bookingError.message?.toLowerCase().includes('stock') ||
             bookingError.message?.toLowerCase().includes('disponibile')) {
+          // Only show user-friendly message, no technical error
           Alert.alert(
             'Prodotto esaurito', 
             'Questo prodotto non è più disponibile. Qualcun altro lo ha appena prenotato.',
             [{ text: 'OK', onPress: () => loadDropDetails() }]
           );
         } else {
+          // For other errors, show the error message
+          console.error('❌ Error creating booking:', bookingError);
           Alert.alert(
             'Errore', 
-            `Impossibile creare la prenotazione: ${bookingError.message || 'Errore sconosciuto'}`,
+            'Impossibile creare la prenotazione. Riprova più tardi.',
             [{ text: 'OK' }]
           );
         }
@@ -469,22 +470,23 @@ export default function DropDetailsScreen() {
         [{ text: 'OK' }]
       );
     } catch (error: any) {
-      console.error('❌ Exception in handleBook:', error);
-      
       // Check if it's a stock-related error
       if (error?.code === 'P0001' ||
           error?.message?.toLowerCase().includes('esaurito') ||
           error?.message?.toLowerCase().includes('stock') ||
           error?.message?.toLowerCase().includes('disponibile')) {
+        // Only show user-friendly message, no technical error
         Alert.alert(
           'Prodotto esaurito',
           'Questo prodotto non è più disponibile. Qualcun altro lo ha appena prenotato.',
           [{ text: 'OK', onPress: () => loadDropDetails() }]
         );
       } else {
+        // For other errors, log and show generic message
+        console.error('❌ Exception in handleBook:', error);
         Alert.alert(
           'Errore',
-          `Si è verificato un errore durante la prenotazione: ${error?.message || 'Errore sconosciuto'}`,
+          'Si è verificato un errore durante la prenotazione. Riprova più tardi.',
           [{ text: 'OK' }]
         );
       }

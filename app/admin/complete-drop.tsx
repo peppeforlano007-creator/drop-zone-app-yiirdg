@@ -40,29 +40,40 @@ export default function CompleteDropScreen() {
                 body: { dropId: dropId as string },
               });
 
+              console.log('📥 Edge function response:', { data, error });
+
               if (error) {
-                console.error('❌ Error calling complete-drop:', error);
+                console.error('❌ Error calling edge function:', error);
                 Alert.alert(
                   'Errore',
-                  `Non è stato possibile completare il drop: ${error.message}\n\nVerifica che la funzione Edge sia deployata correttamente.`
+                  `Non è stato possibile completare il drop.\n\nErrore: ${error.message}\n\nVerifica che la funzione Edge sia deployata correttamente.`
                 );
                 return;
               }
 
-              console.log('✅ Drop completion response:', data);
+              // Check if the response indicates success
+              if (data?.success === false) {
+                console.error('❌ Edge function returned error:', data.error);
+                Alert.alert(
+                  'Errore',
+                  `Non è stato possibile completare il drop.\n\n${data.error || 'Errore sconosciuto'}`
+                );
+                return;
+              }
 
-              if (data?.success) {
-                const summary = data.summary;
+              // Success!
+              if (data?.success === true) {
+                const summary = data.summary || {};
                 Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
                 
                 Alert.alert(
                   'Drop Completato! ✅',
                   `Il drop è stato completato con successo!\n\n` +
                   `📊 Riepilogo:\n` +
-                  `• Prenotazioni confermate: ${summary.confirmedCount}/${summary.totalBookings}\n` +
-                  `• Sconto finale: ${summary.finalDiscount}%\n` +
-                  `• Totale da pagare: €${summary.totalAmount}\n` +
-                  `• Risparmio totale: €${summary.totalSavings}\n` +
+                  `• Prenotazioni confermate: ${summary.confirmedCount || 0}/${summary.totalBookings || 0}\n` +
+                  `• Sconto finale: ${summary.finalDiscount || '0%'}\n` +
+                  `• Totale da pagare: €${summary.totalAmount || '0'}\n` +
+                  `• Risparmio totale: €${summary.totalSavings || '0'}\n` +
                   `• Ordini creati: ${summary.ordersCreated || 0}\n\n` +
                   `Gli utenti sono stati notificati dell'importo da pagare alla consegna.`,
                   [
@@ -73,16 +84,18 @@ export default function CompleteDropScreen() {
                   ]
                 );
               } else {
+                // Unexpected response format
+                console.warn('⚠️ Unexpected response format:', data);
                 Alert.alert(
                   'Attenzione',
-                  data?.message || 'Il drop è stato completato ma potrebbero esserci stati problemi.'
+                  'Il drop potrebbe essere stato completato, ma la risposta non è nel formato atteso. Verifica lo stato del drop.'
                 );
               }
             } catch (error: any) {
-              console.error('❌ Error in handleCompleteDrop:', error);
+              console.error('❌ Exception in handleCompleteDrop:', error);
               Alert.alert(
                 'Errore',
-                `Si è verificato un errore imprevisto: ${error.message}`
+                `Si è verificato un errore imprevisto: ${error.message || 'Errore sconosciuto'}`
               );
             } finally {
               setLoading(false);

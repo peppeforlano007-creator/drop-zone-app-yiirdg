@@ -49,21 +49,53 @@ serve(async (req) => {
   }
 
   try {
+    console.log('🎯 Starting drop completion process...');
+
     // Create Supabase client with service role key for admin operations
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
-    const { dropId } = await req.json() as DropCompletionRequest;
-
-    if (!dropId) {
+    if (!supabaseUrl || !supabaseServiceKey) {
+      console.error('❌ Missing environment variables');
       return new Response(
-        JSON.stringify({ error: 'dropId is required' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ 
+          success: false,
+          error: 'Server configuration error: Missing environment variables' 
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log('🎯 Starting drop completion for:', dropId);
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Parse request body
+    let dropId: string;
+    try {
+      const body = await req.json() as DropCompletionRequest;
+      dropId = body.dropId;
+    } catch (parseError) {
+      console.error('❌ Error parsing request body:', parseError);
+      return new Response(
+        JSON.stringify({ 
+          success: false,
+          error: 'Invalid request body' 
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (!dropId) {
+      console.error('❌ dropId is required');
+      return new Response(
+        JSON.stringify({ 
+          success: false,
+          error: 'dropId is required' 
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    console.log('📥 Processing drop:', dropId);
 
     // Get drop details
     const { data: drop, error: dropError } = await supabase
@@ -86,8 +118,11 @@ serve(async (req) => {
     if (dropError || !drop) {
       console.error('❌ Error fetching drop:', dropError);
       return new Response(
-        JSON.stringify({ error: 'Drop not found' }),
-        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ 
+          success: false,
+          error: 'Drop not found' 
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -122,20 +157,37 @@ serve(async (req) => {
     if (bookingsError) {
       console.error('❌ Error fetching bookings:', bookingsError);
       return new Response(
-        JSON.stringify({ error: 'Failed to fetch bookings' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ 
+          success: false,
+          error: 'Failed to fetch bookings' 
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     if (!bookings || bookings.length === 0) {
       console.log('ℹ️ No active bookings found for drop:', dropId);
+      
+      // Still update drop status to completed
+      await supabase
+        .from('drops')
+        .update({
+          status: 'completed',
+          completed_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', dropId);
+
       return new Response(
         JSON.stringify({ 
           success: true,
           message: 'No active bookings to confirm',
+          dropId,
+          dropName: drop.name,
           summary: {
             totalBookings: 0,
             confirmedCount: 0,
+            failedCount: 0,
             finalDiscount: '0',
             totalAmount: '0',
             totalSavings: '0',
@@ -149,7 +201,7 @@ serve(async (req) => {
     console.log(`📦 Found ${bookings.length} bookings to confirm`);
 
     // Calculate final prices and confirm bookings
-    const finalDiscount = drop.current_discount;
+    const finalDiscount = drop.current_discount || 0;
     const confirmResults = [];
     let totalOriginal = 0;
     let totalFinal = 0;
@@ -167,7 +219,7 @@ serve(async (req) => {
         totalSavings += savings;
 
         console.log(`💰 Booking ${booking.id}:`, {
-          product: booking.products.name,
+          product: booking.products?.name || 'Unknown',
           user: booking.profiles?.full_name || 'Unknown',
           originalPrice: originalPrice.toFixed(2),
           finalPrice: finalPrice.toFixed(2),
@@ -192,7 +244,7 @@ serve(async (req) => {
           console.error(`❌ Error updating booking ${booking.id}:`, updateError);
           confirmResults.push({
             bookingId: booking.id,
-            productName: booking.products.name,
+            productName: booking.products?.name || 'Unknown',
             success: false,
             error: updateError.message,
           });
@@ -206,7 +258,7 @@ serve(async (req) => {
               user_id: booking.user_id,
               title: `Drop Completato: ${drop.name}`,
               message: `Il drop è terminato con uno sconto del ${Math.floor(finalDiscount)}%!\n\n` +
-                      `Prodotto: ${booking.products.name}\n` +
+                      `Prodotto: ${booking.products?.name || 'Unknown'}\n` +
                       `Prezzo originale: €${originalPrice.toFixed(2)}\n` +
                       `Prezzo finale: €${finalPrice.toFixed(2)}\n` +
                       `Risparmio: €${savings.toFixed(2)} (${Math.floor((savings / originalPrice) * 100)}%)\n\n` +
@@ -226,7 +278,7 @@ serve(async (req) => {
           
           confirmResults.push({
             bookingId: booking.id,
-            productName: booking.products.name,
+            productName: booking.products?.name || 'Unknown',
             userName: booking.profiles?.full_name || 'Unknown',
             success: true,
             originalPrice: originalPrice.toFixed(2),
@@ -251,7 +303,12 @@ serve(async (req) => {
     const ordersBySupplier: OrdersBySupplier = {};
     
     for (const booking of bookings as BookingData[]) {
-      const supplierId = booking.products.supplier_id;
+      const supplierId = booking.products?.supplier_id;
+      if (!supplierId) {
+        console.warn(`⚠️ Booking ${booking.id} has no supplier_id, skipping order creation`);
+        continue;
+      }
+
       const pickupPointId = booking.pickup_point_id;
       const key = `${supplierId}_${pickupPointId}`;
       
@@ -313,7 +370,7 @@ serve(async (req) => {
             order_id: order.id,
             booking_id: booking.id,
             product_id: booking.product_id,
-            product_name: booking.products.name,
+            product_name: booking.products?.name || 'Unknown',
             user_id: booking.user_id,
             original_price: booking.original_price,
             final_price: finalPrice,
@@ -373,7 +430,7 @@ serve(async (req) => {
     console.log(`   💰 Total Original: €${totalOriginal.toFixed(2)}`);
     console.log(`   💳 Total Final (COD): €${totalFinal.toFixed(2)}`);
     console.log(`   🎉 Total Savings: €${totalSavings.toFixed(2)}`);
-    console.log(`   📈 Average Savings: ${((totalSavings / totalOriginal) * 100).toFixed(1)}%`);
+    console.log(`   📈 Average Savings: ${totalOriginal > 0 ? ((totalSavings / totalOriginal) * 100).toFixed(1) : '0'}%`);
     console.log(`   📦 Orders Created: ${ordersCreated.length}\n`);
 
     return new Response(
@@ -399,13 +456,14 @@ serve(async (req) => {
     );
 
   } catch (error: any) {
-    console.error('❌ Error in complete-drop:', error);
+    console.error('❌ Unexpected error in complete-drop:', error);
     return new Response(
       JSON.stringify({ 
         success: false,
-        error: error.message 
+        error: error?.message || 'An unexpected error occurred',
+        details: error?.toString() || 'No additional details available'
       }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 });
