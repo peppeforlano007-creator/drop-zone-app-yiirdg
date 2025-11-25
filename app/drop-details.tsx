@@ -97,7 +97,13 @@ export default function DropDetailsScreen() {
         return;
       }
 
-      console.log('Drop data loaded:', dropData);
+      console.log('Drop data loaded:', {
+        id: dropData.id,
+        name: dropData.name,
+        current_discount: dropData.current_discount,
+        current_value: dropData.current_value,
+        updated_at: dropData.updated_at,
+      });
       setDrop(dropData);
 
       const { data: productsData, error: productsError } = await supabase
@@ -192,18 +198,32 @@ export default function DropDetailsScreen() {
   }, [drop]);
 
   const handleDropUpdate = useCallback((updatedDrop: any) => {
-    console.log('Real-time drop update received:', updatedDrop);
+    console.log('Real-time drop update received in drop-details:', {
+      id: updatedDrop.id,
+      current_discount: updatedDrop.current_discount,
+      current_value: updatedDrop.current_value,
+      updated_at: updatedDrop.updated_at,
+    });
     
     setDrop(prevDrop => {
       if (!prevDrop || prevDrop.id !== updatedDrop.id) return prevDrop;
       
-      return {
+      const newDrop = {
         ...prevDrop,
         current_discount: updatedDrop.current_discount ?? prevDrop.current_discount,
         current_value: updatedDrop.current_value ?? prevDrop.current_value,
         status: updatedDrop.status ?? prevDrop.status,
         updated_at: updatedDrop.updated_at,
       };
+      
+      console.log('Drop state updated:', {
+        old_discount: prevDrop.current_discount,
+        new_discount: newDrop.current_discount,
+        old_value: prevDrop.current_value,
+        new_value: newDrop.current_value,
+      });
+      
+      return newDrop;
     });
 
     Animated.sequence([
@@ -404,9 +424,12 @@ export default function DropDetailsScreen() {
         return updatedProducts.filter(p => p.stock > 0);
       });
 
-      // Note: Drop value and discount are automatically updated by database trigger
-      // The trigger 'trigger_update_drop_discount' on bookings table handles this
-      console.log('✅ Booking created - drop discount will be updated automatically by database trigger');
+      // Reload drop details to get the updated discount and value
+      // The trigger should have updated the drop automatically
+      console.log('✅ Booking created - reloading drop details to get updated values');
+      setTimeout(() => {
+        loadDropDetails();
+      }, 500); // Small delay to allow trigger to complete
 
       setUserBookings(prev => new Set([...prev, productId]));
 
@@ -552,13 +575,13 @@ export default function DropDetailsScreen() {
   const atRisk = isAtRiskOfUnderfunding();
   const underfundingProgress = getUnderfundingProgress();
 
-  const currentValue = drop.current_value ?? 0;
-  const targetValue = drop.target_value ?? 0;
-  const currentDiscount = drop.current_discount ?? 0;
-  const minReservationValue = drop.supplier_lists?.min_reservation_value ?? 0;
-  const maxReservationValue = drop.supplier_lists?.max_reservation_value ?? 0;
-  const minDiscount = drop.supplier_lists?.min_discount ?? 0;
-  const maxDiscount = drop.supplier_lists?.max_discount ?? 0;
+  const currentValue = Number(drop.current_value ?? 0);
+  const targetValue = Number(drop.target_value ?? 0);
+  const currentDiscount = Number(drop.current_discount ?? 0);
+  const minReservationValue = Number(drop.supplier_lists?.min_reservation_value ?? 0);
+  const maxReservationValue = Number(drop.supplier_lists?.max_reservation_value ?? 0);
+  const minDiscount = Number(drop.supplier_lists?.min_discount ?? 0);
+  const maxDiscount = Number(drop.supplier_lists?.max_discount ?? 0);
 
   const valueProgress = maxReservationValue > 0 
     ? Math.min((currentValue / maxReservationValue) * 100, 100) 

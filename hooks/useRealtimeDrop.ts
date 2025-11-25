@@ -1,5 +1,5 @@
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { supabase } from '@/app/integrations/supabase/client';
 import { RealtimeChannel } from '@supabase/supabase-js';
 
@@ -24,12 +24,21 @@ interface UseRealtimeDropOptions {
 export function useRealtimeDrop({ dropId, onUpdate, enabled = true }: UseRealtimeDropOptions) {
   const [channel, setChannel] = useState<RealtimeChannel | null>(null);
   const [isConnected, setIsConnected] = useState(false);
+  const lastUpdateRef = useRef<string>('');
 
   const handleDropUpdate = useCallback((payload: any) => {
     console.log('Drop update received:', payload);
     
     try {
       const dropData = typeof payload === 'string' ? JSON.parse(payload) : payload;
+      
+      // Prevent duplicate updates
+      const updateKey = `${dropData.id}-${dropData.updated_at}-${dropData.current_value}-${dropData.current_discount}`;
+      if (lastUpdateRef.current === updateKey) {
+        console.log('Duplicate update detected, skipping');
+        return;
+      }
+      lastUpdateRef.current = updateKey;
       
       if (onUpdate) {
         onUpdate(dropData);
@@ -65,7 +74,7 @@ export function useRealtimeDrop({ dropId, onUpdate, enabled = true }: UseRealtim
           filter: `id=eq.${dropId}`,
         },
         (payload) => {
-          console.log('Postgres change received:', payload);
+          console.log('Postgres change received for drop:', dropId, payload);
           if (payload.new) {
             handleDropUpdate(payload.new);
           }
@@ -84,6 +93,7 @@ export function useRealtimeDrop({ dropId, onUpdate, enabled = true }: UseRealtim
       dropChannel.unsubscribe();
       setChannel(null);
       setIsConnected(false);
+      lastUpdateRef.current = '';
     };
   }, [dropId, enabled, handleDropUpdate]);
 
@@ -102,12 +112,21 @@ interface UseRealtimeDropsOptions {
 export function useRealtimeDrops({ pickupPointId, onUpdate, enabled = true }: UseRealtimeDropsOptions) {
   const [channel, setChannel] = useState<RealtimeChannel | null>(null);
   const [isConnected, setIsConnected] = useState(false);
+  const lastUpdateRef = useRef<Map<string, string>>(new Map());
 
   const handleDropUpdate = useCallback((payload: any) => {
     console.log('Drops list update received:', payload);
     
     try {
       const dropData = typeof payload === 'string' ? JSON.parse(payload) : payload;
+      
+      // Prevent duplicate updates per drop
+      const updateKey = `${dropData.id}-${dropData.updated_at}-${dropData.current_value}-${dropData.current_discount}`;
+      if (lastUpdateRef.current.get(dropData.id) === updateKey) {
+        console.log('Duplicate update detected for drop:', dropData.id, 'skipping');
+        return;
+      }
+      lastUpdateRef.current.set(dropData.id, updateKey);
       
       if (onUpdate) {
         onUpdate(dropData);
@@ -162,6 +181,7 @@ export function useRealtimeDrops({ pickupPointId, onUpdate, enabled = true }: Us
       dropsChannel.unsubscribe();
       setChannel(null);
       setIsConnected(false);
+      lastUpdateRef.current.clear();
     };
   }, [pickupPointId, enabled, handleDropUpdate]);
 

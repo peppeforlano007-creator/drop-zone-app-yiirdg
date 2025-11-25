@@ -57,15 +57,15 @@ export default function DropCard({ drop }: DropCardProps) {
     return () => clearInterval(interval);
   }, [drop.end_time]);
 
-  // Safe value extraction with defaults
-  const minValue = drop.supplier_lists?.min_reservation_value ?? 0;
-  const maxValue = drop.supplier_lists?.max_reservation_value ?? 0;
-  const minDiscount = drop.supplier_lists?.min_discount ?? 0;
-  const maxDiscount = drop.supplier_lists?.max_discount ?? 0;
+  // Safe value extraction with defaults - convert to numbers to ensure proper calculation
+  const minValue = Number(drop.supplier_lists?.min_reservation_value ?? 0);
+  const maxValue = Number(drop.supplier_lists?.max_reservation_value ?? 0);
+  const minDiscount = Number(drop.supplier_lists?.min_discount ?? 0);
+  const maxDiscount = Number(drop.supplier_lists?.max_discount ?? 0);
   
   // current_value now represents only card bookings (not user interests)
-  const currentValue = drop.current_value ?? 0;
-  const currentDiscount = drop.current_discount ?? 0;
+  const currentValue = Number(drop.current_value ?? 0);
+  const currentDiscount = Number(drop.current_discount ?? 0);
 
   // Calculate progress percentages with safe division
   const progressPercentage = maxValue > minValue 
@@ -120,9 +120,9 @@ export default function DropCard({ drop }: DropCardProps) {
 
       <View style={styles.valueContainer}>
         <View style={styles.valueRow}>
-          <Text style={styles.valueLabel}>Valore prenotato con carta</Text>
+          <Text style={styles.valueLabel}>Valore prenotato</Text>
           <Text style={styles.valueText}>
-            €{currentValue.toLocaleString('it-IT', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+            €{currentValue.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </Text>
         </View>
         <View style={styles.progressBar}>
