@@ -106,6 +106,7 @@ export default function DropDetailsScreen() {
       });
       setDrop(dropData);
 
+      // Only load products with stock > 0
       const { data: productsData, error: productsError } = await supabase
         .from('products')
         .select('*')
@@ -158,6 +159,7 @@ export default function DropDetailsScreen() {
     loadUserBookings();
   }, [dropId, loadDropDetails, loadUserBookings]);
 
+  // Real-time subscription for product stock updates
   useEffect(() => {
     if (!drop) return;
 
@@ -178,14 +180,25 @@ export default function DropDetailsScreen() {
           const updatedProduct = payload.new as ProductData;
           
           setProducts(prevProducts => {
+            // If stock is 0 or less, remove from list
             if (updatedProduct.stock <= 0) {
               console.log('Product stock is 0, removing from list:', updatedProduct.id);
               return prevProducts.filter(p => p.id !== updatedProduct.id);
             }
             
-            return prevProducts.map(p => 
-              p.id === updatedProduct.id ? updatedProduct : p
-            );
+            // Update existing product or add if not present (and has stock)
+            const existingIndex = prevProducts.findIndex(p => p.id === updatedProduct.id);
+            if (existingIndex >= 0) {
+              const newProducts = [...prevProducts];
+              newProducts[existingIndex] = updatedProduct;
+              return newProducts;
+            } else if (updatedProduct.status === 'active' && updatedProduct.stock > 0) {
+              // Product became available again (e.g., booking cancelled)
+              console.log('Product became available again, adding to list:', updatedProduct.id);
+              return [...prevProducts, updatedProduct];
+            }
+            
+            return prevProducts;
           });
         }
       )
@@ -375,7 +388,7 @@ export default function DropDetailsScreen() {
         status: 'active',
       });
 
-      // Create booking with COD payment method
+      // Create booking - the database trigger will automatically decrement stock
       const { data: bookingData, error: bookingError } = await supabase
         .from('bookings')
         .insert({
@@ -395,34 +408,22 @@ export default function DropDetailsScreen() {
 
       if (bookingError) {
         console.error('❌ Error creating booking:', bookingError);
-        Alert.alert('Errore', 'Impossibile creare la prenotazione');
+        
+        // Check if it's a stock error
+        if (bookingError.message?.includes('out of stock') || bookingError.message?.includes('stock')) {
+          Alert.alert('Prodotto esaurito', 'Questo prodotto non è più disponibile. Qualcun altro lo ha appena prenotato.');
+          // Reload to get updated stock
+          loadDropDetails();
+        } else {
+          Alert.alert('Errore', 'Impossibile creare la prenotazione');
+        }
         return;
       }
 
       console.log('✅ Booking created:', bookingData);
 
-      // Decrement product stock
-      const { error: stockError } = await supabase
-        .from('products')
-        .update({ stock: Math.max((product.stock || 1) - 1, 0) })
-        .eq('id', productId);
-
-      if (stockError) {
-        console.error('⚠️ Error updating stock:', stockError);
-      }
-
-      // Update local state
-      setProducts(prevProducts => {
-        const updatedProducts = prevProducts.map(p => {
-          if (p.id === productId) {
-            const newStock = Math.max((p.stock || 1) - 1, 0);
-            return { ...p, stock: newStock };
-          }
-          return p;
-        });
-        
-        return updatedProducts.filter(p => p.stock > 0);
-      });
+      // Update local state - the real-time subscription will handle the product update
+      setUserBookings(prev => new Set([...prev, productId]));
 
       // Reload drop details to get the updated discount and value
       // The trigger should have updated the drop automatically
@@ -431,16 +432,24 @@ export default function DropDetailsScreen() {
         loadDropDetails();
       }, 500); // Small delay to allow trigger to complete
 
-      setUserBookings(prev => new Set([...prev, productId]));
-
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error: any) {
       console.error('❌ Exception in handleBook:', error);
-      Alert.alert(
-        'Errore',
-        `Si è verificato un errore durante la prenotazione: ${error?.message || 'Errore sconosciuto'}`,
-        [{ text: 'OK' }]
-      );
+      
+      // Check if it's a stock-related error
+      if (error?.message?.includes('out of stock') || error?.message?.includes('stock')) {
+        Alert.alert(
+          'Prodotto esaurito',
+          'Questo prodotto non è più disponibile. Qualcun altro lo ha appena prenotato.',
+          [{ text: 'OK', onPress: () => loadDropDetails() }]
+        );
+      } else {
+        Alert.alert(
+          'Errore',
+          `Si è verificato un errore durante la prenotazione: ${error?.message || 'Errore sconosciuto'}`,
+          [{ text: 'OK' }]
+        );
+      }
     }
   }, [user, drop, products, calculateNewDiscount, loadDropDetails]);
 

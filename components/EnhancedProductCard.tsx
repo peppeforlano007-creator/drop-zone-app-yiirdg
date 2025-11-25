@@ -56,6 +56,8 @@ export default function EnhancedProductCard({
   const discount = currentDiscount ?? minDiscount;
   const maxDiscountValue = maxDiscount ?? product.maxDiscount ?? 0;
   const discountedPrice = originalPrice * (1 - discount / 100);
+  const stock = product.stock ?? 0;
+  const isOutOfStock = stock <= 0;
 
   // Safely construct image URLs array with validation and standardization
   const imageUrls = React.useMemo(() => {
@@ -111,6 +113,12 @@ export default function EnhancedProductCard({
   };
 
   const handlePress = async () => {
+    // Don't allow booking if out of stock
+    if (isInDrop && isOutOfStock) {
+      Alert.alert('Prodotto esaurito', 'Questo prodotto non è più disponibile');
+      return;
+    }
+
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     
     if (isInDrop && onBook) {
@@ -265,6 +273,21 @@ export default function EnhancedProductCard({
             <Text style={styles.dropBadgeText}>Drop -{Math.floor(currentDiscount)}%</Text>
           </View>
         )}
+
+        {/* Out of stock overlay */}
+        {isOutOfStock && (
+          <View style={styles.outOfStockOverlay}>
+            <View style={styles.outOfStockBadge}>
+              <IconSymbol 
+                ios_icon_name="xmark.circle.fill" 
+                android_material_icon_name="cancel" 
+                size={32} 
+                color="#FFF" 
+              />
+              <Text style={styles.outOfStockText}>ESAURITO</Text>
+            </View>
+          </View>
+        )}
       </Pressable>
 
       <View style={styles.overlay}>
@@ -393,19 +416,19 @@ export default function EnhancedProductCard({
           )}
 
           {/* Stock Information */}
-          {product.stock !== undefined && product.stock !== null && (
+          {stock !== undefined && stock !== null && (
             <View style={styles.stockContainer}>
               <IconSymbol 
                 ios_icon_name="cube.box.fill" 
                 android_material_icon_name="inventory" 
                 size={12} 
-                color={product.stock > 0 ? colors.success : colors.error} 
+                color={stock > 0 ? colors.success : colors.error} 
               />
               <Text style={[
                 styles.stockText,
-                { color: product.stock > 0 ? colors.success : colors.error }
+                { color: stock > 0 ? colors.success : colors.error }
               ]}>
-                {product.stock > 0 ? `${product.stock} disponibili` : 'Esaurito'}
+                {stock > 0 ? `${stock} disponibili` : 'Esaurito'}
               </Text>
             </View>
           )}
@@ -510,11 +533,33 @@ export default function EnhancedProductCard({
                 onPress={handlePress}
                 onPressIn={handlePressIn}
                 onPressOut={handlePressOut}
-                disabled={isProcessing}
-                style={styles.bookButton}
+                disabled={isProcessing || isOutOfStock}
+                style={[
+                  styles.bookButton,
+                  (isProcessing || isOutOfStock) && styles.bookButtonDisabled,
+                ]}
               >
                 {isProcessing ? (
                   <ActivityIndicator color="#FFFFFF" size="small" />
+                ) : isOutOfStock ? (
+                  <>
+                    <View style={styles.bookButtonIconContainer}>
+                      <IconSymbol 
+                        ios_icon_name="xmark.circle.fill" 
+                        android_material_icon_name="cancel" 
+                        size={22} 
+                        color="#999" 
+                      />
+                    </View>
+                    <View style={styles.bookButtonTextContainer}>
+                      <Text style={[styles.bookButtonTitle, styles.bookButtonTitleDisabled]}>
+                        ARTICOLO ESAURITO
+                      </Text>
+                      <Text style={[styles.bookButtonSubtitle, styles.bookButtonSubtitleDisabled]}>
+                        Non più disponibile
+                      </Text>
+                    </View>
+                  </>
                 ) : (
                   <>
                     <View style={styles.bookButtonIconContainer}>
@@ -650,6 +695,29 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
     letterSpacing: 0.8,
+  },
+  outOfStockOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  outOfStockBadge: {
+    alignItems: 'center',
+    gap: 8,
+  },
+  outOfStockText: {
+    color: '#FFF',
+    fontSize: 24,
+    fontWeight: '900',
+    letterSpacing: 2,
+    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
   },
   overlay: {
     position: 'absolute',
@@ -897,6 +965,10 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#333',
   },
+  bookButtonDisabled: {
+    opacity: 0.5,
+    borderColor: '#999',
+  },
   bookButtonIconContainer: {
     width: 46,
     height: 46,
@@ -917,11 +989,17 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: 0.3,
   },
+  bookButtonTitleDisabled: {
+    color: '#999',
+  },
   bookButtonSubtitle: {
     color: '#666',
     fontSize: 10,
     fontWeight: '500',
     letterSpacing: 0.1,
+  },
+  bookButtonSubtitleDisabled: {
+    color: '#999',
   },
   bookButtonArrow: {
     opacity: 0.8,
