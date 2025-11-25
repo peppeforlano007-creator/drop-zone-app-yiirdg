@@ -85,8 +85,8 @@ export default function HomeScreen() {
       const listIds = supplierLists.map(list => list.id);
       console.log(`→ Will fetch products for ${listIds.length} lists`);
       
-      // STEP 2: Get ALL products for these lists with stock > 0 - IMPORTANT: Filter by stock
-      console.log('→ Fetching ALL active products with stock > 0 (removing default 1000 row limit)...');
+      // STEP 2: Get ALL products for these lists with stock > 0 - ONLY filter by stock, not status
+      console.log('→ Fetching ALL products with stock > 0 (ignoring status field)...');
       
       // Fetch products in batches to avoid hitting limits
       const batchSize = 1000;
@@ -99,9 +99,8 @@ export default function HomeScreen() {
         const { data: productsBatch, error: productsError } = await supabase
           .from('products')
           .select('*')
-          .eq('status', 'active')
           .in('supplier_list_id', listIds)
-          .gt('stock', 0) // Only fetch products with stock > 0
+          .gt('stock', 0) // Only fetch products with stock > 0, ignore status
           .order('created_at', { ascending: false })
           .range(offset, offset + batchSize - 1);
 
@@ -129,7 +128,7 @@ export default function HomeScreen() {
       }
 
       const products = allProducts;
-      console.log(`✓ Found TOTAL of ${products.length} active products with stock > 0 across all batches`);
+      console.log(`✓ Found TOTAL of ${products.length} products with stock > 0 across all batches`);
 
       if (!products || products.length === 0) {
         console.log('⚠ No products with stock found for active lists');
@@ -331,9 +330,9 @@ export default function HomeScreen() {
           console.log('Product stock update received in home feed:', payload);
           const updatedProduct = payload.new as any;
           
-          // If stock is 0 or less, remove the product from all lists
+          // IMPORTANT: Only remove product if stock is 0 or less, regardless of status
           if (updatedProduct.stock <= 0) {
-            console.log('Product stock is 0, removing from home feed:', updatedProduct.id);
+            console.log('Product stock is 0 or less, removing from home feed:', updatedProduct.id, 'stock:', updatedProduct.stock);
             
             setProductLists(prevLists => {
               const updatedLists = prevLists.map(list => {
@@ -350,7 +349,8 @@ export default function HomeScreen() {
               return updatedLists;
             });
           } else {
-            // Update the product stock in the list
+            // Update the product stock in the list (keep it visible if stock > 0)
+            console.log('Product stock updated, keeping in feed:', updatedProduct.id, 'stock:', updatedProduct.stock);
             setProductLists(prevLists => {
               return prevLists.map(list => {
                 if (list.listId === updatedProduct.supplier_list_id) {

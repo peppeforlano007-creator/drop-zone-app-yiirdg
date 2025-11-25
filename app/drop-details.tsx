@@ -107,12 +107,11 @@ export default function DropDetailsScreen() {
       });
       setDrop(dropData);
 
-      // Load products with stock > 0 and active status
+      // Load products with stock > 0 - IGNORE status field
       const { data: productsData, error: productsError } = await supabase
         .from('products')
         .select('*')
         .eq('supplier_list_id', dropData.supplier_list_id)
-        .eq('status', 'active')
         .gt('stock', 0)
         .order('created_at', { ascending: false });
 
@@ -120,7 +119,7 @@ export default function DropDetailsScreen() {
         console.error('❌ Error loading products:', productsError);
       } else {
         // Filter to ensure only products with stock > 0
-        const availableProducts = (productsData || []).filter(p => p.stock > 0 && p.status === 'active');
+        const availableProducts = (productsData || []).filter(p => p.stock > 0);
         console.log('✅ Products loaded:', availableProducts.length, 'with stock > 0');
         setProducts(availableProducts);
       }
@@ -184,9 +183,9 @@ export default function DropDetailsScreen() {
           const updatedProduct = payload.new as ProductData;
           
           setProducts(prevProducts => {
-            // If product is out of stock or inactive, remove it from the list
-            if (updatedProduct.stock <= 0 || updatedProduct.status !== 'active') {
-              console.log('🗑️ Product out of stock or inactive, removing from list:', updatedProduct.id, 'stock:', updatedProduct.stock, 'status:', updatedProduct.status);
+            // IMPORTANT: Only remove if stock is 0 or less, ignore status field
+            if (updatedProduct.stock <= 0) {
+              console.log('🗑️ Product out of stock, removing from list:', updatedProduct.id, 'stock:', updatedProduct.stock);
               const filtered = prevProducts.filter(p => p.id !== updatedProduct.id);
               
               // If this was the last product, show a message
@@ -211,7 +210,7 @@ export default function DropDetailsScreen() {
               newProducts[existingIndex] = updatedProduct;
               console.log('✅ Product updated in list:', updatedProduct.id, 'stock:', updatedProduct.stock);
               return newProducts;
-            } else if (updatedProduct.status === 'active' && updatedProduct.stock > 0) {
+            } else if (updatedProduct.stock > 0) {
               // Product became available again (e.g., booking cancelled)
               console.log('✨ Product became available again, adding to list:', updatedProduct.id, 'stock:', updatedProduct.stock);
               return [...prevProducts, updatedProduct];
