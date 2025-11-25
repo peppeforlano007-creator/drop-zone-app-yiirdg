@@ -25,6 +25,7 @@ interface ProductData {
   condition: string;
   category: string | null;
   stock: number;
+  status: string;
   supplier_list_id: string;
 }
 
@@ -65,12 +66,12 @@ export default function DropDetailsScreen() {
 
   const loadDropDetails = useCallback(async () => {
     if (!dropId) {
-      console.log('No dropId provided');
+      console.log('❌ No dropId provided');
       return;
     }
 
     try {
-      console.log('Loading drop details for:', dropId);
+      console.log('📥 Loading drop details for:', dropId);
       
       const { data: dropData, error: dropError } = await supabase
         .from('drops')
@@ -92,12 +93,12 @@ export default function DropDetailsScreen() {
         .single();
 
       if (dropError) {
-        console.error('Error loading drop:', dropError);
+        console.error('❌ Error loading drop:', dropError);
         Alert.alert('Errore', 'Impossibile caricare i dettagli del drop');
         return;
       }
 
-      console.log('Drop data loaded:', {
+      console.log('✅ Drop data loaded:', {
         id: dropData.id,
         name: dropData.name,
         current_discount: dropData.current_discount,
@@ -116,15 +117,15 @@ export default function DropDetailsScreen() {
         .order('created_at', { ascending: false });
 
       if (productsError) {
-        console.error('Error loading products:', productsError);
+        console.error('❌ Error loading products:', productsError);
       } else {
         // Filter to ensure only products with stock > 0
         const availableProducts = (productsData || []).filter(p => p.stock > 0 && p.status === 'active');
-        console.log('Products loaded:', availableProducts.length, 'with stock > 0');
+        console.log('✅ Products loaded:', availableProducts.length, 'with stock > 0');
         setProducts(availableProducts);
       }
     } catch (error) {
-      console.error('Error in loadDropDetails:', error);
+      console.error('❌ Error in loadDropDetails:', error);
     } finally {
       setLoading(false);
     }
@@ -132,7 +133,7 @@ export default function DropDetailsScreen() {
 
   const loadUserBookings = useCallback(async () => {
     if (!user || !dropId) {
-      console.log('No user or dropId for loading bookings');
+      console.log('⏭️ No user or dropId for loading bookings');
       return;
     }
 
@@ -145,15 +146,15 @@ export default function DropDetailsScreen() {
         .in('status', ['active', 'confirmed']);
 
       if (error) {
-        console.error('Error loading user bookings:', error);
+        console.error('❌ Error loading user bookings:', error);
         return;
       }
 
       const bookingSet = new Set(data.map(b => b.product_id));
       setUserBookings(bookingSet);
-      console.log('User bookings loaded:', bookingSet.size);
+      console.log('✅ User bookings loaded:', bookingSet.size);
     } catch (error) {
-      console.error('Error in loadUserBookings:', error);
+      console.error('❌ Error in loadUserBookings:', error);
     }
   }, [user, dropId]);
 
@@ -166,7 +167,7 @@ export default function DropDetailsScreen() {
   useEffect(() => {
     if (!drop) return;
 
-    console.log('Setting up real-time subscription for product stock updates');
+    console.log('🚀 Setting up real-time subscription for product stock updates');
     
     const channel = supabase
       .channel(`product_stock_updates_${drop.supplier_list_id}`)
@@ -179,18 +180,18 @@ export default function DropDetailsScreen() {
           filter: `supplier_list_id=eq.${drop.supplier_list_id}`,
         },
         (payload) => {
-          console.log('Product stock update received:', payload);
+          console.log('📡 Product stock update received:', payload);
           const updatedProduct = payload.new as ProductData;
           
           setProducts(prevProducts => {
-            // Remove product if stock is 0 or less, or status is not active
+            // If product is out of stock or inactive, remove it from the list
             if (updatedProduct.stock <= 0 || updatedProduct.status !== 'active') {
-              console.log('Product out of stock or inactive, removing from list:', updatedProduct.id, 'stock:', updatedProduct.stock, 'status:', updatedProduct.status);
+              console.log('🗑️ Product out of stock or inactive, removing from list:', updatedProduct.id, 'stock:', updatedProduct.stock, 'status:', updatedProduct.status);
               const filtered = prevProducts.filter(p => p.id !== updatedProduct.id);
               
               // If this was the last product, show a message
               if (filtered.length === 0 && prevProducts.length > 0) {
-                console.log('Last product removed from drop');
+                console.log('⚠️ Last product removed from drop');
                 setTimeout(() => {
                   Alert.alert(
                     'Tutti i prodotti esauriti',
@@ -208,11 +209,11 @@ export default function DropDetailsScreen() {
             if (existingIndex >= 0) {
               const newProducts = [...prevProducts];
               newProducts[existingIndex] = updatedProduct;
-              console.log('Product updated in list:', updatedProduct.id, 'stock:', updatedProduct.stock);
+              console.log('✅ Product updated in list:', updatedProduct.id, 'stock:', updatedProduct.stock);
               return newProducts;
             } else if (updatedProduct.status === 'active' && updatedProduct.stock > 0) {
               // Product became available again (e.g., booking cancelled)
-              console.log('Product became available again, adding to list:', updatedProduct.id, 'stock:', updatedProduct.stock);
+              console.log('✨ Product became available again, adding to list:', updatedProduct.id, 'stock:', updatedProduct.stock);
               return [...prevProducts, updatedProduct];
             }
             
@@ -221,17 +222,17 @@ export default function DropDetailsScreen() {
         }
       )
       .subscribe((status) => {
-        console.log('Product stock subscription status:', status);
+        console.log('📶 Product stock subscription status:', status);
       });
 
     return () => {
-      console.log('Cleaning up real-time subscription');
+      console.log('🧹 Cleaning up real-time subscription');
       supabase.removeChannel(channel);
     };
   }, [drop]);
 
   const handleDropUpdate = useCallback((updatedDrop: any) => {
-    console.log('Real-time drop update received in drop-details:', {
+    console.log('🔄 Real-time drop update received in drop-details:', {
       id: updatedDrop.id,
       current_discount: updatedDrop.current_discount,
       current_value: updatedDrop.current_value,
@@ -249,7 +250,7 @@ export default function DropDetailsScreen() {
         updated_at: updatedDrop.updated_at,
       };
       
-      console.log('Drop state updated:', {
+      console.log('✅ Drop state updated:', {
         old_discount: prevDrop.current_discount,
         new_discount: newDrop.current_discount,
         old_value: prevDrop.current_value,
