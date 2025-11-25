@@ -8,8 +8,6 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instantiate createClient with right options
-  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
     PostgrestVersion: "13.0.5"
   }
@@ -62,6 +60,7 @@ export type Database = {
           payment_method_id: string | null
           stripe_payment_method_id: string | null
           authorized_amount: number | null
+          payment_method: string | null
         }
         Insert: {
           created_at?: string | null
@@ -82,6 +81,7 @@ export type Database = {
           payment_method_id?: string | null
           stripe_payment_method_id?: string | null
           authorized_amount?: number | null
+          payment_method?: string | null
         }
         Update: {
           created_at?: string | null
@@ -102,6 +102,7 @@ export type Database = {
           payment_method_id?: string | null
           stripe_payment_method_id?: string | null
           authorized_amount?: number | null
+          payment_method?: string | null
         }
         Relationships: [
           {
@@ -133,6 +134,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      coupons: {
+        Row: {
+          id: string
+          name: string
+          description: string | null
+          discount_percentage: number
+          points_required: number
+          is_active: boolean
+          created_at: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string
+          name: string
+          description?: string | null
+          discount_percentage: number
+          points_required: number
+          is_active?: boolean
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          name?: string
+          description?: string | null
+          discount_percentage?: number
+          points_required?: number
+          is_active?: boolean
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
       }
       drops: {
         Row: {
@@ -213,6 +247,10 @@ export type Database = {
           selected_color: string | null
           selected_size: string | null
           user_id: string
+          customer_notified_at: string | null
+          returned_to_sender: boolean | null
+          returned_at: string | null
+          return_reason: string | null
         }
         Insert: {
           booking_id: string
@@ -229,6 +267,10 @@ export type Database = {
           selected_color?: string | null
           selected_size?: string | null
           user_id: string
+          customer_notified_at?: string | null
+          returned_to_sender?: boolean | null
+          returned_at?: string | null
+          return_reason?: string | null
         }
         Update: {
           booking_id?: string
@@ -245,6 +287,10 @@ export type Database = {
           selected_color?: string | null
           selected_size?: string | null
           user_id?: string
+          customer_notified_at?: string | null
+          returned_to_sender?: boolean | null
+          returned_at?: string | null
+          return_reason?: string | null
         }
         Relationships: [
           {
@@ -502,6 +548,13 @@ export type Database = {
           role: string
           updated_at: string | null
           user_id: string
+          rating_stars: number | null
+          loyalty_points: number | null
+          orders_picked_up: number | null
+          orders_returned: number | null
+          account_blocked: boolean | null
+          blocked_at: string | null
+          blocked_reason: string | null
         }
         Insert: {
           created_at?: string | null
@@ -513,6 +566,13 @@ export type Database = {
           role: string
           updated_at?: string | null
           user_id: string
+          rating_stars?: number | null
+          loyalty_points?: number | null
+          orders_picked_up?: number | null
+          orders_returned?: number | null
+          account_blocked?: boolean | null
+          blocked_at?: string | null
+          blocked_reason?: string | null
         }
         Update: {
           created_at?: string | null
@@ -524,6 +584,13 @@ export type Database = {
           role?: string
           updated_at?: string | null
           user_id?: string
+          rating_stars?: number | null
+          loyalty_points?: number | null
+          orders_picked_up?: number | null
+          orders_returned?: number | null
+          account_blocked?: boolean | null
+          blocked_at?: string | null
+          blocked_reason?: string | null
         }
         Relationships: []
       }
@@ -565,6 +632,87 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: []
+      }
+      user_activity_log: {
+        Row: {
+          id: string
+          user_id: string
+          activity_type: string
+          activity_data: Json | null
+          points_earned: number | null
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          activity_type: string
+          activity_data?: Json | null
+          points_earned?: number | null
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          activity_type?: string
+          activity_data?: Json | null
+          points_earned?: number | null
+          created_at?: string | null
+        }
+        Relationships: []
+      }
+      user_coupons: {
+        Row: {
+          id: string
+          user_id: string
+          coupon_id: string
+          coupon_code: string
+          discount_percentage: number
+          is_used: boolean | null
+          used_at: string | null
+          booking_id: string | null
+          created_at: string | null
+          expires_at: string | null
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          coupon_id: string
+          coupon_code: string
+          discount_percentage: number
+          is_used?: boolean | null
+          used_at?: string | null
+          booking_id?: string | null
+          created_at?: string | null
+          expires_at?: string | null
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          coupon_id?: string
+          coupon_code?: string
+          discount_percentage?: number
+          is_used?: boolean | null
+          used_at?: string | null
+          booking_id?: string | null
+          created_at?: string | null
+          expires_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_coupons_coupon_id_fkey"
+            columns: ["coupon_id"]
+            isOneToOne: false
+            referencedRelation: "coupons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_coupons_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_interests: {
         Row: {
@@ -620,7 +768,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      update_user_rating: {
+        Args: { p_user_id: string }
+        Returns: undefined
+      }
+      award_loyalty_points: {
+        Args: { p_user_id: string; p_amount_spent: number }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never

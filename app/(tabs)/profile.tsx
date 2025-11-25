@@ -15,12 +15,19 @@ export default function ProfileScreen() {
   const [pickupPoints, setPickupPoints] = useState<{ id: string; city: string }[]>([]);
   const [loadingPoints, setLoadingPoints] = useState(true);
   const [updatingPoint, setUpdatingPoint] = useState(false);
-  const [whatsappNumber, setWhatsappNumber] = useState('393123456789'); // Default fallback
+  const [whatsappNumber, setWhatsappNumber] = useState('393123456789');
   const [loadingWhatsapp, setLoadingWhatsapp] = useState(true);
+  const [ratingStars, setRatingStars] = useState(5);
+  const [loyaltyPoints, setLoyaltyPoints] = useState(0);
+  const [ordersPickedUp, setOrdersPickedUp] = useState(0);
+  const [ordersReturned, setOrdersReturned] = useState(0);
+  const [accountBlocked, setAccountBlocked] = useState(false);
+  const [loadingProfile, setLoadingProfile] = useState(true);
 
   useEffect(() => {
     loadPickupPoints();
     loadWhatsAppNumber();
+    loadUserProfile();
   }, []);
 
   useEffect(() => {
@@ -28,6 +35,35 @@ export default function ProfileScreen() {
       setSelectedPickupPoint(user.pickupPoint);
     }
   }, [user?.pickupPoint]);
+
+  const loadUserProfile = async () => {
+    if (!user) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('rating_stars, loyalty_points, orders_picked_up, orders_returned, account_blocked')
+        .eq('user_id', user.id)
+        .single();
+
+      if (error) {
+        console.error('Error loading user profile:', error);
+        return;
+      }
+
+      if (data) {
+        setRatingStars(data.rating_stars ?? 5);
+        setLoyaltyPoints(data.loyalty_points ?? 0);
+        setOrdersPickedUp(data.orders_picked_up ?? 0);
+        setOrdersReturned(data.orders_returned ?? 0);
+        setAccountBlocked(data.account_blocked ?? false);
+      }
+    } catch (error) {
+      console.error('Exception loading user profile:', error);
+    } finally {
+      setLoadingProfile(false);
+    }
+  };
 
   const loadWhatsAppNumber = async () => {
     try {
@@ -42,7 +78,6 @@ export default function ProfileScreen() {
 
       if (error) {
         console.error('Profile: Error loading WhatsApp number:', error);
-        // Don't show alert, just use fallback
         return;
       }
 
@@ -54,7 +89,6 @@ export default function ProfileScreen() {
       }
     } catch (error) {
       console.error('Profile: Exception loading WhatsApp number:', error);
-      // Don't show alert, just use fallback
     } finally {
       setLoadingWhatsapp(false);
     }
@@ -89,7 +123,6 @@ export default function ProfileScreen() {
     setUpdatingPoint(true);
     
     try {
-      // Update in database
       const { error } = await supabase
         .from('profiles')
         .update({ pickup_point_id: pointId })
@@ -101,7 +134,6 @@ export default function ProfileScreen() {
         return;
       }
 
-      // Update in context (this will update the UI immediately)
       updatePickupPoint(pointId, pointCity);
       setSelectedPickupPoint(pointCity);
       
@@ -163,13 +195,11 @@ export default function ProfileScreen() {
     const whatsappWebUrl = `https://wa.me/${whatsappNumber}?text=${message}`;
     
     try {
-      // Try to open WhatsApp app first
       const canOpen = await Linking.canOpenURL(whatsappUrl);
       
       if (canOpen) {
         await Linking.openURL(whatsappUrl);
       } else {
-        // If WhatsApp app is not installed, open WhatsApp Web
         await Linking.openURL(whatsappWebUrl);
       }
     } catch (error) {
@@ -177,17 +207,67 @@ export default function ProfileScreen() {
       Alert.alert(
         'Errore',
         'Impossibile aprire WhatsApp. Assicurati di avere WhatsApp installato sul tuo dispositivo.',
-        [
-          {
-            text: 'OK',
-          },
-        ]
+        [{ text: 'OK' }]
       );
     }
   };
 
-  // Display role as "Utente" instead of "Consumatore"
+  const handleViewLoyaltyProgram = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push('/loyalty-program');
+  };
+
+  const handleViewCoupons = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push('/my-coupons');
+  };
+
+  const renderStars = (stars: number) => {
+    return (
+      <View style={styles.starsContainer}>
+        {[1, 2, 3, 4, 5].map((star) => (
+          <IconSymbol
+            key={star}
+            ios_icon_name={star <= stars ? 'star.fill' : 'star'}
+            android_material_icon_name={star <= stars ? 'star' : 'star_border'}
+            size={20}
+            color={star <= stars ? '#FFD700' : colors.textTertiary}
+          />
+        ))}
+      </View>
+    );
+  };
+
   const displayRole = user?.role === 'consumer' ? 'Utente' : user?.role?.toUpperCase();
+
+  if (accountBlocked) {
+    return (
+      <SafeAreaView style={styles.container} edges={['bottom']}>
+        <Stack.Screen
+          options={{
+            headerShown: true,
+            title: 'Profilo',
+            headerStyle: { backgroundColor: colors.background },
+            headerTintColor: colors.text,
+          }}
+        />
+        <View style={styles.blockedContainer}>
+          <IconSymbol ios_icon_name="exclamationmark.triangle.fill" android_material_icon_name="block" size={64} color={colors.error} />
+          <Text style={styles.blockedTitle}>Account Bloccato</Text>
+          <Text style={styles.blockedText}>
+            Il tuo account è stato bloccato per 5 o più ordini rispediti al mittente.
+          </Text>
+          <Text style={styles.blockedSubtext}>
+            Contatta il supporto per maggiori informazioni.
+          </Text>
+          <Pressable style={styles.supportButton} onPress={handleSupport}>
+            <IconSymbol ios_icon_name="questionmark.circle.fill" android_material_icon_name="help" size={20} color={colors.background} />
+            <Text style={styles.supportButtonText}>Contatta Supporto</Text>
+          </Pressable>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <>
@@ -195,9 +275,7 @@ export default function ProfileScreen() {
         options={{
           headerShown: true,
           title: 'Profilo',
-          headerStyle: {
-            backgroundColor: colors.background,
-          },
+          headerStyle: { backgroundColor: colors.background },
           headerTintColor: colors.text,
           headerRight: () => (
             <Pressable onPress={handleLogout} style={{ marginRight: 8 }}>
@@ -231,7 +309,51 @@ export default function ProfileScreen() {
             </View>
           </View>
 
-          {/* Admin Panel Button - Only visible for admins */}
+          {/* Rating & Loyalty Section */}
+          {!loadingProfile && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Il Tuo Rating</Text>
+              <View style={styles.ratingCard}>
+                {renderStars(ratingStars)}
+                <Text style={styles.ratingText}>{ratingStars} / 5 Stelle</Text>
+                <View style={styles.ratingStats}>
+                  <View style={styles.ratingStat}>
+                    <IconSymbol ios_icon_name="checkmark.circle.fill" android_material_icon_name="check_circle" size={20} color={colors.success} />
+                    <Text style={styles.ratingStatText}>{ordersPickedUp} ritirati</Text>
+                  </View>
+                  <View style={styles.ratingStat}>
+                    <IconSymbol ios_icon_name="arrow.uturn.backward.circle.fill" android_material_icon_name="undo" size={20} color={colors.error} />
+                    <Text style={styles.ratingStatText}>{ordersReturned} rispediti</Text>
+                  </View>
+                </View>
+                <Pressable style={styles.learnMoreButton} onPress={handleViewLoyaltyProgram}>
+                  <Text style={styles.learnMoreText}>Scopri il Programma Fedeltà</Text>
+                  <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="chevron_right" size={16} color={colors.primary} />
+                </Pressable>
+              </View>
+
+              {ratingStars === 5 && (
+                <View style={styles.loyaltyCard}>
+                  <View style={styles.loyaltyHeader}>
+                    <IconSymbol ios_icon_name="star.circle.fill" android_material_icon_name="stars" size={32} color="#FFD700" />
+                    <View style={styles.loyaltyInfo}>
+                      <Text style={styles.loyaltyTitle}>Punti Fedeltà</Text>
+                      <Text style={styles.loyaltyPoints}>{loyaltyPoints} punti</Text>
+                    </View>
+                  </View>
+                  <Text style={styles.loyaltyDescription}>
+                    🎉 Hai 5 stelle! Guadagni 1 punto per ogni euro speso.
+                  </Text>
+                  <Pressable style={styles.couponsButton} onPress={handleViewCoupons}>
+                    <IconSymbol ios_icon_name="ticket.fill" android_material_icon_name="local_offer" size={20} color={colors.background} />
+                    <Text style={styles.couponsButtonText}>I Miei Coupon</Text>
+                  </Pressable>
+                </View>
+              )}
+            </View>
+          )}
+
+          {/* Admin Panel Button */}
           {user?.role === 'admin' && (
             <View style={styles.section}>
               <Pressable 
@@ -305,25 +427,6 @@ export default function ProfileScreen() {
                 ))}
               </View>
             )}
-          </View>
-
-          {/* Stats */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Le Tue Statistiche</Text>
-            
-            <View style={styles.statsContainer}>
-              <View style={styles.statCard}>
-                <IconSymbol ios_icon_name="heart.fill" android_material_icon_name="favorite" size={32} color={colors.text} />
-                <Text style={styles.statValue}>12</Text>
-                <Text style={styles.statLabel}>Prodotti Interessati</Text>
-              </View>
-              
-              <View style={styles.statCard}>
-                <IconSymbol ios_icon_name="cart.fill" android_material_icon_name="shopping_cart" size={32} color={colors.text} />
-                <Text style={styles.statValue}>5</Text>
-                <Text style={styles.statLabel}>Ordini Completati</Text>
-              </View>
-            </View>
           </View>
 
           {/* Settings */}
@@ -487,6 +590,98 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     lineHeight: 20,
   },
+  ratingCard: {
+    backgroundColor: colors.card,
+    borderRadius: 16,
+    padding: 20,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginBottom: 16,
+  },
+  starsContainer: {
+    flexDirection: 'row',
+    gap: 4,
+    marginBottom: 12,
+  },
+  ratingText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: 16,
+  },
+  ratingStats: {
+    flexDirection: 'row',
+    gap: 24,
+    marginBottom: 16,
+  },
+  ratingStat: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  ratingStatText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+  },
+  learnMoreButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 8,
+  },
+  learnMoreText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.primary,
+  },
+  loyaltyCard: {
+    backgroundColor: '#FFD70020',
+    borderRadius: 16,
+    padding: 20,
+    borderWidth: 2,
+    borderColor: '#FFD700',
+  },
+  loyaltyHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+    marginBottom: 12,
+  },
+  loyaltyInfo: {
+    flex: 1,
+  },
+  loyaltyTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 4,
+  },
+  loyaltyPoints: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: colors.text,
+  },
+  loyaltyDescription: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginBottom: 16,
+    lineHeight: 20,
+  },
+  couponsButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: colors.text,
+    paddingVertical: 12,
+    borderRadius: 12,
+  },
+  couponsButtonText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: colors.background,
+  },
   pickupPointsContainer: {
     gap: 12,
   },
@@ -528,31 +723,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.textSecondary,
   },
-  statsContainer: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  statCard: {
-    flex: 1,
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 12,
-    padding: 20,
-    alignItems: 'center',
-  },
-  statValue: {
-    fontSize: 32,
-    fontWeight: '700',
-    color: colors.text,
-    marginTop: 12,
-    marginBottom: 4,
-  },
-  statLabel: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    textAlign: 'center',
-  },
   settingItem: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -569,5 +739,45 @@ const styles = StyleSheet.create({
   settingText: {
     fontSize: 16,
     color: colors.text,
+  },
+  blockedContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 32,
+  },
+  blockedTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: colors.error,
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  blockedText: {
+    fontSize: 16,
+    color: colors.text,
+    textAlign: 'center',
+    marginBottom: 8,
+    lineHeight: 24,
+  },
+  blockedSubtext: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  supportButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: colors.text,
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+  },
+  supportButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.background,
   },
 });
