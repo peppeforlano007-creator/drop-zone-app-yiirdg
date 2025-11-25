@@ -1,39 +1,18 @@
 
-import React, { useState } from 'react';
+import React from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
-  Pressable,
-  Alert,
-  ActivityIndicator,
   Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Stack, router } from 'expo-router';
+import { Stack } from 'expo-router';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
-import { useSubscription } from '@/contexts/SubscriptionContext';
-import * as Haptics from 'expo-haptics';
 
 export default function SubscriptionPlansScreen() {
-  const { plans, activeSubscription, createSubscription } = useSubscription();
-  const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
-  const [isProcessing, setIsProcessing] = useState(false);
-
-  const handleSelectPlan = async (planId: string, priceId: string) => {
-    if (isProcessing) return;
-
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-
-    Alert.alert(
-      'Abbonamento Non Disponibile',
-      'La funzionalità di abbonamento è stata rimossa. Tutti i servizi sono ora gratuiti.',
-      [{ text: 'OK' }]
-    );
-  };
-
   return (
     <>
       <Stack.Screen
@@ -51,126 +30,92 @@ export default function SubscriptionPlansScreen() {
           contentContainerStyle={styles.contentContainer}
         >
           <View style={styles.header}>
-            <Text style={styles.headerTitle}>Scegli il tuo piano</Text>
+            <IconSymbol 
+              ios_icon_name="checkmark.seal.fill" 
+              android_material_icon_name="verified" 
+              size={64} 
+              color={colors.success} 
+            />
+            <Text style={styles.headerTitle}>Tutti i Servizi Gratuiti</Text>
             <Text style={styles.headerSubtitle}>
-              Sblocca funzionalità premium e ottieni il massimo dalla piattaforma
+              La funzionalità di abbonamento è stata rimossa. Tutti i servizi della piattaforma sono ora completamente gratuiti per tutti gli utenti.
             </Text>
           </View>
 
-          {activeSubscription && (
-            <View style={styles.currentPlanBanner}>
-              <IconSymbol ios_icon_name="checkmark.seal.fill" android_material_icon_name="verified" size={24} color={colors.success} />
-              <Text style={styles.currentPlanText}>
-                Piano attuale: {activeSubscription.plan?.name}
-              </Text>
+          <View style={styles.featuresContainer}>
+            <Text style={styles.featuresTitle}>Servizi Inclusi Gratuitamente:</Text>
+            
+            <View style={styles.featureRow}>
+              <IconSymbol
+                ios_icon_name="checkmark.circle.fill"
+                android_material_icon_name="check_circle"
+                size={24}
+                color={colors.success}
+              />
+              <Text style={styles.featureText}>Accesso completo al feed prodotti</Text>
             </View>
-          )}
 
-          <View style={styles.plansContainer}>
-            {plans.map((plan, index) => {
-              const isCurrentPlan = activeSubscription?.subscriptionPlanId === plan.id;
-              const isProcessingThisPlan = selectedPlanId === plan.id && isProcessing;
+            <View style={styles.featureRow}>
+              <IconSymbol
+                ios_icon_name="checkmark.circle.fill"
+                android_material_icon_name="check_circle"
+                size={24}
+                color={colors.success}
+              />
+              <Text style={styles.featureText}>Partecipazione illimitata ai drop</Text>
+            </View>
 
-              return (
-                <View
-                  key={plan.id}
-                  style={[
-                    styles.planCard,
-                    isCurrentPlan && styles.planCardActive,
-                    index === 1 && styles.planCardFeatured,
-                  ]}
-                >
-                  {index === 1 && (
-                    <View style={styles.featuredBadge}>
-                      <Text style={styles.featuredText}>PIÙ POPOLARE</Text>
-                    </View>
-                  )}
+            <View style={styles.featureRow}>
+              <IconSymbol
+                ios_icon_name="checkmark.circle.fill"
+                android_material_icon_name="check_circle"
+                size={24}
+                color={colors.success}
+              />
+              <Text style={styles.featureText}>Prenotazioni senza limiti</Text>
+            </View>
 
-                  <View style={styles.planHeader}>
-                    <Text style={styles.planName}>{plan.name}</Text>
-                    {plan.description && (
-                      <Text style={styles.planDescription}>{plan.description}</Text>
-                    )}
-                  </View>
+            <View style={styles.featureRow}>
+              <IconSymbol
+                ios_icon_name="checkmark.circle.fill"
+                android_material_icon_name="check_circle"
+                size={24}
+                color={colors.success}
+              />
+              <Text style={styles.featureText}>Notifiche in tempo reale</Text>
+            </View>
 
-                  <View style={styles.planPricing}>
-                    <Text style={styles.planPrice}>€{plan.amount.toFixed(0)}</Text>
-                    <Text style={styles.planInterval}>
-                      /{plan.interval === 'month' ? 'mese' : 'anno'}
-                    </Text>
-                  </View>
+            <View style={styles.featureRow}>
+              <IconSymbol
+                ios_icon_name="checkmark.circle.fill"
+                android_material_icon_name="check_circle"
+                size={24}
+                color={colors.success}
+              />
+              <Text style={styles.featureText}>Programma fedeltà e coupon</Text>
+            </View>
 
-                  {plan.features && plan.features.length > 0 && (
-                    <View style={styles.planFeatures}>
-                      {plan.features.map((feature, featureIndex) => (
-                        <View key={featureIndex} style={styles.featureRow}>
-                          <IconSymbol
-                            ios_icon_name="checkmark.circle.fill"
-                            android_material_icon_name="check_circle"
-                            size={20}
-                            color={index === 1 ? colors.text : colors.success}
-                          />
-                          <Text style={styles.featureText}>{feature}</Text>
-                        </View>
-                      ))}
-                    </View>
-                  )}
-
-                  <Pressable
-                    style={[
-                      styles.selectButton,
-                      isCurrentPlan && styles.selectButtonActive,
-                      index === 1 && styles.selectButtonFeatured,
-                      isProcessingThisPlan && styles.selectButtonProcessing,
-                    ]}
-                    onPress={() => handleSelectPlan(plan.id, plan.stripePriceId)}
-                    disabled={isCurrentPlan || isProcessing}
-                  >
-                    {isProcessingThisPlan ? (
-                      <ActivityIndicator color={index === 1 ? colors.background : colors.text} />
-                    ) : (
-                      <Text
-                        style={[
-                          styles.selectButtonText,
-                          isCurrentPlan && styles.selectButtonTextActive,
-                          index === 1 && styles.selectButtonTextFeatured,
-                        ]}
-                      >
-                        {isCurrentPlan ? 'Piano Attuale' : 'Seleziona Piano'}
-                      </Text>
-                    )}
-                  </Pressable>
-                </View>
-              );
-            })}
+            <View style={styles.featureRow}>
+              <IconSymbol
+                ios_icon_name="checkmark.circle.fill"
+                android_material_icon_name="check_circle"
+                size={24}
+                color={colors.success}
+              />
+              <Text style={styles.featureText}>Supporto clienti completo</Text>
+            </View>
           </View>
 
-          <View style={styles.faqSection}>
-            <Text style={styles.faqTitle}>Domande Frequenti</Text>
-            
-            <View style={styles.faqItem}>
-              <Text style={styles.faqQuestion}>Posso annullare in qualsiasi momento?</Text>
-              <Text style={styles.faqAnswer}>
-                Sì, puoi annullare il tuo abbonamento in qualsiasi momento. Continuerai ad avere 
-                accesso alle funzionalità premium fino alla fine del periodo di fatturazione.
-              </Text>
-            </View>
-
-            <View style={styles.faqItem}>
-              <Text style={styles.faqQuestion}>Posso cambiare piano?</Text>
-              <Text style={styles.faqAnswer}>
-                Sì, puoi passare a un piano superiore o inferiore in qualsiasi momento. 
-                Le modifiche saranno applicate al prossimo ciclo di fatturazione.
-              </Text>
-            </View>
-
-            <View style={styles.faqItem}>
-              <Text style={styles.faqQuestion}>Come funziona la fatturazione?</Text>
-              <Text style={styles.faqAnswer}>
-                Gli abbonamenti vengono fatturati automaticamente all&apos;inizio di ogni periodo 
-                (mensile o annuale) utilizzando il metodo di pagamento predefinito.
-              </Text>
-            </View>
+          <View style={styles.infoBox}>
+            <IconSymbol
+              ios_icon_name="info.circle.fill"
+              android_material_icon_name="info"
+              size={24}
+              color={colors.primary}
+            />
+            <Text style={styles.infoText}>
+              Pagamento alla consegna (Cash on Delivery) per tutti gli ordini
+            </Text>
           </View>
         </ScrollView>
       </SafeAreaView>
@@ -189,166 +134,64 @@ const styles = StyleSheet.create({
   contentContainer: {
     paddingTop: Platform.OS === 'android' ? 48 : 20,
     paddingBottom: 40,
+    paddingHorizontal: 24,
   },
   header: {
-    paddingHorizontal: 24,
-    marginBottom: 32,
+    alignItems: 'center',
+    marginBottom: 40,
+    paddingTop: 20,
   },
   headerTitle: {
     fontSize: 28,
     fontWeight: '700',
     color: colors.text,
-    marginBottom: 8,
+    marginTop: 20,
+    marginBottom: 12,
+    textAlign: 'center',
     letterSpacing: -0.5,
   },
   headerSubtitle: {
-    fontSize: 14,
+    fontSize: 16,
     color: colors.textSecondary,
-    lineHeight: 20,
+    lineHeight: 24,
+    textAlign: 'center',
   },
-  currentPlanBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    backgroundColor: colors.success + '20',
-    padding: 16,
-    marginHorizontal: 20,
-    marginBottom: 24,
-    borderRadius: 12,
-  },
-  currentPlanText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.success,
-  },
-  plansContainer: {
-    paddingHorizontal: 20,
-    gap: 20,
-    marginBottom: 32,
-  },
-  planCard: {
+  featuresContainer: {
     backgroundColor: colors.card,
     borderRadius: 16,
     padding: 24,
-    borderWidth: 2,
-    borderColor: colors.border,
-  },
-  planCardActive: {
-    borderColor: colors.success,
-    backgroundColor: colors.success + '10',
-  },
-  planCardFeatured: {
-    borderColor: colors.text,
-    backgroundColor: colors.text,
-    transform: [{ scale: 1.02 }],
-  },
-  featuredBadge: {
-    position: 'absolute',
-    top: -12,
-    left: 24,
-    backgroundColor: colors.warning,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-  },
-  featuredText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: colors.background,
-    letterSpacing: 0.5,
-  },
-  planHeader: {
-    marginBottom: 20,
-  },
-  planName: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: colors.text,
-    marginBottom: 8,
-  },
-  planDescription: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    lineHeight: 20,
-  },
-  planPricing: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
     marginBottom: 24,
   },
-  planPrice: {
-    fontSize: 48,
-    fontWeight: '700',
-    color: colors.text,
-    letterSpacing: -2,
-  },
-  planInterval: {
-    fontSize: 16,
-    color: colors.textSecondary,
-    marginLeft: 8,
-  },
-  planFeatures: {
-    gap: 12,
-    marginBottom: 24,
-  },
-  featureRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  featureText: {
-    flex: 1,
-    fontSize: 14,
-    color: colors.text,
-    lineHeight: 20,
-  },
-  selectButton: {
-    backgroundColor: colors.text,
-    padding: 18,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  selectButtonActive: {
-    backgroundColor: colors.success,
-  },
-  selectButtonFeatured: {
-    backgroundColor: colors.background,
-  },
-  selectButtonProcessing: {
-    opacity: 0.6,
-  },
-  selectButtonText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.background,
-  },
-  selectButtonTextActive: {
-    color: colors.background,
-  },
-  selectButtonTextFeatured: {
-    color: colors.text,
-  },
-  faqSection: {
-    paddingHorizontal: 20,
-  },
-  faqTitle: {
+  featuresTitle: {
     fontSize: 20,
     fontWeight: '700',
     color: colors.text,
     marginBottom: 20,
   },
-  faqItem: {
-    marginBottom: 24,
+  featureRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 16,
   },
-  faqQuestion: {
+  featureText: {
+    flex: 1,
     fontSize: 16,
-    fontWeight: '700',
     color: colors.text,
-    marginBottom: 8,
+    lineHeight: 22,
   },
-  faqAnswer: {
+  infoBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: colors.primary + '20',
+    padding: 16,
+    borderRadius: 12,
+  },
+  infoText: {
+    flex: 1,
     fontSize: 14,
-    color: colors.textSecondary,
+    color: colors.text,
     lineHeight: 20,
   },
 });
