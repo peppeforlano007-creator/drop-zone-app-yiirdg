@@ -4,7 +4,6 @@ import { View, Text, Image, StyleSheet, Pressable, Dimensions, Alert, ActivityIn
 import { IconSymbol } from './IconSymbol';
 import { colors } from '@/styles/commonStyles';
 import { Product } from '@/types/Product';
-import { usePayment } from '@/contexts/PaymentContext';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import ImageGallery from './ImageGallery';
@@ -43,7 +42,6 @@ export default function ProductCard({
   const [selectedColor, setSelectedColor] = useState<string | null>(null);
   const [descriptionExpanded, setDescriptionExpanded] = useState(false);
   const [descriptionHeight, setDescriptionHeight] = useState(0);
-  const { getDefaultPaymentMethod, authorizePayment } = usePayment();
   
   // Animation values
   const scaleAnim = useRef(new Animated.Value(1)).current;
@@ -111,26 +109,9 @@ export default function ProductCard({
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     
     if (isInDrop && onBook) {
-      const defaultPaymentMethod = getDefaultPaymentMethod();
-      
-      if (!defaultPaymentMethod) {
-        Alert.alert(
-          'Metodo di Pagamento Richiesto',
-          'Devi aggiungere un metodo di pagamento prima di prenotare.',
-          [
-            { text: 'Annulla', style: 'cancel' },
-            {
-              text: 'Aggiungi Carta',
-              onPress: () => router.push('/add-payment-method'),
-            },
-          ]
-        );
-        return;
-      }
-
       Alert.alert(
         'Conferma Prenotazione',
-        `Vuoi prenotare ${product.name}?\n\nPrezzo attuale: €${discountedPrice.toFixed(2)} (-${Math.floor(discount)}%)\n\nBlocchiamo €${originalPrice.toFixed(2)} sulla tua carta ${defaultPaymentMethod.brand} •••• ${defaultPaymentMethod.last4}.\n\nAlla fine del drop, addebiteremo solo l'importo finale con lo sconto raggiunto.`,
+        `Vuoi prenotare ${product.name}?\n\nPrezzo attuale: €${discountedPrice.toFixed(2)} (-${Math.floor(discount)}%)\n\nPagamento alla consegna.`,
         [
           { text: 'Annulla', style: 'cancel' },
           {
@@ -138,19 +119,13 @@ export default function ProductCard({
             onPress: async () => {
               setIsProcessing(true);
               try {
-                const authId = await authorizePayment(
-                  product.id,
-                  originalPrice,
-                  defaultPaymentMethod.id
-                );
-                console.log('Payment authorized:', authId);
                 Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
                 onBook(product.id);
               } catch (error) {
-                console.error('Payment authorization failed:', error);
+                console.error('Booking failed:', error);
                 Alert.alert(
                   'Errore',
-                  'Non è stato possibile autorizzare il pagamento. Riprova.'
+                  'Non è stato possibile completare la prenotazione. Riprova.'
                 );
               } finally {
                 setIsProcessing(false);
@@ -527,16 +502,16 @@ export default function ProductCard({
                   <>
                     <View style={styles.bookButtonIconContainer}>
                       <IconSymbol 
-                        ios_icon_name="creditcard.fill" 
-                        android_material_icon_name="credit_card" 
+                        ios_icon_name="cart.fill" 
+                        android_material_icon_name="shopping_cart" 
                         size={22} 
                         color="#333" 
                       />
                     </View>
                     <View style={styles.bookButtonTextContainer}>
-                      <Text style={styles.bookButtonTitle}>PRENOTA CON CARTA</Text>
+                      <Text style={styles.bookButtonTitle}>PRENOTA ARTICOLO</Text>
                       <Text style={styles.bookButtonSubtitle}>
-                        Blocco temporaneo • Addebito finale
+                        Pagamento alla consegna
                       </Text>
                     </View>
                     <View style={styles.bookButtonArrow}>

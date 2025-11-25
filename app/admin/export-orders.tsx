@@ -65,11 +65,7 @@ export default function ExportOrdersScreen() {
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState<string | null>(null);
 
-  useEffect(() => {
-    loadCompletedDrops();
-  }, []);
-
-  const loadCompletedDrops = async () => {
+  const loadCompletedDrops = useCallback(async () => {
     try {
       setLoading(true);
       
@@ -116,7 +112,11 @@ export default function ExportOrdersScreen() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    loadCompletedDrops();
+  }, [loadCompletedDrops]);
 
   const processDropsData = async (dropsData: DropData[]) => {
     if (!dropsData || dropsData.length === 0) {

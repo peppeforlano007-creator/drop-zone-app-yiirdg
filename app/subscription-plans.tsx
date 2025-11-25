@@ -1,12 +1,10 @@
 
-import React from 'react';
 import { Platform } from 'react-native';
+import SubscriptionPlansWeb from './subscription-plans.web';
+import SubscriptionPlansNative from './subscription-plans.native';
 
-// Dynamic import based on platform
-// This approach works with Expo Router's file-based routing
-const SubscriptionPlans = Platform.select({
-  web: require('./subscription-plans.web').default,
-  default: require('./subscription-plans.native').default,
+// Dynamic export based on platform
+export default Platform.select({
+  web: SubscriptionPlansWeb,
+  default: SubscriptionPlansNative,
 });
-
-export default SubscriptionPlans;

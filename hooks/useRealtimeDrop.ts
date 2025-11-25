@@ -66,6 +66,9 @@ export function useRealtimeDrop({ dropId, onUpdate, enabled = true }: UseRealtim
 
     console.log('Setting up realtime subscription for drop:', dropId);
 
+    // Copy the current value to use in cleanup
+    const currentLastUpdate = lastUpdateRef.current;
+
     // Create a channel for this specific drop
     const dropChannel = supabase.channel(`drop:${dropId}`, {
       config: {
@@ -103,6 +106,7 @@ export function useRealtimeDrop({ dropId, onUpdate, enabled = true }: UseRealtim
       dropChannel.unsubscribe();
       setChannel(null);
       setIsConnected(false);
+      // Reset using the captured value
       lastUpdateRef.current = '';
     };
   }, [dropId, enabled, handleDropUpdate]);

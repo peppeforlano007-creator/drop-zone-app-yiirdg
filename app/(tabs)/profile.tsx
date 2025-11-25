@@ -2,7 +2,7 @@
 import { View, Text, StyleSheet, ScrollView, Platform, Pressable, Alert, ActivityIndicator, Linking } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, commonStyles } from '@/styles/commonStyles';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { IconSymbol } from '@/components/IconSymbol';
 import { Stack, router } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
@@ -24,19 +24,7 @@ export default function ProfileScreen() {
   const [accountBlocked, setAccountBlocked] = useState(false);
   const [loadingProfile, setLoadingProfile] = useState(true);
 
-  useEffect(() => {
-    loadPickupPoints();
-    loadWhatsAppNumber();
-    loadUserProfile();
-  }, []);
-
-  useEffect(() => {
-    if (user?.pickupPoint) {
-      setSelectedPickupPoint(user.pickupPoint);
-    }
-  }, [user?.pickupPoint]);
-
-  const loadUserProfile = async () => {
+  const loadUserProfile = useCallback(async () => {
     if (!user) return;
 
     try {
@@ -63,9 +51,9 @@ export default function ProfileScreen() {
     } finally {
       setLoadingProfile(false);
     }
-  };
+  }, [user]);
 
-  const loadWhatsAppNumber = async () => {
+  const loadWhatsAppNumber = useCallback(async () => {
     try {
       setLoadingWhatsapp(true);
       console.log('Profile: Loading WhatsApp number from database...');
@@ -92,9 +80,9 @@ export default function ProfileScreen() {
     } finally {
       setLoadingWhatsapp(false);
     }
-  };
+  }, []);
 
-  const loadPickupPoints = async () => {
+  const loadPickupPoints = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('pickup_points')
@@ -114,7 +102,19 @@ export default function ProfileScreen() {
     } finally {
       setLoadingPoints(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    loadPickupPoints();
+    loadWhatsAppNumber();
+    loadUserProfile();
+  }, [loadPickupPoints, loadWhatsAppNumber, loadUserProfile]);
+
+  useEffect(() => {
+    if (user?.pickupPoint) {
+      setSelectedPickupPoint(user.pickupPoint);
+    }
+  }, [user?.pickupPoint]);
 
   const handlePickupPointChange = async (pointId: string, pointCity: string) => {
     if (!user) return;

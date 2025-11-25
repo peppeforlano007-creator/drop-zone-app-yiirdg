@@ -15,14 +15,10 @@ import { Stack, router } from 'expo-router';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 import { useSubscription } from '@/contexts/SubscriptionContext';
-import { usePayment } from '@/contexts/PaymentContext';
 import * as Haptics from 'expo-haptics';
-import { useStripe } from '@stripe/stripe-react-native';
 
 export default function SubscriptionPlansScreen() {
   const { plans, activeSubscription, createSubscription } = useSubscription();
-  const { getDefaultPaymentMethod, paymentMethods } = usePayment();
-  const stripe = useStripe();
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
 
@@ -31,81 +27,11 @@ export default function SubscriptionPlansScreen() {
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-    // Check if user has a payment method
-    if (paymentMethods.length === 0) {
-      Alert.alert(
-        'Metodo di Pagamento Richiesto',
-        'Devi aggiungere un metodo di pagamento prima di sottoscrivere un abbonamento.',
-        [
-          { text: 'Annulla', style: 'cancel' },
-          {
-            text: 'Aggiungi Carta',
-            onPress: () => router.push('/add-payment-method'),
-          },
-        ]
-      );
-      return;
-    }
-
-    const defaultPaymentMethod = getDefaultPaymentMethod();
-    if (!defaultPaymentMethod) {
-      Alert.alert('Errore', 'Nessun metodo di pagamento predefinito trovato');
-      return;
-    }
-
-    setSelectedPlanId(planId);
-    setIsProcessing(true);
-
-    try {
-      console.log('Creating subscription with:', {
-        priceId,
-        paymentMethodId: defaultPaymentMethod.stripePaymentMethodId,
-      });
-
-      const result = await createSubscription(
-        priceId,
-        defaultPaymentMethod.stripePaymentMethodId!
-      );
-
-      if (result.error) {
-        Alert.alert('Errore', result.error);
-        setIsProcessing(false);
-        setSelectedPlanId(null);
-        return;
-      }
-
-      // If there's a client secret, we need to confirm the payment
-      if (result.clientSecret && stripe) {
-        const { error: confirmError } = await stripe.confirmPayment(result.clientSecret, {
-          paymentMethodType: 'Card',
-        });
-
-        if (confirmError) {
-          Alert.alert('Errore', confirmError.message || 'Impossibile confermare il pagamento');
-          setIsProcessing(false);
-          setSelectedPlanId(null);
-          return;
-        }
-      }
-
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert(
-        'Abbonamento Attivato!',
-        'Il tuo abbonamento è stato attivato con successo.',
-        [
-          {
-            text: 'OK',
-            onPress: () => router.back(),
-          },
-        ]
-      );
-    } catch (error: any) {
-      console.error('Error subscribing:', error);
-      Alert.alert('Errore', error.message || 'Impossibile attivare l\'abbonamento');
-    } finally {
-      setIsProcessing(false);
-      setSelectedPlanId(null);
-    }
+    Alert.alert(
+      'Abbonamento Non Disponibile',
+      'La funzionalità di abbonamento è stata rimossa. Tutti i servizi sono ora gratuiti.',
+      [{ text: 'OK' }]
+    );
   };
 
   return (
@@ -217,17 +143,6 @@ export default function SubscriptionPlansScreen() {
                 </View>
               );
             })}
-          </View>
-
-          <View style={styles.testModeCard}>
-            <IconSymbol ios_icon_name="info.circle.fill" android_material_icon_name="info" size={24} color="#3b82f6" />
-            <View style={styles.infoContent}>
-              <Text style={styles.testModeTitle}>Modalità Test Attiva</Text>
-              <Text style={styles.testModeText}>
-                L&apos;app è in modalità test. Usa la carta 4242 4242 4242 4242 per testare gli abbonamenti.
-                Nessun addebito reale verrà effettuato.
-              </Text>
-            </View>
           </View>
 
           <View style={styles.faqSection}>
@@ -412,31 +327,6 @@ const styles = StyleSheet.create({
   },
   selectButtonTextFeatured: {
     color: colors.text,
-  },
-  testModeCard: {
-    flexDirection: 'row',
-    backgroundColor: '#dbeafe',
-    borderRadius: 12,
-    padding: 24,
-    marginHorizontal: 20,
-    marginBottom: 32,
-    borderWidth: 1,
-    borderColor: '#3b82f6',
-    gap: 16,
-  },
-  infoContent: {
-    flex: 1,
-  },
-  testModeTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#1e40af',
-    marginBottom: 12,
-  },
-  testModeText: {
-    fontSize: 13,
-    color: '#1e40af',
-    lineHeight: 20,
   },
   faqSection: {
     paddingHorizontal: 20,

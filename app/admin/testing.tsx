@@ -12,13 +12,8 @@ import {
 } from 'react-native';
 import { colors } from '@/styles/commonStyles';
 import {
-  testPaymentMethodValidation,
-  testPaymentSecurity,
-} from '@/utils/paymentTestHelpers';
-import {
   createCompleteTestData,
   deleteAllTestData,
-  TestDataResult,
 } from '@/utils/testDataHelpers';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '@/contexts/AuthContext';
@@ -34,7 +29,6 @@ import {
   testProductBrowsing,
   testDropFunctionality,
   testRLSPolicies,
-  testPaymentMethods,
   testUserInterests,
   testRealtimeSubscriptions,
   testImageLoading,
@@ -504,24 +498,6 @@ export default function TestingScreen() {
             disabled={isRunning}
           >
             <Text style={styles.testButtonText}>Test Parsing Excel</Text>
-            <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="chevron_right" size={20} color={colors.textSecondary} />
-          </Pressable>
-
-          <Pressable
-            style={styles.testButton}
-            onPress={() => runTest('Payment Method Validation', testPaymentMethodValidation)}
-            disabled={isRunning}
-          >
-            <Text style={styles.testButtonText}>Test Validazione Metodi Pagamento</Text>
-            <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="chevron_right" size={20} color={colors.textSecondary} />
-          </Pressable>
-
-          <Pressable
-            style={styles.testButton}
-            onPress={() => runTest('Payment Security', testPaymentSecurity)}
-            disabled={isRunning}
-          >
-            <Text style={styles.testButtonText}>Test Sicurezza Pagamenti</Text>
             <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="chevron_right" size={20} color={colors.textSecondary} />
           </Pressable>
         </View>
