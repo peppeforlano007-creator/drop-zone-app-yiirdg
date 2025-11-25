@@ -115,7 +115,11 @@ export default function EnhancedProductCard({
   const handlePress = async () => {
     // Don't allow booking if out of stock
     if (isInDrop && isOutOfStock) {
-      Alert.alert('Prodotto esaurito', 'Questo prodotto non è più disponibile');
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert(
+        'Prodotto esaurito', 
+        'Questo prodotto non è più disponibile. Qualcun altro lo ha appena prenotato.'
+      );
       return;
     }
 
@@ -142,12 +146,23 @@ export default function EnhancedProductCard({
           {
             text: 'Prenota Articolo',
             onPress: async () => {
+              // Double-check stock before processing
+              if (stock <= 0) {
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+                Alert.alert(
+                  'Prodotto esaurito',
+                  'Questo prodotto è stato appena prenotato da qualcun altro.'
+                );
+                return;
+              }
+              
               setIsProcessing(true);
               try {
                 Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
                 onBook(product.id);
               } catch (error) {
                 console.error('Booking failed:', error);
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
                 Alert.alert(
                   'Errore',
                   'Non è stato possibile completare la prenotazione. Riprova.'

@@ -106,19 +106,24 @@ export default function DropDetailsScreen() {
       });
       setDrop(dropData);
 
-      // Only load products with stock > 0
+      // Only load products with stock > 0 and active status
+      // Using a more robust query to ensure we never show out-of-stock items
       const { data: productsData, error: productsError } = await supabase
         .from('products')
         .select('*')
         .eq('supplier_list_id', dropData.supplier_list_id)
         .eq('status', 'active')
-        .gt('stock', 0);
+        .gt('stock', 0)
+        .order('created_at', { ascending: false });
 
       if (productsError) {
         console.error('Error loading products:', productsError);
       } else {
         console.log('Products loaded:', productsData?.length, '(with stock > 0)');
-        setProducts(productsData || []);
+        // Double-check: filter out any products with stock <= 0 (defensive programming)
+        const availableProducts = (productsData || []).filter(p => p.stock > 0 && p.status === 'active');
+        console.log('Available products after filter:', availableProducts.length);
+        setProducts(availableProducts);
       }
     } catch (error) {
       console.error('Error in loadDropDetails:', error);
@@ -166,7 +171,7 @@ export default function DropDetailsScreen() {
     console.log('Setting up real-time subscription for product stock updates');
     
     const channel = supabase
-      .channel('product_stock_updates')
+      .channel(`product_stock_updates_${drop.supplier_list_id}`)
       .on(
         'postgres_changes',
         {
@@ -178,12 +183,27 @@ export default function DropDetailsScreen() {
         (payload) => {
           console.log('Product stock update received:', payload);
           const updatedProduct = payload.new as ProductData;
+          const oldProduct = payload.old as ProductData;
           
           setProducts(prevProducts => {
-            // If stock is 0 or less, remove from list
-            if (updatedProduct.stock <= 0) {
-              console.log('Product stock is 0, removing from list:', updatedProduct.id);
-              return prevProducts.filter(p => p.id !== updatedProduct.id);
+            // If stock is 0 or less, or status is not active, remove from list immediately
+            if (updatedProduct.stock <= 0 || updatedProduct.status !== 'active') {
+              console.log('Product out of stock or inactive, removing from list:', updatedProduct.id, 'stock:', updatedProduct.stock, 'status:', updatedProduct.status);
+              const filtered = prevProducts.filter(p => p.id !== updatedProduct.id);
+              
+              // If this was the last product, show a message
+              if (filtered.length === 0 && prevProducts.length > 0) {
+                console.log('Last product removed from drop');
+                setTimeout(() => {
+                  Alert.alert(
+                    'Tutti i prodotti esauriti',
+                    'Tutti gli articoli di questo drop sono stati prenotati.',
+                    [{ text: 'OK', onPress: () => router.back() }]
+                  );
+                }, 500);
+              }
+              
+              return filtered;
             }
             
             // Update existing product or add if not present (and has stock)
@@ -191,10 +211,11 @@ export default function DropDetailsScreen() {
             if (existingIndex >= 0) {
               const newProducts = [...prevProducts];
               newProducts[existingIndex] = updatedProduct;
+              console.log('Product updated in list:', updatedProduct.id, 'stock:', updatedProduct.stock);
               return newProducts;
             } else if (updatedProduct.status === 'active' && updatedProduct.stock > 0) {
               // Product became available again (e.g., booking cancelled)
-              console.log('Product became available again, adding to list:', updatedProduct.id);
+              console.log('Product became available again, adding to list:', updatedProduct.id, 'stock:', updatedProduct.stock);
               return [...prevProducts, updatedProduct];
             }
             
@@ -202,7 +223,9 @@ export default function DropDetailsScreen() {
           });
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('Product stock subscription status:', status);
+      });
 
     return () => {
       console.log('Cleaning up real-time subscription');
@@ -409,13 +432,22 @@ export default function DropDetailsScreen() {
       if (bookingError) {
         console.error('❌ Error creating booking:', bookingError);
         
-        // Check if it's a stock error
-        if (bookingError.message?.includes('out of stock') || bookingError.message?.includes('stock')) {
-          Alert.alert('Prodotto esaurito', 'Questo prodotto non è più disponibile. Qualcun altro lo ha appena prenotato.');
-          // Reload to get updated stock
-          loadDropDetails();
+        // Check if it's a stock error (P0001 error code)
+        if (bookingError.code === 'P0001' || 
+            bookingError.message?.toLowerCase().includes('esaurito') ||
+            bookingError.message?.toLowerCase().includes('stock') ||
+            bookingError.message?.toLowerCase().includes('disponibile')) {
+          Alert.alert(
+            'Prodotto esaurito', 
+            'Questo prodotto non è più disponibile. Qualcun altro lo ha appena prenotato.',
+            [{ text: 'OK', onPress: () => loadDropDetails() }]
+          );
         } else {
-          Alert.alert('Errore', 'Impossibile creare la prenotazione');
+          Alert.alert(
+            'Errore', 
+            `Impossibile creare la prenotazione: ${bookingError.message || 'Errore sconosciuto'}`,
+            [{ text: 'OK' }]
+          );
         }
         return;
       }
@@ -437,7 +469,10 @@ export default function DropDetailsScreen() {
       console.error('❌ Exception in handleBook:', error);
       
       // Check if it's a stock-related error
-      if (error?.message?.includes('out of stock') || error?.message?.includes('stock')) {
+      if (error?.code === 'P0001' ||
+          error?.message?.toLowerCase().includes('esaurito') ||
+          error?.message?.toLowerCase().includes('stock') ||
+          error?.message?.toLowerCase().includes('disponibile')) {
         Alert.alert(
           'Prodotto esaurito',
           'Questo prodotto non è più disponibile. Qualcun altro lo ha appena prenotato.',
