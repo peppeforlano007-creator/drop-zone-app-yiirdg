@@ -151,8 +151,14 @@ export default function CreateListScreen() {
       jsonData.forEach((row, index) => {
         const rowNum = index + 2;
         
-        if (!row.nome || !row.immagine_url || !row.prezzo) {
-          errors.push(`Riga ${rowNum}: Campi obbligatori mancanti (nome, immagine_url, prezzo)`);
+        // Check mandatory fields: nome, immagine_url, prezzo, stock
+        if (!row.nome || !row.immagine_url || !row.prezzo || !row.stock) {
+          const missingFields = [];
+          if (!row.nome) missingFields.push('nome');
+          if (!row.immagine_url) missingFields.push('immagine_url');
+          if (!row.prezzo) missingFields.push('prezzo');
+          if (!row.stock) missingFields.push('stock');
+          errors.push(`Riga ${rowNum}: Campi obbligatori mancanti (${missingFields.join(', ')})`);
           return;
         }
 
@@ -162,9 +168,9 @@ export default function CreateListScreen() {
           return;
         }
 
-        const stock = parseInt(row.stock || '1');
-        if (isNaN(stock) || stock < 0) {
-          errors.push(`Riga ${rowNum}: Stock non valido`);
+        const stock = parseInt(row.stock);
+        if (isNaN(stock) || stock < 1) {
+          errors.push(`Riga ${rowNum}: Stock non valido (deve essere almeno 1)`);
           return;
         }
 
@@ -646,11 +652,11 @@ export default function CreateListScreen() {
                   
                   <Text style={styles.excelHint}>
                     <Text style={styles.excelHintBold}>Colonne obbligatorie:</Text>{'\n'}
-                    • nome, immagine_url, prezzo{'\n\n'}
+                    • nome, immagine_url, prezzo, <Text style={styles.excelHintBold}>stock</Text>{'\n\n'}
                     <Text style={styles.excelHintBold}>Colonne opzionali:</Text>{'\n'}
                     • <Text style={styles.excelHintBold}>sku</Text> (per raggruppare varianti){'\n'}
                     • descrizione, brand, immagini_aggiuntive{'\n'}
-                    • taglie, colori, condizione, categoria, stock
+                    • taglie, colori, condizione, categoria
                   </Text>
                 </View>
               )}

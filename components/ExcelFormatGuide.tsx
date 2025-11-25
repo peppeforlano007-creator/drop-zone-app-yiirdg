@@ -57,6 +57,13 @@ export default function ExcelFormatGuide({ onClose }: ExcelFormatGuideProps) {
               <Text style={styles.fieldDescription}>Prezzo di listino in euro</Text>
               <Text style={styles.fieldExample}>Es: 129.99</Text>
             </View>
+            <View style={[styles.field, styles.mandatoryField]}>
+              <Text style={styles.fieldName}>stock</Text>
+              <Text style={styles.fieldDescription}>
+                <Text style={styles.fieldBold}>⚠️ OBBLIGATORIO</Text> - Quantità disponibile per questa specifica variante
+              </Text>
+              <Text style={styles.fieldExample}>Es: 10 (minimo: 1)</Text>
+            </View>
           </View>
         </View>
 
@@ -118,11 +125,6 @@ export default function ExcelFormatGuide({ onClose }: ExcelFormatGuideProps) {
               <Text style={styles.fieldName}>categoria</Text>
               <Text style={styles.fieldDescription}>Categoria del prodotto</Text>
               <Text style={styles.fieldExample}>Es: Fashion, Elettronica, Casa</Text>
-            </View>
-            <View style={styles.field}>
-              <Text style={styles.fieldName}>stock</Text>
-              <Text style={styles.fieldDescription}>Quantità disponibile per questa specifica variante</Text>
-              <Text style={styles.fieldExample}>Es: 10 (default: 1)</Text>
             </View>
           </View>
         </View>
@@ -313,9 +315,9 @@ export default function ExcelFormatGuide({ onClose }: ExcelFormatGuideProps) {
               <Text style={styles.exampleCell}>categoria</Text>
               <Text style={styles.exampleCell}>Fashion</Text>
             </View>
-            <View style={styles.exampleRow}>
+            <View style={[styles.exampleRow, styles.mandatoryRow]}>
               <Text style={styles.exampleCell}>stock</Text>
-              <Text style={styles.exampleCell}>8</Text>
+              <Text style={[styles.exampleCell, styles.exampleCellBold]}>8</Text>
             </View>
           </View>
         </View>
@@ -363,9 +365,9 @@ export default function ExcelFormatGuide({ onClose }: ExcelFormatGuideProps) {
               <Text style={styles.exampleCell}>categoria</Text>
               <Text style={styles.exampleCell}>Fashion</Text>
             </View>
-            <View style={styles.exampleRow}>
+            <View style={[styles.exampleRow, styles.mandatoryRow]}>
               <Text style={styles.exampleCell}>stock</Text>
-              <Text style={styles.exampleCell}>12</Text>
+              <Text style={[styles.exampleCell, styles.exampleCellBold]}>12</Text>
             </View>
           </View>
         </View>
@@ -382,6 +384,7 @@ export default function ExcelFormatGuide({ onClose }: ExcelFormatGuideProps) {
           </View>
           <View style={styles.tipsList}>
             <Text style={styles.tip}>- La prima riga deve contenere i nomi delle colonne</Text>
+            <Text style={styles.tip}>- <Text style={styles.fieldBold}>⚠️ I campi obbligatori sono: nome, immagine_url, prezzo, stock</Text></Text>
             <Text style={styles.tip}>- Usa il punto (.) come separatore decimale per i prezzi</Text>
             <Text style={styles.tip}>- Gli URL delle immagini devono essere completi e accessibili</Text>
             <Text style={styles.tip}>- Per liste multiple (taglie, colori, immagini), usa la virgola come separatore</Text>
@@ -390,6 +393,7 @@ export default function ExcelFormatGuide({ onClose }: ExcelFormatGuideProps) {
             <Text style={styles.tip}>- Il campo SKU è opzionale ma fortemente consigliato per raggruppare varianti</Text>
             <Text style={styles.tip}>- Usa lo stesso SKU per tutte le varianti (taglie/colori) dello stesso articolo</Text>
             <Text style={styles.tip}>- Ogni riga con lo stesso SKU può avere quantità diverse per taglia/colore</Text>
+            <Text style={styles.tip}>- <Text style={styles.fieldBold}>Il campo stock è obbligatorio e deve essere almeno 1</Text></Text>
           </View>
         </View>
       </ScrollView>
@@ -445,6 +449,12 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderLeftWidth: 3,
     borderLeftColor: colors.primary,
+  },
+  mandatoryField: {
+    backgroundColor: '#FFF3E0',
+    borderLeftColor: '#FF9800',
+    borderWidth: 2,
+    borderColor: '#FF9800',
   },
   highlightedField: {
     backgroundColor: '#E8F5E9',
@@ -599,6 +609,9 @@ const styles = StyleSheet.create({
   highlightedRow: {
     backgroundColor: '#E8F5E9',
   },
+  mandatoryRow: {
+    backgroundColor: '#FFF3E0',
+  },
   exampleCell: {
     flex: 1,
     fontSize: 12,
@@ -607,7 +620,7 @@ const styles = StyleSheet.create({
   },
   exampleCellBold: {
     fontWeight: '700',
-    color: '#4CAF50',
+    color: '#FF9800',
   },
   tipsSection: {
     marginBottom: 24,
