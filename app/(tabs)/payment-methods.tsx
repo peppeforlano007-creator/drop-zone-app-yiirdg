@@ -1,109 +1,18 @@
 
-import React, { useEffect, useCallback } from 'react';
+import React from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
-  Pressable,
-  Alert,
   Platform,
-  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Stack, router } from 'expo-router';
+import { Stack } from 'expo-router';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
-import { usePayment, PaymentMethod } from '@/contexts/PaymentContext';
-import * as Haptics from 'expo-haptics';
 
 export default function PaymentMethodsScreen() {
-  const { paymentMethods, loading, removePaymentMethod, setDefaultPaymentMethod, refreshPaymentMethods } = usePayment();
-
-  const loadPaymentMethods = useCallback(() => {
-    refreshPaymentMethods();
-  }, [refreshPaymentMethods]);
-
-  useEffect(() => {
-    loadPaymentMethods();
-  }, [loadPaymentMethods]);
-
-  const handleAddCard = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    router.push('/add-payment-method');
-  };
-
-  const handleSetDefault = async (methodId: string) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    try {
-      await setDefaultPaymentMethod(methodId);
-    } catch (error: any) {
-      Alert.alert('Errore', error.message || 'Impossibile impostare il metodo predefinito');
-    }
-  };
-
-  const handleRemove = (method: PaymentMethod) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    
-    const brandText = method.brand ? method.brand.toUpperCase() : 'questa carta';
-    const last4Text = method.last4 ? ` •••• ${method.last4}` : '';
-    
-    Alert.alert(
-      'Rimuovi Metodo di Pagamento',
-      `Sei sicuro di voler rimuovere ${brandText}${last4Text}?`,
-      [
-        { text: 'Annulla', style: 'cancel' },
-        {
-          text: 'Rimuovi',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await removePaymentMethod(method.id);
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-            } catch (error: any) {
-              Alert.alert('Errore', error.message || 'Impossibile rimuovere il metodo di pagamento');
-            }
-          },
-        },
-      ]
-    );
-  };
-
-  const getCardIcon = (brand?: string) => {
-    switch (brand?.toLowerCase()) {
-      case 'visa':
-        return 'creditcard.fill';
-      case 'mastercard':
-        return 'creditcard.fill';
-      case 'amex':
-        return 'creditcard.fill';
-      default:
-        return 'creditcard';
-    }
-  };
-
-  if (loading) {
-    return (
-      <>
-        <Stack.Screen
-          options={{
-            title: 'Metodi di Pagamento',
-            headerStyle: {
-              backgroundColor: colors.background,
-            },
-            headerTintColor: colors.text,
-          }}
-        />
-        <SafeAreaView style={styles.safeArea} edges={['bottom']}>
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={colors.text} />
-            <Text style={styles.loadingText}>Caricamento...</Text>
-          </View>
-        </SafeAreaView>
-      </>
-    );
-  }
-
   return (
     <>
       <Stack.Screen
@@ -124,130 +33,113 @@ export default function PaymentMethodsScreen() {
           ]}
         >
           <View style={styles.header}>
-            <Text style={styles.headerTitle}>I tuoi metodi di pagamento</Text>
+            <Text style={styles.headerTitle}>Metodo di Pagamento</Text>
             <Text style={styles.headerSubtitle}>
-              Gestisci le tue carte e altri metodi di pagamento
+              Tutti gli ordini vengono pagati alla consegna
             </Text>
           </View>
 
-          {paymentMethods.length > 0 ? (
-            <View style={styles.methodsList}>
-              {paymentMethods.map((method, index) => (
-                <View key={method.id || index} style={styles.methodCard}>
-                  <View style={styles.methodHeader}>
-                    <View style={styles.methodInfo}>
-                      <IconSymbol
-                        ios_icon_name={getCardIcon(method.brand)}
-                        android_material_icon_name="credit_card"
-                        size={32}
-                        color={colors.text}
-                      />
-                      <View style={styles.methodDetails}>
-                        <Text style={styles.methodBrand}>
-                          {method.brand ? method.brand.toUpperCase() : 'CARTA'}
-                        </Text>
-                        <Text style={styles.methodNumber}>
-                          •••• {method.last4 || '****'}
-                        </Text>
-                        {method.expiryMonth && method.expiryYear ? (
-                          <Text style={styles.methodExpiry}>
-                            Scade {method.expiryMonth.toString().padStart(2, '0')}/{method.expiryYear.toString().slice(-2)}
-                          </Text>
-                        ) : null}
-                      </View>
-                    </View>
-                    {method.isDefault && (
-                      <View style={styles.defaultBadge}>
-                        <Text style={styles.defaultText}>PREDEFINITA</Text>
-                      </View>
-                    )}
-                  </View>
-
-                  <View style={styles.methodActions}>
-                    {!method.isDefault && (
-                      <Pressable
-                        style={styles.actionButton}
-                        onPress={() => handleSetDefault(method.id)}
-                      >
-                        <IconSymbol ios_icon_name="checkmark.circle" android_material_icon_name="check_circle" size={20} color={colors.text} />
-                        <Text style={styles.actionText}>Imposta come predefinita</Text>
-                      </Pressable>
-                    )}
-                    <Pressable
-                      style={[styles.actionButton, styles.removeButton]}
-                      onPress={() => handleRemove(method)}
-                    >
-                      <IconSymbol ios_icon_name="trash" android_material_icon_name="delete" size={20} color="#ef4444" />
-                      <Text style={[styles.actionText, styles.removeText]}>Rimuovi</Text>
-                    </Pressable>
-                  </View>
+          {/* Cash on Delivery Card */}
+          <View style={styles.paymentCard}>
+            <View style={styles.paymentHeader}>
+              <View style={styles.paymentInfo}>
+                <View style={styles.iconContainer}>
+                  <IconSymbol
+                    ios_icon_name="banknote.fill"
+                    android_material_icon_name="payments"
+                    size={48}
+                    color={colors.text}
+                  />
                 </View>
-              ))}
-            </View>
-          ) : (
-            <View style={styles.emptyState}>
-              <IconSymbol ios_icon_name="creditcard" android_material_icon_name="credit_card" size={64} color={colors.textTertiary} />
-              <Text style={styles.emptyTitle}>Nessun metodo di pagamento</Text>
-              <Text style={styles.emptyText}>
-                Aggiungi una carta per prenotare i prodotti nei drop attivi
-              </Text>
-            </View>
-          )}
-
-          <Pressable style={styles.addButton} onPress={handleAddCard}>
-            <IconSymbol ios_icon_name="plus.circle.fill" android_material_icon_name="add_circle" size={24} color={colors.text} />
-            <Text style={styles.addButtonText}>Aggiungi Metodo di Pagamento</Text>
-          </Pressable>
-
-          <View style={styles.infoCard}>
-            <IconSymbol ios_icon_name="lock.shield.fill" android_material_icon_name="security" size={24} color={colors.text} />
-            <View style={styles.infoContent}>
-              <Text style={styles.infoTitle}>Pagamenti Sicuri</Text>
-              <Text style={styles.infoText}>
-                I tuoi dati di pagamento sono protetti con crittografia di livello bancario.
-                Utilizziamo Stripe per processare i pagamenti in modo sicuro.
-              </Text>
+                <View style={styles.paymentDetails}>
+                  <Text style={styles.paymentTitle}>Pagamento alla Consegna</Text>
+                  <Text style={styles.paymentDescription}>
+                    Paga in contanti quando ritiri il tuo ordine
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.activeBadge}>
+                <IconSymbol
+                  ios_icon_name="checkmark.circle.fill"
+                  android_material_icon_name="check_circle"
+                  size={24}
+                  color="#4CAF50"
+                />
+              </View>
             </View>
           </View>
 
-          <View style={styles.testModeCard}>
-            <IconSymbol ios_icon_name="info.circle.fill" android_material_icon_name="info" size={24} color="#3b82f6" />
-            <View style={styles.infoContent}>
-              <Text style={styles.testModeTitle}>Modalità Test Attiva</Text>
-              <Text style={styles.testModeText}>
-                L&apos;app è in modalità test. Usa la carta 4242 4242 4242 4242 per testare i pagamenti.
-                Nessun addebito reale verrà effettuato.
-              </Text>
-            </View>
-          </View>
-
+          {/* How it works section */}
           <View style={styles.howItWorksCard}>
-            <Text style={styles.howItWorksTitle}>Come funzionano i pagamenti?</Text>
+            <Text style={styles.howItWorksTitle}>Come funziona?</Text>
             <View style={styles.stepsList}>
               <View style={styles.step}>
                 <View style={styles.stepNumber}>
                   <Text style={styles.stepNumberText}>1</Text>
                 </View>
-                <Text style={styles.stepText}>
-                  Quando prenoti con carta, blocchiamo l&apos;importo massimo sulla tua carta
-                </Text>
+                <View style={styles.stepContent}>
+                  <Text style={styles.stepTitle}>Prenota i prodotti</Text>
+                  <Text style={styles.stepText}>
+                    Prenota i prodotti che ti interessano durante il drop attivo
+                  </Text>
+                </View>
               </View>
               <View style={styles.step}>
                 <View style={styles.stepNumber}>
                   <Text style={styles.stepNumberText}>2</Text>
                 </View>
-                <Text style={styles.stepText}>
-                  Durante il drop, lo sconto aumenta man mano che più persone prenotano
-                </Text>
+                <View style={styles.stepContent}>
+                  <Text style={styles.stepTitle}>Ricevi notifica</Text>
+                  <Text style={styles.stepText}>
+                    Alla chiusura del drop, ti notificheremo l&apos;importo esatto da pagare
+                  </Text>
+                </View>
               </View>
               <View style={styles.step}>
                 <View style={styles.stepNumber}>
                   <Text style={styles.stepNumberText}>3</Text>
                 </View>
-                <Text style={styles.stepText}>
-                  Alla fine del drop, addebitiamo solo l&apos;importo finale con lo sconto raggiunto
-                </Text>
+                <View style={styles.stepContent}>
+                  <Text style={styles.stepTitle}>Ritira e paga</Text>
+                  <Text style={styles.stepText}>
+                    Quando l&apos;ordine arriva al punto di ritiro, ritiralo e paga in contanti
+                  </Text>
+                </View>
               </View>
+            </View>
+          </View>
+
+          {/* Important info */}
+          <View style={styles.infoCard}>
+            <IconSymbol
+              ios_icon_name="info.circle.fill"
+              android_material_icon_name="info"
+              size={24}
+              color={colors.primary}
+            />
+            <View style={styles.infoContent}>
+              <Text style={styles.infoTitle}>Importante</Text>
+              <Text style={styles.infoText}>
+                Assicurati di ritirare i tuoi ordini entro i tempi stabiliti. 
+                Dopo 5 ordini non ritirati, l&apos;account verrà bloccato definitivamente.
+              </Text>
+            </View>
+          </View>
+
+          {/* Rating info */}
+          <View style={styles.ratingCard}>
+            <IconSymbol
+              ios_icon_name="star.fill"
+              android_material_icon_name="star"
+              size={24}
+              color="#FFD700"
+            />
+            <View style={styles.infoContent}>
+              <Text style={styles.infoTitle}>Sistema di Rating</Text>
+              <Text style={styles.infoText}>
+                Il tuo rating aumenta quando ritiri gli ordini e diminuisce quando vengono rispediti al mittente. 
+                Mantieni un rating alto per accedere al programma fedeltà e guadagnare punti!
+              </Text>
             </View>
           </View>
         </ScrollView>
@@ -264,16 +156,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 16,
-  },
-  loadingText: {
-    fontSize: 16,
-    color: colors.textSecondary,
-  },
   contentContainer: {
     paddingTop: 80,
     paddingBottom: 120,
@@ -283,7 +165,7 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingHorizontal: 24,
-    marginBottom: 48,
+    marginBottom: 32,
   },
   headerTitle: {
     fontSize: 28,
@@ -296,125 +178,109 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.textSecondary,
   },
-  methodsList: {
-    paddingHorizontal: 20,
-    gap: 24,
-  },
-  methodCard: {
+  paymentCard: {
     backgroundColor: colors.card,
-    borderRadius: 12,
+    borderRadius: 16,
     padding: 24,
+    marginHorizontal: 20,
+    marginBottom: 24,
+    borderWidth: 2,
+    borderColor: colors.primary,
+    boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.1)',
+    elevation: 4,
+  },
+  paymentHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  paymentInfo: {
+    flexDirection: 'row',
+    gap: 16,
+    flex: 1,
+  },
+  iconContainer: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: colors.backgroundSecondary,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  paymentDetails: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  paymentTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: 6,
+  },
+  paymentDescription: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    lineHeight: 20,
+  },
+  activeBadge: {
+    marginLeft: 8,
+  },
+  howItWorksCard: {
+    backgroundColor: colors.card,
+    borderRadius: 16,
+    padding: 24,
+    marginHorizontal: 20,
+    marginBottom: 24,
     borderWidth: 1,
     borderColor: colors.border,
   },
-  methodHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
+  howItWorksTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.text,
     marginBottom: 20,
   },
-  methodInfo: {
+  stepsList: {
+    gap: 24,
+  },
+  step: {
     flexDirection: 'row',
     gap: 16,
-    flex: 1,
   },
-  methodDetails: {
-    flex: 1,
-  },
-  methodBrand: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.text,
-    marginBottom: 6,
-  },
-  methodNumber: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: colors.text,
-    marginBottom: 6,
-    letterSpacing: 2,
-  },
-  methodExpiry: {
-    fontSize: 12,
-    color: colors.textSecondary,
-  },
-  defaultBadge: {
-    backgroundColor: colors.text,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 4,
-  },
-  defaultText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: colors.background,
-    letterSpacing: 0.5,
-  },
-  methodActions: {
-    gap: 16,
-  },
-  actionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingVertical: 10,
-  },
-  actionText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  removeButton: {
-    marginTop: 4,
-  },
-  removeText: {
-    color: '#ef4444',
-  },
-  emptyState: {
+  stepNumber: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 40,
-    paddingVertical: 80,
   },
-  emptyTitle: {
-    fontSize: 18,
+  stepNumberText: {
+    fontSize: 16,
     fontWeight: '700',
-    color: colors.text,
-    marginTop: 24,
-    marginBottom: 12,
+    color: '#FFFFFF',
   },
-  emptyText: {
+  stepContent: {
+    flex: 1,
+  },
+  stepTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 4,
+  },
+  stepText: {
     fontSize: 14,
     color: colors.textSecondary,
-    textAlign: 'center',
     lineHeight: 20,
-  },
-  addButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 12,
-    backgroundColor: colors.card,
-    borderWidth: 2,
-    borderColor: colors.border,
-    borderStyle: 'dashed',
-    borderRadius: 12,
-    padding: 24,
-    marginHorizontal: 20,
-    marginTop: 40,
-  },
-  addButtonText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.text,
   },
   infoCard: {
     flexDirection: 'row',
     backgroundColor: colors.card,
-    borderRadius: 12,
-    padding: 24,
+    borderRadius: 16,
+    padding: 20,
     marginHorizontal: 20,
-    marginTop: 40,
+    marginBottom: 24,
     borderWidth: 1,
     borderColor: colors.border,
     gap: 16,
@@ -426,75 +292,22 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: colors.text,
-    marginBottom: 12,
+    marginBottom: 8,
   },
   infoText: {
-    fontSize: 13,
-    color: colors.textSecondary,
-    lineHeight: 20,
-  },
-  testModeCard: {
-    flexDirection: 'row',
-    backgroundColor: '#dbeafe',
-    borderRadius: 12,
-    padding: 24,
-    marginHorizontal: 20,
-    marginTop: 24,
-    borderWidth: 1,
-    borderColor: '#3b82f6',
-    gap: 16,
-  },
-  testModeTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#1e40af',
-    marginBottom: 12,
-  },
-  testModeText: {
-    fontSize: 13,
-    color: '#1e40af',
-    lineHeight: 20,
-  },
-  howItWorksCard: {
-    backgroundColor: colors.card,
-    borderRadius: 12,
-    padding: 24,
-    marginHorizontal: 20,
-    marginTop: 24,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  howItWorksTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.text,
-    marginBottom: 20,
-  },
-  stepsList: {
-    gap: 20,
-  },
-  step: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  stepNumber: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: colors.text,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  stepNumberText: {
     fontSize: 14,
-    fontWeight: '700',
-    color: colors.background,
-  },
-  stepText: {
-    flex: 1,
-    fontSize: 13,
     color: colors.textSecondary,
     lineHeight: 20,
-    paddingTop: 4,
+  },
+  ratingCard: {
+    flexDirection: 'row',
+    backgroundColor: '#FFF9E6',
+    borderRadius: 16,
+    padding: 20,
+    marginHorizontal: 20,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: '#FFD700',
+    gap: 16,
   },
 });

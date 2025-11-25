@@ -5,7 +5,6 @@ import { supabase } from '@/app/integrations/supabase/client';
 import { IconSymbol } from '@/components/IconSymbol';
 import { Stack, useLocalSearchParams, router } from 'expo-router';
 import { useRealtimeDrop } from '@/hooks/useRealtimeDrop';
-import { usePayment } from '@/contexts/PaymentContext';
 import { colors } from '@/styles/commonStyles';
 import { View, Text, StyleSheet, FlatList, Dimensions, Pressable, Alert, Linking, Animated, ActivityIndicator } from 'react-native';
 import { useAuth } from '@/contexts/AuthContext';
@@ -61,7 +60,6 @@ export default function DropDetailsScreen() {
   const [userBookings, setUserBookings] = useState<Set<string>>(new Set());
   const [timeRemaining, setTimeRemaining] = useState('');
   const bounceAnim = useRef(new Animated.Value(1)).current;
-  const { hasPaymentMethod, getDefaultPaymentMethod } = usePayment();
   const { user } = useAuth();
   const flatListRef = useRef<FlatList>(null);
 
@@ -102,13 +100,12 @@ export default function DropDetailsScreen() {
       console.log('Drop data loaded:', dropData);
       setDrop(dropData);
 
-      // Load products with stock > 0 only
       const { data: productsData, error: productsError } = await supabase
         .from('products')
         .select('*')
         .eq('supplier_list_id', dropData.supplier_list_id)
         .eq('status', 'active')
-        .gt('stock', 0); // Only load products with stock > 0
+        .gt('stock', 0);
 
       if (productsError) {
         console.error('Error loading products:', productsError);
@@ -155,7 +152,6 @@ export default function DropDetailsScreen() {
     loadUserBookings();
   }, [dropId, loadDropDetails, loadUserBookings]);
 
-  // Subscribe to real-time product updates (stock changes)
   useEffect(() => {
     if (!drop) return;
 
@@ -176,13 +172,11 @@ export default function DropDetailsScreen() {
           const updatedProduct = payload.new as ProductData;
           
           setProducts(prevProducts => {
-            // If stock is 0, remove the product from the list
             if (updatedProduct.stock <= 0) {
               console.log('Product stock is 0, removing from list:', updatedProduct.id);
               return prevProducts.filter(p => p.id !== updatedProduct.id);
             }
             
-            // Otherwise, update the product in the list
             return prevProducts.map(p => 
               p.id === updatedProduct.id ? updatedProduct : p
             );
@@ -197,7 +191,6 @@ export default function DropDetailsScreen() {
     };
   }, [drop]);
 
-  // Set up real-time subscription for drop updates
   const handleDropUpdate = useCallback((updatedDrop: any) => {
     console.log('Real-time drop update received:', updatedDrop);
     
@@ -213,7 +206,6 @@ export default function DropDetailsScreen() {
       };
     });
 
-    // Trigger bounce animation on discount update
     Animated.sequence([
       Animated.timing(bounceAnim, {
         toValue: 1.2,
@@ -227,7 +219,6 @@ export default function DropDetailsScreen() {
       }),
     ]).start();
 
-    // Haptic feedback
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   }, [bounceAnim]);
 
@@ -255,7 +246,6 @@ export default function DropDetailsScreen() {
       const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
       const seconds = Math.floor((distance % (1000 * 60)) / 1000);
 
-      // Format with full labels: giorni, ore, minuti, secondi
       const parts = [];
       if (days > 0) parts.push(`${days}g`);
       if (hours > 0) parts.push(`${hours}h`);
@@ -306,7 +296,6 @@ export default function DropDetailsScreen() {
     const currentValue = drop.current_value ?? 0;
     const minReservationValue = drop.supplier_lists.min_reservation_value ?? 0;
     
-    // Show warning if less than 24 hours left and below minimum value
     return hoursLeft < 24 && currentValue < minReservationValue;
   }, [drop]);
 
@@ -318,7 +307,7 @@ export default function DropDetailsScreen() {
   }, [drop]);
 
   const handleBook = useCallback(async (productId: string) => {
-    console.log('=== HANDLE BOOK CALLED ===');
+    console.log('=== HANDLE BOOK CALLED (COD) ===');
     console.log('Product ID:', productId);
     console.log('User:', user?.id);
     console.log('Drop:', drop?.id);
@@ -326,18 +315,6 @@ export default function DropDetailsScreen() {
     if (!user) {
       Alert.alert('Accesso richiesto', 'Devi effettuare l\'accesso per prenotare');
       router.push('/login');
-      return;
-    }
-
-    if (!hasPaymentMethod()) {
-      Alert.alert(
-        'Metodo di pagamento richiesto',
-        'Aggiungi un metodo di pagamento per prenotare',
-        [
-          { text: 'Annulla', style: 'cancel' },
-          { text: 'Aggiungi carta', onPress: () => router.push('/add-payment-method') }
-        ]
-      );
       return;
     }
 
@@ -352,27 +329,11 @@ export default function DropDetailsScreen() {
       return;
     }
 
-    // Check if product has stock
     if (product.stock <= 0) {
       Alert.alert('Prodotto esaurito', 'Questo prodotto non è più disponibile');
-      // Reload products to refresh the list
       loadDropDetails();
       return;
     }
-
-    // Get the default payment method
-    const paymentMethod = getDefaultPaymentMethod();
-    if (!paymentMethod) {
-      Alert.alert('Errore', 'Nessun metodo di pagamento trovato');
-      return;
-    }
-
-    console.log('Payment method retrieved:', {
-      id: paymentMethod.id,
-      stripePaymentMethodId: paymentMethod.stripePaymentMethodId,
-      last4: paymentMethod.last4,
-      brand: paymentMethod.brand,
-    });
 
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -381,7 +342,7 @@ export default function DropDetailsScreen() {
       const originalPrice = product.original_price ?? 0;
       const currentDiscountedPrice = originalPrice * (1 - currentDiscount / 100);
 
-      console.log('Creating booking with data:', {
+      console.log('Creating booking with COD payment:', {
         user_id: user.id,
         product_id: productId,
         drop_id: drop.id,
@@ -389,65 +350,48 @@ export default function DropDetailsScreen() {
         original_price: originalPrice,
         discount_percentage: currentDiscount,
         final_price: currentDiscountedPrice,
-        authorized_amount: currentDiscountedPrice,
-        payment_status: 'authorized',
+        payment_method: 'cod',
+        payment_status: 'pending',
         status: 'active',
-        payment_method_id: paymentMethod.id,
-        stripe_payment_method_id: paymentMethod.stripePaymentMethodId || null,
       });
 
-      // CRITICAL FIX: Use a database transaction to ensure stock is checked and decremented atomically
-      // This prevents over-booking by ensuring stock is checked at the moment of booking
-      
-      // First, check current stock with a FOR UPDATE lock to prevent race conditions
-      const { data: currentProduct, error: stockCheckError } = await supabase
-        .rpc('check_and_decrement_stock', {
-          p_product_id: productId,
-          p_user_id: user.id,
-          p_drop_id: drop.id,
-          p_pickup_point_id: drop.pickup_point_id,
-          p_original_price: originalPrice,
-          p_discount_percentage: currentDiscount,
-          p_final_price: currentDiscountedPrice,
-          p_payment_method_id: paymentMethod.id,
-          p_stripe_payment_method_id: paymentMethod.stripePaymentMethodId || null,
-        });
+      // Create booking with COD payment method
+      const { data: bookingData, error: bookingError } = await supabase
+        .from('bookings')
+        .insert({
+          user_id: user.id,
+          product_id: productId,
+          drop_id: drop.id,
+          pickup_point_id: drop.pickup_point_id,
+          original_price: originalPrice,
+          discount_percentage: currentDiscount,
+          final_price: currentDiscountedPrice,
+          payment_method: 'cod',
+          payment_status: 'pending',
+          status: 'active',
+        })
+        .select()
+        .single();
 
-      if (stockCheckError) {
-        console.error('❌ Error in check_and_decrement_stock:', stockCheckError);
-        
-        // Check if it's a stock error
-        if (stockCheckError.message?.includes('stock') || stockCheckError.message?.includes('disponibile')) {
-          Alert.alert('Prodotto esaurito', 'Questo prodotto non è più disponibile. Qualcun altro lo ha appena prenotato.');
-          // Reload products to refresh the list
-          loadDropDetails();
-          return;
-        }
-        
-        // Provide more specific error messages
-        let errorMessage = 'Impossibile creare la prenotazione';
-        
-        if (stockCheckError.code === 'PGRST204') {
-          errorMessage = `Colonna mancante nel database: ${stockCheckError.message}\n\nEsegui la migrazione SQL fornita per aggiungere le colonne mancanti.`;
-        } else if (stockCheckError.code === '23502') {
-          errorMessage = `Campo obbligatorio mancante: ${stockCheckError.message}`;
-        } else if (stockCheckError.code === '23503') {
-          errorMessage = 'Riferimento non valido. Verifica che il prodotto e il drop esistano.';
-        } else if (stockCheckError.message) {
-          errorMessage = `Errore: ${stockCheckError.message}`;
-        }
-        
-        Alert.alert(
-          'Impossibile creare la prenotazione',
-          `${errorMessage}\n\nCodice: ${stockCheckError.code || 'unknown'}`,
-          [{ text: 'OK' }]
-        );
+      if (bookingError) {
+        console.error('❌ Error creating booking:', bookingError);
+        Alert.alert('Errore', 'Impossibile creare la prenotazione');
         return;
       }
 
-      console.log('✅ Booking created and stock decremented:', currentProduct);
+      console.log('✅ Booking created:', bookingData);
 
-      // Update local state - remove product if stock is now 0
+      // Decrement product stock
+      const { error: stockError } = await supabase
+        .from('products')
+        .update({ stock: Math.max((product.stock || 1) - 1, 0) })
+        .eq('id', productId);
+
+      if (stockError) {
+        console.error('⚠️ Error updating stock:', stockError);
+      }
+
+      // Update local state
       setProducts(prevProducts => {
         const updatedProducts = prevProducts.map(p => {
           if (p.id === productId) {
@@ -457,7 +401,6 @@ export default function DropDetailsScreen() {
           return p;
         });
         
-        // Filter out products with 0 stock
         return updatedProducts.filter(p => p.stock > 0);
       });
 
@@ -482,7 +425,6 @@ export default function DropDetailsScreen() {
 
       if (updateError) {
         console.error('⚠️ Error updating drop:', updateError);
-        // Don't fail the booking if drop update fails
       } else {
         console.log('✅ Drop updated successfully');
       }
@@ -491,7 +433,7 @@ export default function DropDetailsScreen() {
 
       Alert.alert(
         'Prenotazione confermata!',
-        `Hai prenotato ${product.name} con uno sconto del ${Math.floor(currentDiscount)}%.\n\nImporto bloccato: €${currentDiscountedPrice.toFixed(2)}\n\nL'importo finale verrà addebitato alla chiusura del drop in base allo sconto raggiunto.`,
+        `Hai prenotato ${product.name} con uno sconto del ${Math.floor(currentDiscount)}%.\n\n💰 Importo stimato: €${currentDiscountedPrice.toFixed(2)}\n\n📦 Alla chiusura del drop, ti notificheremo l'importo esatto che dovrai pagare alla consegna in base allo sconto finale raggiunto.`,
         [{ text: 'OK' }]
       );
 
@@ -504,7 +446,7 @@ export default function DropDetailsScreen() {
         [{ text: 'OK' }]
       );
     }
-  }, [user, hasPaymentMethod, getDefaultPaymentMethod, drop, products, calculateNewDiscount, loadDropDetails]);
+  }, [user, drop, products, calculateNewDiscount, loadDropDetails]);
 
   const handlePressIn = () => {
     Animated.spring(bounceAnim, {
@@ -533,7 +475,7 @@ export default function DropDetailsScreen() {
     const minReservationValue = drop.supplier_lists?.min_reservation_value ?? 0;
     
     const urgencyMessage = atRisk 
-      ? `\n\n⚠️ URGENTE: Mancano meno di 24 ore e non abbiamo ancora raggiunto l'ordine minimo! Se non raggiungiamo l'obiettivo (€${minReservationValue.toFixed(0)}), il drop verrà annullato e i fondi rilasciati.`
+      ? `\n\n⚠️ URGENTE: Mancano meno di 24 ore e non abbiamo ancora raggiunto l'ordine minimo! Se non raggiungiamo l'obiettivo (€${minReservationValue.toFixed(0)}), il drop verrà annullato.`
       : '';
 
     const message = `🔥 Drop attivo: ${drop.name}!\n\n💰 Sconto attuale: ${Math.floor(currentDiscount)}%\n⏰ Tempo rimanente: ${timeRemaining}\n\n🎯 Più persone prenotano, più lo sconto aumenta!${urgencyMessage}\n\nUnisciti ora! 👇`;
@@ -556,7 +498,6 @@ export default function DropDetailsScreen() {
   const renderProduct = useCallback(({ item }: { item: ProductData }) => {
     const isBooked = userBookings.has(item.id);
     
-    // Transform product data to match Product type
     const productForCard = {
       id: item.id,
       name: item.name,
@@ -616,7 +557,6 @@ export default function DropDetailsScreen() {
     );
   }
 
-  // Show message if no products available
   if (products.length === 0) {
     return (
       <SafeAreaView style={styles.container}>
@@ -638,7 +578,6 @@ export default function DropDetailsScreen() {
   const atRisk = isAtRiskOfUnderfunding();
   const underfundingProgress = getUnderfundingProgress();
 
-  // Safe value extraction with defaults
   const currentValue = drop.current_value ?? 0;
   const targetValue = drop.target_value ?? 0;
   const currentDiscount = drop.current_discount ?? 0;
@@ -647,7 +586,6 @@ export default function DropDetailsScreen() {
   const minDiscount = drop.supplier_lists?.min_discount ?? 0;
   const maxDiscount = drop.supplier_lists?.max_discount ?? 0;
 
-  // Calculate progress percentages
   const valueProgress = maxReservationValue > 0 
     ? Math.min((currentValue / maxReservationValue) * 100, 100) 
     : 0;
@@ -660,7 +598,6 @@ export default function DropDetailsScreen() {
     <View style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
       
-      {/* Products List - Full screen scrollable */}
       <FlatList
         ref={flatListRef}
         data={products}
@@ -681,7 +618,6 @@ export default function DropDetailsScreen() {
         })}
       />
 
-      {/* Transparent Timer at Top */}
       <View style={styles.timerOverlay} pointerEvents="box-none">
         <SafeAreaView edges={['top']} style={styles.timerSafeArea}>
           <View style={styles.timerContainer}>
@@ -698,7 +634,6 @@ export default function DropDetailsScreen() {
         </SafeAreaView>
       </View>
 
-      {/* Back Button - Top Left */}
       <View style={styles.backButtonOverlay} pointerEvents="box-none">
         <SafeAreaView edges={['top']} style={styles.backButtonSafeArea}>
           <Pressable
@@ -713,9 +648,7 @@ export default function DropDetailsScreen() {
         </SafeAreaView>
       </View>
 
-      {/* TikTok-style Right Side Icons */}
       <View style={styles.rightSideIcons} pointerEvents="box-none">
-        {/* Pickup Point */}
         <Pressable style={styles.iconButton}>
           <View style={styles.iconCircle}>
             <IconSymbol 
@@ -730,7 +663,6 @@ export default function DropDetailsScreen() {
           </Text>
         </Pressable>
 
-        {/* List Name */}
         <Pressable style={styles.iconButton}>
           <View style={styles.iconCircle}>
             <IconSymbol 
@@ -745,7 +677,6 @@ export default function DropDetailsScreen() {
           </Text>
         </Pressable>
 
-        {/* Current Discount - FIXED: Always round down using Math.floor */}
         <Pressable style={styles.iconButton}>
           <Animated.View style={[styles.iconCircle, { transform: [{ scale: bounceAnim }] }]}>
             <Text style={styles.discountText}>{Math.floor(currentDiscount)}%</Text>
@@ -753,7 +684,6 @@ export default function DropDetailsScreen() {
           <Text style={styles.iconLabel}>Sconto</Text>
         </Pressable>
 
-        {/* Max Discount - FIXED: Always round down using Math.floor */}
         <Pressable style={styles.iconButton}>
           <View style={styles.iconCircle}>
             <Text style={styles.maxDiscountText}>{Math.floor(maxDiscount)}%</Text>
@@ -761,7 +691,6 @@ export default function DropDetailsScreen() {
           <Text style={styles.iconLabel}>Max</Text>
         </Pressable>
 
-        {/* Progress */}
         <Pressable style={styles.iconButton}>
           <View style={styles.progressCircle}>
             <View style={styles.progressCircleBackground}>
@@ -774,7 +703,6 @@ export default function DropDetailsScreen() {
           <Text style={styles.iconLabel}>Obiettivo</Text>
         </Pressable>
 
-        {/* Share Button */}
         <Pressable 
           style={styles.iconButton}
           onPress={handleShareWhatsApp}
@@ -793,7 +721,6 @@ export default function DropDetailsScreen() {
         </Pressable>
       </View>
 
-      {/* Underfunding Warning - Bottom */}
       {atRisk && (
         <View style={styles.underfundingWarningBottom} pointerEvents="box-none">
           <View style={styles.underfundingCard}>
@@ -813,7 +740,6 @@ export default function DropDetailsScreen() {
         </View>
       )}
 
-      {/* Real-time connection indicator */}
       {isConnected && (
         <View style={styles.realtimeIndicator}>
           <View style={styles.realtimeDot} />
@@ -879,7 +805,6 @@ const styles = StyleSheet.create({
     height: height,
     width: width,
   },
-  // Transparent Timer Overlay at Top
   timerOverlay: {
     position: 'absolute',
     top: 0,
@@ -909,7 +834,6 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontFamily: 'System',
   },
-  // Back Button Overlay
   backButtonOverlay: {
     position: 'absolute',
     top: 0,
@@ -929,7 +853,6 @@ const styles = StyleSheet.create({
     marginLeft: 16,
     marginTop: 8,
   },
-  // TikTok-style Right Side Icons
   rightSideIcons: {
     position: 'absolute',
     right: 12,
@@ -984,7 +907,6 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontFamily: 'System',
   },
-  // Progress Circle
   progressCircle: {
     width: 52,
     height: 52,
@@ -1025,7 +947,6 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,
   },
-  // Underfunding Warning at Bottom
   underfundingWarningBottom: {
     position: 'absolute',
     bottom: 120,
