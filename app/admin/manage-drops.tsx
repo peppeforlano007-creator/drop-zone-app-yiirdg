@@ -112,6 +112,11 @@ export default function ManageDropsScreen() {
     loadDrops();
   };
 
+  const handleCreateDrop = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    router.push('/admin/create-drop');
+  };
+
   const handleProcessUnderfunded = async (dropId: string, dropName: string) => {
     Alert.alert(
       'Elabora Drop Non Finanziato',
@@ -125,7 +130,6 @@ export default function ManageDropsScreen() {
             try {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
               
-              // Call the edge function to handle underfunded drop
               const { data: { session } } = await supabase.auth.getSession();
               
               if (!session) {
@@ -593,6 +597,25 @@ export default function ManageDropsScreen() {
         }}
       />
       <SafeAreaView style={styles.safeArea} edges={['bottom']}>
+        {/* Create Drop Button - Fixed at top */}
+        <View style={styles.createDropContainer}>
+          <Pressable
+            style={({ pressed }) => [
+              styles.createDropButton,
+              pressed && styles.createDropButtonPressed,
+            ]}
+            onPress={handleCreateDrop}
+          >
+            <IconSymbol
+              ios_icon_name="plus.circle.fill"
+              android_material_icon_name="add_circle"
+              size={20}
+              color="#fff"
+            />
+            <Text style={styles.createDropButtonText}>Crea Drop Manuale</Text>
+          </Pressable>
+        </View>
+
         <View style={styles.filterContainer}>
           <ScrollView 
             horizontal 
@@ -657,6 +680,21 @@ export default function ManageDropsScreen() {
               <Text style={styles.emptyText}>
                 Non ci sono drop con il filtro selezionato
               </Text>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.emptyActionButton,
+                  pressed && styles.emptyActionButtonPressed,
+                ]}
+                onPress={handleCreateDrop}
+              >
+                <IconSymbol
+                  ios_icon_name="plus.circle"
+                  android_material_icon_name="add_circle"
+                  size={20}
+                  color={colors.primary}
+                />
+                <Text style={styles.emptyActionButtonText}>Crea Drop Manuale</Text>
+              </Pressable>
             </View>
           )}
         </ScrollView>
@@ -687,6 +725,32 @@ const styles = StyleSheet.create({
     marginTop: 16,
     fontSize: 14,
     color: colors.textSecondary,
+  },
+  createDropContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: colors.background,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  createDropButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primary,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 10,
+    gap: 8,
+  },
+  createDropButtonPressed: {
+    opacity: 0.8,
+    transform: [{ scale: 0.98 }],
+  },
+  createDropButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#fff',
   },
   filterContainer: {
     backgroundColor: colors.background,
@@ -875,5 +939,26 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.textSecondary,
     textAlign: 'center',
+    marginBottom: 24,
+  },
+  emptyActionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: colors.primary,
+    backgroundColor: colors.card,
+  },
+  emptyActionButtonPressed: {
+    opacity: 0.7,
+    transform: [{ scale: 0.98 }],
+  },
+  emptyActionButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: colors.primary,
   },
 });
