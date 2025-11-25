@@ -23,14 +23,10 @@ interface BookingData {
   pickup_point_id: string;
   selected_size?: string;
   selected_color?: string;
-  products: {
-    name: string;
-    supplier_id: string;
-  };
-  profiles: {
-    full_name: string;
-    email: string;
-  };
+  product_name: string;
+  supplier_id: string;
+  user_full_name: string;
+  user_email: string;
 }
 
 interface OrdersBySupplier {
@@ -128,28 +124,10 @@ serve(async (req) => {
 
     console.log(`📊 Drop "${drop.name}" - Final discount: ${drop.current_discount}%`);
 
-    // Get all active bookings for this drop (COD payment method)
-    const { data: bookings, error: bookingsError } = await supabase
+    // Get all active bookings for this drop using simple query
+    const { data: rawBookings, error: bookingsError } = await supabase
       .from('bookings')
-      .select(`
-        id,
-        user_id,
-        product_id,
-        original_price,
-        discount_percentage,
-        payment_status,
-        pickup_point_id,
-        selected_size,
-        selected_color,
-        products (
-          name,
-          supplier_id
-        ),
-        profiles:user_id (
-          full_name,
-          email
-        )
-      `)
+      .select('*')
       .eq('drop_id', dropId)
       .eq('status', 'active')
       .eq('payment_method', 'cod');
@@ -159,13 +137,39 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ 
           success: false,
-          error: 'Failed to fetch bookings' 
+          error: 'Failed to fetch bookings: ' + bookingsError.message 
         }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    if (!bookings || bookings.length === 0) {
+    // Fetch related data for each booking
+    const enrichedBookings = [];
+    for (const booking of rawBookings || []) {
+      // Get product info
+      const { data: product } = await supabase
+        .from('products')
+        .select('name, supplier_id')
+        .eq('id', booking.product_id)
+        .single();
+
+      // Get user profile info
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('full_name, email')
+        .eq('user_id', booking.user_id)
+        .single();
+
+      enrichedBookings.push({
+        ...booking,
+        product_name: product?.name || 'Unknown',
+        supplier_id: product?.supplier_id || null,
+        user_full_name: profile?.full_name || 'Unknown',
+        user_email: profile?.email || 'Unknown',
+      });
+    }
+
+    if (!enrichedBookings || enrichedBookings.length === 0) {
       console.log('ℹ️ No active bookings found for drop:', dropId);
       
       // Still update drop status to completed
@@ -198,7 +202,7 @@ serve(async (req) => {
       );
     }
 
-    console.log(`📦 Found ${bookings.length} bookings to confirm`);
+    console.log(`📦 Found ${enrichedBookings.length} bookings to confirm`);
 
     // Calculate final prices and confirm bookings
     const finalDiscount = drop.current_discount || 0;
@@ -207,7 +211,7 @@ serve(async (req) => {
     let totalFinal = 0;
     let totalSavings = 0;
 
-    for (const booking of bookings as BookingData[]) {
+    for (const booking of enrichedBookings as BookingData[]) {
       try {
         // Calculate final price based on final discount
         const finalPrice = Number(booking.original_price) * (1 - finalDiscount / 100);
@@ -219,8 +223,8 @@ serve(async (req) => {
         totalSavings += savings;
 
         console.log(`💰 Booking ${booking.id}:`, {
-          product: booking.products?.name || 'Unknown',
-          user: booking.profiles?.full_name || 'Unknown',
+          product: booking.product_name,
+          user: booking.user_full_name,
           originalPrice: originalPrice.toFixed(2),
           finalPrice: finalPrice.toFixed(2),
           finalDiscount: finalDiscount.toFixed(1),
@@ -244,7 +248,7 @@ serve(async (req) => {
           console.error(`❌ Error updating booking ${booking.id}:`, updateError);
           confirmResults.push({
             bookingId: booking.id,
-            productName: booking.products?.name || 'Unknown',
+            productName: booking.product_name,
             success: false,
             error: updateError.message,
           });
@@ -258,7 +262,7 @@ serve(async (req) => {
               user_id: booking.user_id,
               title: `Drop Completato: ${drop.name}`,
               message: `Il drop è terminato con uno sconto del ${Math.floor(finalDiscount)}%!\n\n` +
-                      `Prodotto: ${booking.products?.name || 'Unknown'}\n` +
+                      `Prodotto: ${booking.product_name}\n` +
                       `Prezzo originale: €${originalPrice.toFixed(2)}\n` +
                       `Prezzo finale: €${finalPrice.toFixed(2)}\n` +
                       `Risparmio: €${savings.toFixed(2)} (${Math.floor((savings / originalPrice) * 100)}%)\n\n` +
@@ -278,8 +282,8 @@ serve(async (req) => {
           
           confirmResults.push({
             bookingId: booking.id,
-            productName: booking.products?.name || 'Unknown',
-            userName: booking.profiles?.full_name || 'Unknown',
+            productName: booking.product_name,
+            userName: booking.user_full_name,
             success: true,
             originalPrice: originalPrice.toFixed(2),
             finalPrice: finalPrice.toFixed(2),
@@ -291,7 +295,7 @@ serve(async (req) => {
         console.error(`❌ Error processing booking ${booking.id}:`, error);
         confirmResults.push({
           bookingId: booking.id,
-          productName: booking.products?.name || 'Unknown',
+          productName: booking.product_name,
           success: false,
           error: error.message,
         });
@@ -302,8 +306,8 @@ serve(async (req) => {
     console.log('\n📦 Creating orders...');
     const ordersBySupplier: OrdersBySupplier = {};
     
-    for (const booking of bookings as BookingData[]) {
-      const supplierId = booking.products?.supplier_id;
+    for (const booking of enrichedBookings as BookingData[]) {
+      const supplierId = booking.supplier_id;
       if (!supplierId) {
         console.warn(`⚠️ Booking ${booking.id} has no supplier_id, skipping order creation`);
         continue;
@@ -370,7 +374,7 @@ serve(async (req) => {
             order_id: order.id,
             booking_id: booking.id,
             product_id: booking.product_id,
-            product_name: booking.products?.name || 'Unknown',
+            product_name: booking.product_name,
             user_id: booking.user_id,
             original_price: booking.original_price,
             final_price: finalPrice,
@@ -441,7 +445,7 @@ serve(async (req) => {
         dropName: drop.name,
         finalDiscount: finalDiscount.toFixed(1) + '%',
         summary: {
-          totalBookings: bookings.length,
+          totalBookings: enrichedBookings.length,
           confirmedCount: successCount,
           failedCount: failureCount,
           finalDiscount: finalDiscount.toFixed(1) + '%',
