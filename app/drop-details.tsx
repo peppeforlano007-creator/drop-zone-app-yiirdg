@@ -431,12 +431,6 @@ export default function DropDetailsScreen() {
 
       setUserBookings(prev => new Set([...prev, productId]));
 
-      Alert.alert(
-        'Prenotazione confermata!',
-        `Hai prenotato ${product.name} con uno sconto del ${Math.floor(currentDiscount)}%.\n\n💰 Importo stimato: €${currentDiscountedPrice.toFixed(2)}\n\n📦 Alla chiusura del drop, ti notificheremo l'importo esatto che dovrai pagare alla consegna in base allo sconto finale raggiunto.`,
-        [{ text: 'OK' }]
-      );
-
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error: any) {
       console.error('❌ Exception in handleBook:', error);
@@ -523,6 +517,7 @@ export default function DropDetailsScreen() {
           product={productForCard}
           isInDrop={true}
           currentDiscount={drop?.current_discount}
+          maxDiscount={drop?.supplier_lists?.max_discount}
           onBook={handleBook}
           isInterested={isBooked}
         />
@@ -717,7 +712,7 @@ export default function DropDetailsScreen() {
               color="#FFF" 
             />
           </Animated.View>
-          <Text style={styles.iconLabel}>Condividi</Text>
+          <Text style={styles.iconLabel}>Condividi Drop</Text>
         </Pressable>
       </View>
 

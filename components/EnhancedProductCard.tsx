@@ -22,6 +22,7 @@ interface EnhancedProductCardProps {
   product: Product;
   isInDrop?: boolean;
   currentDiscount?: number;
+  maxDiscount?: number;
   onInterest?: (productId: string) => void;
   onBook?: (productId: string) => void;
   isInterested?: boolean;
@@ -31,6 +32,7 @@ export default function EnhancedProductCard({
   product,
   isInDrop = false,
   currentDiscount,
+  maxDiscount,
   onInterest,
   onBook,
   isInterested = false,
@@ -52,6 +54,7 @@ export default function EnhancedProductCard({
   const originalPrice = product.originalPrice ?? 0;
   const minDiscount = product.minDiscount ?? 0;
   const discount = currentDiscount ?? minDiscount;
+  const maxDiscountValue = maxDiscount ?? product.maxDiscount ?? 0;
   const discountedPrice = originalPrice * (1 - discount / 100);
 
   // Safely construct image URLs array with validation and standardization
@@ -111,62 +114,35 @@ export default function EnhancedProductCard({
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     
     if (isInDrop && onBook) {
-      // Check if user has any payment method
-      const hasPayment = hasPaymentMethod();
-      console.log('Has payment method:', hasPayment);
-      
-      if (!hasPayment) {
-        Alert.alert(
-          'Metodo di Pagamento Richiesto',
-          'Devi aggiungere un metodo di pagamento prima di prenotare.',
-          [
-            { text: 'Annulla', style: 'cancel' },
-            {
-              text: 'Aggiungi Carta',
-              onPress: () => router.push('/add-payment-method'),
-            },
-          ]
-        );
-        return;
-      }
-
-      const defaultPaymentMethod = getDefaultPaymentMethod();
-      console.log('Default payment method:', defaultPaymentMethod);
-      
-      if (!defaultPaymentMethod) {
-        Alert.alert(
-          'Errore',
-          'Nessun metodo di pagamento predefinito trovato. Riprova.',
-          [
-            { text: 'OK' },
-          ]
-        );
-        return;
-      }
-
+      // Show confirmation alert with discount information
       Alert.alert(
-        'Conferma Prenotazione',
-        `Vuoi prenotare ${product.name}?\n\nPrezzo attuale: €${discountedPrice.toFixed(2)} (-${Math.floor(discount)}%)\n\nBlocchiamo €${originalPrice.toFixed(2)} sulla tua carta ${defaultPaymentMethod.brand?.toUpperCase() || 'CARTA'} •••• ${defaultPaymentMethod.last4}.\n\nAlla fine del drop, addebiteremo solo l'importo finale con lo sconto raggiunto.`,
+        '🎉 Conferma Prenotazione',
+        `Stai prenotando: ${product.name}\n\n` +
+        `💰 Sconto attuale: ${Math.floor(discount)}%\n` +
+        `🎯 Sconto massimo raggiungibile: ${Math.floor(maxDiscountValue)}%\n\n` +
+        `📊 Prenoteremo l'articolo allo sconto attuale del ${Math.floor(discount)}%, ma più utenti prenotano da questo drop e più la percentuale aumenta!\n\n` +
+        `📦 Al termine del drop ti notificheremo con l'importo esatto da pagare alla consegna.\n\n` +
+        `💡 Condividi il drop con amici e parenti tramite il tasto "Condividi Drop" per aumentare lo sconto!`,
         [
-          { text: 'Annulla', style: 'cancel' },
+          { 
+            text: 'Annulla', 
+            style: 'cancel',
+            onPress: () => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            }
+          },
           {
-            text: 'Prenota',
+            text: 'Prenota Articolo',
             onPress: async () => {
               setIsProcessing(true);
               try {
-                const authId = await authorizePayment(
-                  product.id,
-                  originalPrice,
-                  defaultPaymentMethod.id
-                );
-                console.log('Payment authorized:', authId);
                 Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
                 onBook(product.id);
               } catch (error) {
-                console.error('Payment authorization failed:', error);
+                console.error('Booking failed:', error);
                 Alert.alert(
                   'Errore',
-                  'Non è stato possibile autorizzare il pagamento. Riprova.'
+                  'Non è stato possibile completare la prenotazione. Riprova.'
                 );
               } finally {
                 setIsProcessing(false);
@@ -543,16 +519,16 @@ export default function EnhancedProductCard({
                   <>
                     <View style={styles.bookButtonIconContainer}>
                       <IconSymbol 
-                        ios_icon_name="creditcard.fill" 
-                        android_material_icon_name="credit_card" 
+                        ios_icon_name="cube.box.fill" 
+                        android_material_icon_name="inventory" 
                         size={22} 
                         color="#333" 
                       />
                     </View>
                     <View style={styles.bookButtonTextContainer}>
-                      <Text style={styles.bookButtonTitle}>PRENOTA CON CARTA</Text>
+                      <Text style={styles.bookButtonTitle}>PRENOTA ARTICOLO</Text>
                       <Text style={styles.bookButtonSubtitle}>
-                        Blocco temporaneo • Addebito finale
+                        Pagamento alla consegna
                       </Text>
                     </View>
                     <View style={styles.bookButtonArrow}>
