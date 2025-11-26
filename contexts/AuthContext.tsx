@@ -24,29 +24,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const isLoggingOut = useRef(false);
 
-  const loadUserProfile = useCallback(async (userId: string, retryCount = 0) => {
+  const loadUserProfile = useCallback(async (userId: string) => {
     try {
-      console.log(`AuthProvider: Loading profile for user: ${userId} (attempt ${retryCount + 1})`);
+      console.log(`AuthProvider: Loading profile for user: ${userId}`);
       
-      // Add a delay to ensure the session and JWT are fully established
-      // This is critical because the JWT needs to have the app_metadata populated
-      // before we can query the profiles table with RLS policies
-      const delayMs = retryCount === 0 ? 500 : (retryCount + 1) * 1000;
-      await new Promise(resolve => setTimeout(resolve, delayMs));
-      
-      // Refresh the session to ensure we have the latest JWT with app_metadata
-      if (retryCount === 0) {
-        console.log('AuthProvider: Refreshing session to get latest JWT...');
-        const { data: { session: refreshedSession }, error: refreshError } = await supabase.auth.refreshSession();
-        if (refreshError) {
-          console.warn('AuthProvider: Session refresh warning:', refreshError.message);
-        } else if (refreshedSession) {
-          console.log('AuthProvider: Session refreshed successfully');
-          setSession(refreshedSession);
-        }
-      }
-      
-      // First, try to get the profile without the join
+      // Query the profile
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('*')
@@ -62,32 +44,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           code: profileError.code
         });
         
-        // Special handling for infinite recursion error (42P17)
-        if (profileError.code === '42P17') {
-          console.error('AuthProvider: INFINITE RECURSION DETECTED - This should not happen after migration!');
-          console.error('AuthProvider: Please check that the migration was applied correctly');
-          
-          // Retry with longer delay to allow JWT to refresh
-          if (retryCount < 5) {
-            const retryDelay = (retryCount + 1) * 2000; // 2s, 4s, 6s, 8s, 10s
-            console.log(`AuthProvider: Retrying profile load in ${retryDelay}ms...`);
-            await new Promise(resolve => setTimeout(resolve, retryDelay));
-            return loadUserProfile(userId, retryCount + 1);
-          }
-        } else {
-          // For other errors, retry up to 3 times with shorter delay
-          if (retryCount < 3) {
-            const retryDelay = (retryCount + 1) * 1000;
-            console.log(`AuthProvider: Retrying profile load in ${retryDelay}ms...`);
-            await new Promise(resolve => setTimeout(resolve, retryDelay));
-            return loadUserProfile(userId, retryCount + 1);
-          }
-        }
-        
-        // Show error to user after all retries failed
+        // Show error to user
         Alert.alert(
           'Errore Caricamento Profilo',
-          `Impossibile caricare il profilo utente: ${profileError.message}.\n\nCodice errore: ${profileError.code}\n\nRiprova ad accedere.`,
+          `Impossibile caricare il profilo utente.\n\nCodice: ${profileError.code}\nMessaggio: ${profileError.message}\n\nRiprova ad accedere.`,
           [
             {
               text: 'OK',
@@ -105,13 +65,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (!profile) {
         console.error('AuthProvider: Profile not found for user:', userId);
-        
-        // Retry if this is the first attempt
-        if (retryCount < 3) {
-          console.log(`AuthProvider: Profile not found, retrying in ${(retryCount + 1) * 500}ms...`);
-          await new Promise(resolve => setTimeout(resolve, (retryCount + 1) * 500));
-          return loadUserProfile(userId, retryCount + 1);
-        }
         
         Alert.alert(
           'Profilo Non Trovato',
@@ -240,13 +193,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false);
     } catch (error) {
       console.error('AuthProvider: Exception loading profile:', error);
-      
-      // Retry on exception
-      if (retryCount < 3) {
-        console.log(`AuthProvider: Exception occurred, retrying in ${(retryCount + 1) * 500}ms...`);
-        await new Promise(resolve => setTimeout(resolve, (retryCount + 1) * 500));
-        return loadUserProfile(userId, retryCount + 1);
-      }
       
       Alert.alert(
         'Errore',
@@ -390,7 +336,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.log('AuthProvider: JWT app_metadata:', appMetadata);
       
       if (!appMetadata?.role) {
-        console.warn('AuthProvider: JWT missing role in app_metadata, will retry loading profile');
+        console.warn('AuthProvider: JWT missing role in app_metadata');
       }
       
       // Profile will be loaded by the auth state change listener
