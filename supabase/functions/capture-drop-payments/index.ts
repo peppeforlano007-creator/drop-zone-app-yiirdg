@@ -41,6 +41,7 @@ interface OrdersBySupplier {
 interface UserNotificationData {
   userId: string;
   userName: string;
+  userEmail: string;
   bookings: Array<{
     productName: string;
     originalPrice: number;
@@ -225,7 +226,7 @@ serve(async (req) => {
     let totalFinal = 0;
     let totalSavings = 0;
 
-    // Group bookings by user for notifications
+    // Group bookings by user for notifications - using Map to ensure uniqueness
     const userNotifications: Map<string, UserNotificationData> = new Map();
 
     for (const booking of enrichedBookings as BookingData[]) {
@@ -277,6 +278,7 @@ serve(async (req) => {
             userNotifications.set(booking.user_id, {
               userId: booking.user_id,
               userName: booking.user_full_name,
+              userEmail: booking.user_email,
               bookings: [],
               totalOriginal: 0,
               totalFinal: 0,
@@ -318,9 +320,14 @@ serve(async (req) => {
     }
 
     // Send ONE notification per user with aggregated data
-    console.log(`\n📧 Sending notifications to ${userNotifications.size} users...`);
+    console.log(`\n📧 Sending notifications to ${userNotifications.size} unique users...`);
+    let notificationsSent = 0;
+    let notificationsFailed = 0;
+    
     for (const [userId, userData] of userNotifications) {
       try {
+        console.log(`📧 Preparing notification for user ${userId} (${userData.userName} - ${userData.userEmail})`);
+        
         // Build notification message with all products
         let message = `Il drop è terminato con uno sconto del ${Math.floor(finalDiscount)}%!\n\n`;
         message += `Hai prenotato ${userData.bookings.length} prodotto${userData.bookings.length > 1 ? 'i' : ''}:\n\n`;
@@ -345,6 +352,26 @@ serve(async (req) => {
         message += `Dovrai pagare €${userData.totalFinal.toFixed(2)} in contanti al momento del ritiro.\n\n`;
         message += `Ti notificheremo quando l'ordine sarà pronto per il ritiro!`;
 
+        // Check if a notification already exists for this user and drop to prevent duplicates
+        const { data: existingNotif, error: checkError } = await supabase
+          .from('notifications')
+          .select('id')
+          .eq('user_id', userId)
+          .eq('type', 'drop_completed')
+          .eq('related_id', dropId)
+          .eq('related_type', 'drop')
+          .maybeSingle();
+
+        if (checkError) {
+          console.warn(`⚠️ Error checking existing notification for user ${userId}:`, checkError);
+        }
+
+        if (existingNotif) {
+          console.log(`ℹ️ Notification already exists for user ${userId}, skipping...`);
+          continue;
+        }
+
+        // Insert the notification
         const { error: notifError } = await supabase
           .from('notifications')
           .insert({
@@ -359,13 +386,18 @@ serve(async (req) => {
 
         if (notifError) {
           console.error(`⚠️ Error creating notification for user ${userId}:`, notifError);
+          notificationsFailed++;
         } else {
-          console.log(`📧 Notification sent to user ${userId} (${userData.userName}) for ${userData.bookings.length} bookings`);
+          console.log(`✅ Notification sent to user ${userId} (${userData.userName}) for ${userData.bookings.length} bookings`);
+          notificationsSent++;
         }
       } catch (error: any) {
         console.error(`❌ Error sending notification to user ${userId}:`, error);
+        notificationsFailed++;
       }
     }
+
+    console.log(`📧 Notifications summary: ${notificationsSent} sent, ${notificationsFailed} failed`);
 
     // Group bookings by supplier and pickup point to create orders
     console.log('\n📦 Creating orders...');
@@ -501,7 +533,7 @@ serve(async (req) => {
     console.log(`   🎉 Total Savings: €${totalSavings.toFixed(2)}`);
     console.log(`   📈 Average Savings: ${totalOriginal > 0 ? ((totalSavings / totalOriginal) * 100).toFixed(1) : '0'}%`);
     console.log(`   📦 Orders Created: ${ordersCreated.length}`);
-    console.log(`   📧 Notifications Sent: ${userNotifications.size}\n`);
+    console.log(`   📧 Notifications Sent: ${notificationsSent} (${notificationsFailed} failed)\n`);
 
     return new Response(
       JSON.stringify({
@@ -518,7 +550,8 @@ serve(async (req) => {
           totalAmount: totalFinal.toFixed(2),
           totalSavings: totalSavings.toFixed(2),
           ordersCreated: ordersCreated.length,
-          notificationsSent: userNotifications.size,
+          notificationsSent: notificationsSent,
+          notificationsFailed: notificationsFailed,
         },
         results: confirmResults,
         orders: ordersCreated,

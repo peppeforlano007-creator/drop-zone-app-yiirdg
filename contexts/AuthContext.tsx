@@ -1,5 +1,5 @@
 
-import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from 'react';
 import { User, UserRole } from '@/types/User';
 import { supabase } from '@/app/integrations/supabase/client';
 import { Session } from '@supabase/supabase-js';
@@ -22,6 +22,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const isLoggingOut = useRef(false);
 
   const loadUserProfile = useCallback(async (userId: string, retryCount = 0) => {
     try {
@@ -252,6 +253,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       console.log('AuthProvider: Auth state changed:', _event, session?.user?.id);
+      
+      // Ignore auth state changes during logout to prevent multiple reloads
+      if (isLoggingOut.current) {
+        console.log('AuthProvider: Ignoring auth state change during logout');
+        return;
+      }
+      
       setSession(session);
       
       // Handle SIGNED_OUT event immediately
@@ -361,6 +369,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       console.log('AuthProvider: Starting logout process');
       
+      // Set logout flag to prevent auth state change listener from firing
+      isLoggingOut.current = true;
+      
       // Store current user info for logging before clearing
       const currentUser = user;
       const currentUserId = currentUser?.id;
@@ -382,7 +393,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.log('AuthProvider: User state cleared, signing out from Supabase...');
       
       // Small delay to ensure state propagates
-      await new Promise(resolve => setTimeout(resolve, 50));
+      await new Promise(resolve => setTimeout(resolve, 100));
       
       // Then sign out from Supabase
       const { error } = await supabase.auth.signOut();
@@ -395,6 +406,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.log('AuthProvider: Supabase signOut successful');
       }
       
+      // Reset logout flag after a delay to allow navigation to complete
+      setTimeout(() => {
+        isLoggingOut.current = false;
+        console.log('AuthProvider: Logout flag reset');
+      }, 1000);
+      
       console.log('AuthProvider: Logout complete');
     } catch (error) {
       console.error('AuthProvider: Logout exception:', error);
@@ -402,6 +419,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(null);
       setSession(null);
       setLoading(false);
+      // Reset logout flag
+      setTimeout(() => {
+        isLoggingOut.current = false;
+      }, 1000);
     }
   };
 

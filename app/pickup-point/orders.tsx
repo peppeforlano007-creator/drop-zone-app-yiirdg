@@ -32,6 +32,8 @@ interface OrderItem {
   customer_name?: string;
   customer_phone?: string;
   customer_email?: string;
+  returned_to_sender?: boolean;
+  returned_at?: string;
 }
 
 interface Order {
@@ -91,7 +93,9 @@ export default function OrdersScreen() {
             final_price,
             pickup_status,
             picked_up_at,
-            user_id
+            user_id,
+            returned_to_sender,
+            returned_at
           )
         `)
         .eq('pickup_point_id', user.pickupPointId)
@@ -107,57 +111,57 @@ export default function OrdersScreen() {
         // Fetch customer data for each order item
         const ordersWithCustomers = await Promise.all(
           (activeData || []).map(async (order) => {
-            // Get customer data for each order item
-            const itemsWithCustomers = await Promise.all(
-              (order.order_items || []).map(async (item) => {
-                if (!item.user_id) {
-                  return {
-                    ...item,
-                    customer_name: 'N/A',
-                    customer_phone: 'N/A',
-                    customer_email: 'N/A',
-                  };
-                }
-                
-                // First try to get from profiles table
-                const { data: profileData, error: profileError } = await supabase
-                  .from('profiles')
-                  .select('full_name, phone, email')
-                  .eq('user_id', item.user_id)
-                  .single();
-                
-                if (profileError || !profileData) {
-                  console.warn(`Could not load profile for user ${item.user_id}:`, profileError);
-                  
-                  // Fallback: try to get from auth.users via RPC or direct query
-                  const { data: userData, error: userError } = await supabase.auth.admin.getUserById(item.user_id);
-                  
-                  if (userError || !userData) {
-                    console.warn(`Could not load user data for ${item.user_id}:`, userError);
-                    return {
-                      ...item,
-                      customer_name: 'Cliente',
-                      customer_phone: 'N/A',
-                      customer_email: 'N/A',
-                    };
-                  }
-                  
-                  return {
-                    ...item,
-                    customer_name: userData.user?.user_metadata?.full_name || userData.user?.email || 'Cliente',
-                    customer_phone: userData.user?.phone || userData.user?.user_metadata?.phone || 'N/A',
-                    customer_email: userData.user?.email || 'N/A',
-                  };
-                }
-                
+            // Get unique user IDs from order items
+            const userIds = [...new Set(order.order_items?.map((item: any) => item.user_id).filter(Boolean))];
+            
+            // Fetch all customer profiles in one query
+            const { data: profiles, error: profilesError } = await supabase
+              .from('profiles')
+              .select('user_id, full_name, phone, email')
+              .in('user_id', userIds);
+            
+            if (profilesError) {
+              console.warn('Error loading customer profiles:', profilesError);
+            }
+            
+            // Create a map of user_id to profile data
+            const profileMap = new Map();
+            if (profiles) {
+              profiles.forEach(profile => {
+                profileMap.set(profile.user_id, profile);
+              });
+            }
+            
+            // Enrich order items with customer data
+            const itemsWithCustomers = (order.order_items || []).map((item: any) => {
+              if (!item.user_id) {
                 return {
                   ...item,
-                  customer_name: profileData.full_name || profileData.email || 'Cliente',
-                  customer_phone: profileData.phone || 'N/A',
-                  customer_email: profileData.email || 'N/A',
+                  customer_name: 'N/A',
+                  customer_phone: 'N/A',
+                  customer_email: 'N/A',
                 };
-              })
-            );
+              }
+              
+              const profile = profileMap.get(item.user_id);
+              
+              if (!profile) {
+                console.warn(`Profile not found for user ${item.user_id}`);
+                return {
+                  ...item,
+                  customer_name: 'Cliente',
+                  customer_phone: 'N/A',
+                  customer_email: 'N/A',
+                };
+              }
+              
+              return {
+                ...item,
+                customer_name: profile.full_name || profile.email || 'Cliente',
+                customer_phone: profile.phone || 'N/A',
+                customer_email: profile.email || 'N/A',
+              };
+            });
             
             return {
               ...order,
@@ -189,7 +193,9 @@ export default function OrdersScreen() {
             final_price,
             pickup_status,
             picked_up_at,
-            user_id
+            user_id,
+            returned_to_sender,
+            returned_at
           )
         `)
         .eq('pickup_point_id', user.pickupPointId)
@@ -206,41 +212,57 @@ export default function OrdersScreen() {
         // Fetch customer data for each order item
         const ordersWithCustomers = await Promise.all(
           (completedData || []).map(async (order) => {
-            const itemsWithCustomers = await Promise.all(
-              (order.order_items || []).map(async (item) => {
-                if (!item.user_id) {
-                  return {
-                    ...item,
-                    customer_name: 'N/A',
-                    customer_phone: 'N/A',
-                    customer_email: 'N/A',
-                  };
-                }
-                
-                const { data: profileData, error: profileError } = await supabase
-                  .from('profiles')
-                  .select('full_name, phone, email')
-                  .eq('user_id', item.user_id)
-                  .single();
-                
-                if (profileError || !profileData) {
-                  console.warn(`Could not load profile for user ${item.user_id}:`, profileError);
-                  return {
-                    ...item,
-                    customer_name: 'Cliente',
-                    customer_phone: 'N/A',
-                    customer_email: 'N/A',
-                  };
-                }
-                
+            // Get unique user IDs from order items
+            const userIds = [...new Set(order.order_items?.map((item: any) => item.user_id).filter(Boolean))];
+            
+            // Fetch all customer profiles in one query
+            const { data: profiles, error: profilesError } = await supabase
+              .from('profiles')
+              .select('user_id, full_name, phone, email')
+              .in('user_id', userIds);
+            
+            if (profilesError) {
+              console.warn('Error loading customer profiles:', profilesError);
+            }
+            
+            // Create a map of user_id to profile data
+            const profileMap = new Map();
+            if (profiles) {
+              profiles.forEach(profile => {
+                profileMap.set(profile.user_id, profile);
+              });
+            }
+            
+            // Enrich order items with customer data
+            const itemsWithCustomers = (order.order_items || []).map((item: any) => {
+              if (!item.user_id) {
                 return {
                   ...item,
-                  customer_name: profileData.full_name || profileData.email || 'Cliente',
-                  customer_phone: profileData.phone || 'N/A',
-                  customer_email: profileData.email || 'N/A',
+                  customer_name: 'N/A',
+                  customer_phone: 'N/A',
+                  customer_email: 'N/A',
                 };
-              })
-            );
+              }
+              
+              const profile = profileMap.get(item.user_id);
+              
+              if (!profile) {
+                console.warn(`Profile not found for user ${item.user_id}`);
+                return {
+                  ...item,
+                  customer_name: 'Cliente',
+                  customer_phone: 'N/A',
+                  customer_email: 'N/A',
+                };
+              }
+              
+              return {
+                ...item,
+                customer_name: profile.full_name || profile.email || 'Cliente',
+                customer_phone: profile.phone || 'N/A',
+                customer_email: profile.email || 'N/A',
+              };
+            });
             
             return {
               ...order,
@@ -365,7 +387,7 @@ export default function OrdersScreen() {
                   .update({ pickup_status: 'ready' })
                   .eq('order_id', order.id);
 
-                // Send notification to each customer
+                // Send notification to each customer (deduplicated by user_id)
                 if (order.order_items && order.order_items.length > 0) {
                   const userIds = [...new Set(order.order_items.map(item => item.user_id).filter(Boolean))];
                   
@@ -428,18 +450,20 @@ export default function OrdersScreen() {
                 return;
               }
 
-              // Check if all items in the order are picked up
+              // Check if all items in the order are picked up or returned
               const { data: allItems, error: checkError } = await supabase
                 .from('order_items')
-                .select('pickup_status')
+                .select('pickup_status, returned_to_sender')
                 .eq('order_id', order.id);
 
               if (checkError) {
                 console.error('Error checking order items:', checkError);
               } else {
-                const allPickedUp = allItems?.every(i => i.pickup_status === 'picked_up');
+                const allCompleted = allItems?.every(i => 
+                  i.pickup_status === 'picked_up' || i.returned_to_sender === true
+                );
                 
-                if (allPickedUp) {
+                if (allCompleted) {
                   // Mark entire order as completed
                   await supabase
                     .from('orders')
@@ -452,7 +476,7 @@ export default function OrdersScreen() {
                   
                   Alert.alert(
                     'Ordine Completato', 
-                    `Tutti gli articoli sono stati ritirati. L'ordine è stato completato.`
+                    `Tutti gli articoli sono stati gestiti. L'ordine è stato completato.`
                   );
                 } else {
                   Alert.alert('Successo', 'Articolo segnato come ritirato.');
@@ -514,6 +538,30 @@ export default function OrdersScreen() {
                     related_type: 'order',
                     read: false,
                   });
+              }
+
+              // Check if all items are completed
+              const { data: allItems, error: checkError } = await supabase
+                .from('order_items')
+                .select('pickup_status, returned_to_sender')
+                .eq('order_id', order.id);
+
+              if (!checkError && allItems) {
+                const allCompleted = allItems.every(i => 
+                  i.pickup_status === 'picked_up' || i.returned_to_sender === true
+                );
+                
+                if (allCompleted) {
+                  // Mark entire order as completed
+                  await supabase
+                    .from('orders')
+                    .update({
+                      status: 'completed',
+                      completed_at: now,
+                      updated_at: now,
+                    })
+                    .eq('id', order.id);
+                }
               }
 
               Alert.alert('Successo', 'Articolo segnato come da rispedire al fornitore. Il cliente è stato notificato.');
