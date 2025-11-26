@@ -232,10 +232,11 @@ export default function PickupPointDashboardScreen() {
           onPress: async () => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
             setLoggingOut(true);
+            
             try {
-              console.log('PickupPoint Dashboard: Logging out...');
+              console.log('PickupPoint Dashboard: Initiating logout...');
               
-              // Clear user state first to prevent navigation issues
+              // Call logout which will clear state and sign out
               await logout();
               
               // Small delay to ensure state is cleared

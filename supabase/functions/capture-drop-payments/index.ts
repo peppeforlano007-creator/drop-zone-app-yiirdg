@@ -38,6 +38,20 @@ interface OrdersBySupplier {
   };
 }
 
+interface UserNotificationData {
+  userId: string;
+  userName: string;
+  bookings: Array<{
+    productName: string;
+    originalPrice: number;
+    finalPrice: number;
+    savings: number;
+  }>;
+  totalOriginal: number;
+  totalFinal: number;
+  totalSavings: number;
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -211,6 +225,9 @@ serve(async (req) => {
     let totalFinal = 0;
     let totalSavings = 0;
 
+    // Group bookings by user for notifications
+    const userNotifications: Map<string, UserNotificationData> = new Map();
+
     for (const booking of enrichedBookings as BookingData[]) {
       try {
         // Calculate final price based on final discount
@@ -255,30 +272,28 @@ serve(async (req) => {
         } else {
           console.log(`✅ Successfully confirmed booking ${booking.id}`);
           
-          // Create notification for user
-          const { error: notifError } = await supabase
-            .from('notifications')
-            .insert({
-              user_id: booking.user_id,
-              title: `Drop Completato: ${drop.name}`,
-              message: `Il drop è terminato con uno sconto del ${Math.floor(finalDiscount)}%!\n\n` +
-                      `Prodotto: ${booking.product_name}\n` +
-                      `Prezzo originale: €${originalPrice.toFixed(2)}\n` +
-                      `Prezzo finale: €${finalPrice.toFixed(2)}\n` +
-                      `Risparmio: €${savings.toFixed(2)} (${Math.floor((savings / originalPrice) * 100)}%)\n\n` +
-                      `Dovrai pagare €${finalPrice.toFixed(2)} in contanti al momento del ritiro.\n\n` +
-                      `Ti notificheremo quando l'ordine sarà pronto per il ritiro!`,
-              type: 'drop_completed',
-              related_id: dropId,
-              related_type: 'drop',
-              read: false,
+          // Aggregate booking data by user for notifications
+          if (!userNotifications.has(booking.user_id)) {
+            userNotifications.set(booking.user_id, {
+              userId: booking.user_id,
+              userName: booking.user_full_name,
+              bookings: [],
+              totalOriginal: 0,
+              totalFinal: 0,
+              totalSavings: 0,
             });
-
-          if (notifError) {
-            console.error(`⚠️ Error creating notification for user ${booking.user_id}:`, notifError);
-          } else {
-            console.log(`📧 Notification sent to user ${booking.user_id}`);
           }
+          
+          const userData = userNotifications.get(booking.user_id)!;
+          userData.bookings.push({
+            productName: booking.product_name,
+            originalPrice: originalPrice,
+            finalPrice: finalPrice,
+            savings: savings,
+          });
+          userData.totalOriginal += originalPrice;
+          userData.totalFinal += finalPrice;
+          userData.totalSavings += savings;
           
           confirmResults.push({
             bookingId: booking.id,
@@ -299,6 +314,56 @@ serve(async (req) => {
           success: false,
           error: error.message,
         });
+      }
+    }
+
+    // Send ONE notification per user with aggregated data
+    console.log(`\n📧 Sending notifications to ${userNotifications.size} users...`);
+    for (const [userId, userData] of userNotifications) {
+      try {
+        // Build notification message with all products
+        let message = `Il drop è terminato con uno sconto del ${Math.floor(finalDiscount)}%!\n\n`;
+        message += `Hai prenotato ${userData.bookings.length} prodotto${userData.bookings.length > 1 ? 'i' : ''}:\n\n`;
+        
+        // List all products (limit to first 5 to avoid too long messages)
+        const displayBookings = userData.bookings.slice(0, 5);
+        for (const booking of displayBookings) {
+          message += `• ${booking.productName}\n`;
+          message += `  Prezzo originale: €${booking.originalPrice.toFixed(2)}\n`;
+          message += `  Prezzo finale: €${booking.finalPrice.toFixed(2)}\n`;
+          message += `  Risparmio: €${booking.savings.toFixed(2)}\n\n`;
+        }
+        
+        if (userData.bookings.length > 5) {
+          message += `... e altri ${userData.bookings.length - 5} prodotti\n\n`;
+        }
+        
+        message += `TOTALE:\n`;
+        message += `Prezzo originale: €${userData.totalOriginal.toFixed(2)}\n`;
+        message += `Prezzo finale: €${userData.totalFinal.toFixed(2)}\n`;
+        message += `Risparmio totale: €${userData.totalSavings.toFixed(2)} (${Math.floor((userData.totalSavings / userData.totalOriginal) * 100)}%)\n\n`;
+        message += `Dovrai pagare €${userData.totalFinal.toFixed(2)} in contanti al momento del ritiro.\n\n`;
+        message += `Ti notificheremo quando l'ordine sarà pronto per il ritiro!`;
+
+        const { error: notifError } = await supabase
+          .from('notifications')
+          .insert({
+            user_id: userId,
+            title: `Drop Completato: ${drop.name}`,
+            message: message,
+            type: 'drop_completed',
+            related_id: dropId,
+            related_type: 'drop',
+            read: false,
+          });
+
+        if (notifError) {
+          console.error(`⚠️ Error creating notification for user ${userId}:`, notifError);
+        } else {
+          console.log(`📧 Notification sent to user ${userId} (${userData.userName}) for ${userData.bookings.length} bookings`);
+        }
+      } catch (error: any) {
+        console.error(`❌ Error sending notification to user ${userId}:`, error);
       }
     }
 
@@ -367,7 +432,7 @@ serve(async (req) => {
 
         console.log(`✅ Order created: ${order.id}`);
 
-        // Create order items
+        // Create order items with user_id
         const orderItems = orderData.bookings.map(booking => {
           const finalPrice = Number(booking.original_price) * (1 - finalDiscount / 100);
           return {
@@ -375,7 +440,7 @@ serve(async (req) => {
             booking_id: booking.id,
             product_id: booking.product_id,
             product_name: booking.product_name,
-            user_id: booking.user_id,
+            user_id: booking.user_id, // Make sure user_id is included
             original_price: booking.original_price,
             final_price: finalPrice,
             discount_percentage: finalDiscount,
@@ -435,7 +500,8 @@ serve(async (req) => {
     console.log(`   💳 Total Final (COD): €${totalFinal.toFixed(2)}`);
     console.log(`   🎉 Total Savings: €${totalSavings.toFixed(2)}`);
     console.log(`   📈 Average Savings: ${totalOriginal > 0 ? ((totalSavings / totalOriginal) * 100).toFixed(1) : '0'}%`);
-    console.log(`   📦 Orders Created: ${ordersCreated.length}\n`);
+    console.log(`   📦 Orders Created: ${ordersCreated.length}`);
+    console.log(`   📧 Notifications Sent: ${userNotifications.size}\n`);
 
     return new Response(
       JSON.stringify({
@@ -452,6 +518,7 @@ serve(async (req) => {
           totalAmount: totalFinal.toFixed(2),
           totalSavings: totalSavings.toFixed(2),
           ordersCreated: ordersCreated.length,
+          notificationsSent: userNotifications.size,
         },
         results: confirmResults,
         orders: ordersCreated,

@@ -9,6 +9,7 @@ import {
   Alert,
   ActivityIndicator,
   RefreshControl,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack } from 'expo-router';
@@ -39,10 +40,9 @@ interface Order {
   arrived_at?: string;
   completed_at?: string;
   order_items: OrderItem[];
-  profiles?: {
-    full_name?: string;
-    phone?: string;
-  };
+  customer_name?: string;
+  customer_phone?: string;
+  customer_email?: string;
 }
 
 export default function OrdersScreen() {
@@ -101,32 +101,50 @@ export default function OrdersScreen() {
       } else {
         console.log('Active orders loaded:', activeData?.length || 0);
         
-        // Fetch user profiles for each order
-        const ordersWithProfiles = await Promise.all(
+        // Fetch customer data for each order
+        const ordersWithCustomers = await Promise.all(
           (activeData || []).map(async (order) => {
-            if (order.order_items && order.order_items.length > 0) {
-              // Get the first user_id from order items
-              const userId = order.order_items[0].user_id;
-              
-              if (userId) {
-                const { data: profileData, error: profileError } = await supabase
-                  .from('profiles')
-                  .select('full_name, phone')
-                  .eq('user_id', userId)
-                  .single();
-                
-                if (profileError) {
-                  console.warn(`Could not load profile for user ${userId}:`, profileError);
-                }
-                
-                return { ...order, profiles: profileData || undefined };
-              }
+            // Get unique user IDs from order items
+            const userIds = [...new Set(order.order_items?.map(item => item.user_id).filter(Boolean) || [])];
+            
+            if (userIds.length === 0) {
+              return {
+                ...order,
+                customer_name: 'N/A',
+                customer_phone: 'N/A',
+                customer_email: 'N/A',
+              };
             }
-            return order;
+            
+            // For orders with multiple customers, get the first one
+            const userId = userIds[0];
+            
+            const { data: profileData, error: profileError } = await supabase
+              .from('profiles')
+              .select('full_name, phone, email')
+              .eq('user_id', userId)
+              .single();
+            
+            if (profileError) {
+              console.warn(`Could not load profile for user ${userId}:`, profileError);
+              return {
+                ...order,
+                customer_name: 'N/A',
+                customer_phone: 'N/A',
+                customer_email: 'N/A',
+              };
+            }
+            
+            return {
+              ...order,
+              customer_name: profileData?.full_name || 'N/A',
+              customer_phone: profileData?.phone || 'N/A',
+              customer_email: profileData?.email || 'N/A',
+            };
           })
         );
         
-        setActiveOrders(ordersWithProfiles);
+        setActiveOrders(ordersWithCustomers);
       }
 
       // Load completed orders
@@ -163,31 +181,48 @@ export default function OrdersScreen() {
       } else {
         console.log('Completed orders loaded:', completedData?.length || 0);
         
-        // Fetch user profiles for each order
-        const ordersWithProfiles = await Promise.all(
+        // Fetch customer data for each order
+        const ordersWithCustomers = await Promise.all(
           (completedData || []).map(async (order) => {
-            if (order.order_items && order.order_items.length > 0) {
-              const userId = order.order_items[0].user_id;
-              
-              if (userId) {
-                const { data: profileData, error: profileError } = await supabase
-                  .from('profiles')
-                  .select('full_name, phone')
-                  .eq('user_id', userId)
-                  .single();
-                
-                if (profileError) {
-                  console.warn(`Could not load profile for user ${userId}:`, profileError);
-                }
-                
-                return { ...order, profiles: profileData || undefined };
-              }
+            const userIds = [...new Set(order.order_items?.map(item => item.user_id).filter(Boolean) || [])];
+            
+            if (userIds.length === 0) {
+              return {
+                ...order,
+                customer_name: 'N/A',
+                customer_phone: 'N/A',
+                customer_email: 'N/A',
+              };
             }
-            return order;
+            
+            const userId = userIds[0];
+            
+            const { data: profileData, error: profileError } = await supabase
+              .from('profiles')
+              .select('full_name, phone, email')
+              .eq('user_id', userId)
+              .single();
+            
+            if (profileError) {
+              console.warn(`Could not load profile for user ${userId}:`, profileError);
+              return {
+                ...order,
+                customer_name: 'N/A',
+                customer_phone: 'N/A',
+                customer_email: 'N/A',
+              };
+            }
+            
+            return {
+              ...order,
+              customer_name: profileData?.full_name || 'N/A',
+              customer_phone: profileData?.phone || 'N/A',
+              customer_email: profileData?.email || 'N/A',
+            };
           })
         );
         
-        setCompletedOrders(ordersWithProfiles);
+        setCompletedOrders(ordersWithCustomers);
       }
     } catch (error: any) {
       console.error('Error loading orders:', error);
@@ -291,6 +326,25 @@ export default function OrdersScreen() {
                 console.error('Error updating order:', error);
                 Alert.alert('Errore', 'Impossibile aggiornare lo stato dell\'ordine');
               } else {
+                // Send notification to customer
+                if (order.order_items && order.order_items.length > 0) {
+                  const userIds = [...new Set(order.order_items.map(item => item.user_id).filter(Boolean))];
+                  
+                  for (const userId of userIds) {
+                    await supabase
+                      .from('notifications')
+                      .insert({
+                        user_id: userId,
+                        title: 'Ordine Pronto per il Ritiro',
+                        message: `Il tuo ordine ${order.order_number} è arrivato ed è pronto per il ritiro presso il punto di ritiro. Ricorda di portare un documento d'identità.`,
+                        type: 'order_ready',
+                        related_id: order.id,
+                        related_type: 'order',
+                        read: false,
+                      });
+                  }
+                }
+                
                 Alert.alert('Successo', 'Il cliente è stato notificato che l\'ordine è pronto per il ritiro.');
                 loadOrders();
               }
@@ -306,7 +360,7 @@ export default function OrdersScreen() {
 
   const handleMarkAsPickedUp = async (order: Order) => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    const customerName = order.profiles?.full_name || 'il cliente';
+    const customerName = order.customer_name || 'il cliente';
     
     Alert.alert(
       'Ordine Ritirato',
@@ -366,11 +420,70 @@ export default function OrdersScreen() {
 
   const handleCallCustomer = (phone: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    if (phone) {
-      Alert.alert('Chiama Cliente', `Vuoi chiamare ${phone}?`);
+    if (phone && phone !== 'N/A') {
+      Alert.alert(
+        'Chiama Cliente',
+        `Vuoi chiamare ${phone}?`,
+        [
+          { text: 'Annulla', style: 'cancel' },
+          {
+            text: 'Chiama',
+            onPress: () => {
+              Linking.openURL(`tel:${phone}`).catch(err => {
+                console.error('Error opening phone dialer:', err);
+                Alert.alert('Errore', 'Impossibile aprire il dialer telefonico');
+              });
+            },
+          },
+        ]
+      );
     } else {
       Alert.alert('Errore', 'Numero di telefono non disponibile');
     }
+  };
+
+  const handleNotifyCustomer = async (order: Order) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    
+    if (!order.order_items || order.order_items.length === 0) {
+      Alert.alert('Errore', 'Nessun cliente da notificare per questo ordine');
+      return;
+    }
+    
+    Alert.alert(
+      'Notifica Cliente',
+      `Vuoi inviare una notifica al cliente per ricordargli di ritirare l'ordine ${order.order_number}?`,
+      [
+        { text: 'Annulla', style: 'cancel' },
+        {
+          text: 'Invia',
+          onPress: async () => {
+            try {
+              const userIds = [...new Set(order.order_items.map(item => item.user_id).filter(Boolean))];
+              
+              for (const userId of userIds) {
+                await supabase
+                  .from('notifications')
+                  .insert({
+                    user_id: userId,
+                    title: 'Promemoria Ritiro Ordine',
+                    message: `Ti ricordiamo che il tuo ordine ${order.order_number} è pronto per il ritiro. Passa a ritirarlo quando puoi!`,
+                    type: 'order_ready',
+                    related_id: order.id,
+                    related_type: 'order',
+                    read: false,
+                  });
+              }
+              
+              Alert.alert('Successo', 'Notifica inviata al cliente');
+            } catch (error: any) {
+              console.error('Error sending notification:', error);
+              Alert.alert('Errore', 'Impossibile inviare la notifica');
+            }
+          },
+        },
+      ]
+    );
   };
 
   const formatDate = (dateString?: string) => {
@@ -393,8 +506,8 @@ export default function OrdersScreen() {
   };
 
   const renderOrder = (order: Order) => {
-    const customerName = order.profiles?.full_name || 'Cliente';
-    const customerPhone = order.profiles?.phone || 'N/A';
+    const customerName = order.customer_name || 'Cliente';
+    const customerPhone = order.customer_phone || 'N/A';
     const daysInStorage = calculateDaysInStorage(order.arrived_at);
     const hasItems = order.order_items && order.order_items.length > 0;
 
@@ -466,7 +579,7 @@ export default function OrdersScreen() {
             ))
           ) : (
             <Text style={styles.productItemEmpty}>
-              Nessun prodotto (ordine potrebbe essere stato creato prima della configurazione Stripe)
+              Nessun prodotto in questo ordine
             </Text>
           )}
         </View>
@@ -506,33 +619,53 @@ export default function OrdersScreen() {
         )}
 
         {/* Actions */}
-        {order.status === 'arrived' && (
-          <Pressable
-            style={styles.actionButton}
-            onPress={() => handleMarkAsArrived(order)}
-          >
-            <IconSymbol 
-              ios_icon_name="bell.badge.fill" 
-              android_material_icon_name="notifications_active"
-              size={20} 
-              color={colors.background} 
-            />
-            <Text style={styles.actionButtonText}>Notifica Cliente</Text>
-          </Pressable>
-        )}
-        {order.status === 'ready_for_pickup' && (
-          <Pressable
-            style={styles.actionButton}
-            onPress={() => handleMarkAsPickedUp(order)}
-          >
-            <IconSymbol 
-              ios_icon_name="checkmark.circle.fill" 
-              android_material_icon_name="check_circle"
-              size={20} 
-              color={colors.background} 
-            />
-            <Text style={styles.actionButtonText}>Segna come Ritirato</Text>
-          </Pressable>
+        {hasItems && (
+          <>
+            {order.status === 'arrived' && (
+              <Pressable
+                style={styles.actionButton}
+                onPress={() => handleMarkAsArrived(order)}
+              >
+                <IconSymbol 
+                  ios_icon_name="bell.badge.fill" 
+                  android_material_icon_name="notifications_active"
+                  size={20} 
+                  color={colors.background} 
+                />
+                <Text style={styles.actionButtonText}>Notifica Cliente</Text>
+              </Pressable>
+            )}
+            {order.status === 'ready_for_pickup' && (
+              <>
+                <Pressable
+                  style={styles.actionButton}
+                  onPress={() => handleMarkAsPickedUp(order)}
+                >
+                  <IconSymbol 
+                    ios_icon_name="checkmark.circle.fill" 
+                    android_material_icon_name="check_circle"
+                    size={20} 
+                    color={colors.background} 
+                  />
+                  <Text style={styles.actionButtonText}>Segna come Ritirato</Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.actionButton, styles.secondaryActionButton]}
+                  onPress={() => handleNotifyCustomer(order)}
+                >
+                  <IconSymbol 
+                    ios_icon_name="bell.fill" 
+                    android_material_icon_name="notifications"
+                    size={20} 
+                    color={colors.text} 
+                  />
+                  <Text style={[styles.actionButtonText, styles.secondaryActionButtonText]}>
+                    Invia Promemoria
+                  </Text>
+                </Pressable>
+              </>
+            )}
+          </>
         )}
       </View>
     );
@@ -850,6 +983,14 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     color: colors.background,
+  },
+  secondaryActionButton: {
+    backgroundColor: colors.backgroundSecondary,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  secondaryActionButtonText: {
+    color: colors.text,
   },
   emptyState: {
     alignItems: 'center',

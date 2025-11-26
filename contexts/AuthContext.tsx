@@ -359,11 +359,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = async () => {
     try {
-      console.log('AuthProvider: Logging out user');
+      console.log('AuthProvider: Starting logout process');
+      
+      // Store current user info for logging before clearing
+      const currentUser = user;
       console.log('AuthProvider: Current user before logout:', {
-        id: user?.id,
-        role: user?.role,
-        pickupPointId: user?.pickupPointId,
+        id: currentUser?.id,
+        role: currentUser?.role,
+        pickupPointId: currentUser?.pickupPointId,
       });
       
       // Clear user state immediately to prevent navigation issues
@@ -371,8 +374,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(null);
       setLoading(false);
       
+      console.log('AuthProvider: User state cleared, signing out from Supabase...');
+      
       // Then sign out from Supabase
-      await supabase.auth.signOut();
+      const { error } = await supabase.auth.signOut();
+      
+      if (error) {
+        console.error('AuthProvider: Supabase signOut error:', error);
+        // Don't throw - we've already cleared the local state
+      } else {
+        console.log('AuthProvider: Supabase signOut successful');
+      }
       
       console.log('AuthProvider: Logout complete');
     } catch (error) {
