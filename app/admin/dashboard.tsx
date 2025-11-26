@@ -49,6 +49,7 @@ export default function AdminDashboardScreen() {
   const loadStats = async () => {
     try {
       setLoading(true);
+      console.log('Admin Dashboard: Loading stats...');
 
       // Load all stats in parallel
       const [
@@ -66,6 +67,14 @@ export default function AdminDashboardScreen() {
         supabase.from('drops').select('*', { count: 'exact', head: true }).eq('status', 'completed'),
         supabase.from('bookings').select('final_price').eq('payment_status', 'captured'),
       ]);
+
+      // Log any errors
+      if (usersResult.error) console.error('Error loading users count:', usersResult.error);
+      if (suppliersResult.error) console.error('Error loading suppliers count:', suppliersResult.error);
+      if (pickupPointsResult.error) console.error('Error loading pickup points count:', pickupPointsResult.error);
+      if (activeDropsResult.error) console.error('Error loading active drops count:', activeDropsResult.error);
+      if (completedDropsResult.error) console.error('Error loading completed drops count:', completedDropsResult.error);
+      if (bookingsResult.error) console.error('Error loading bookings:', bookingsResult.error);
 
       const totalRevenue = bookingsResult.data?.reduce((sum, b) => sum + (b.final_price || 0), 0) || 0;
 
