@@ -378,7 +378,7 @@ export default function LoginScreen() {
                 )}
               </Pressable>
 
-              {/* Support Button - Fixed to check for empty string */}
+              {/* Support Button */}
               <Pressable
                 style={({ pressed }) => [
                   styles.supportButton,
