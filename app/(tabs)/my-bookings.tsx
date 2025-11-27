@@ -34,7 +34,7 @@ interface Booking {
   products: {
     name: string;
     image_url: string;
-  };
+  } | null;
   drops: {
     name: string;
     current_discount: number;
@@ -43,8 +43,8 @@ interface Booking {
     supplier_lists: {
       name: string;
       max_discount: number;
-    };
-  };
+    } | null;
+  } | null;
 }
 
 export default function MyBookingsScreen() {
@@ -217,6 +217,8 @@ export default function MyBookingsScreen() {
   };
 
   const getDropStatusMessage = (drop: any) => {
+    if (!drop) return null;
+    
     if (drop.status === 'underfunded') {
       return {
         text: '⚠️ Drop non finanziato - Fondi rilasciati',
@@ -271,7 +273,7 @@ export default function MyBookingsScreen() {
           <IconSymbol ios_icon_name="person.crop.circle.badge.exclamationmark" android_material_icon_name="account_circle" size={64} color={colors.textSecondary} />
           <Text style={styles.emptyTitle}>Accesso richiesto</Text>
           <Text style={styles.emptyText}>
-            Effettua l'accesso per visualizzare le tue prenotazioni
+            Effettua l&apos;accesso per visualizzare le tue prenotazioni
           </Text>
         </View>
       </SafeAreaView>
@@ -312,17 +314,25 @@ export default function MyBookingsScreen() {
             const dropStatusMessage = getDropStatusMessage(booking.drops);
             const canCancel = booking.status === 'active' && booking.payment_status === 'authorized';
             const isRefunded = booking.payment_status === 'refunded';
+            
+            // Safe access to nested properties with null checks
+            const productName = booking.products?.name || 'Prodotto';
+            const dropName = booking.drops?.name || 'Drop';
+            const supplierName = booking.drops?.supplier_lists?.name || 'Fornitore';
+            const currentDiscount = booking.drops?.current_discount || 0;
+            const maxDiscount = booking.drops?.supplier_lists?.max_discount || 100;
+            const dropStatus = booking.drops?.status || 'unknown';
 
             return (
               <View key={booking.id} style={styles.bookingCard}>
                 <View style={styles.bookingHeader}>
                   <View style={styles.bookingInfo}>
-                    <Text style={styles.productName}>{booking.products.name}</Text>
+                    <Text style={styles.productName}>{productName}</Text>
                     <Text style={styles.dropName}>
-                      Drop: {booking.drops.name}
+                      Drop: {dropName}
                     </Text>
                     <Text style={styles.supplierName}>
-                      {booking.drops.supplier_lists.name}
+                      {supplierName}
                     </Text>
                   </View>
                   <View style={styles.statusBadges}>
@@ -374,17 +384,17 @@ export default function MyBookingsScreen() {
                   )}
                 </View>
 
-                {booking.drops.status === 'active' && (
+                {dropStatus === 'active' && (
                   <View style={styles.discountProgress}>
                     <Text style={styles.discountProgressLabel}>
-                      Sconto attuale: {booking.drops.current_discount.toFixed(1)}% 
-                      {' '}(max {booking.drops.supplier_lists.max_discount}%)
+                      Sconto attuale: {currentDiscount.toFixed(1)}% 
+                      {' '}(max {maxDiscount}%)
                     </Text>
                     <View style={styles.progressBar}>
                       <View 
                         style={[
                           styles.progressFill, 
-                          { width: `${(booking.drops.current_discount / booking.drops.supplier_lists.max_discount) * 100}%` }
+                          { width: `${(currentDiscount / maxDiscount) * 100}%` }
                         ]} 
                       />
                     </View>
@@ -402,7 +412,7 @@ export default function MyBookingsScreen() {
                     ]}
                     onPress={() => {
                       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                      handleCancelBooking(booking.id, booking.products.name);
+                      handleCancelBooking(booking.id, productName);
                     }}
                   >
                     <IconSymbol

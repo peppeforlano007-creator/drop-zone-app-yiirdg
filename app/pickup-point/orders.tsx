@@ -46,6 +46,10 @@ interface Order {
   arrived_at?: string;
   completed_at?: string;
   order_items: OrderItem[];
+  drops?: {
+    status: string;
+    completed_at?: string;
+  };
 }
 
 export default function OrdersScreen() {
@@ -73,9 +77,8 @@ export default function OrdersScreen() {
     try {
       console.log('Loading orders for pickup point:', user.pickupPointId);
 
-      // Load active orders - orders that are NOT completed or cancelled
-      // AND have at least one item that hasn't been picked up or returned
-      const { data: activeData, error: activeError } = await supabase
+      // Load ALL orders for this pickup point with drop info
+      const { data: allOrders, error: ordersError } = await supabase
         .from('orders')
         .select(`
           id,
@@ -86,6 +89,10 @@ export default function OrdersScreen() {
           shipped_at,
           arrived_at,
           completed_at,
+          drops (
+            status,
+            completed_at
+          ),
           order_items (
             id,
             product_name,
@@ -100,195 +107,119 @@ export default function OrdersScreen() {
           )
         `)
         .eq('pickup_point_id', user.pickupPointId)
-        .not('status', 'in', '(completed,cancelled)')
         .order('created_at', { ascending: false });
 
-      if (activeError) {
-        console.error('Error loading active orders:', activeError);
-        Alert.alert('Errore', `Impossibile caricare gli ordini attivi: ${activeError.message}`);
-      } else {
-        console.log('Active orders loaded (before filtering):', activeData?.length || 0);
+      if (ordersError) {
+        console.error('Error loading orders:', ordersError);
+        Alert.alert('Errore', `Impossibile caricare gli ordini: ${ordersError.message}`);
+        setLoading(false);
+        setRefreshing(false);
+        return;
+      }
+
+      console.log('Orders loaded:', allOrders?.length || 0);
+
+      // Separate orders into active and completed based on:
+      // - Drop status (if drop is completed, order should be manageable)
+      // - Order status (completed/cancelled orders go to completed tab)
+      // - Item status (if all items are picked up or returned, order is completed)
+      
+      const active: Order[] = [];
+      const completed: Order[] = [];
+
+      for (const order of allOrders || []) {
+        const items = order.order_items || [];
         
-        // Filter out orders where ALL items are picked up or returned
-        const filteredActiveOrders = (activeData || []).filter(order => {
-          const items = order.order_items || [];
-          if (items.length === 0) return false;
+        // Check if all items are handled (picked up or returned)
+        const allItemsHandled = items.length > 0 && items.every(item => 
+          item.pickup_status === 'picked_up' || item.returned_to_sender === true
+        );
+
+        // Order is completed if:
+        // 1. Order status is 'completed' or 'cancelled', OR
+        // 2. All items are picked up or returned
+        const isCompleted = 
+          order.status === 'completed' || 
+          order.status === 'cancelled' ||
+          allItemsHandled;
+
+        // Fetch customer data for each order item
+        const userIds = [...new Set(items.map((item: any) => item.user_id).filter(Boolean))];
+        
+        let profileMap = new Map();
+        if (userIds.length > 0) {
+          const { data: profiles, error: profilesError } = await supabase
+            .from('profiles')
+            .select('user_id, full_name, phone, email')
+            .in('user_id', userIds);
           
-          // Check if there's at least one item that is NOT picked up AND NOT returned
+          if (profilesError) {
+            console.warn('Error loading customer profiles:', profilesError);
+          } else if (profiles) {
+            profiles.forEach(profile => {
+              profileMap.set(profile.user_id, profile);
+            });
+          }
+        }
+        
+        // Enrich order items with customer data
+        const itemsWithCustomers = items.map((item: any) => {
+          if (!item.user_id) {
+            return {
+              ...item,
+              customer_name: 'N/A',
+              customer_phone: 'N/A',
+              customer_email: 'N/A',
+            };
+          }
+          
+          const profile = profileMap.get(item.user_id);
+          
+          if (!profile) {
+            console.warn(`Profile not found for user ${item.user_id}`);
+            return {
+              ...item,
+              customer_name: 'Cliente',
+              customer_phone: 'N/A',
+              customer_email: 'N/A',
+            };
+          }
+          
+          return {
+            ...item,
+            customer_name: profile.full_name || profile.email || 'Cliente',
+            customer_phone: profile.phone || 'N/A',
+            customer_email: profile.email || 'N/A',
+          };
+        });
+        
+        const enrichedOrder = {
+          ...order,
+          order_items: itemsWithCustomers,
+        };
+
+        if (isCompleted) {
+          completed.push(enrichedOrder);
+        } else {
+          // Only show in active if there are items that need handling
           const hasActiveItems = items.some(item => 
             item.pickup_status !== 'picked_up' && !item.returned_to_sender
           );
           
-          return hasActiveItems;
-        });
-        
-        console.log('Active orders after filtering:', filteredActiveOrders.length);
-        
-        // Fetch customer data for each order item
-        const ordersWithCustomers = await Promise.all(
-          filteredActiveOrders.map(async (order) => {
-            // Get unique user IDs from order items
-            const userIds = [...new Set(order.order_items?.map((item: any) => item.user_id).filter(Boolean))];
-            
-            // Fetch all customer profiles in one query
-            const { data: profiles, error: profilesError } = await supabase
-              .from('profiles')
-              .select('user_id, full_name, phone, email')
-              .in('user_id', userIds);
-            
-            if (profilesError) {
-              console.warn('Error loading customer profiles:', profilesError);
-            }
-            
-            // Create a map of user_id to profile data
-            const profileMap = new Map();
-            if (profiles) {
-              profiles.forEach(profile => {
-                profileMap.set(profile.user_id, profile);
-              });
-            }
-            
-            // Enrich order items with customer data
-            const itemsWithCustomers = (order.order_items || []).map((item: any) => {
-              if (!item.user_id) {
-                return {
-                  ...item,
-                  customer_name: 'N/A',
-                  customer_phone: 'N/A',
-                  customer_email: 'N/A',
-                };
-              }
-              
-              const profile = profileMap.get(item.user_id);
-              
-              if (!profile) {
-                console.warn(`Profile not found for user ${item.user_id}`);
-                return {
-                  ...item,
-                  customer_name: 'Cliente',
-                  customer_phone: 'N/A',
-                  customer_email: 'N/A',
-                };
-              }
-              
-              return {
-                ...item,
-                customer_name: profile.full_name || profile.email || 'Cliente',
-                customer_phone: profile.phone || 'N/A',
-                customer_email: profile.email || 'N/A',
-              };
-            });
-            
-            return {
-              ...order,
-              order_items: itemsWithCustomers,
-            };
-          })
-        );
-        
-        setActiveOrders(ordersWithCustomers);
+          if (hasActiveItems) {
+            active.push(enrichedOrder);
+          } else if (items.length === 0) {
+            // Empty orders go to completed
+            completed.push(enrichedOrder);
+          }
+        }
       }
 
-      // Load completed orders - orders with status 'completed' or 'cancelled'
-      const { data: completedData, error: completedError } = await supabase
-        .from('orders')
-        .select(`
-          id,
-          order_number,
-          status,
-          total_value,
-          created_at,
-          shipped_at,
-          arrived_at,
-          completed_at,
-          order_items (
-            id,
-            product_name,
-            selected_size,
-            selected_color,
-            final_price,
-            pickup_status,
-            picked_up_at,
-            user_id,
-            returned_to_sender,
-            returned_at
-          )
-        `)
-        .eq('pickup_point_id', user.pickupPointId)
-        .in('status', ['completed', 'cancelled'])
-        .order('completed_at', { ascending: false })
-        .limit(20);
-
-      if (completedError) {
-        console.error('Error loading completed orders:', completedError);
-        Alert.alert('Errore', `Impossibile caricare gli ordini completati: ${completedError.message}`);
-      } else {
-        console.log('Completed orders loaded:', completedData?.length || 0);
-        
-        // Fetch customer data for each order item
-        const ordersWithCustomers = await Promise.all(
-          (completedData || []).map(async (order) => {
-            // Get unique user IDs from order items
-            const userIds = [...new Set(order.order_items?.map((item: any) => item.user_id).filter(Boolean))];
-            
-            // Fetch all customer profiles in one query
-            const { data: profiles, error: profilesError } = await supabase
-              .from('profiles')
-              .select('user_id, full_name, phone, email')
-              .in('user_id', userIds);
-            
-            if (profilesError) {
-              console.warn('Error loading customer profiles:', profilesError);
-            }
-            
-            // Create a map of user_id to profile data
-            const profileMap = new Map();
-            if (profiles) {
-              profiles.forEach(profile => {
-                profileMap.set(profile.user_id, profile);
-              });
-            }
-            
-            // Enrich order items with customer data
-            const itemsWithCustomers = (order.order_items || []).map((item: any) => {
-              if (!item.user_id) {
-                return {
-                  ...item,
-                  customer_name: 'N/A',
-                  customer_phone: 'N/A',
-                  customer_email: 'N/A',
-                };
-              }
-              
-              const profile = profileMap.get(item.user_id);
-              
-              if (!profile) {
-                console.warn(`Profile not found for user ${item.user_id}`);
-                return {
-                  ...item,
-                  customer_name: 'Cliente',
-                  customer_phone: 'N/A',
-                  customer_email: 'N/A',
-                };
-              }
-              
-              return {
-                ...item,
-                customer_name: profile.full_name || profile.email || 'Cliente',
-                customer_phone: profile.phone || 'N/A',
-                customer_email: profile.email || 'N/A',
-              };
-            });
-            
-            return {
-              ...order,
-              order_items: itemsWithCustomers,
-            };
-          })
-        );
-        
-        setCompletedOrders(ordersWithCustomers);
-      }
+      console.log('Active orders:', active.length);
+      console.log('Completed orders:', completed.length);
+      
+      setActiveOrders(active);
+      setCompletedOrders(completed);
     } catch (error: any) {
       console.error('Error loading orders:', error);
       Alert.alert('Errore', `Si è verificato un errore: ${error.message}`);
@@ -806,8 +737,8 @@ export default function OrdersScreen() {
                       )}
                     </View>
 
-                    {/* Item Actions */}
-                    {(item.pickup_status === 'ready' || selectedOrder.status === 'ready_for_pickup') && !item.picked_up_at && !item.returned_to_sender && (
+                    {/* Item Actions - Show for ready items or if order is ready_for_pickup */}
+                    {(item.pickup_status === 'ready' || selectedOrder.status === 'ready_for_pickup' || selectedOrder.status === 'arrived') && !item.picked_up_at && !item.returned_to_sender && (
                       <View style={styles.itemActions}>
                         <Pressable
                           style={styles.itemActionButton}
@@ -819,7 +750,7 @@ export default function OrdersScreen() {
                             size={18} 
                             color={colors.background} 
                           />
-                          <Text style={styles.itemActionButtonText}>Ritirato</Text>
+                          <Text style={styles.itemActionButtonText}>Consegnato</Text>
                         </Pressable>
                         <Pressable
                           style={[styles.itemActionButton, styles.secondaryItemActionButton]}

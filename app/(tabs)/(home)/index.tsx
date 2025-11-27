@@ -10,6 +10,7 @@ import { IconSymbol } from '@/components/IconSymbol';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/app/integrations/supabase/client';
 import * as Haptics from 'expo-haptics';
+import FeedWelcomeModal from '@/components/FeedWelcomeModal';
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -24,6 +25,8 @@ interface ProductList {
   maxReservationValue: number;
 }
 
+const WELCOME_MODAL_KEY = 'feed_welcome_modal_shown';
+
 export default function HomeScreen() {
   const { logout, user } = useAuth();
   const [interestedProducts, setInterestedProducts] = useState<Set<string>>(new Set());
@@ -35,10 +38,40 @@ export default function HomeScreen() {
   const [bannerDismissed, setBannerDismissed] = useState<Record<string, boolean>>({});
   const [processingInterests, setProcessingInterests] = useState<Set<string>>(new Set());
   const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const [showWelcomeModal, setShowWelcomeModal] = useState(false);
   const listFlatListRef = useRef<FlatList>(null);
   const productFlatListRef = useRef<FlatList>(null);
   const progressAnim = useRef(new Animated.Value(0)).current;
   const bannerOpacity = useRef(new Animated.Value(0)).current;
+
+  // Check if welcome modal should be shown
+  useEffect(() => {
+    const checkWelcomeModal = async () => {
+      try {
+        const hasShown = await AsyncStorage.getItem(WELCOME_MODAL_KEY);
+        if (!hasShown) {
+          // Show modal after a short delay for better UX
+          setTimeout(() => {
+            setShowWelcomeModal(true);
+          }, 1000);
+        }
+      } catch (error) {
+        console.error('Error checking welcome modal state:', error);
+      }
+    };
+
+    checkWelcomeModal();
+  }, []);
+
+  const handleCloseWelcomeModal = async () => {
+    try {
+      await AsyncStorage.setItem(WELCOME_MODAL_KEY, 'true');
+      setShowWelcomeModal(false);
+    } catch (error) {
+      console.error('Error saving welcome modal state:', error);
+      setShowWelcomeModal(false);
+    }
+  };
 
   const loadProducts = useCallback(async () => {
     try {
@@ -1110,6 +1143,12 @@ export default function HomeScreen() {
             </View>
           </Animated.View>
         )}
+
+        {/* Welcome Modal */}
+        <FeedWelcomeModal
+          visible={showWelcomeModal}
+          onClose={handleCloseWelcomeModal}
+        />
       </View>
     </>
   );
