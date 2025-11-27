@@ -73,7 +73,8 @@ export default function OrdersScreen() {
     try {
       console.log('Loading orders for pickup point:', user.pickupPointId);
 
-      // Load active orders (not completed or cancelled)
+      // Load active orders - orders that are NOT completed or cancelled
+      // AND have at least one item that hasn't been picked up or returned
       const { data: activeData, error: activeError } = await supabase
         .from('orders')
         .select(`
@@ -99,18 +100,33 @@ export default function OrdersScreen() {
           )
         `)
         .eq('pickup_point_id', user.pickupPointId)
-        .in('status', ['pending', 'confirmed', 'in_transit', 'arrived', 'ready_for_pickup'])
+        .not('status', 'in', '(completed,cancelled)')
         .order('created_at', { ascending: false });
 
       if (activeError) {
         console.error('Error loading active orders:', activeError);
         Alert.alert('Errore', `Impossibile caricare gli ordini attivi: ${activeError.message}`);
       } else {
-        console.log('Active orders loaded:', activeData?.length || 0);
+        console.log('Active orders loaded (before filtering):', activeData?.length || 0);
+        
+        // Filter out orders where ALL items are picked up or returned
+        const filteredActiveOrders = (activeData || []).filter(order => {
+          const items = order.order_items || [];
+          if (items.length === 0) return false;
+          
+          // Check if there's at least one item that is NOT picked up AND NOT returned
+          const hasActiveItems = items.some(item => 
+            item.pickup_status !== 'picked_up' && !item.returned_to_sender
+          );
+          
+          return hasActiveItems;
+        });
+        
+        console.log('Active orders after filtering:', filteredActiveOrders.length);
         
         // Fetch customer data for each order item
         const ordersWithCustomers = await Promise.all(
-          (activeData || []).map(async (order) => {
+          filteredActiveOrders.map(async (order) => {
             // Get unique user IDs from order items
             const userIds = [...new Set(order.order_items?.map((item: any) => item.user_id).filter(Boolean))];
             
@@ -173,7 +189,7 @@ export default function OrdersScreen() {
         setActiveOrders(ordersWithCustomers);
       }
 
-      // Load completed orders
+      // Load completed orders - orders with status 'completed' or 'cancelled'
       const { data: completedData, error: completedError } = await supabase
         .from('orders')
         .select(`
