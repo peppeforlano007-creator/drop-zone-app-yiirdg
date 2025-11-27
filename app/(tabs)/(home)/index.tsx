@@ -73,6 +73,11 @@ export default function HomeScreen() {
     }
   };
 
+  const handleOpenWelcomeModal = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setShowWelcomeModal(true);
+  };
+
   const loadProducts = useCallback(async () => {
     try {
       console.log('=== LOADING PRODUCTS ===');
@@ -1036,6 +1041,18 @@ export default function HomeScreen() {
             </View>
           )}
         </Pressable>
+
+        {/* Help Button - Question Mark Icon */}
+        <Pressable onPress={handleOpenWelcomeModal} style={styles.helpButton}>
+          <View style={styles.helpButtonCircle}>
+            <IconSymbol 
+              ios_icon_name="questionmark.circle.fill" 
+              android_material_icon_name="help" 
+              size={28} 
+              color="#3B82F6" 
+            />
+          </View>
+        </Pressable>
         
         {/* TikTok-style Right Side Icons */}
         <View style={styles.rightSideIcons}>
@@ -1305,6 +1322,27 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '700',
     color: '#FFF',
+  },
+  // Help Button - Question Mark
+  helpButton: {
+    position: 'absolute',
+    top: Platform.OS === 'android' ? 48 : 60,
+    left: '50%',
+    marginLeft: -20,
+    zIndex: 100,
+  },
+  helpButtonCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
   },
   // TikTok-style Right Side Icons
   rightSideIcons: {

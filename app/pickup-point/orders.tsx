@@ -119,11 +119,7 @@ export default function OrdersScreen() {
 
       console.log('Orders loaded:', allOrders?.length || 0);
 
-      // Separate orders into active and completed based on:
-      // - Drop status (if drop is completed, order should be manageable)
-      // - Order status (completed/cancelled orders go to completed tab)
-      // - Item status (if all items are picked up or returned, order is completed)
-      
+      // Separate orders into active and completed
       const active: Order[] = [];
       const completed: Order[] = [];
 

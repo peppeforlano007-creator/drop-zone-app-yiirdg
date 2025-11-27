@@ -315,13 +315,19 @@ export default function MyBookingsScreen() {
             const canCancel = booking.status === 'active' && booking.payment_status === 'authorized';
             const isRefunded = booking.payment_status === 'refunded';
             
-            // Safe access to nested properties with null checks
+            // Safe access to nested properties with null checks and fallbacks
             const productName = booking.products?.name || 'Prodotto';
             const dropName = booking.drops?.name || 'Drop';
             const supplierName = booking.drops?.supplier_lists?.name || 'Fornitore';
-            const currentDiscount = booking.drops?.current_discount || 0;
-            const maxDiscount = booking.drops?.supplier_lists?.max_discount || 100;
+            const currentDiscount = booking.drops?.current_discount ?? 0;
+            const maxDiscount = booking.drops?.supplier_lists?.max_discount ?? 100;
             const dropStatus = booking.drops?.status || 'unknown';
+            
+            // Safe number handling with fallbacks
+            const originalPrice = typeof booking.original_price === 'number' ? booking.original_price : 0;
+            const authorizedAmount = typeof booking.authorized_amount === 'number' ? booking.authorized_amount : 0;
+            const discountPercentage = typeof booking.discount_percentage === 'number' ? booking.discount_percentage : 0;
+            const finalPrice = typeof booking.final_price === 'number' ? booking.final_price : 0;
 
             return (
               <View key={booking.id} style={styles.bookingCard}>
@@ -363,23 +369,23 @@ export default function MyBookingsScreen() {
                 <View style={styles.priceInfo}>
                   <View style={styles.priceRow}>
                     <Text style={styles.priceLabel}>Prezzo originale:</Text>
-                    <Text style={styles.priceValue}>€{booking.original_price.toFixed(2)}</Text>
+                    <Text style={styles.priceValue}>€{originalPrice.toFixed(2)}</Text>
                   </View>
                   <View style={styles.priceRow}>
                     <Text style={styles.priceLabel}>Sconto prenotazione:</Text>
-                    <Text style={styles.discountValue}>{booking.discount_percentage.toFixed(1)}%</Text>
+                    <Text style={styles.discountValue}>{discountPercentage.toFixed(1)}%</Text>
                   </View>
                   <View style={styles.priceRow}>
                     <Text style={styles.priceLabel}>Importo bloccato:</Text>
                     <Text style={[styles.priceValue, isRefunded && styles.refundedAmount]}>
-                      €{booking.authorized_amount.toFixed(2)}
+                      €{authorizedAmount.toFixed(2)}
                       {isRefunded && ' (Rilasciato)'}
                     </Text>
                   </View>
-                  {booking.final_price > 0 && (
+                  {finalPrice > 0 && (
                     <View style={[styles.priceRow, styles.finalPriceRow]}>
                       <Text style={styles.finalPriceLabel}>Importo finale:</Text>
-                      <Text style={styles.finalPriceValue}>€{booking.final_price.toFixed(2)}</Text>
+                      <Text style={styles.finalPriceValue}>€{finalPrice.toFixed(2)}</Text>
                     </View>
                   )}
                 </View>

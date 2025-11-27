@@ -68,7 +68,7 @@ export default function FeedWelcomeModal({ visible, onClose }: FeedWelcomeModalP
     >
       <View style={styles.overlay}>
         <LinearGradient
-          colors={['rgba(139, 69, 255, 0.95)', 'rgba(255, 107, 107, 0.95)', 'rgba(255, 193, 7, 0.95)']}
+          colors={['rgba(59, 130, 246, 0.95)', 'rgba(255, 149, 0, 0.95)', 'rgba(236, 72, 153, 0.95)']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={styles.gradientBackground}
@@ -125,7 +125,7 @@ export default function FeedWelcomeModal({ visible, onClose }: FeedWelcomeModalP
                       ios_icon_name="hand.tap.fill"
                       android_material_icon_name="touch_app"
                       size={24}
-                      color="#FFD700"
+                      color="#3B82F6"
                     />
                   </View>
                   <Text style={styles.featureText}>
@@ -139,7 +139,7 @@ export default function FeedWelcomeModal({ visible, onClose }: FeedWelcomeModalP
                       ios_icon_name="person.3.fill"
                       android_material_icon_name="groups"
                       size={24}
-                      color="#FFD700"
+                      color="#FF9500"
                     />
                   </View>
                   <Text style={styles.featureText}>
@@ -153,7 +153,7 @@ export default function FeedWelcomeModal({ visible, onClose }: FeedWelcomeModalP
                       ios_icon_name="bolt.fill"
                       android_material_icon_name="flash_on"
                       size={24}
-                      color="#FFD700"
+                      color="#EC4899"
                     />
                   </View>
                   <Text style={styles.featureText}>
@@ -167,7 +167,7 @@ export default function FeedWelcomeModal({ visible, onClose }: FeedWelcomeModalP
                       ios_icon_name="tag.fill"
                       android_material_icon_name="local_offer"
                       size={24}
-                      color="#FFD700"
+                      color="#000000"
                     />
                   </View>
                   <Text style={styles.featureText}>
@@ -244,16 +244,16 @@ const styles = StyleSheet.create({
     width: 120,
     height: 120,
     borderRadius: 60,
-    backgroundColor: 'rgba(139, 69, 255, 0.2)',
+    backgroundColor: 'rgba(59, 130, 246, 0.2)',
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 3,
-    borderColor: 'rgba(139, 69, 255, 0.4)',
+    borderColor: 'rgba(59, 130, 246, 0.4)',
   },
   title: {
     fontSize: 28,
     fontWeight: '800',
-    color: '#1A1A1A',
+    color: '#000000',
     textAlign: 'center',
     marginBottom: 24,
     letterSpacing: 0.5,
@@ -272,7 +272,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: 'rgba(139, 69, 255, 0.15)',
+    backgroundColor: 'rgba(59, 130, 246, 0.15)',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
@@ -282,7 +282,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 15,
     lineHeight: 22,
-    color: '#333',
+    color: '#333333',
     fontWeight: '500',
   },
   ctaContainer: {
@@ -291,12 +291,12 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   discountBadge: {
-    backgroundColor: '#FF6B6B',
+    backgroundColor: '#FF9500',
     paddingVertical: 16,
     paddingHorizontal: 32,
     borderRadius: 16,
     alignItems: 'center',
-    shadowColor: '#FF6B6B',
+    shadowColor: '#FF9500',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.4,
     shadowRadius: 8,
@@ -317,7 +317,7 @@ const styles = StyleSheet.create({
   },
   bottomText: {
     fontSize: 14,
-    color: '#666',
+    color: '#4B5563',
     textAlign: 'center',
     lineHeight: 20,
     fontWeight: '500',
