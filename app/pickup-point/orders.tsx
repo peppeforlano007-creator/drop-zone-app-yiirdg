@@ -368,13 +368,12 @@ export default function OrdersScreen() {
     );
   };
 
-  const handleMarkItemAsDelivered = async (order: Order, item: OrderItem) => {
+  const handleMarkOrderAsDelivered = async (order: Order) => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    const customerName = item.customer_name || 'il cliente';
     
     Alert.alert(
-      'Articolo Consegnato',
-      `Confermi che ${customerName} ha ritirato "${item.product_name}"?`,
+      'Ordine Consegnato',
+      `Confermi che l'intero ordine ${order.order_number} è stato consegnato ai clienti?`,
       [
         { text: 'Annulla', style: 'cancel' },
         {
@@ -383,80 +382,74 @@ export default function OrdersScreen() {
             try {
               const now = new Date().toISOString();
               
-              // Update order item to picked_up
-              const { error: itemError } = await supabase
+              // Get all items that haven't been picked up yet
+              const itemsToUpdate = order.order_items.filter(
+                item => !item.picked_up_at && !item.returned_to_sender
+              );
+
+              if (itemsToUpdate.length === 0) {
+                Alert.alert('Info', 'Tutti gli articoli sono già stati gestiti.');
+                return;
+              }
+
+              // Update all order items to picked_up
+              const { error: itemsError } = await supabase
                 .from('order_items')
                 .update({
                   pickup_status: 'picked_up',
                   picked_up_at: now,
                 })
-                .eq('id', item.id);
+                .in('id', itemsToUpdate.map(item => item.id));
 
-              if (itemError) {
-                console.error('Error updating order item:', itemError);
-                Alert.alert('Errore', 'Impossibile aggiornare lo stato dell\'articolo');
+              if (itemsError) {
+                console.error('Error updating order items:', itemsError);
+                Alert.alert('Errore', 'Impossibile aggiornare gli articoli dell\'ordine');
                 return;
               }
 
-              // Call function to handle pickup (update rating and loyalty points)
-              const { error: functionError } = await supabase.rpc('handle_order_pickup', {
-                p_user_id: item.user_id,
-              });
-
-              if (functionError) {
-                console.error('Error calling handle_order_pickup:', functionError);
-              }
-
-              // Send notification to customer
-              await supabase
-                .from('notifications')
-                .insert({
-                  user_id: item.user_id,
-                  title: 'Articolo Consegnato',
-                  message: `L'articolo "${item.product_name}" dell'ordine ${order.order_number} è stato consegnato con successo. Grazie per aver utilizzato il nostro servizio!`,
-                  type: 'general',
-                  related_id: order.id,
-                  related_type: 'order',
-                  read: false,
+              // Call handle_order_pickup for each unique user
+              const uniqueUserIds = [...new Set(itemsToUpdate.map(item => item.user_id).filter(Boolean))];
+              
+              for (const userId of uniqueUserIds) {
+                const { error: functionError } = await supabase.rpc('handle_order_pickup', {
+                  p_user_id: userId,
                 });
 
-              // Check if all items in the order are picked up or returned
-              const { data: allItems, error: checkError } = await supabase
-                .from('order_items')
-                .select('pickup_status, returned_to_sender')
-                .eq('order_id', order.id);
-
-              if (checkError) {
-                console.error('Error checking order items:', checkError);
-              } else {
-                const allCompleted = allItems?.every(i => 
-                  i.pickup_status === 'picked_up' || i.returned_to_sender === true
-                );
-                
-                if (allCompleted) {
-                  // Mark entire order as completed
-                  await supabase
-                    .from('orders')
-                    .update({
-                      status: 'completed',
-                      completed_at: now,
-                      updated_at: now,
-                    })
-                    .eq('id', order.id);
-                  
-                  Alert.alert(
-                    'Ordine Completato', 
-                    `Tutti gli articoli sono stati gestiti. L'ordine è stato completato.`
-                  );
-                } else {
-                  Alert.alert('Successo', 'Articolo segnato come consegnato.');
+                if (functionError) {
+                  console.error('Error calling handle_order_pickup:', functionError);
                 }
               }
 
+              // Send notification to each customer
+              for (const userId of uniqueUserIds) {
+                await supabase
+                  .from('notifications')
+                  .insert({
+                    user_id: userId,
+                    title: 'Ordine Consegnato',
+                    message: `L'ordine ${order.order_number} è stato consegnato con successo. Grazie per aver utilizzato il nostro servizio!`,
+                    type: 'general',
+                    related_id: order.id,
+                    related_type: 'order',
+                    read: false,
+                  });
+              }
+
+              // Mark entire order as completed
+              await supabase
+                .from('orders')
+                .update({
+                  status: 'completed',
+                  completed_at: now,
+                  updated_at: now,
+                })
+                .eq('id', order.id);
+              
+              Alert.alert('Successo', 'L\'ordine è stato segnato come consegnato e completato.');
               loadOrders();
               setModalVisible(false);
             } catch (error: any) {
-              console.error('Error marking item as delivered:', error);
+              console.error('Error marking order as delivered:', error);
               Alert.alert('Errore', 'Si è verificato un errore');
             }
           },
@@ -465,12 +458,12 @@ export default function OrdersScreen() {
     );
   };
 
-  const handleMarkItemAsReturned = async (order: Order, item: OrderItem) => {
+  const handleMarkOrderAsReturned = async (order: Order) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     
     Alert.alert(
-      'Rispedisci al Fornitore',
-      `Vuoi segnare "${item.product_name}" come non ritirato e da rispedire al fornitore?\n\nQuesta azione ridurrà il rating del cliente e dopo 5 ordini non ritirati l'account verrà bloccato.`,
+      'Rispedisci Ordine al Fornitore',
+      `Vuoi segnare l'intero ordine ${order.order_number} come non ritirato e da rispedire al fornitore?\n\nQuesta azione ridurrà il rating di tutti i clienti coinvolti e dopo 5 ordini non ritirati gli account verranno bloccati.`,
       [
         { text: 'Annulla', style: 'cancel' },
         {
@@ -480,74 +473,76 @@ export default function OrdersScreen() {
             try {
               const now = new Date().toISOString();
               
-              // Update order item as returned
-              const { error: itemError } = await supabase
+              // Get all items that haven't been returned yet
+              const itemsToUpdate = order.order_items.filter(
+                item => !item.picked_up_at && !item.returned_to_sender
+              );
+
+              if (itemsToUpdate.length === 0) {
+                Alert.alert('Info', 'Tutti gli articoli sono già stati gestiti.');
+                return;
+              }
+
+              // Update all order items as returned
+              const { error: itemsError } = await supabase
                 .from('order_items')
                 .update({
                   returned_to_sender: true,
                   returned_at: now,
                   return_reason: 'Non ritirato dal cliente',
                 })
-                .eq('id', item.id);
+                .in('id', itemsToUpdate.map(item => item.id));
 
-              if (itemError) {
-                console.error('Error updating order item:', itemError);
-                Alert.alert('Errore', 'Impossibile aggiornare lo stato dell\'articolo');
+              if (itemsError) {
+                console.error('Error updating order items:', itemsError);
+                Alert.alert('Errore', 'Impossibile aggiornare gli articoli dell\'ordine');
                 return;
               }
 
-              // Call function to handle return (update rating and check for blocking)
-              const { error: functionError } = await supabase.rpc('handle_order_return', {
-                p_user_id: item.user_id,
-                p_order_item_id: item.id,
-              });
-
-              if (functionError) {
-                console.error('Error calling handle_order_return:', functionError);
-              }
-
-              // Send notification to customer
-              await supabase
-                .from('notifications')
-                .insert({
-                  user_id: item.user_id,
-                  title: 'Articolo Rispedito al Fornitore',
-                  message: `L'articolo "${item.product_name}" dell'ordine ${order.order_number} non è stato ritirato entro i termini e verrà rispedito al fornitore. Il tuo rating è stato aggiornato.`,
-                  type: 'general',
-                  related_id: order.id,
-                  related_type: 'order',
-                  read: false,
+              // Call handle_order_return for each item
+              for (const item of itemsToUpdate) {
+                const { error: functionError } = await supabase.rpc('handle_order_return', {
+                  p_user_id: item.user_id,
+                  p_order_item_id: item.id,
                 });
 
-              // Check if all items are completed
-              const { data: allItems, error: checkError } = await supabase
-                .from('order_items')
-                .select('pickup_status, returned_to_sender')
-                .eq('order_id', order.id);
-
-              if (!checkError && allItems) {
-                const allCompleted = allItems.every(i => 
-                  i.pickup_status === 'picked_up' || i.returned_to_sender === true
-                );
-                
-                if (allCompleted) {
-                  // Mark entire order as completed
-                  await supabase
-                    .from('orders')
-                    .update({
-                      status: 'completed',
-                      completed_at: now,
-                      updated_at: now,
-                    })
-                    .eq('id', order.id);
+                if (functionError) {
+                  console.error('Error calling handle_order_return:', functionError);
                 }
               }
 
-              Alert.alert('Successo', 'Articolo segnato come da rispedire al fornitore. Il cliente è stato notificato e il suo rating è stato aggiornato.');
+              // Send notification to each unique customer
+              const uniqueUserIds = [...new Set(itemsToUpdate.map(item => item.user_id).filter(Boolean))];
+              
+              for (const userId of uniqueUserIds) {
+                await supabase
+                  .from('notifications')
+                  .insert({
+                    user_id: userId,
+                    title: 'Ordine Rispedito al Fornitore',
+                    message: `L'ordine ${order.order_number} non è stato ritirato entro i termini e verrà rispedito al fornitore. Il tuo rating è stato aggiornato.`,
+                    type: 'general',
+                    related_id: order.id,
+                    related_type: 'order',
+                    read: false,
+                  });
+              }
+
+              // Mark entire order as completed
+              await supabase
+                .from('orders')
+                .update({
+                  status: 'completed',
+                  completed_at: now,
+                  updated_at: now,
+                })
+                .eq('id', order.id);
+
+              Alert.alert('Successo', 'L\'ordine è stato segnato come da rispedire al fornitore. I clienti sono stati notificati e i loro rating sono stati aggiornati.');
               loadOrders();
               setModalVisible(false);
             } catch (error: any) {
-              console.error('Error marking item as returned:', error);
+              console.error('Error marking order as returned:', error);
               Alert.alert('Errore', 'Si è verificato un errore');
             }
           },
@@ -580,39 +575,49 @@ export default function OrdersScreen() {
     }
   };
 
-  const handleNotifyCustomer = async (item: OrderItem, order: Order) => {
+  const handleNotifyAllCustomers = async (order: Order) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     
-    if (!item.user_id) {
-      Alert.alert('Errore', 'Impossibile notificare il cliente');
+    // Get unique customers who haven't picked up yet
+    const pendingItems = order.order_items.filter(
+      item => !item.picked_up_at && !item.returned_to_sender
+    );
+    
+    if (pendingItems.length === 0) {
+      Alert.alert('Info', 'Tutti gli articoli sono già stati gestiti.');
       return;
     }
+
+    const uniqueUserIds = [...new Set(pendingItems.map(item => item.user_id).filter(Boolean))];
+    const uniqueCustomers = [...new Set(pendingItems.map(item => item.customer_name || 'Cliente'))];
     
     Alert.alert(
-      'Notifica Cliente',
-      `Vuoi inviare una notifica a ${item.customer_name || 'il cliente'} per ricordargli di ritirare l'articolo?`,
+      'Notifica Clienti',
+      `Vuoi inviare una notifica a ${uniqueCustomers.length === 1 ? uniqueCustomers[0] : `${uniqueCustomers.length} clienti`} per ricordargli di ritirare l'ordine?`,
       [
         { text: 'Annulla', style: 'cancel' },
         {
           text: 'Invia',
           onPress: async () => {
             try {
-              await supabase
-                .from('notifications')
-                .insert({
-                  user_id: item.user_id,
-                  title: 'Promemoria Ritiro Articolo',
-                  message: `Ti ricordiamo che il tuo articolo "${item.product_name}" dell'ordine ${order.order_number} è pronto per il ritiro. Passa a ritirarlo quando puoi!`,
-                  type: 'order_ready',
-                  related_id: order.id,
-                  related_type: 'order',
-                  read: false,
-                });
+              for (const userId of uniqueUserIds) {
+                await supabase
+                  .from('notifications')
+                  .insert({
+                    user_id: userId,
+                    title: 'Promemoria Ritiro Ordine',
+                    message: `Ti ricordiamo che il tuo ordine ${order.order_number} è pronto per il ritiro. Passa a ritirarlo quando puoi!`,
+                    type: 'order_ready',
+                    related_id: order.id,
+                    related_type: 'order',
+                    read: false,
+                  });
+              }
               
-              Alert.alert('Successo', 'Notifica inviata al cliente');
+              Alert.alert('Successo', `Notifica inviata a ${uniqueUserIds.length} ${uniqueUserIds.length === 1 ? 'cliente' : 'clienti'}`);
             } catch (error: any) {
-              console.error('Error sending notification:', error);
-              Alert.alert('Errore', 'Impossibile inviare la notifica');
+              console.error('Error sending notifications:', error);
+              Alert.alert('Errore', 'Impossibile inviare le notifiche');
             }
           },
         },
@@ -651,6 +656,11 @@ export default function OrdersScreen() {
     const daysInStorage = calculateDaysInStorage(selectedOrder.arrived_at);
     const isPending = selectedOrder.status === 'pending' || selectedOrder.status === 'confirmed' || selectedOrder.status === 'in_transit';
     const isReady = selectedOrder.status === 'ready_for_pickup' || selectedOrder.status === 'arrived';
+    
+    // Check if there are any items that haven't been handled yet
+    const hasUnhandledItems = selectedOrder.order_items.some(
+      item => !item.picked_up_at && !item.returned_to_sender
+    );
 
     return (
       <Modal
@@ -716,6 +726,57 @@ export default function OrdersScreen() {
               </Pressable>
             )}
 
+            {/* Order-Level Actions for Ready Orders */}
+            {isReady && hasUnhandledItems && (
+              <View style={styles.orderActionsSection}>
+                <Text style={styles.sectionTitle}>Azioni Ordine</Text>
+                <View style={styles.orderActionsContainer}>
+                  <Pressable
+                    style={styles.orderActionButton}
+                    onPress={() => handleMarkOrderAsDelivered(selectedOrder)}
+                  >
+                    <IconSymbol 
+                      ios_icon_name="checkmark.circle.fill" 
+                      android_material_icon_name="check_circle"
+                      size={20} 
+                      color={colors.background} 
+                    />
+                    <Text style={styles.orderActionButtonText}>Consegnato</Text>
+                  </Pressable>
+                  
+                  <Pressable
+                    style={[styles.orderActionButton, styles.secondaryOrderActionButton]}
+                    onPress={() => handleNotifyAllCustomers(selectedOrder)}
+                  >
+                    <IconSymbol 
+                      ios_icon_name="bell.fill" 
+                      android_material_icon_name="notifications"
+                      size={20} 
+                      color={colors.text} 
+                    />
+                    <Text style={[styles.orderActionButtonText, styles.secondaryOrderActionButtonText]}>
+                      Notifica i Clienti
+                    </Text>
+                  </Pressable>
+                  
+                  <Pressable
+                    style={[styles.orderActionButton, styles.dangerOrderActionButton]}
+                    onPress={() => handleMarkOrderAsReturned(selectedOrder)}
+                  >
+                    <IconSymbol 
+                      ios_icon_name="arrow.uturn.backward" 
+                      android_material_icon_name="undo"
+                      size={20} 
+                      color={colors.error} 
+                    />
+                    <Text style={[styles.orderActionButtonText, styles.dangerOrderActionButtonText]}>
+                      Rispedisci
+                    </Text>
+                  </Pressable>
+                </View>
+              </View>
+            )}
+
             {/* Order Items */}
             <View style={styles.modalSection}>
               <Text style={styles.sectionTitle}>Articoli ({selectedOrder.order_items?.length || 0})</Text>
@@ -770,52 +831,6 @@ export default function OrdersScreen() {
                         </Pressable>
                       )}
                     </View>
-
-                    {/* Item Actions - Show for ready items */}
-                    {isReady && !item.picked_up_at && !item.returned_to_sender && (
-                      <View style={styles.itemActions}>
-                        <Pressable
-                          style={styles.itemActionButton}
-                          onPress={() => handleMarkItemAsDelivered(selectedOrder, item)}
-                        >
-                          <IconSymbol 
-                            ios_icon_name="checkmark.circle.fill" 
-                            android_material_icon_name="check_circle"
-                            size={18} 
-                            color={colors.background} 
-                          />
-                          <Text style={styles.itemActionButtonText}>Consegnato</Text>
-                        </Pressable>
-                        <Pressable
-                          style={[styles.itemActionButton, styles.secondaryItemActionButton]}
-                          onPress={() => handleNotifyCustomer(item, selectedOrder)}
-                        >
-                          <IconSymbol 
-                            ios_icon_name="bell.fill" 
-                            android_material_icon_name="notifications"
-                            size={18} 
-                            color={colors.text} 
-                          />
-                          <Text style={[styles.itemActionButtonText, styles.secondaryItemActionButtonText]}>
-                            Notifica
-                          </Text>
-                        </Pressable>
-                        <Pressable
-                          style={[styles.itemActionButton, styles.dangerItemActionButton]}
-                          onPress={() => handleMarkItemAsReturned(selectedOrder, item)}
-                        >
-                          <IconSymbol 
-                            ios_icon_name="arrow.uturn.backward" 
-                            android_material_icon_name="undo"
-                            size={18} 
-                            color={colors.error} 
-                          />
-                          <Text style={[styles.itemActionButtonText, styles.dangerItemActionButtonText]}>
-                            Rispedisci
-                          </Text>
-                        </Pressable>
-                      </View>
-                    )}
 
                     {item.picked_up_at && (
                       <View style={styles.pickedUpInfo}>
@@ -1037,7 +1052,7 @@ export default function OrdersScreen() {
               {selectedTab === 'pending'
                 ? 'Ordini in transito verso il tuo punto di ritiro. Segna come "Ricevuto in Store" quando arrivano.'
                 : selectedTab === 'ready'
-                ? 'Ordini pronti per il ritiro. Gestisci la consegna ai clienti o rispedisci al fornitore se non ritirati.'
+                ? 'Ordini pronti per il ritiro. Usa i pulsanti "Consegnato", "Notifica i Clienti" o "Rispedisci" per gestire l\'intero ordine.'
                 : 'Storico degli ordini completati e ritirati dai clienti.'}
             </Text>
           </View>
@@ -1315,6 +1330,44 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.background,
   },
+  orderActionsSection: {
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  orderActionsContainer: {
+    gap: 10,
+  },
+  orderActionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.text,
+    paddingVertical: 14,
+    borderRadius: 8,
+    gap: 8,
+  },
+  orderActionButtonText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: colors.background,
+  },
+  secondaryOrderActionButton: {
+    backgroundColor: colors.backgroundSecondary,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  secondaryOrderActionButtonText: {
+    color: colors.text,
+  },
+  dangerOrderActionButton: {
+    backgroundColor: colors.error + '15',
+    borderWidth: 1,
+    borderColor: colors.error + '30',
+  },
+  dangerOrderActionButtonText: {
+    color: colors.error,
+  },
   sectionTitle: {
     fontSize: 16,
     fontWeight: '700',
@@ -1367,7 +1420,6 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     borderTopWidth: 1,
     borderTopColor: colors.border,
-    marginBottom: 12,
   },
   customerInfo: {
     flexDirection: 'row',
@@ -1395,41 +1447,6 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  itemActions: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  itemActionButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.text,
-    paddingVertical: 10,
-    borderRadius: 6,
-    gap: 6,
-  },
-  itemActionButtonText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.background,
-  },
-  secondaryItemActionButton: {
-    backgroundColor: colors.backgroundSecondary,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  secondaryItemActionButtonText: {
-    color: colors.text,
-  },
-  dangerItemActionButton: {
-    backgroundColor: colors.error + '15',
-    borderWidth: 1,
-    borderColor: colors.error + '30',
-  },
-  dangerItemActionButtonText: {
-    color: colors.error,
   },
   pickedUpInfo: {
     flexDirection: 'row',
