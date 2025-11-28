@@ -23,7 +23,7 @@ import { supabase } from '@/app/integrations/supabase/client';
 
 export default function LoginScreen() {
   const { login, user, loading: authLoading } = useAuth();
-  const [email, setEmail] = useState('');
+  const [phoneOrEmail, setPhoneOrEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [showResendEmail, setShowResendEmail] = useState(false);
@@ -143,8 +143,15 @@ export default function LoginScreen() {
   };
 
   const handleResendConfirmationEmail = async () => {
-    if (!email.trim()) {
+    if (!phoneOrEmail.trim()) {
       Alert.alert('Errore', 'Inserisci l\'email per ricevere nuovamente l\'email di conferma');
+      return;
+    }
+
+    // Check if it's an email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(phoneOrEmail.trim())) {
+      Alert.alert('Errore', 'Inserisci un indirizzo email valido per ricevere l\'email di conferma');
       return;
     }
 
@@ -152,10 +159,10 @@ export default function LoginScreen() {
     setResendingEmail(true);
 
     try {
-      console.log('Resending confirmation email to:', email);
+      console.log('Resending confirmation email to:', phoneOrEmail);
       const { error } = await supabase.auth.resend({
         type: 'signup',
-        email: email.trim().toLowerCase(),
+        email: phoneOrEmail.trim().toLowerCase(),
         options: {
           emailRedirectTo: 'dropzone://email-confirmed'
         }
@@ -187,8 +194,8 @@ export default function LoginScreen() {
   };
 
   const handleLogin = async () => {
-    if (!email.trim()) {
-      Alert.alert('Errore', 'Inserisci l\'email');
+    if (!phoneOrEmail.trim()) {
+      Alert.alert('Errore', 'Inserisci il numero di cellulare o l\'email');
       return;
     }
 
@@ -202,8 +209,30 @@ export default function LoginScreen() {
     setShowResendEmail(false);
 
     try {
-      console.log('Login: Attempting login for:', email);
-      const result = await login(email.trim().toLowerCase(), password);
+      console.log('Login: Attempting login for:', phoneOrEmail);
+      
+      // Determine if input is email or phone
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      const isEmail = emailRegex.test(phoneOrEmail.trim());
+      
+      let result;
+      if (isEmail) {
+        console.log('Login: Using email authentication');
+        result = await login(phoneOrEmail.trim().toLowerCase(), password);
+      } else {
+        console.log('Login: Using phone authentication');
+        // For phone login, we need to use signInWithPassword with phone
+        const { data, error } = await supabase.auth.signInWithPassword({
+          phone: phoneOrEmail.trim(),
+          password: password,
+        });
+
+        if (error) {
+          result = { success: false, message: error.message };
+        } else {
+          result = { success: true };
+        }
+      }
       
       console.log('Login: Result:', result);
       
@@ -226,13 +255,14 @@ export default function LoginScreen() {
           showResend = true;
         } else if (errorMessage.toLowerCase().includes('invalid login credentials') ||
                    errorMessage.toLowerCase().includes('invalid credentials')) {
-          errorMessage = 'Email o password non corretti.\n\nVerifica i tuoi dati e riprova.';
+          errorMessage = 'Numero di cellulare/email o password non corretti.\n\nVerifica i tuoi dati e riprova.';
         } else if (errorMessage.toLowerCase().includes('email not found') ||
-                   errorMessage.toLowerCase().includes('user not found')) {
+                   errorMessage.toLowerCase().includes('user not found') ||
+                   errorMessage.toLowerCase().includes('phone not found')) {
           errorMessage = 'Account non trovato.\n\nRegistrati per creare un nuovo account.';
         }
         
-        if (showResend) {
+        if (showResend && isEmail) {
           Alert.alert(
             'Email Non Confermata',
             errorMessage,
@@ -300,18 +330,21 @@ export default function LoginScreen() {
             </View>
 
             <View style={styles.formSection}>
-              <Text style={styles.inputLabel}>Email</Text>
+              <Text style={styles.inputLabel}>Numero di Cellulare o Email</Text>
               <TextInput
                 style={styles.input}
-                placeholder="email@esempio.com"
+                placeholder="+39 123 456 7890"
                 placeholderTextColor={colors.textTertiary}
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
+                value={phoneOrEmail}
+                onChangeText={setPhoneOrEmail}
+                keyboardType="default"
                 autoCapitalize="none"
-                autoComplete="email"
+                autoComplete="tel"
                 editable={!loading && !resendingEmail}
               />
+              <Text style={styles.inputHint}>
+                Puoi accedere con il tuo numero di cellulare o con la tua email
+              </Text>
 
               <Text style={styles.inputLabel}>Password</Text>
               <TextInput
@@ -517,9 +550,15 @@ const styles = StyleSheet.create({
     padding: 16,
     fontSize: 16,
     color: colors.text,
-    marginBottom: 16,
+    marginBottom: 8,
     borderWidth: 1,
     borderColor: colors.border,
+  },
+  inputHint: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginBottom: 16,
+    fontStyle: 'italic',
   },
   forgotPasswordButton: {
     alignSelf: 'flex-end',

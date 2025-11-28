@@ -102,20 +102,27 @@ export default function ConsumerRegisterScreen() {
       return;
     }
 
+    if (!phone.trim()) {
+      Alert.alert('Errore', 'Inserisci il numero di cellulare (campo obbligatorio)');
+      return;
+    }
+
+    // Basic phone validation - should start with + and contain only digits
+    const phoneRegex = /^\+?[0-9\s\-()]+$/;
+    if (!phoneRegex.test(phone.trim())) {
+      Alert.alert('Errore', 'Inserisci un numero di cellulare valido (es. +39 123 456 7890)');
+      return;
+    }
+
     if (!email.trim()) {
-      Alert.alert('Errore', 'Inserisci l\'email');
+      Alert.alert('Errore', 'Inserisci l\'email (opzionale ma consigliata per il recupero password)');
       return;
     }
 
     // Basic email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email.trim())) {
+    if (email.trim() && !emailRegex.test(email.trim())) {
       Alert.alert('Errore', 'Inserisci un indirizzo email valido');
-      return;
-    }
-
-    if (!phone.trim()) {
-      Alert.alert('Errore', 'Inserisci il numero di telefono');
       return;
     }
 
@@ -162,20 +169,23 @@ export default function ConsumerRegisterScreen() {
     setLoading(true);
 
     try {
-      console.log('Registering consumer:', email, 'pickup_point:', pickupPointId);
+      console.log('Registering consumer with phone:', phone, 'email:', email, 'pickup_point:', pickupPointId);
       
-      // Register with Supabase Auth
+      // Register with Supabase Auth using phone as primary identifier
       const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: email.trim().toLowerCase(),
+        phone: phone.trim(),
         password,
         options: {
-          emailRedirectTo: 'dropzone://email-confirmed',
           data: {
             full_name: fullName.trim(),
-            phone: phone.trim(),
+            email: email.trim().toLowerCase(),
             role: 'consumer',
             pickup_point_id: pickupPointId,
-          }
+          },
+          // If email is provided, we can use it for email confirmation
+          ...(email.trim() && {
+            emailRedirectTo: 'dropzone://email-confirmed'
+          })
         }
       });
 
@@ -184,8 +194,9 @@ export default function ConsumerRegisterScreen() {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
         
         let errorMessage = authError.message;
-        if (errorMessage.toLowerCase().includes('already registered')) {
-          errorMessage = 'Questo indirizzo email è già registrato. Prova ad accedere o usa un\'altra email.';
+        if (errorMessage.toLowerCase().includes('already registered') || 
+            errorMessage.toLowerCase().includes('already exists')) {
+          errorMessage = 'Questo numero di cellulare è già registrato. Prova ad accedere o usa un altro numero.';
         }
         
         Alert.alert('Errore di Registrazione', errorMessage);
@@ -222,10 +233,10 @@ export default function ConsumerRegisterScreen() {
       
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       
-      // Show success message with email confirmation instructions
+      // Show success message
       Alert.alert(
         'Registrazione Completata! 🎉',
-        `Abbiamo inviato un'email di conferma a:\n\n${email}\n\nControlla la tua casella di posta (anche nello spam) e clicca sul link per confermare il tuo account.\n\nDopo la conferma, potrai accedere all'app.`,
+        `Account creato con successo!\n\nNumero: ${phone}\n${email ? `Email: ${email}\n` : ''}\nPuoi ora accedere all'app con il tuo numero di cellulare e password.`,
         [
           {
             text: 'OK',
@@ -275,7 +286,7 @@ export default function ConsumerRegisterScreen() {
             </View>
 
             <View style={styles.formSection}>
-              <Text style={styles.inputLabel}>Nome Completo</Text>
+              <Text style={styles.inputLabel}>Nome Completo *</Text>
               <TextInput
                 style={styles.input}
                 placeholder="Mario Rossi"
@@ -287,7 +298,22 @@ export default function ConsumerRegisterScreen() {
                 editable={!loading}
               />
 
-              <Text style={styles.inputLabel}>Email</Text>
+              <Text style={styles.inputLabel}>Numero di Cellulare * (Obbligatorio)</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="+39 123 456 7890"
+                placeholderTextColor={colors.textTertiary}
+                value={phone}
+                onChangeText={setPhone}
+                keyboardType="phone-pad"
+                autoComplete="tel"
+                editable={!loading}
+              />
+              <Text style={styles.inputHint}>
+                Il numero di cellulare è obbligatorio e sarà usato per accedere all&apos;app
+              </Text>
+
+              <Text style={styles.inputLabel}>Email (Opzionale)</Text>
               <TextInput
                 style={styles.input}
                 placeholder="email@esempio.com"
@@ -299,20 +325,11 @@ export default function ConsumerRegisterScreen() {
                 autoComplete="email"
                 editable={!loading}
               />
+              <Text style={styles.inputHint}>
+                L&apos;email è opzionale ma consigliata per il recupero password
+              </Text>
 
-              <Text style={styles.inputLabel}>Telefono</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="+39 123 456 7890"
-                placeholderTextColor={colors.textTertiary}
-                value={phone}
-                onChangeText={setPhone}
-                keyboardType="phone-pad"
-                autoComplete="tel"
-                editable={!loading}
-              />
-
-              <Text style={styles.inputLabel}>Password</Text>
+              <Text style={styles.inputLabel}>Password *</Text>
               <View style={styles.passwordInputContainer}>
                 <TextInput
                   style={styles.passwordInput}
@@ -342,7 +359,7 @@ export default function ConsumerRegisterScreen() {
                 </Pressable>
               </View>
 
-              <Text style={styles.inputLabel}>Conferma Password</Text>
+              <Text style={styles.inputLabel}>Conferma Password *</Text>
               <View style={styles.passwordInputContainer}>
                 <TextInput
                   style={styles.passwordInput}
@@ -432,7 +449,7 @@ export default function ConsumerRegisterScreen() {
                 </View>
               </View>
 
-              <Text style={styles.inputLabel}>Punto di Ritiro</Text>
+              <Text style={styles.inputLabel}>Punto di Ritiro *</Text>
               {loadingPickupPoints ? (
                 <View style={styles.loadingPickupPoints}>
                   <ActivityIndicator color={colors.primary} />
@@ -604,8 +621,8 @@ export default function ConsumerRegisterScreen() {
                 color={colors.info}
               />
               <Text style={styles.infoText}>
-                Dopo la registrazione, riceverai un&apos;email di conferma. 
-                Clicca sul link nell&apos;email per attivare il tuo account.
+                Il numero di cellulare è obbligatorio e sarà usato come metodo principale di accesso. 
+                L&apos;email è opzionale ma consigliata per il recupero password.
               </Text>
             </View>
 
@@ -674,9 +691,15 @@ const styles = StyleSheet.create({
     padding: 16,
     fontSize: 16,
     color: colors.text,
-    marginBottom: 16,
+    marginBottom: 8,
     borderWidth: 1,
     borderColor: colors.border,
+  },
+  inputHint: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginBottom: 16,
+    fontStyle: 'italic',
   },
   passwordInputContainer: {
     flexDirection: 'row',

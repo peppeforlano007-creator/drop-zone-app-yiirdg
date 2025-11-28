@@ -20,62 +20,96 @@ import * as Haptics from 'expo-haptics';
 import { supabase } from '@/app/integrations/supabase/client';
 
 export default function ForgotPasswordScreen() {
-  const [email, setEmail] = useState('');
+  const [phoneOrEmail, setPhoneOrEmail] = useState('');
   const [loading, setLoading] = useState(false);
-  const [emailSent, setEmailSent] = useState(false);
+  const [messageSent, setMessageSent] = useState(false);
+  const [isEmail, setIsEmail] = useState(false);
 
   const handleResetPassword = async () => {
-    if (!email.trim()) {
-      Alert.alert('Errore', 'Inserisci il tuo indirizzo email');
+    if (!phoneOrEmail.trim()) {
+      Alert.alert('Errore', 'Inserisci il tuo numero di cellulare o email');
       return;
     }
 
-    // Basic email validation
+    // Determine if input is email or phone
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email.trim())) {
-      Alert.alert('Errore', 'Inserisci un indirizzo email valido');
-      return;
+    const inputIsEmail = emailRegex.test(phoneOrEmail.trim());
+    setIsEmail(inputIsEmail);
+
+    // Basic phone validation if not email
+    if (!inputIsEmail) {
+      const phoneRegex = /^\+?[0-9\s\-()]+$/;
+      if (!phoneRegex.test(phoneOrEmail.trim())) {
+        Alert.alert('Errore', 'Inserisci un numero di cellulare valido (es. +39 123 456 7890) o un indirizzo email valido');
+        return;
+      }
     }
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setLoading(true);
 
     try {
-      console.log('Sending password reset email to:', email);
+      console.log('Sending password reset to:', phoneOrEmail, 'Type:', inputIsEmail ? 'email' : 'phone');
       
-      // Use the Supabase project URL as the redirect
-      const { error } = await supabase.auth.resetPasswordForEmail(
-        email.trim().toLowerCase(),
-        {
-          redirectTo: 'https://sippdylyuzejudmzbwdn.supabase.co/auth/v1/verify?redirect_to=dropzone://update-password',
-        }
-      );
+      if (inputIsEmail) {
+        // Use email password reset
+        const { error } = await supabase.auth.resetPasswordForEmail(
+          phoneOrEmail.trim().toLowerCase(),
+          {
+            redirectTo: 'dropzone://update-password',
+          }
+        );
 
-      if (error) {
-        console.error('Error sending password reset email:', error);
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-        
-        // Show user-friendly error message
-        let errorMessage = 'Si è verificato un errore durante l\'invio dell\'email di recupero password.';
-        
-        if (error.message.toLowerCase().includes('rate limit')) {
-          errorMessage = 'Hai richiesto troppi reset password. Attendi qualche minuto e riprova.';
-        } else if (error.message.toLowerCase().includes('user not found')) {
-          // For security reasons, we don't want to reveal if an email exists or not
-          // So we'll show success message anyway
-          setEmailSent(true);
+        if (error) {
+          console.error('Error sending password reset email:', error);
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+          
+          // Show user-friendly error message
+          let errorMessage = 'Si è verificato un errore durante l\'invio dell\'email di recupero password.';
+          
+          if (error.message.toLowerCase().includes('rate limit')) {
+            errorMessage = 'Hai richiesto troppi reset password. Attendi qualche minuto e riprova.';
+          } else if (error.message.toLowerCase().includes('user not found')) {
+            // For security reasons, we don't want to reveal if an email exists or not
+            // So we'll show success message anyway
+            setMessageSent(true);
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            return;
+          }
+          
+          Alert.alert('Errore', errorMessage);
+        } else {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          return;
+          setMessageSent(true);
+          console.log('Password reset email sent successfully');
         }
-        
-        Alert.alert('Errore', errorMessage);
       } else {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        setEmailSent(true);
-        console.log('Password reset email sent successfully');
+        // For phone-based password reset, we need to use OTP
+        // Note: Supabase doesn't have a direct "resetPasswordForPhone" method
+        // We need to send an OTP and then verify it
+        Alert.alert(
+          'Reset Password via SMS',
+          'Il reset password tramite SMS non è ancora configurato. Per favore:\n\n1. Contatta il supporto clienti\n2. Oppure usa l\'email se l\'hai fornita durante la registrazione',
+          [
+            {
+              text: 'Contatta Supporto',
+              onPress: () => {
+                // Navigate back and user can use support button
+                router.back();
+              }
+            },
+            {
+              text: 'Usa Email',
+              onPress: () => {
+                setPhoneOrEmail('');
+              }
+            }
+          ]
+        );
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
       }
     } catch (error) {
-      console.error('Exception sending password reset email:', error);
+      console.error('Exception sending password reset:', error);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       Alert.alert('Errore', 'Si è verificato un errore imprevisto. Riprova.');
     } finally {
@@ -106,7 +140,7 @@ export default function ForgotPasswordScreen() {
             contentContainerStyle={styles.scrollContent}
             keyboardShouldPersistTaps="handled"
           >
-            {!emailSent ? (
+            {!messageSent ? (
               <>
                 <View style={styles.iconContainer}>
                   <View style={styles.iconCircle}>
@@ -122,21 +156,21 @@ export default function ForgotPasswordScreen() {
                 <View style={styles.header}>
                   <Text style={styles.title}>Recupera Password</Text>
                   <Text style={styles.subtitle}>
-                    Inserisci il tuo indirizzo email e ti invieremo un link per reimpostare la tua password.
+                    Inserisci il tuo numero di cellulare o email e ti invieremo le istruzioni per reimpostare la tua password.
                   </Text>
                 </View>
 
                 <View style={styles.formSection}>
-                  <Text style={styles.inputLabel}>Email</Text>
+                  <Text style={styles.inputLabel}>Numero di Cellulare o Email</Text>
                   <TextInput
                     style={styles.input}
-                    placeholder="email@esempio.com"
+                    placeholder="+39 123 456 7890 o email@esempio.com"
                     placeholderTextColor={colors.textTertiary}
-                    value={email}
-                    onChangeText={setEmail}
-                    keyboardType="email-address"
+                    value={phoneOrEmail}
+                    onChangeText={setPhoneOrEmail}
+                    keyboardType="default"
                     autoCapitalize="none"
-                    autoComplete="email"
+                    autoComplete="tel"
                     autoFocus
                     editable={!loading}
                   />
@@ -160,7 +194,7 @@ export default function ForgotPasswordScreen() {
                           color="#fff"
                         />
                         <Text style={styles.resetButtonText}>
-                          Invia Link di Recupero
+                          Invia Istruzioni
                         </Text>
                       </>
                     )}
@@ -175,11 +209,9 @@ export default function ForgotPasswordScreen() {
                     color={colors.info}
                   />
                   <Text style={styles.infoText}>
-                    Riceverai un&apos;email con le istruzioni per reimpostare la tua password. 
-                    Controlla anche la cartella spam se non la trovi nella posta in arrivo.
+                    <Text style={styles.infoTextBold}>Con Email:</Text> Riceverai un&apos;email con un link per reimpostare la password. Il link scadrà dopo 1 ora.
                     {'\n\n'}
-                    <Text style={styles.infoTextBold}>Importante:</Text> Il link scadrà dopo 1 ora. 
-                    Clicca sul link nell&apos;email il prima possibile.
+                    <Text style={styles.infoTextBold}>Con Numero di Cellulare:</Text> Contatta il supporto clienti per assistenza nel reset della password.
                   </Text>
                 </View>
 
@@ -213,65 +245,87 @@ export default function ForgotPasswordScreen() {
                 </View>
 
                 <View style={styles.header}>
-                  <Text style={styles.title}>Email Inviata!</Text>
+                  <Text style={styles.title}>
+                    {isEmail ? 'Email Inviata!' : 'Richiesta Ricevuta!'}
+                  </Text>
                   <Text style={styles.subtitle}>
-                    Abbiamo inviato un link per il recupero della password all&apos;indirizzo:
+                    {isEmail 
+                      ? `Abbiamo inviato un link per il recupero della password all'indirizzo:`
+                      : 'La tua richiesta è stata ricevuta. Contatta il supporto clienti per completare il reset della password.'
+                    }
                   </Text>
-                  <Text style={styles.emailText}>{email}</Text>
+                  <Text style={styles.emailText}>{phoneOrEmail}</Text>
                 </View>
 
-                <View style={styles.successBox}>
-                  <IconSymbol
-                    ios_icon_name="envelope.fill"
-                    android_material_icon_name="email"
-                    size={24}
-                    color={colors.primary}
-                  />
-                  <Text style={styles.successText}>
-                    Controlla la tua casella di posta e clicca sul link per reimpostare la password.
-                  </Text>
-                </View>
+                {isEmail ? (
+                  <>
+                    <View style={styles.successBox}>
+                      <IconSymbol
+                        ios_icon_name="envelope.fill"
+                        android_material_icon_name="email"
+                        size={24}
+                        color={colors.primary}
+                      />
+                      <Text style={styles.successText}>
+                        Controlla la tua casella di posta e clicca sul link per reimpostare la password.
+                      </Text>
+                    </View>
 
-                <View style={styles.warningBox}>
-                  <IconSymbol
-                    ios_icon_name="exclamationmark.triangle.fill"
-                    android_material_icon_name="warning"
-                    size={20}
-                    color={colors.warning}
-                  />
-                  <Text style={styles.warningText}>
-                    <Text style={styles.warningTextBold}>Attenzione:</Text> Il link scadrà dopo 1 ora. 
-                    Clicca sul link nell&apos;email il prima possibile per reimpostare la password.
-                  </Text>
-                </View>
+                    <View style={styles.warningBox}>
+                      <IconSymbol
+                        ios_icon_name="exclamationmark.triangle.fill"
+                        android_material_icon_name="warning"
+                        size={20}
+                        color={colors.warning}
+                      />
+                      <Text style={styles.warningText}>
+                        <Text style={styles.warningTextBold}>Attenzione:</Text> Il link scadrà dopo 1 ora. 
+                        Clicca sul link nell&apos;email il prima possibile per reimpostare la password.
+                      </Text>
+                    </View>
 
-                <View style={styles.instructionsBox}>
-                  <Text style={styles.instructionsTitle}>Cosa fare ora:</Text>
-                  <View style={styles.instructionItem}>
-                    <Text style={styles.instructionNumber}>1.</Text>
-                    <Text style={styles.instructionText}>
-                      Apri la tua casella email
+                    <View style={styles.instructionsBox}>
+                      <Text style={styles.instructionsTitle}>Cosa fare ora:</Text>
+                      <View style={styles.instructionItem}>
+                        <Text style={styles.instructionNumber}>1.</Text>
+                        <Text style={styles.instructionText}>
+                          Apri la tua casella email
+                        </Text>
+                      </View>
+                      <View style={styles.instructionItem}>
+                        <Text style={styles.instructionNumber}>2.</Text>
+                        <Text style={styles.instructionText}>
+                          Cerca l&apos;email di recupero password (controlla anche lo spam)
+                        </Text>
+                      </View>
+                      <View style={styles.instructionItem}>
+                        <Text style={styles.instructionNumber}>3.</Text>
+                        <Text style={styles.instructionText}>
+                          Clicca sul link <Text style={styles.instructionTextBold}>entro 1 ora</Text>
+                        </Text>
+                      </View>
+                      <View style={styles.instructionItem}>
+                        <Text style={styles.instructionNumber}>4.</Text>
+                        <Text style={styles.instructionText}>
+                          L&apos;app si aprirà automaticamente per reimpostare la password
+                        </Text>
+                      </View>
+                    </View>
+                  </>
+                ) : (
+                  <View style={styles.supportBox}>
+                    <IconSymbol
+                      ios_icon_name="phone.fill"
+                      android_material_icon_name="phone"
+                      size={24}
+                      color={colors.primary}
+                    />
+                    <Text style={styles.supportText}>
+                      Per completare il reset della password tramite numero di cellulare, 
+                      contatta il nostro supporto clienti tramite WhatsApp.
                     </Text>
                   </View>
-                  <View style={styles.instructionItem}>
-                    <Text style={styles.instructionNumber}>2.</Text>
-                    <Text style={styles.instructionText}>
-                      Cerca l&apos;email di recupero password (controlla anche lo spam)
-                    </Text>
-                  </View>
-                  <View style={styles.instructionItem}>
-                    <Text style={styles.instructionNumber}>3.</Text>
-                    <Text style={styles.instructionText}>
-                      Clicca sul link <Text style={styles.instructionTextBold}>entro 1 ora</Text>
-                    </Text>
-                  </View>
-                  <View style={styles.instructionItem}>
-                    <Text style={styles.instructionNumber}>4.</Text>
-                    <Text style={styles.instructionText}>
-                      L&apos;app si aprirà automaticamente per reimpostare la password
-                    </Text>
-                  </View>
-                </View>
+                )}
 
                 <Pressable
                   style={({ pressed }) => [
@@ -288,12 +342,12 @@ export default function ForgotPasswordScreen() {
                 <Pressable
                   style={styles.resendLinkButton}
                   onPress={() => {
-                    setEmailSent(false);
-                    setEmail('');
+                    setMessageSent(false);
+                    setPhoneOrEmail('');
                   }}
                 >
                   <Text style={styles.resendLinkText}>
-                    Non hai ricevuto l&apos;email? Riprova
+                    Non hai ricevuto il messaggio? Riprova
                   </Text>
                 </Pressable>
               </>
@@ -443,6 +497,24 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   successText: {
+    flex: 1,
+    fontSize: 15,
+    color: colors.text,
+    lineHeight: 22,
+    fontWeight: '500',
+  },
+  supportBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.primary + '10',
+    borderRadius: 12,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: colors.primary + '30',
+    gap: 16,
+    marginBottom: 16,
+  },
+  supportText: {
     flex: 1,
     fontSize: 15,
     color: colors.text,
