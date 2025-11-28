@@ -155,7 +155,16 @@ export default function ManageNotificationsScreen() {
 
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      const { error } = await supabase
+      
+      // Get current user ID
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        Alert.alert('Errore', 'Utente non autenticato');
+        return;
+      }
+
+      const { data, error } = await supabase
         .from('notification_flows')
         .insert({
           name: formName,
@@ -164,18 +173,34 @@ export default function ManageNotificationsScreen() {
           target_audience: formTargetAudience,
           notification_title: formTitle,
           notification_message: formMessage,
+          created_by: user.id,
+        })
+        .select();
+
+      if (error) {
+        console.error('Error creating flow:', error);
+        console.error('Error details:', {
+          code: error.code,
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
         });
+        Alert.alert(
+          'Errore',
+          `Impossibile creare il flusso.\n\nCodice: ${error.code}\nMessaggio: ${error.message}${error.hint ? `\nSuggerimento: ${error.hint}` : ''}`
+        );
+        return;
+      }
 
-      if (error) throw error;
-
+      console.log('Flow created successfully:', data);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert('Successo', 'Flusso creato con successo');
       setShowCreateForm(false);
       resetForm();
       loadFlows();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating flow:', error);
-      Alert.alert('Errore', 'Impossibile creare il flusso');
+      Alert.alert('Errore', `Impossibile creare il flusso: ${error.message || 'Errore sconosciuto'}`);
     }
   };
 
