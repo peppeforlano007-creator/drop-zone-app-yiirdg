@@ -1,11 +1,12 @@
 
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, router } from 'expo-router';
 import { supabase } from '@/app/integrations/supabase/client';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
+import { useAuth } from '@/contexts/AuthContext';
 import * as Haptics from 'expo-haptics';
 
 interface DashboardStats {
@@ -18,6 +19,7 @@ interface DashboardStats {
 }
 
 export default function AdminDashboard() {
+  const { logout } = useAuth();
   const [stats, setStats] = useState<DashboardStats>({
     totalUsers: 0,
     totalProducts: 0,
@@ -27,6 +29,7 @@ export default function AdminDashboard() {
     pendingApprovals: 0,
   });
   const [loading, setLoading] = useState(true);
+  const [loggingOut, setLoggingOut] = useState(false);
 
   useEffect(() => {
     loadDashboardStats();
@@ -91,6 +94,39 @@ export default function AdminDashboard() {
   const handleNavigation = (route: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push(route as any);
+  };
+
+  const handleLogout = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    
+    Alert.alert(
+      'Esci',
+      'Sei sicuro di voler uscire dalla dashboard admin?',
+      [
+        {
+          text: 'Annulla',
+          style: 'cancel',
+        },
+        {
+          text: 'Esci',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setLoggingOut(true);
+              console.log('Admin Dashboard: Logging out...');
+              await logout();
+              console.log('Admin Dashboard: Logout successful, redirecting to login...');
+              router.replace('/login');
+            } catch (error) {
+              console.error('Admin Dashboard: Logout error:', error);
+              Alert.alert('Errore', 'Si è verificato un errore durante il logout. Riprova.');
+            } finally {
+              setLoggingOut(false);
+            }
+          },
+        },
+      ]
+    );
   };
 
   const quickActions = [
@@ -194,10 +230,36 @@ export default function AdminDashboard() {
       />
       
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-        {/* Header */}
+        {/* Header with Logout Button */}
         <View style={styles.header}>
-          <Text style={styles.title}>Dashboard Admin</Text>
-          <Text style={styles.subtitle}>Panoramica generale della piattaforma</Text>
+          <View style={styles.headerTextContainer}>
+            <Text style={styles.title}>Dashboard Admin</Text>
+            <Text style={styles.subtitle}>Panoramica generale della piattaforma</Text>
+          </View>
+          
+          <Pressable
+            style={({ pressed }) => [
+              styles.logoutButton,
+              pressed && styles.logoutButtonPressed,
+              loggingOut && styles.logoutButtonDisabled,
+            ]}
+            onPress={handleLogout}
+            disabled={loggingOut}
+          >
+            {loggingOut ? (
+              <ActivityIndicator size="small" color="#FFF" />
+            ) : (
+              <React.Fragment>
+                <IconSymbol
+                  ios_icon_name="rectangle.portrait.and.arrow.right"
+                  android_material_icon_name="logout"
+                  size={20}
+                  color="#FFF"
+                />
+                <Text style={styles.logoutButtonText}>Esci</Text>
+              </React.Fragment>
+            )}
+          </Pressable>
         </View>
 
         {/* Stats Grid */}
@@ -295,6 +357,13 @@ const styles = StyleSheet.create({
   },
   header: {
     marginBottom: 24,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  headerTextContainer: {
+    flex: 1,
   },
   title: {
     fontSize: 28,
@@ -305,6 +374,30 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 15,
     color: colors.textSecondary,
+  },
+  logoutButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FF3B30',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 12,
+    gap: 8,
+    minWidth: 90,
+    boxShadow: '0px 2px 8px rgba(255, 59, 48, 0.2)',
+  },
+  logoutButtonPressed: {
+    opacity: 0.8,
+    transform: [{ scale: 0.96 }],
+  },
+  logoutButtonDisabled: {
+    opacity: 0.6,
+  },
+  logoutButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#FFF',
   },
   statsGrid: {
     flexDirection: 'row',
