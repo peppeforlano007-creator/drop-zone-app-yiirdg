@@ -109,11 +109,44 @@ export async function testDropCreationTrigger(
 /**
  * Test drop discount calculation
  */
-export async function testDropDiscountCalculation(dropId: string): Promise<TestResult> {
+export async function testDropDiscountCalculation(dropId?: string): Promise<TestResult> {
   console.log('🧪 Testing drop discount calculation...');
   const startTime = Date.now();
 
   try {
+    // If no dropId provided, get the first active drop
+    let targetDropId = dropId;
+    
+    if (!targetDropId) {
+      const { data: drops, error: dropsError } = await supabase
+        .from('drops')
+        .select('id')
+        .in('status', ['active', 'completed'])
+        .limit(1);
+
+      if (dropsError) {
+        return {
+          success: false,
+          message: `Failed to fetch drops: ${dropsError.message}`,
+          details: dropsError,
+          timestamp: new Date(),
+          duration: Date.now() - startTime,
+        };
+      }
+
+      if (!drops || drops.length === 0) {
+        return {
+          success: false,
+          message: 'No active or completed drops found to test',
+          details: { hint: 'Create a drop first or provide a dropId' },
+          timestamp: new Date(),
+          duration: Date.now() - startTime,
+        };
+      }
+
+      targetDropId = drops[0].id;
+    }
+
     // Get drop details
     const { data: drop, error: dropError } = await supabase
       .from('drops')
@@ -126,7 +159,7 @@ export async function testDropDiscountCalculation(dropId: string): Promise<TestR
           max_reservation_value
         )
       `)
-      .eq('id', dropId)
+      .eq('id', targetDropId)
       .single();
 
     if (dropError) {
@@ -162,6 +195,8 @@ export async function testDropDiscountCalculation(dropId: string): Promise<TestR
         ? 'Discount calculation is correct'
         : 'Discount calculation mismatch',
       details: {
+        dropId: targetDropId,
+        dropName: drop.name,
         currentValue,
         expectedDiscount: expectedDiscount.toFixed(2),
         actualDiscount: actualDiscount.toFixed(2),
@@ -188,35 +223,95 @@ export async function testDropDiscountCalculation(dropId: string): Promise<TestR
 /**
  * Test drop status transitions
  */
-export async function testDropStatusTransitions(): Promise<TestResult> {
+export async function testDropStatusTransitions(dropId?: string): Promise<TestResult> {
   console.log('🧪 Testing drop status transitions...');
   const startTime = Date.now();
 
   try {
-    const validTransitions = [
-      { from: 'pending_approval', to: 'approved', valid: true },
-      { from: 'pending_approval', to: 'cancelled', valid: true },
-      { from: 'approved', to: 'active', valid: true },
-      { from: 'approved', to: 'cancelled', valid: true },
-      { from: 'active', to: 'inactive', valid: true },
-      { from: 'active', to: 'completed', valid: true },
-      { from: 'active', to: 'expired', valid: true },
-      { from: 'inactive', to: 'active', valid: true },
-      { from: 'completed', to: 'active', valid: false },
-      { from: 'expired', to: 'active', valid: false },
-      { from: 'cancelled', to: 'active', valid: false },
-    ];
+    // If no dropId provided, get the first drop
+    let targetDropId = dropId;
+    
+    if (!targetDropId) {
+      const { data: drops, error: dropsError } = await supabase
+        .from('drops')
+        .select('id, status, name')
+        .limit(1);
 
-    const results = validTransitions.map(transition => ({
-      transition: `${transition.from} -> ${transition.to}`,
-      expected: transition.valid ? 'valid' : 'invalid',
-      passed: true, // In a real test, you would attempt the transition
-    }));
+      if (dropsError) {
+        return {
+          success: false,
+          message: `Failed to fetch drops: ${dropsError.message}`,
+          details: dropsError,
+          timestamp: new Date(),
+          duration: Date.now() - startTime,
+        };
+      }
+
+      if (!drops || drops.length === 0) {
+        return {
+          success: false,
+          message: 'No drops found to test',
+          details: { hint: 'Create a drop first or provide a dropId' },
+          timestamp: new Date(),
+          duration: Date.now() - startTime,
+        };
+      }
+
+      targetDropId = drops[0].id;
+    }
+
+    // Get drop details
+    const { data: drop, error: dropError } = await supabase
+      .from('drops')
+      .select('id, status, name, start_time, end_time')
+      .eq('id', targetDropId)
+      .single();
+
+    if (dropError) {
+      return {
+        success: false,
+        message: `Failed to fetch drop: ${dropError.message}`,
+        details: dropError,
+        timestamp: new Date(),
+        duration: Date.now() - startTime,
+      };
+    }
+
+    // Define valid state transitions
+    const validTransitions: Record<string, string[]> = {
+      pending_approval: ['approved', 'cancelled'],
+      approved: ['active', 'cancelled'],
+      active: ['inactive', 'completed', 'expired'],
+      inactive: ['active'],
+      completed: [],
+      expired: [],
+      cancelled: [],
+      underfunded: [],
+    };
+
+    const currentStatus = drop.status;
+    const allowedTransitions = validTransitions[currentStatus] || [];
 
     return {
       success: true,
-      message: 'Drop status transition tests completed',
-      details: { transitions: results },
+      message: `Drop status transition test completed for drop "${drop.name}"`,
+      details: {
+        dropId: targetDropId,
+        dropName: drop.name,
+        currentStatus,
+        allowedTransitions,
+        transitionRules: {
+          'pending_approval → approved': 'Admin approves the drop',
+          'pending_approval → cancelled': 'Admin cancels the drop',
+          'approved → active': 'Drop timer starts',
+          'approved → cancelled': 'Admin cancels before activation',
+          'active → inactive': 'Admin manually deactivates',
+          'active → completed': 'Drop timer ends successfully',
+          'active → expired': 'Drop timer ends without meeting minimum',
+          'inactive → active': 'Admin reactivates the drop',
+          'completed/expired/cancelled': 'Terminal states - no transitions',
+        },
+      },
       timestamp: new Date(),
       duration: Date.now() - startTime,
     };

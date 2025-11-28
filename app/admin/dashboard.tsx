@@ -1,346 +1,273 @@
 
 import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  Pressable,
-  ActivityIndicator,
-  RefreshControl,
-  Alert,
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, router } from 'expo-router';
+import { supabase } from '@/app/integrations/supabase/client';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 import * as Haptics from 'expo-haptics';
-import { supabase } from '@/app/integrations/supabase/client';
-import { useAuth } from '@/contexts/AuthContext';
 
 interface DashboardStats {
   totalUsers: number;
-  totalSuppliers: number;
-  totalPickupPoints: number;
+  totalProducts: number;
   activeDrops: number;
-  completedDrops: number;
-  totalBookings: number;
+  pendingOrders: number;
   totalRevenue: number;
+  pendingApprovals: number;
 }
 
-export default function AdminDashboardScreen() {
-  const { logout } = useAuth();
+export default function AdminDashboard() {
   const [stats, setStats] = useState<DashboardStats>({
     totalUsers: 0,
-    totalSuppliers: 0,
-    totalPickupPoints: 0,
+    totalProducts: 0,
     activeDrops: 0,
-    completedDrops: 0,
-    totalBookings: 0,
+    pendingOrders: 0,
     totalRevenue: 0,
+    pendingApprovals: 0,
   });
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
-    loadStats();
+    loadDashboardStats();
   }, []);
 
-  const loadStats = async () => {
+  const loadDashboardStats = async () => {
     try {
       setLoading(true);
-      console.log('Admin Dashboard: Loading stats...');
 
-      // Load all stats in parallel
-      const [
-        usersResult,
-        suppliersResult,
-        pickupPointsResult,
-        activeDropsResult,
-        completedDropsResult,
-        bookingsResult,
-      ] = await Promise.all([
-        supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'consumer'),
-        supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'supplier'),
-        supabase.from('pickup_points').select('*', { count: 'exact', head: true }),
-        supabase.from('drops').select('*', { count: 'exact', head: true }).eq('status', 'active'),
-        supabase.from('drops').select('*', { count: 'exact', head: true }).eq('status', 'completed'),
-        supabase.from('bookings').select('final_price').eq('payment_status', 'captured'),
-      ]);
+      // Get total users
+      const { count: usersCount } = await supabase
+        .from('profiles')
+        .select('*', { count: 'exact', head: true });
 
-      // Log any errors
-      if (usersResult.error) console.error('Error loading users count:', usersResult.error);
-      if (suppliersResult.error) console.error('Error loading suppliers count:', suppliersResult.error);
-      if (pickupPointsResult.error) console.error('Error loading pickup points count:', pickupPointsResult.error);
-      if (activeDropsResult.error) console.error('Error loading active drops count:', activeDropsResult.error);
-      if (completedDropsResult.error) console.error('Error loading completed drops count:', completedDropsResult.error);
-      if (bookingsResult.error) console.error('Error loading bookings:', bookingsResult.error);
+      // Get total products
+      const { count: productsCount } = await supabase
+        .from('products')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'active');
 
-      const totalRevenue = bookingsResult.data?.reduce((sum, b) => sum + (b.final_price || 0), 0) || 0;
+      // Get active drops
+      const { count: dropsCount } = await supabase
+        .from('drops')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'active');
+
+      // Get pending orders
+      const { count: ordersCount } = await supabase
+        .from('orders')
+        .select('*', { count: 'exact', head: true })
+        .in('status', ['pending', 'confirmed']);
+
+      // Get pending drop approvals
+      const { count: approvalsCount } = await supabase
+        .from('drops')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'pending_approval');
+
+      // Get total revenue from completed orders
+      const { data: revenueData } = await supabase
+        .from('orders')
+        .select('total_value')
+        .eq('status', 'completed');
+
+      const totalRevenue = revenueData?.reduce((sum, order) => sum + Number(order.total_value), 0) || 0;
 
       setStats({
-        totalUsers: usersResult.count || 0,
-        totalSuppliers: suppliersResult.count || 0,
-        totalPickupPoints: pickupPointsResult.count || 0,
-        activeDrops: activeDropsResult.count || 0,
-        completedDrops: completedDropsResult.count || 0,
-        totalBookings: bookingsResult.data?.length || 0,
+        totalUsers: usersCount || 0,
+        totalProducts: productsCount || 0,
+        activeDrops: dropsCount || 0,
+        pendingOrders: ordersCount || 0,
         totalRevenue,
+        pendingApprovals: approvalsCount || 0,
       });
     } catch (error) {
-      console.error('Error loading stats:', error);
+      console.error('Error loading dashboard stats:', error);
     } finally {
       setLoading(false);
-      setRefreshing(false);
     }
   };
 
-  const handleRefresh = () => {
-    setRefreshing(true);
-    loadStats();
+  const handleNavigation = (route: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push(route as any);
   };
 
-  const handleLogout = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    Alert.alert(
-      'Logout',
-      'Sei sicuro di voler uscire?',
-      [
-        { text: 'Annulla', style: 'cancel' },
-        {
-          text: 'Esci',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await logout();
-              router.replace('/login');
-            } catch (error) {
-              console.error('Error during logout:', error);
-              Alert.alert('Errore', 'Si è verificato un errore durante il logout');
-            }
-          },
-        },
-      ]
-    );
-  };
-
-  const menuItems = [
+  const quickActions = [
     {
-      title: 'Gestione Utenti',
-      icon: 'person.3.fill',
-      androidIcon: 'people',
+      title: 'Gestisci Drop',
+      description: 'Approva e gestisci i drop',
+      icon: { ios: 'bolt.circle.fill', android: 'flash_on' },
+      route: '/admin/manage-drops',
+      color: '#FF9500',
+      badge: stats.pendingApprovals > 0 ? stats.pendingApprovals : null,
+    },
+    {
+      title: 'Utenti',
+      description: 'Gestisci gli utenti',
+      icon: { ios: 'person.3.fill', android: 'group' },
       route: '/admin/users',
       color: '#007AFF',
     },
     {
-      title: 'Gestione Fornitori',
-      icon: 'building.2.fill',
-      androidIcon: 'business',
-      route: '/admin/suppliers',
-      color: '#FF9500',
-    },
-    {
-      title: 'Punti di Ritiro',
-      icon: 'mappin.circle.fill',
-      androidIcon: 'location_on',
-      route: '/admin/pickup-points',
+      title: 'Prodotti',
+      description: 'Gestisci i prodotti',
+      icon: { ios: 'cube.box.fill', android: 'inventory' },
+      route: '/admin/products',
       color: '#34C759',
     },
     {
-      title: 'Gestione Prodotti',
-      icon: 'cube.box.fill',
-      androidIcon: 'inventory',
-      route: '/admin/products',
-      color: '#5856D6',
-    },
-    {
-      title: 'Gestione Drop',
-      icon: 'flame.fill',
-      androidIcon: 'local_fire_department',
-      route: '/admin/manage-drops',
+      title: 'Punti di Ritiro',
+      description: 'Gestisci i punti di ritiro',
+      icon: { ios: 'mappin.circle.fill', android: 'location_on' },
+      route: '/admin/pickup-points',
       color: '#FF3B30',
     },
     {
-      title: 'Gestisci Prenotazioni',
-      icon: 'cart.fill',
-      androidIcon: 'shopping_cart',
-      route: '/admin/bookings',
+      title: 'Fornitori',
+      description: 'Gestisci i fornitori',
+      icon: { ios: 'building.2.fill', android: 'store' },
+      route: '/admin/suppliers',
+      color: '#5856D6',
+    },
+    {
+      title: 'Gestisci Notifiche',
+      description: 'Flussi e notifiche massive',
+      icon: { ios: 'bell.badge.fill', android: 'notifications_active' },
+      route: '/admin/manage-notifications',
       color: '#FF2D55',
     },
     {
-      title: 'Esporta Ordini Fornitori',
-      icon: 'square.and.arrow.down.fill',
-      androidIcon: 'download',
-      route: '/admin/export-orders',
-      color: '#32ADE6',
-      badge: stats.completedDrops > 0 ? stats.completedDrops.toString() : undefined,
-    },
-    {
-      title: 'Analytics',
-      icon: 'chart.bar.fill',
-      androidIcon: 'analytics',
-      route: '/admin/analytics',
+      title: 'Invia Notifiche',
+      description: 'Invia notifiche agli utenti',
+      icon: { ios: 'paperplane.fill', android: 'send' },
+      route: '/admin/notifications',
       color: '#AF52DE',
     },
     {
-      title: 'Testing & Debug',
-      icon: 'wrench.and.screwdriver.fill',
-      androidIcon: 'build',
+      title: 'Analytics',
+      description: 'Visualizza statistiche',
+      icon: { ios: 'chart.bar.fill', android: 'analytics' },
+      route: '/admin/analytics',
+      color: '#00C7BE',
+    },
+    {
+      title: 'Testing',
+      description: 'Test e diagnostica',
+      icon: { ios: 'wrench.and.screwdriver.fill', android: 'build' },
       route: '/admin/testing',
       color: '#8E8E93',
+    },
+    {
+      title: 'Impostazioni',
+      description: 'Configurazione app',
+      icon: { ios: 'gearshape.fill', android: 'settings' },
+      route: '/admin/settings',
+      color: '#636366',
     },
   ];
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={colors.primary} />
-        <Text style={styles.loadingText}>Caricamento dashboard...</Text>
-      </View>
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <Stack.Screen
+          options={{
+            title: 'Dashboard Admin',
+            headerShown: true,
+          }}
+        />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={styles.loadingText}>Caricamento...</Text>
+        </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <>
+    <SafeAreaView style={styles.container} edges={['top']}>
       <Stack.Screen
         options={{
-          title: 'Admin Dashboard',
-          headerStyle: { backgroundColor: colors.background },
-          headerTintColor: colors.text,
-          headerRight: () => (
-            <Pressable
-              onPress={handleLogout}
-              style={({ pressed }) => [
-                styles.logoutButton,
-                pressed && styles.logoutButtonPressed,
-              ]}
-            >
-              <IconSymbol
-                ios_icon_name="rectangle.portrait.and.arrow.right"
-                android_material_icon_name="logout"
-                size={24}
-                color={colors.error}
-              />
-            </Pressable>
-          ),
+          title: 'Dashboard Admin',
+          headerShown: true,
         }}
       />
-      <SafeAreaView style={styles.container} edges={['bottom']}>
-        <ScrollView
-          style={styles.scrollView}
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
-          }
-        >
-          {/* Stats Cards */}
-          <View style={styles.statsContainer}>
-            <View style={styles.statsRow}>
-              <View style={[styles.statCard, { backgroundColor: '#007AFF15' }]}>
-                <IconSymbol ios_icon_name="person.3.fill" android_material_icon_name="people" size={24} color="#007AFF" />
-                <Text style={styles.statValue}>{stats.totalUsers}</Text>
-                <Text style={styles.statLabel}>Utenti</Text>
-              </View>
-              <View style={[styles.statCard, { backgroundColor: '#FF950015' }]}>
-                <IconSymbol ios_icon_name="building.2.fill" android_material_icon_name="business" size={24} color="#FF9500" />
-                <Text style={styles.statValue}>{stats.totalSuppliers}</Text>
-                <Text style={styles.statLabel}>Fornitori</Text>
-              </View>
-            </View>
+      
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+        {/* Header */}
+        <View style={styles.header}>
+          <Text style={styles.title}>Dashboard Admin</Text>
+          <Text style={styles.subtitle}>Panoramica generale della piattaforma</Text>
+        </View>
 
-            <View style={styles.statsRow}>
-              <View style={[styles.statCard, { backgroundColor: '#34C75915' }]}>
-                <IconSymbol ios_icon_name="mappin.circle.fill" android_material_icon_name="location_on" size={24} color="#34C759" />
-                <Text style={styles.statValue}>{stats.totalPickupPoints}</Text>
-                <Text style={styles.statLabel}>Punti Ritiro</Text>
-              </View>
-              <View style={[styles.statCard, { backgroundColor: '#FF3B3015' }]}>
-                <IconSymbol ios_icon_name="flame.fill" android_material_icon_name="local_fire_department" size={24} color="#FF3B30" />
-                <Text style={styles.statValue}>{stats.activeDrops}</Text>
-                <Text style={styles.statLabel}>Drop Attivi</Text>
-              </View>
-            </View>
-
-            <View style={styles.statsRow}>
-              <View style={[styles.statCard, { backgroundColor: '#5856D615' }]}>
-                <IconSymbol ios_icon_name="checkmark.circle.fill" android_material_icon_name="check_circle" size={24} color="#5856D6" />
-                <Text style={styles.statValue}>{stats.completedDrops}</Text>
-                <Text style={styles.statLabel}>Drop Completati</Text>
-              </View>
-              <View style={[styles.statCard, { backgroundColor: '#FF2D5515' }]}>
-                <IconSymbol ios_icon_name="cart.fill" android_material_icon_name="shopping_cart" size={24} color="#FF2D55" />
-                <Text style={styles.statValue}>{stats.totalBookings}</Text>
-                <Text style={styles.statLabel}>Prenotazioni</Text>
-              </View>
-            </View>
-
-            <View style={[styles.revenueCard, { backgroundColor: '#32ADE615' }]}>
-              <IconSymbol ios_icon_name="eurosign.circle.fill" android_material_icon_name="euro" size={32} color="#32ADE6" />
-              <View style={styles.revenueInfo}>
-                <Text style={styles.revenueLabel}>Fatturato Totale</Text>
-                <Text style={styles.revenueValue}>€{stats.totalRevenue.toFixed(2)}</Text>
-              </View>
-            </View>
+        {/* Stats Grid */}
+        <View style={styles.statsGrid}>
+          <View style={styles.statCard}>
+            <IconSymbol ios_icon_name="person.3.fill" android_material_icon_name="group" size={28} color="#007AFF" />
+            <Text style={styles.statValue}>{stats.totalUsers}</Text>
+            <Text style={styles.statLabel}>Utenti Totali</Text>
           </View>
 
-          {/* Menu Items */}
-          <View style={styles.menuContainer}>
-            {menuItems.map((item, index) => (
+          <View style={styles.statCard}>
+            <IconSymbol ios_icon_name="cube.box.fill" android_material_icon_name="inventory" size={28} color="#34C759" />
+            <Text style={styles.statValue}>{stats.totalProducts}</Text>
+            <Text style={styles.statLabel}>Prodotti Attivi</Text>
+          </View>
+
+          <View style={styles.statCard}>
+            <IconSymbol ios_icon_name="bolt.circle.fill" android_material_icon_name="flash_on" size={28} color="#FF9500" />
+            <Text style={styles.statValue}>{stats.activeDrops}</Text>
+            <Text style={styles.statLabel}>Drop Attivi</Text>
+          </View>
+
+          <View style={styles.statCard}>
+            <IconSymbol ios_icon_name="shippingbox.fill" android_material_icon_name="local_shipping" size={28} color="#FF3B30" />
+            <Text style={styles.statValue}>{stats.pendingOrders}</Text>
+            <Text style={styles.statLabel}>Ordini Pendenti</Text>
+          </View>
+
+          <View style={[styles.statCard, styles.statCardWide]}>
+            <IconSymbol ios_icon_name="eurosign.circle.fill" android_material_icon_name="euro" size={28} color="#00C7BE" />
+            <Text style={styles.statValue}>€{stats.totalRevenue.toFixed(2)}</Text>
+            <Text style={styles.statLabel}>Fatturato Totale</Text>
+          </View>
+        </View>
+
+        {/* Quick Actions */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Azioni Rapide</Text>
+          
+          <View style={styles.actionsGrid}>
+            {quickActions.map((action, index) => (
               <Pressable
                 key={index}
                 style={({ pressed }) => [
-                  styles.menuItem,
-                  pressed && styles.menuItemPressed,
+                  styles.actionCard,
+                  pressed && styles.actionCardPressed,
                 ]}
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  router.push(item.route as any);
-                }}
+                onPress={() => handleNavigation(action.route)}
               >
-                <View style={[styles.menuIcon, { backgroundColor: item.color + '15' }]}>
+                <View style={[styles.actionIcon, { backgroundColor: action.color + '20' }]}>
                   <IconSymbol
-                    ios_icon_name={item.icon}
-                    android_material_icon_name={item.androidIcon}
+                    ios_icon_name={action.icon.ios}
+                    android_material_icon_name={action.icon.android}
                     size={24}
-                    color={item.color}
+                    color={action.color}
                   />
+                  {action.badge && (
+                    <View style={styles.badge}>
+                      <Text style={styles.badgeText}>{action.badge}</Text>
+                    </View>
+                  )}
                 </View>
-                <Text style={styles.menuTitle}>{item.title}</Text>
-                {item.badge && (
-                  <View style={[styles.badge, { backgroundColor: item.color }]}>
-                    <Text style={styles.badgeText}>{item.badge}</Text>
-                  </View>
-                )}
-                <IconSymbol
-                  ios_icon_name="chevron.right"
-                  android_material_icon_name="chevron_right"
-                  size={20}
-                  color={colors.textTertiary}
-                />
+                <Text style={styles.actionTitle}>{action.title}</Text>
+                <Text style={styles.actionDescription}>{action.description}</Text>
               </Pressable>
             ))}
           </View>
-
-          {/* Logout Button at Bottom */}
-          <Pressable
-            style={({ pressed }) => [
-              styles.logoutButtonBottom,
-              pressed && styles.logoutButtonBottomPressed,
-            ]}
-            onPress={handleLogout}
-          >
-            <IconSymbol
-              ios_icon_name="rectangle.portrait.and.arrow.right"
-              android_material_icon_name="logout"
-              size={20}
-              color={colors.error}
-            />
-            <Text style={styles.logoutButtonText}>Esci</Text>
-          </Pressable>
-        </ScrollView>
-      </SafeAreaView>
-    </>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
@@ -353,10 +280,9 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: colors.background,
+    gap: 12,
   },
   loadingText: {
-    marginTop: 16,
     fontSize: 14,
     color: colors.textSecondary,
   },
@@ -364,123 +290,115 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    padding: 16,
-    paddingBottom: 40,
+    padding: 20,
+    paddingBottom: 100,
   },
-  statsContainer: {
+  header: {
     marginBottom: 24,
   },
-  statsRow: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 12,
-  },
-  statCard: {
-    flex: 1,
-    padding: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-    gap: 8,
-  },
-  statValue: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: colors.text,
-  },
-  statLabel: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    textAlign: 'center',
-  },
-  revenueCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 20,
-    borderRadius: 12,
-    gap: 16,
-  },
-  revenueInfo: {
-    flex: 1,
-  },
-  revenueLabel: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    marginBottom: 4,
-  },
-  revenueValue: {
+  title: {
     fontSize: 28,
     fontWeight: '700',
     color: colors.text,
+    marginBottom: 8,
   },
-  menuContainer: {
-    gap: 12,
-    marginBottom: 24,
+  subtitle: {
+    fontSize: 15,
+    color: colors.textSecondary,
   },
-  menuItem: {
+  statsGrid: {
     flexDirection: 'row',
-    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 12,
+    marginBottom: 32,
+  },
+  statCard: {
+    flex: 1,
+    minWidth: '47%',
     backgroundColor: colors.card,
-    padding: 16,
-    borderRadius: 12,
+    borderRadius: 16,
+    padding: 20,
+    alignItems: 'center',
     borderWidth: 1,
     borderColor: colors.border,
+  },
+  statCardWide: {
+    minWidth: '100%',
+  },
+  statValue: {
+    fontSize: 32,
+    fontWeight: '700',
+    color: colors.text,
+    marginTop: 12,
+    marginBottom: 4,
+  },
+  statLabel: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    textAlign: 'center',
+  },
+  section: {
+    marginBottom: 24,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: 16,
+  },
+  actionsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 12,
   },
-  menuItemPressed: {
+  actionCard: {
+    flex: 1,
+    minWidth: '47%',
+    backgroundColor: colors.card,
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  actionCardPressed: {
     opacity: 0.7,
     transform: [{ scale: 0.98 }],
   },
-  menuIcon: {
+  actionIcon: {
     width: 48,
     height: 48,
-    borderRadius: 24,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  menuTitle: {
-    flex: 1,
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.text,
+    marginBottom: 12,
+    position: 'relative',
   },
   badge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    minWidth: 24,
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    backgroundColor: '#FF3B30',
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
     alignItems: 'center',
     justifyContent: 'center',
+    paddingHorizontal: 6,
   },
   badgeText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '700',
     color: '#FFF',
   },
-  logoutButton: {
-    padding: 8,
-    marginRight: 8,
+  actionTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: 4,
   },
-  logoutButtonPressed: {
-    opacity: 0.6,
-  },
-  logoutButtonBottom: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: colors.card,
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.error + '40',
-  },
-  logoutButtonBottomPressed: {
-    opacity: 0.7,
-    transform: [{ scale: 0.98 }],
-  },
-  logoutButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.error,
+  actionDescription: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    lineHeight: 16,
   },
 });
