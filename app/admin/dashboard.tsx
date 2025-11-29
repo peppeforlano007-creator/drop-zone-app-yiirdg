@@ -146,6 +146,13 @@ export default function AdminDashboard() {
       color: '#007AFF',
     },
     {
+      title: 'Programma Fedeltà',
+      description: 'Gestisci utenti bloccati e coupon',
+      icon: { ios: 'star.circle.fill', android: 'stars' },
+      route: '/admin/loyalty-program',
+      color: '#FFD700',
+    },
+    {
       title: 'Prodotti',
       description: 'Gestisci i prodotti',
       icon: { ios: 'cube.box.fill', android: 'inventory' },

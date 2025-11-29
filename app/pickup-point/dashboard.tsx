@@ -441,6 +441,38 @@ export default function PickupPointDashboardScreen() {
               ]}
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.push('/pickup-point/returns');
+              }}
+            >
+              <View style={styles.actionIcon}>
+                <IconSymbol
+                  ios_icon_name="arrow.uturn.backward.circle"
+                  android_material_icon_name="undo"
+                  size={24}
+                  color={colors.error}
+                />
+              </View>
+              <View style={styles.actionContent}>
+                <Text style={styles.actionTitle}>Gestione Resi</Text>
+                <Text style={styles.actionDescription}>
+                  Registra i resi dei singoli articoli
+                </Text>
+              </View>
+              <IconSymbol
+                ios_icon_name="chevron.right"
+                android_material_icon_name="chevron_right"
+                size={20}
+                color={colors.textSecondary}
+              />
+            </Pressable>
+
+            <Pressable
+              style={({ pressed }) => [
+                styles.actionCard,
+                pressed && styles.actionCardPressed,
+              ]}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                 router.push('/pickup-point/earnings');
               }}
             >

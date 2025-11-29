@@ -49,6 +49,13 @@ export default function AdminLayout() {
         }}
       />
       <Stack.Screen
+        name="loyalty-program"
+        options={{
+          title: 'Programma Fedeltà',
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
         name="suppliers"
         options={{
           title: 'Gestisci Fornitori',

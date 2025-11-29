@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,14 +7,55 @@ import {
   ScrollView,
   Platform,
   Pressable,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, router } from 'expo-router';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 import * as Haptics from 'expo-haptics';
+import { supabase } from '@/app/integrations/supabase/client';
+
+interface Coupon {
+  id: string;
+  name: string;
+  description: string | null;
+  discount_percentage: number;
+  points_required: number;
+}
 
 export default function LoyaltyProgramScreen() {
+  const [loading, setLoading] = useState(true);
+  const [coupons, setCoupons] = useState<Coupon[]>([]);
+
+  useEffect(() => {
+    loadCoupons();
+  }, []);
+
+  const loadCoupons = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('coupons')
+        .select('*')
+        .eq('is_active', true)
+        .order('points_required', { ascending: true });
+
+      if (error) {
+        console.error('Error loading coupons:', error);
+      } else {
+        setCoupons(data || []);
+      }
+    } catch (error) {
+      console.error('Error loading coupons:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getCouponColor = (index: number) => {
+    const colors = ['#4CAF50', '#2196F3', '#9C27B0'];
+    return colors[index % colors.length];
+  };
   return (
     <>
       <Stack.Screen
@@ -110,50 +151,30 @@ export default function LoyaltyProgramScreen() {
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Coupon Disponibili</Text>
             
-            <View style={styles.tierCard}>
-              <View style={styles.tierHeader}>
-                <View style={styles.tierBadge}>
-                  <Text style={styles.tierDiscount}>10%</Text>
-                </View>
-                <View style={styles.tierInfo}>
-                  <Text style={styles.tierTitle}>Sconto 10%</Text>
-                  <Text style={styles.tierPoints}>1.000 punti</Text>
-                </View>
+            {loading ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color={colors.primary} />
               </View>
-              <Text style={styles.tierDescription}>
-                Riscatta questo coupon per ottenere uno sconto del 10% sul tuo prossimo ordine.
-              </Text>
-            </View>
-
-            <View style={styles.tierCard}>
-              <View style={styles.tierHeader}>
-                <View style={[styles.tierBadge, styles.tierBadgeMedium]}>
-                  <Text style={styles.tierDiscount}>20%</Text>
+            ) : coupons.length > 0 ? (
+              coupons.map((coupon, index) => (
+                <View key={coupon.id} style={styles.tierCard}>
+                  <View style={styles.tierHeader}>
+                    <View style={[styles.tierBadge, { backgroundColor: getCouponColor(index) }]}>
+                      <Text style={styles.tierDiscount}>{coupon.discount_percentage}%</Text>
+                    </View>
+                    <View style={styles.tierInfo}>
+                      <Text style={styles.tierTitle}>{coupon.name}</Text>
+                      <Text style={styles.tierPoints}>{coupon.points_required.toLocaleString('it-IT')} punti</Text>
+                    </View>
+                  </View>
+                  <Text style={styles.tierDescription}>
+                    {coupon.description || `Riscatta questo coupon per ottenere uno sconto del ${coupon.discount_percentage}% sul tuo prossimo ordine.`}
+                  </Text>
                 </View>
-                <View style={styles.tierInfo}>
-                  <Text style={styles.tierTitle}>Sconto 20%</Text>
-                  <Text style={styles.tierPoints}>2.000 punti</Text>
-                </View>
-              </View>
-              <Text style={styles.tierDescription}>
-                Riscatta questo coupon per ottenere uno sconto del 20% sul tuo prossimo ordine.
-              </Text>
-            </View>
-
-            <View style={styles.tierCard}>
-              <View style={styles.tierHeader}>
-                <View style={[styles.tierBadge, styles.tierBadgeHigh]}>
-                  <Text style={styles.tierDiscount}>30%</Text>
-                </View>
-                <View style={styles.tierInfo}>
-                  <Text style={styles.tierTitle}>Sconto 30%</Text>
-                  <Text style={styles.tierPoints}>5.000 punti</Text>
-                </View>
-              </View>
-              <Text style={styles.tierDescription}>
-                Riscatta questo coupon per ottenere uno sconto del 30% sul tuo prossimo ordine.
-              </Text>
-            </View>
+              ))
+            ) : (
+              <Text style={styles.emptyText}>Nessun coupon disponibile al momento</Text>
+            )}
           </View>
 
           {/* Additional Points */}
@@ -347,15 +368,8 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: '#4CAF50',
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  tierBadgeMedium: {
-    backgroundColor: '#2196F3',
-  },
-  tierBadgeHigh: {
-    backgroundColor: '#9C27B0',
   },
   tierDiscount: {
     fontSize: 18,
@@ -437,5 +451,15 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     color: '#FFFFFF',
+  },
+  loadingContainer: {
+    paddingVertical: 40,
+    alignItems: 'center',
+  },
+  emptyText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    paddingVertical: 32,
   },
 });
