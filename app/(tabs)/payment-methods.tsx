@@ -123,7 +123,7 @@ export default function PaymentMethodsScreen() {
                 Assicurati di ritirare i tuoi ordini entro i tempi stabiliti. 
                 Dopo 5 ordini non ritirati e rispediti al fornitore, l&apos;account verrà bloccato definitivamente.
                 {'\n\n'}
-                Al punto di ritiro sarà possibile effettuare resi dei singoli articoli, ma dopo 100 articoli restituiti il profilo sarà bloccato momentaneamente.
+                Al punto di ritiro sarà possibile effettuare resi dei singoli articoli, ma dopo molti articoli restituiti il profilo sarà bloccato momentaneamente.
               </Text>
             </View>
           </View>

@@ -139,6 +139,27 @@ export default function AdminDashboard() {
       badge: stats.pendingApprovals > 0 ? stats.pendingApprovals : null,
     },
     {
+      title: 'Gestisci Prenotazioni',
+      description: 'Ordini da drop chiusi',
+      icon: { ios: 'calendar.badge.checkmark', android: 'event_available' },
+      route: '/admin/bookings',
+      color: '#32ADE6',
+    },
+    {
+      title: 'Visualizza Resi',
+      description: 'Resi per punto di ritiro',
+      icon: { ios: 'arrow.uturn.backward.circle.fill', android: 'assignment_return' },
+      route: '/admin/returns',
+      color: '#FF6B6B',
+    },
+    {
+      title: 'Esporta Ordini',
+      description: 'Esporta per fornitori',
+      icon: { ios: 'square.and.arrow.down.fill', android: 'download' },
+      route: '/admin/export-orders',
+      color: '#4ECDC4',
+    },
+    {
       title: 'Utenti',
       description: 'Gestisci gli utenti',
       icon: { ios: 'person.3.fill', android: 'group' },
