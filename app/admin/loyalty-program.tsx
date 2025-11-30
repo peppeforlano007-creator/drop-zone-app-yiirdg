@@ -50,6 +50,7 @@ export default function LoyaltyProgramManagementScreen() {
   const [unblocking, setUnblocking] = useState<string | null>(null);
   const [editingCoupon, setEditingCoupon] = useState<string | null>(null);
   const [editValues, setEditValues] = useState<{ [key: string]: { discount: string; points: string } }>({});
+  const [savingCoupon, setSavingCoupon] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     try {
@@ -166,21 +167,35 @@ export default function LoyaltyProgramManagementScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     try {
-      // Update the coupon with explicit select to verify the update
-      const { data: updatedData, error } = await supabase
+      setSavingCoupon(couponId);
+      console.log('Updating coupon:', couponId, 'with values:', { discount, points });
+
+      // First, update the coupon
+      const { error: updateError } = await supabase
         .from('coupons')
         .update({
           discount_percentage: discount,
           points_required: points,
           updated_at: new Date().toISOString(),
         })
+        .eq('id', couponId);
+
+      if (updateError) {
+        console.error('Error updating coupon:', updateError);
+        Alert.alert('Errore', `Impossibile aggiornare il coupon: ${updateError.message}`);
+        return;
+      }
+
+      // Then, fetch the updated coupon to verify
+      const { data: updatedData, error: fetchError } = await supabase
+        .from('coupons')
+        .select('*')
         .eq('id', couponId)
-        .select()
         .single();
 
-      if (error) {
-        console.error('Error updating coupon:', error);
-        Alert.alert('Errore', `Impossibile aggiornare il coupon: ${error.message}`);
+      if (fetchError) {
+        console.error('Error fetching updated coupon:', fetchError);
+        Alert.alert('Errore', 'Coupon aggiornato ma impossibile verificare le modifiche');
         return;
       }
 
@@ -190,7 +205,7 @@ export default function LoyaltyProgramManagementScreen() {
       setCoupons(prevCoupons => 
         prevCoupons.map(coupon => 
           coupon.id === couponId 
-            ? { ...coupon, discount_percentage: discount, points_required: points, updated_at: new Date().toISOString() }
+            ? updatedData
             : coupon
         )
       );
@@ -199,20 +214,19 @@ export default function LoyaltyProgramManagementScreen() {
       setEditValues(prev => ({
         ...prev,
         [couponId]: {
-          discount: discount.toString(),
-          points: points.toString(),
+          discount: updatedData.discount_percentage.toString(),
+          points: updatedData.points_required.toString(),
         },
       }));
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert('Successo', 'Coupon aggiornato con successo');
       setEditingCoupon(null);
-      
-      // Reload data to ensure consistency
-      await loadData();
     } catch (error: any) {
       console.error('Error updating coupon:', error);
       Alert.alert('Errore', `Si è verificato un errore: ${error.message || 'Errore sconosciuto'}`);
+    } finally {
+      setSavingCoupon(null);
     }
   };
 
@@ -287,7 +301,7 @@ export default function LoyaltyProgramManagementScreen() {
                   color={colors.info} 
                 />
                 <Text style={styles.infoText}>
-                  Utenti bloccati per 5 ordini rispediti al fornitore o 100 articoli restituiti. 
+                  Utenti bloccati per 5 ordini rispediti al fornitore o molti articoli restituiti. 
                   Puoi sbloccare manualmente gli account.
                 </Text>
               </View>
@@ -466,6 +480,7 @@ export default function LoyaltyProgramManagementScreen() {
                               },
                             });
                           }}
+                          disabled={savingCoupon === coupon.id}
                         >
                           <Text style={styles.cancelButtonText}>Annulla</Text>
                         </Pressable>
@@ -473,16 +488,24 @@ export default function LoyaltyProgramManagementScreen() {
                           style={({ pressed }) => [
                             styles.saveButton,
                             pressed && styles.saveButtonPressed,
+                            savingCoupon === coupon.id && styles.saveButtonDisabled,
                           ]}
                           onPress={() => handleUpdateCoupon(coupon.id)}
+                          disabled={savingCoupon === coupon.id}
                         >
-                          <IconSymbol 
-                            ios_icon_name="checkmark" 
-                            android_material_icon_name="check"
-                            size={20} 
-                            color={colors.background} 
-                          />
-                          <Text style={styles.saveButtonText}>Salva</Text>
+                          {savingCoupon === coupon.id ? (
+                            <ActivityIndicator size="small" color={colors.background} />
+                          ) : (
+                            <React.Fragment>
+                              <IconSymbol 
+                                ios_icon_name="checkmark" 
+                                android_material_icon_name="check"
+                                size={20} 
+                                color={colors.background} 
+                              />
+                              <Text style={styles.saveButtonText}>Salva</Text>
+                            </React.Fragment>
+                          )}
                         </Pressable>
                       </View>
                     </View>
@@ -827,6 +850,9 @@ const styles = StyleSheet.create({
   },
   saveButtonPressed: {
     opacity: 0.7,
+  },
+  saveButtonDisabled: {
+    opacity: 0.5,
   },
   saveButtonText: {
     fontSize: 15,

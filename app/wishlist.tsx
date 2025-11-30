@@ -34,6 +34,11 @@ interface WishlistItem {
     stock: number;
     supplier_list_id: string;
   };
+  drops: {
+    id: string;
+    name: string;
+    status: string;
+  } | null;
 }
 
 export default function WishlistScreen() {
@@ -65,6 +70,11 @@ export default function WishlistScreen() {
             category,
             stock,
             supplier_list_id
+          ),
+          drops (
+            id,
+            name,
+            status
           )
         `)
         .eq('user_id', user.id)
@@ -139,21 +149,40 @@ export default function WishlistScreen() {
   const handleGoToProduct = async (item: WishlistItem) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
-    // Navigate to home feed
-    // The product will be visible in the feed if it's still available
-    router.push('/(tabs)/(home)');
-    
-    Alert.alert(
-      'Vai al Prodotto',
-      'Torna al feed principale per trovare questo prodotto. Scorri le liste per trovarlo!',
-      [{ text: 'OK' }]
-    );
+    // Check if the product is in an active drop
+    if (item.drop_id && item.drops) {
+      const dropStatus = item.drops.status;
+      
+      if (dropStatus === 'active' || dropStatus === 'approved') {
+        // Navigate to the drop details screen
+        router.push({
+          pathname: '/drop-details',
+          params: { dropId: item.drop_id },
+        });
+      } else {
+        Alert.alert(
+          'Drop non più attivo',
+          `Il drop "${item.drops.name}" non è più attivo. Il prodotto potrebbe apparire in un nuovo drop in futuro.`,
+          [{ text: 'OK' }]
+        );
+      }
+    } else {
+      // Product not in a drop yet, navigate to main feed
+      router.push('/(tabs)/(home)');
+      
+      Alert.alert(
+        'Prodotto nel Feed Principale',
+        'Questo prodotto non è ancora in un drop attivo. Scorri il feed principale per trovarlo e clicca su "VORRÒ PARTECIPARE AL DROP" per essere notificato quando sarà disponibile!',
+        [{ text: 'OK' }]
+      );
+    }
   };
 
   const renderWishlistItem = ({ item }: { item: WishlistItem }) => {
     const product = item.products;
     const isRemoving = removingId === item.id;
     const isOutOfStock = product.stock <= 0;
+    const isInActiveDrop = item.drop_id && item.drops && (item.drops.status === 'active' || item.drops.status === 'approved');
 
     return (
       <Pressable
@@ -170,6 +199,18 @@ export default function WishlistScreen() {
         {isOutOfStock && (
           <View style={styles.outOfStockBadge}>
             <Text style={styles.outOfStockText}>Esaurito</Text>
+          </View>
+        )}
+
+        {isInActiveDrop && (
+          <View style={styles.dropActiveBadge}>
+            <IconSymbol
+              ios_icon_name="bolt.fill"
+              android_material_icon_name="flash_on"
+              size={12}
+              color="#FFF"
+            />
+            <Text style={styles.dropActiveText}>Drop Attivo</Text>
           </View>
         )}
 
@@ -201,6 +242,20 @@ export default function WishlistScreen() {
                 color={colors.success}
               />
               <Text style={styles.stockText}>{product.stock} disponibili</Text>
+            </View>
+          )}
+
+          {item.drops && (
+            <View style={styles.dropInfo}>
+              <IconSymbol
+                ios_icon_name="tag.circle.fill"
+                android_material_icon_name="local_offer"
+                size={12}
+                color={colors.primary}
+              />
+              <Text style={styles.dropInfoText} numberOfLines={1}>
+                {item.drops.name}
+              </Text>
             </View>
           )}
         </View>
@@ -263,22 +318,22 @@ export default function WishlistScreen() {
             <Text style={styles.emptyText}>
               Non hai ancora salvato nessun prodotto nella tua wishlist.
               {'\n\n'}
-              Usa il cuore ❤️ nel feed per salvare i prodotti che ti interessano!
+              Usa il cuore ❤️ nel feed drop per salvare i prodotti che ti interessano!
             </Text>
             <Pressable
               style={styles.goToFeedButton}
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                router.push('/(tabs)/(home)');
+                router.push('/(tabs)/drops');
               }}
             >
               <IconSymbol
-                ios_icon_name="house.fill"
-                android_material_icon_name="home"
+                ios_icon_name="tag.fill"
+                android_material_icon_name="local_offer"
                 size={20}
                 color={colors.background}
               />
-              <Text style={styles.goToFeedButtonText}>Vai al Feed</Text>
+              <Text style={styles.goToFeedButtonText}>Vai ai Drop</Text>
             </Pressable>
           </View>
         ) : (
@@ -301,6 +356,17 @@ export default function WishlistScreen() {
                 <Text style={styles.headerText}>
                   {wishlistItems.length} {wishlistItems.length === 1 ? 'prodotto salvato' : 'prodotti salvati'}
                 </Text>
+                <View style={styles.infoCard}>
+                  <IconSymbol
+                    ios_icon_name="info.circle.fill"
+                    android_material_icon_name="info"
+                    size={16}
+                    color={colors.info}
+                  />
+                  <Text style={styles.infoText}>
+                    Tocca un prodotto per andare direttamente al suo drop. I prodotti con il badge "Drop Attivo" sono disponibili per la prenotazione!
+                  </Text>
+                </View>
               </View>
             }
           />
@@ -371,6 +437,23 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: colors.textSecondary,
+    marginBottom: 12,
+  },
+  infoCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    backgroundColor: colors.info + '10',
+    borderWidth: 1,
+    borderColor: colors.info + '30',
+    borderRadius: 8,
+    padding: 12,
+  },
+  infoText: {
+    flex: 1,
+    fontSize: 12,
+    color: colors.text,
+    lineHeight: 18,
   },
   wishlistCard: {
     flexDirection: 'row',
@@ -401,6 +484,24 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   outOfStockText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#FFF',
+    textTransform: 'uppercase',
+  },
+  dropActiveBadge: {
+    position: 'absolute',
+    top: 12,
+    left: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: colors.success,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  dropActiveText: {
     fontSize: 10,
     fontWeight: '700',
     color: '#FFF',
@@ -443,11 +544,23 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
+    marginBottom: 4,
   },
   stockText: {
     fontSize: 11,
     fontWeight: '600',
     color: colors.success,
+  },
+  dropInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  dropInfoText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: colors.primary,
+    flex: 1,
   },
   removeButton: {
     width: 40,
