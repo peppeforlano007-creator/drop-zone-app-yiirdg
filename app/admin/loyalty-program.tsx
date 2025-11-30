@@ -170,7 +170,7 @@ export default function LoyaltyProgramManagementScreen() {
       setSavingCoupon(couponId);
       console.log('Updating coupon:', couponId, 'with values:', { discount, points });
 
-      // First, update the coupon
+      // Update the coupon in the database
       const { error: updateError } = await supabase
         .from('coupons')
         .update({
@@ -186,38 +186,37 @@ export default function LoyaltyProgramManagementScreen() {
         return;
       }
 
-      // Then, fetch the updated coupon to verify
-      const { data: updatedData, error: fetchError } = await supabase
+      console.log('Coupon update successful, fetching fresh data...');
+
+      // Wait a moment to ensure database has processed the update
+      await new Promise(resolve => setTimeout(resolve, 300));
+
+      // Fetch ALL coupons fresh from the database to ensure we have the latest data
+      const { data: allCouponsData, error: fetchError } = await supabase
         .from('coupons')
         .select('*')
-        .eq('id', couponId)
-        .single();
+        .order('points_required', { ascending: true });
 
       if (fetchError) {
-        console.error('Error fetching updated coupon:', fetchError);
+        console.error('Error fetching updated coupons:', fetchError);
         Alert.alert('Errore', 'Coupon aggiornato ma impossibile verificare le modifiche');
         return;
       }
 
-      console.log('Coupon updated successfully:', updatedData);
+      console.log('Fresh coupons data fetched:', allCouponsData);
 
-      // Update local state immediately to reflect changes
-      setCoupons(prevCoupons => 
-        prevCoupons.map(coupon => 
-          coupon.id === couponId 
-            ? updatedData
-            : coupon
-        )
-      );
+      // Update the entire coupons list with fresh data
+      setCoupons(allCouponsData || []);
 
-      // Update edit values to match the new values
-      setEditValues(prev => ({
-        ...prev,
-        [couponId]: {
-          discount: updatedData.discount_percentage.toString(),
-          points: updatedData.points_required.toString(),
-        },
-      }));
+      // Update edit values to match the fresh data
+      const newEditValues: { [key: string]: { discount: string; points: string } } = {};
+      allCouponsData?.forEach(coupon => {
+        newEditValues[coupon.id] = {
+          discount: coupon.discount_percentage.toString(),
+          points: coupon.points_required.toString(),
+        };
+      });
+      setEditValues(newEditValues);
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert('Successo', 'Coupon aggiornato con successo');
