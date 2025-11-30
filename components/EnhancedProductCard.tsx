@@ -54,6 +54,7 @@ export default function EnhancedProductCard({
   // Animation values
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const wishlistScaleAnim = useRef(new Animated.Value(1)).current;
+  const wishlistPulseAnim = useRef(new Animated.Value(1)).current;
 
   // Safe value extraction with defaults
   const originalPrice = product.originalPrice ?? 0;
@@ -122,18 +123,34 @@ export default function EnhancedProductCard({
     
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     
-    // Animate the button
+    // Animate the button with a more pronounced effect
     Animated.sequence([
-      Animated.spring(wishlistScaleAnim, {
-        toValue: 1.3,
-        useNativeDriver: true,
-        speed: 50,
-      }),
-      Animated.spring(wishlistScaleAnim, {
-        toValue: 1,
-        useNativeDriver: true,
-        speed: 50,
-      }),
+      Animated.parallel([
+        Animated.spring(wishlistScaleAnim, {
+          toValue: 1.4,
+          useNativeDriver: true,
+          speed: 50,
+          bounciness: 20,
+        }),
+        Animated.timing(wishlistPulseAnim, {
+          toValue: 1.2,
+          duration: 150,
+          useNativeDriver: true,
+        }),
+      ]),
+      Animated.parallel([
+        Animated.spring(wishlistScaleAnim, {
+          toValue: 1,
+          useNativeDriver: true,
+          speed: 50,
+          bounciness: 15,
+        }),
+        Animated.timing(wishlistPulseAnim, {
+          toValue: 1,
+          duration: 150,
+          useNativeDriver: true,
+        }),
+      ]),
     ]).start();
     
     onWishlistToggle(product.id);
@@ -309,13 +326,15 @@ export default function EnhancedProductCard({
           </View>
         )}
 
-        {/* Wishlist Heart Button - Positioned at top-right with enhanced styling */}
+        {/* Wishlist Heart Button - Enhanced styling for better clickability */}
         {onWishlistToggle && (
           <Animated.View 
             style={[
               styles.wishlistButtonContainer,
               {
-                transform: [{ scale: wishlistScaleAnim }],
+                transform: [
+                  { scale: wishlistScaleAnim },
+                ],
               },
             ]}
           >
@@ -326,13 +345,24 @@ export default function EnhancedProductCard({
                 pressed && styles.wishlistButtonPressed,
               ]}
               onPress={handleWishlistPress}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
-              <IconSymbol 
-                ios_icon_name={isInWishlist ? "heart.fill" : "heart"} 
-                android_material_icon_name={isInWishlist ? "favorite" : "favorite_border"} 
-                size={24} 
-                color={isInWishlist ? "#FF3B30" : "#FFFFFF"} 
-              />
+              <Animated.View
+                style={{
+                  transform: [{ scale: wishlistPulseAnim }],
+                }}
+              >
+                <IconSymbol 
+                  ios_icon_name={isInWishlist ? "heart.fill" : "heart"} 
+                  android_material_icon_name={isInWishlist ? "favorite" : "favorite_border"} 
+                  size={28} 
+                  color={isInWishlist ? "#FF3B30" : "#FFFFFF"} 
+                />
+              </Animated.View>
+              {/* Ripple effect indicator */}
+              {isInWishlist && (
+                <View style={styles.wishlistActiveIndicator} />
+              )}
             </Pressable>
           </Animated.View>
         )}
@@ -737,7 +767,7 @@ const styles = StyleSheet.create({
   imageIndicator: {
     position: 'absolute',
     top: 60,
-    right: 20,
+    left: 20,
     backgroundColor: 'rgba(0, 0, 0, 0.75)',
     paddingHorizontal: 10,
     paddingVertical: 6,
@@ -758,28 +788,41 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   wishlistButton: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: 'rgba(0, 0, 0, 0.75)',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
+    borderWidth: 3,
+    borderColor: 'rgba(255, 255, 255, 0.5)',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.5,
+    shadowRadius: 12,
+    elevation: 12,
   },
   wishlistButtonActive: {
-    backgroundColor: 'rgba(255, 59, 48, 0.15)',
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
     borderColor: '#FF3B30',
-    borderWidth: 3,
+    borderWidth: 4,
+    shadowColor: '#FF3B30',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.6,
+    shadowRadius: 16,
+    elevation: 16,
   },
   wishlistButtonPressed: {
-    opacity: 0.8,
-    transform: [{ scale: 0.95 }],
+    opacity: 0.9,
+  },
+  wishlistActiveIndicator: {
+    position: 'absolute',
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    borderWidth: 2,
+    borderColor: '#FF3B30',
+    opacity: 0.3,
   },
   dropBadge: {
     position: 'absolute',
