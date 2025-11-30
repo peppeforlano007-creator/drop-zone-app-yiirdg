@@ -480,7 +480,7 @@ export default function ProfileScreen() {
             <Pressable style={styles.settingItem} onPress={handleViewWishlist}>
               <View style={styles.settingContent}>
                 <IconSymbol ios_icon_name="heart.fill" android_material_icon_name="favorite" size={20} color="#FF6B6B" />
-                <Text style={styles.settingText}>❤️ La mia wishlist</Text>
+                <Text style={styles.settingText}>La mia wishlist</Text>
                 {wishlistCount > 0 && (
                   <View style={styles.badge}>
                     <Text style={styles.badgeText}>{wishlistCount}</Text>

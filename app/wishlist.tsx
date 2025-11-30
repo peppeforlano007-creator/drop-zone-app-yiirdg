@@ -187,9 +187,10 @@ export default function WishlistScreen() {
       >
         <View style={styles.imageContainer}>
           <CachedImage
-            source={{ uri: item.products.image_url }}
+            uri={item.products.image_url}
             style={styles.image}
             resizeMode="cover"
+            showPlaceholder={true}
           />
           
           {/* Remove button */}
@@ -250,7 +251,7 @@ export default function WishlistScreen() {
         <Stack.Screen
           options={{
             headerShown: true,
-            title: '❤️ La mia wishlist',
+            title: 'La mia wishlist',
             headerStyle: { backgroundColor: colors.background },
             headerTintColor: colors.text,
           }}
@@ -269,7 +270,7 @@ export default function WishlistScreen() {
         <Stack.Screen
           options={{
             headerShown: true,
-            title: '❤️ La mia wishlist',
+            title: 'La mia wishlist',
             headerStyle: { backgroundColor: colors.background },
             headerTintColor: colors.text,
           }}
@@ -302,7 +303,7 @@ export default function WishlistScreen() {
         <Stack.Screen
           options={{
             headerShown: true,
-            title: '❤️ La mia wishlist',
+            title: 'La mia wishlist',
             headerStyle: { backgroundColor: colors.background },
             headerTintColor: colors.text,
           }}
@@ -335,7 +336,7 @@ export default function WishlistScreen() {
       <Stack.Screen
         options={{
           headerShown: true,
-          title: '❤️ La mia wishlist',
+          title: 'La mia wishlist',
           headerStyle: { backgroundColor: colors.background },
           headerTintColor: colors.text,
         }}
@@ -454,6 +455,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.6)',
     justifyContent: 'center',
     alignItems: 'center',
+    zIndex: 10,
   },
   statusBadge: {
     position: 'absolute',

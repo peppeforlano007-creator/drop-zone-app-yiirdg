@@ -12,12 +12,11 @@ export interface ImageDimensions {
 
 /**
  * Standard image template dimensions for product photos
- * Based on "officina artistica" example - 4:5 aspect ratio (Instagram portrait)
- * Reduced dimensions for better performance and smaller file sizes
+ * Optimized for faster loading with smaller dimensions
  */
 export const STANDARD_IMAGE_TEMPLATE: ImageDimensions = {
-  width: 720,
-  height: 900,
+  width: 600, // Reduced from 720 for faster loading
+  height: 750, // Reduced from 900 for faster loading
   aspectRatio: 4 / 5, // 0.8 - Instagram portrait ratio
 };
 
@@ -26,23 +25,23 @@ export const STANDARD_IMAGE_TEMPLATE: ImageDimensions = {
  */
 export const IMAGE_TEMPLATES = {
   SQUARE: {
-    width: 720,
-    height: 720,
+    width: 600,
+    height: 600,
     aspectRatio: 1,
   },
   PORTRAIT: {
-    width: 720,
-    height: 900,
+    width: 600,
+    height: 750,
     aspectRatio: 4 / 5,
   },
   LANDSCAPE: {
-    width: 900,
-    height: 720,
+    width: 750,
+    height: 600,
     aspectRatio: 5 / 4,
   },
   THUMBNAIL: {
-    width: 400,
-    height: 500,
+    width: 300, // Reduced from 400 for faster loading
+    height: 375, // Reduced from 500 for faster loading
     aspectRatio: 4 / 5,
   },
 } as const;
@@ -69,7 +68,8 @@ export function getStandardizedImageUri(
       url.searchParams.set('width', template.width.toString());
       url.searchParams.set('height', template.height.toString());
       url.searchParams.set('resize', 'cover'); // Cover mode maintains aspect ratio and crops
-      url.searchParams.set('quality', '75'); // Reduced quality for faster loading
+      url.searchParams.set('quality', '70'); // Reduced quality from 75 to 70 for faster loading
+      url.searchParams.set('format', 'webp'); // Use WebP format for better compression
       
       return url.toString();
     }
@@ -159,7 +159,7 @@ export function getStandardImageStyle(template: ImageDimensions = STANDARD_IMAGE
  * Image loading configuration for optimal performance
  */
 export const IMAGE_LOADING_CONFIG = {
-  // Cache policy
+  // Cache policy - aggressive caching for better performance
   cache: 'force-cache' as const,
   
   // Priority for loading
@@ -168,11 +168,14 @@ export const IMAGE_LOADING_CONFIG = {
   // Resize mode - 'cover' maintains aspect ratio and fills container
   resizeMode: 'cover' as const,
   
-  // Quality for JPEG compression (1-100)
-  quality: 75,
+  // Quality for JPEG compression (1-100) - reduced for faster loading
+  quality: 70,
   
-  // Timeout for image loading (in milliseconds)
-  timeout: 10000, // 10 seconds
+  // Timeout for image loading (in milliseconds) - increased for slower connections
+  timeout: 15000, // 15 seconds (increased from 10)
+  
+  // Format preference
+  format: 'webp' as const, // WebP provides better compression
 };
 
 /**
@@ -209,4 +212,21 @@ export async function preloadImage(imageUrl: string, timeoutMs: number = 5000): 
     clearTimeout(timeout);
     resolve(true);
   });
+}
+
+/**
+ * Get optimized thumbnail URI for list views
+ * Uses smaller dimensions for faster loading in lists
+ */
+export function getThumbnailUri(imageUrl: string): string {
+  return getStandardizedImageUri(imageUrl, IMAGE_TEMPLATES.THUMBNAIL);
+}
+
+/**
+ * Batch preload multiple images
+ * Useful for preloading images in the background
+ */
+export async function batchPreloadImages(imageUrls: string[]): Promise<boolean[]> {
+  const promises = imageUrls.map(url => preloadImage(url));
+  return Promise.all(promises);
 }
