@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, commonStyles } from '@/styles/commonStyles';
 import React, { useState, useEffect, useCallback } from 'react';
 import { IconSymbol } from '@/components/IconSymbol';
-import { Stack, router } from 'expo-router';
+import { Stack, router, useFocusEffect } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/app/integrations/supabase/client';
 import * as Haptics from 'expo-haptics';
@@ -68,6 +68,7 @@ export default function ProfileScreen() {
         return;
       }
 
+      console.log('✅ Wishlist count loaded:', count);
       setWishlistCount(count || 0);
     } catch (error) {
       console.error('Exception loading wishlist count:', error);
@@ -131,6 +132,14 @@ export default function ProfileScreen() {
     loadUserProfile();
     loadWishlistCount();
   }, [loadPickupPoints, loadWhatsAppNumber, loadUserProfile, loadWishlistCount]);
+
+  // Refresh wishlist count when screen is focused
+  useFocusEffect(
+    useCallback(() => {
+      console.log('🔄 Profile screen focused, refreshing wishlist count');
+      loadWishlistCount();
+    }, [loadWishlistCount])
+  );
 
   useEffect(() => {
     if (user?.pickupPoint) {

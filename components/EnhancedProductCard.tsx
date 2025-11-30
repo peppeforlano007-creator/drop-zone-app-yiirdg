@@ -235,6 +235,8 @@ export default function EnhancedProductCard({
   };
 
   const handleWishlistToggle = async () => {
+    console.log('🔥 Wishlist toggle pressed!', { user: !!user, dropId, productId: product.id });
+    
     if (!user) {
       Alert.alert('Accesso richiesto', 'Devi effettuare l\'accesso per aggiungere articoli alla wishlist');
       router.push('/login');
@@ -242,7 +244,8 @@ export default function EnhancedProductCard({
     }
 
     if (!dropId) {
-      console.error('No dropId provided for wishlist toggle');
+      console.error('❌ No dropId provided for wishlist toggle');
+      Alert.alert('Errore', 'Impossibile aggiungere alla wishlist in questo momento');
       return;
     }
 
@@ -266,6 +269,7 @@ export default function EnhancedProductCard({
     try {
       if (isInWishlist) {
         // Remove from wishlist
+        console.log('🗑️ Removing from wishlist:', { userId: user.id, productId: product.id, dropId });
         const { error } = await supabase
           .from('wishlists')
           .delete()
@@ -274,16 +278,17 @@ export default function EnhancedProductCard({
           .eq('drop_id', dropId);
 
         if (error) {
-          console.error('Error removing from wishlist:', error);
+          console.error('❌ Error removing from wishlist:', error);
           Alert.alert('Errore', 'Impossibile rimuovere dalla wishlist');
           return;
         }
 
         setIsInWishlist(false);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        console.log('Removed from wishlist:', product.id);
+        console.log('✅ Removed from wishlist:', product.id);
       } else {
         // Add to wishlist
+        console.log('➕ Adding to wishlist:', { userId: user.id, productId: product.id, dropId });
         const { error } = await supabase
           .from('wishlists')
           .insert({
@@ -293,17 +298,17 @@ export default function EnhancedProductCard({
           });
 
         if (error) {
-          console.error('Error adding to wishlist:', error);
+          console.error('❌ Error adding to wishlist:', error);
           Alert.alert('Errore', 'Impossibile aggiungere alla wishlist');
           return;
         }
 
         setIsInWishlist(true);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        console.log('Added to wishlist:', product.id);
+        console.log('✅ Added to wishlist:', product.id);
       }
     } catch (error) {
-      console.error('Exception toggling wishlist:', error);
+      console.error('❌ Exception toggling wishlist:', error);
       Alert.alert('Errore', 'Si è verificato un errore');
     } finally {
       setWishlistLoading(false);
@@ -345,7 +350,7 @@ export default function EnhancedProductCard({
 
   return (
     <View style={styles.container}>
-      {/* Image section - FIXED: Removed pointerEvents to allow normal touch handling */}
+      {/* Image section */}
       <View style={styles.imageWrapper}>
         {/* Image pressable for gallery */}
         <Pressable 
@@ -397,29 +402,7 @@ export default function EnhancedProductCard({
             </View>
           )}
 
-          {/* Wishlist heart icon - top right */}
-          {isInDrop && dropId && (
-            <Pressable
-              style={styles.wishlistButton}
-              onPress={handleWishlistToggle}
-              disabled={wishlistLoading}
-            >
-              <Animated.View style={{ transform: [{ scale: heartScaleAnim }] }}>
-                {wishlistLoading ? (
-                  <ActivityIndicator size="small" color="#FF6B6B" />
-                ) : (
-                  <IconSymbol
-                    ios_icon_name={isInWishlist ? 'heart.fill' : 'heart'}
-                    android_material_icon_name={isInWishlist ? 'favorite' : 'favorite_border'}
-                    size={28}
-                    color={isInWishlist ? '#FF6B6B' : '#FFF'}
-                  />
-                )}
-              </Animated.View>
-            </Pressable>
-          )}
-
-          {/* Drop badge moved to bottom-left - FIXED: Always round down using Math.floor */}
+          {/* Drop badge moved to bottom-left */}
           {isInDrop && currentDiscount && (
             <View style={styles.dropBadge}>
               <Text style={styles.dropBadgeText}>Drop -{Math.floor(currentDiscount)}%</Text>
@@ -441,6 +424,31 @@ export default function EnhancedProductCard({
             </View>
           )}
         </Pressable>
+
+        {/* Wishlist heart icon - FIXED: Moved outside imagePressable with proper z-index */}
+        {isInDrop && dropId && (
+          <View style={styles.wishlistButtonContainer} pointerEvents="box-none">
+            <Pressable
+              style={styles.wishlistButton}
+              onPress={handleWishlistToggle}
+              disabled={wishlistLoading}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Animated.View style={{ transform: [{ scale: heartScaleAnim }] }}>
+                {wishlistLoading ? (
+                  <ActivityIndicator size="small" color="#FF6B6B" />
+                ) : (
+                  <IconSymbol
+                    ios_icon_name={isInWishlist ? 'heart.fill' : 'heart'}
+                    android_material_icon_name={isInWishlist ? 'favorite' : 'favorite_border'}
+                    size={28}
+                    color={isInWishlist ? '#FF6B6B' : '#FFF'}
+                  />
+                )}
+              </Animated.View>
+            </Pressable>
+          </View>
+        )}
       </View>
 
       <View style={styles.overlay}>
@@ -586,7 +594,7 @@ export default function EnhancedProductCard({
             </View>
           )}
 
-          {/* Price row with discount badge - FIXED: Always round down using Math.floor */}
+          {/* Price row with discount badge */}
           <View style={styles.priceRow}>
             <View style={styles.priceInfo}>
               <Text style={styles.discountedPrice}>€{discountedPrice.toFixed(2)}</Text>
@@ -832,24 +840,33 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
+    zIndex: 5,
   },
   imageCount: {
     color: colors.background,
     fontSize: 13,
     fontWeight: '700',
   },
-  wishlistButton: {
+  wishlistButtonContainer: {
     position: 'absolute',
     top: 60,
     right: 20,
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    zIndex: 1000,
+  },
+  wishlistButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
+    borderColor: 'rgba(255, 255, 255, 0.4)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 8,
   },
   dropBadge: {
     position: 'absolute',
@@ -859,6 +876,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 8,
+    zIndex: 5,
   },
   dropBadgeText: {
     color: '#FFF',
@@ -875,6 +893,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.7)',
     justifyContent: 'center',
     alignItems: 'center',
+    zIndex: 10,
   },
   outOfStockBadge: {
     alignItems: 'center',
