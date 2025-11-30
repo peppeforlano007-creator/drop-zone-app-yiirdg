@@ -350,9 +350,9 @@ export default function EnhancedProductCard({
 
   return (
     <View style={styles.container}>
-      {/* Image section - CRITICAL: pointerEvents="box-none" allows children to receive touches */}
-      <View style={styles.imageWrapper} pointerEvents="box-none">
-        {/* Image pressable for gallery */}
+      {/* Image section - CRITICAL FIX: Use proper layering with absolute positioning */}
+      <View style={styles.imageWrapper}>
+        {/* Image pressable for gallery - MUST NOT block wishlist button */}
         <Pressable 
           style={styles.imagePressable}
           onPress={handleImagePress}
@@ -425,9 +425,9 @@ export default function EnhancedProductCard({
           )}
         </Pressable>
 
-        {/* Wishlist heart icon - FIXED: Positioned absolutely outside imagePressable with maximum z-index */}
+        {/* Wishlist heart icon - DEFINITIVE FIX: Positioned absolutely with highest z-index and proper touch handling */}
         {isInDrop && dropId && (
-          <View style={styles.wishlistButtonContainer} pointerEvents="box-none">
+          <View style={styles.wishlistButtonWrapper}>
             <Pressable
               style={styles.wishlistButton}
               onPress={handleWishlistToggle}
@@ -794,13 +794,15 @@ const styles = StyleSheet.create({
   imageWrapper: {
     width: '100%',
     height: '60%',
-    position: 'absolute',
-    top: 0,
+    position: 'relative',
     backgroundColor: colors.backgroundSecondary,
   },
   imagePressable: {
     width: '100%',
     height: '100%',
+    position: 'absolute',
+    top: 0,
+    left: 0,
   },
   image: {
     width: '100%',
@@ -847,11 +849,12 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
   },
-  wishlistButtonContainer: {
+  wishlistButtonWrapper: {
     position: 'absolute',
     top: 60,
     right: 20,
-    zIndex: 99999,
+    zIndex: 999999,
+    elevation: 999999,
   },
   wishlistButton: {
     width: 56,
