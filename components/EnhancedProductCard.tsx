@@ -119,7 +119,12 @@ export default function EnhancedProductCard({
   };
 
   const handleWishlistPress = () => {
-    if (!onWishlistToggle) return;
+    console.log('🔥 WISHLIST BUTTON PRESSED - Product ID:', product.id);
+    
+    if (!onWishlistToggle) {
+      console.log('⚠️ onWishlistToggle is not defined');
+      return;
+    }
     
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     
@@ -153,6 +158,7 @@ export default function EnhancedProductCard({
       ]),
     ]).start();
     
+    console.log('✅ Calling onWishlistToggle with product ID:', product.id);
     onWishlistToggle(product.id);
   };
 
@@ -277,118 +283,125 @@ export default function EnhancedProductCard({
 
   return (
     <View style={styles.container}>
-      <Pressable 
-        style={styles.imageWrapper}
-        onPress={handleImagePress}
-        activeOpacity={0.95}
-        disabled={!hasValidImage}
-      >
-        {hasValidImage && mainImageUrl ? (
-          <Image
-            source={{ uri: mainImageUrl }}
-            style={styles.image}
-            resizeMode={IMAGE_LOADING_CONFIG.resizeMode}
-            onLoad={() => {
-              console.log('Image loaded successfully for product:', product.id, 'URL:', mainImageUrl);
-              setImageLoaded(true);
-              setImageError(false);
-            }}
-            onError={(error) => {
-              console.error('Image load error for product:', product.id, 'URL:', mainImageUrl, 'Error:', error.nativeEvent.error);
-              setImageError(true);
-              setImageLoaded(false);
-            }}
-          />
-        ) : (
-          <View style={styles.imagePlaceholder}>
-            <IconSymbol 
-              ios_icon_name="photo" 
-              android_material_icon_name="broken_image" 
-              size={100} 
-              color={colors.textTertiary} 
+      {/* Image wrapper with box-none to allow child elements to receive touches */}
+      <View style={styles.imageWrapper} pointerEvents="box-none">
+        {/* Image pressable for gallery */}
+        <Pressable 
+          style={styles.imagePressable}
+          onPress={handleImagePress}
+          activeOpacity={0.95}
+          disabled={!hasValidImage}
+        >
+          {hasValidImage && mainImageUrl ? (
+            <Image
+              source={{ uri: mainImageUrl }}
+              style={styles.image}
+              resizeMode={IMAGE_LOADING_CONFIG.resizeMode}
+              onLoad={() => {
+                console.log('Image loaded successfully for product:', product.id, 'URL:', mainImageUrl);
+                setImageLoaded(true);
+                setImageError(false);
+              }}
+              onError={(error) => {
+                console.error('Image load error for product:', product.id, 'URL:', mainImageUrl, 'Error:', error.nativeEvent.error);
+                setImageError(true);
+                setImageLoaded(false);
+              }}
             />
-            <Text style={styles.imageErrorText}>Immagine non disponibile</Text>
-            {product.imageUrl && !isValidImageUrl(product.imageUrl) && (
-              <Text style={styles.imageDebugText}>URL non valido: {product.imageUrl}</Text>
-            )}
-          </View>
-        )}
-
-        {hasMultipleImages && (
-          <View style={styles.imageIndicator}>
-            <IconSymbol 
-              ios_icon_name="photo.stack" 
-              android_material_icon_name="collections" 
-              size={20} 
-              color={colors.background} 
-            />
-            <Text style={styles.imageCount}>{imageUrls.length}</Text>
-          </View>
-        )}
-
-        {/* Wishlist Heart Button - Enhanced styling for better clickability */}
-        {onWishlistToggle && (
-          <Animated.View 
-            style={[
-              styles.wishlistButtonContainer,
-              {
-                transform: [
-                  { scale: wishlistScaleAnim },
-                ],
-              },
-            ]}
-          >
-            <Pressable 
-              style={({ pressed }) => [
-                styles.wishlistButton,
-                isInWishlist && styles.wishlistButtonActive,
-                pressed && styles.wishlistButtonPressed,
-              ]}
-              onPress={handleWishlistPress}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <Animated.View
-                style={{
-                  transform: [{ scale: wishlistPulseAnim }],
-                }}
-              >
-                <IconSymbol 
-                  ios_icon_name={isInWishlist ? "heart.fill" : "heart"} 
-                  android_material_icon_name={isInWishlist ? "favorite" : "favorite_border"} 
-                  size={28} 
-                  color={isInWishlist ? "#FF3B30" : "#FFFFFF"} 
-                />
-              </Animated.View>
-              {/* Ripple effect indicator */}
-              {isInWishlist && (
-                <View style={styles.wishlistActiveIndicator} />
-              )}
-            </Pressable>
-          </Animated.View>
-        )}
-
-        {/* Drop badge moved to bottom-left - FIXED: Always round down using Math.floor */}
-        {isInDrop && currentDiscount && (
-          <View style={styles.dropBadge}>
-            <Text style={styles.dropBadgeText}>Drop -{Math.floor(currentDiscount)}%</Text>
-          </View>
-        )}
-
-        {/* Out of stock overlay */}
-        {isOutOfStock && (
-          <View style={styles.outOfStockOverlay}>
-            <View style={styles.outOfStockBadge}>
+          ) : (
+            <View style={styles.imagePlaceholder}>
               <IconSymbol 
-                ios_icon_name="xmark.circle.fill" 
-                android_material_icon_name="cancel" 
-                size={32} 
-                color="#FFF" 
+                ios_icon_name="photo" 
+                android_material_icon_name="broken_image" 
+                size={100} 
+                color={colors.textTertiary} 
               />
-              <Text style={styles.outOfStockText}>ESAURITO</Text>
+              <Text style={styles.imageErrorText}>Immagine non disponibile</Text>
+              {product.imageUrl && !isValidImageUrl(product.imageUrl) && (
+                <Text style={styles.imageDebugText}>URL non valido: {product.imageUrl}</Text>
+              )}
             </View>
+          )}
+
+          {hasMultipleImages && (
+            <View style={styles.imageIndicator}>
+              <IconSymbol 
+                ios_icon_name="photo.stack" 
+                android_material_icon_name="collections" 
+                size={20} 
+                color={colors.background} 
+              />
+              <Text style={styles.imageCount}>{imageUrls.length}</Text>
+            </View>
+          )}
+
+          {/* Drop badge moved to bottom-left - FIXED: Always round down using Math.floor */}
+          {isInDrop && currentDiscount && (
+            <View style={styles.dropBadge}>
+              <Text style={styles.dropBadgeText}>Drop -{Math.floor(currentDiscount)}%</Text>
+            </View>
+          )}
+
+          {/* Out of stock overlay */}
+          {isOutOfStock && (
+            <View style={styles.outOfStockOverlay}>
+              <View style={styles.outOfStockBadge}>
+                <IconSymbol 
+                  ios_icon_name="xmark.circle.fill" 
+                  android_material_icon_name="cancel" 
+                  size={32} 
+                  color="#FFF" 
+                />
+                <Text style={styles.outOfStockText}>ESAURITO</Text>
+              </View>
+            </View>
+          )}
+        </Pressable>
+
+        {/* Wishlist Heart Button - FIXED: Separate from image pressable with proper z-index */}
+        {onWishlistToggle && (
+          <View style={styles.wishlistButtonWrapper} pointerEvents="box-none">
+            <Animated.View 
+              style={[
+                styles.wishlistButtonContainer,
+                {
+                  transform: [
+                    { scale: wishlistScaleAnim },
+                  ],
+                },
+              ]}
+              pointerEvents="box-none"
+            >
+              <Pressable 
+                style={({ pressed }) => [
+                  styles.wishlistButton,
+                  isInWishlist && styles.wishlistButtonActive,
+                  pressed && styles.wishlistButtonPressed,
+                ]}
+                onPress={handleWishlistPress}
+                hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+              >
+                <Animated.View
+                  style={{
+                    transform: [{ scale: wishlistPulseAnim }],
+                  }}
+                >
+                  <IconSymbol 
+                    ios_icon_name={isInWishlist ? "heart.fill" : "heart"} 
+                    android_material_icon_name={isInWishlist ? "favorite" : "favorite_border"} 
+                    size={28} 
+                    color={isInWishlist ? "#FF3B30" : "#FFFFFF"} 
+                  />
+                </Animated.View>
+                {/* Ripple effect indicator */}
+                {isInWishlist && (
+                  <View style={styles.wishlistActiveIndicator} />
+                )}
+              </Pressable>
+            </Animated.View>
           </View>
         )}
-      </Pressable>
+      </View>
 
       <View style={styles.overlay}>
         <View style={styles.content}>
@@ -737,6 +750,10 @@ const styles = StyleSheet.create({
     top: 0,
     backgroundColor: colors.backgroundSecondary,
   },
+  imagePressable: {
+    width: '100%',
+    height: '100%',
+  },
   image: {
     width: '100%',
     height: '100%',
@@ -781,48 +798,54 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
   },
-  wishlistButtonContainer: {
+  wishlistButtonWrapper: {
     position: 'absolute',
     top: 60,
     right: 20,
-    zIndex: 10,
+    zIndex: 1000,
+    elevation: 1000,
+  },
+  wishlistButtonContainer: {
+    zIndex: 1001,
+    elevation: 1001,
   },
   wishlistButton: {
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 3,
-    borderColor: 'rgba(255, 255, 255, 0.5)',
+    borderColor: 'rgba(255, 255, 255, 0.6)',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.5,
-    shadowRadius: 12,
-    elevation: 12,
-  },
-  wishlistButtonActive: {
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    borderColor: '#FF3B30',
-    borderWidth: 4,
-    shadowColor: '#FF3B30',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.6,
     shadowRadius: 16,
-    elevation: 16,
+    elevation: 20,
+  },
+  wishlistButtonActive: {
+    backgroundColor: 'rgba(255, 255, 255, 0.98)',
+    borderColor: '#FF3B30',
+    borderWidth: 4,
+    shadowColor: '#FF3B30',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.7,
+    shadowRadius: 20,
+    elevation: 25,
   },
   wishlistButtonPressed: {
-    opacity: 0.9,
+    opacity: 0.85,
+    transform: [{ scale: 0.95 }],
   },
   wishlistActiveIndicator: {
     position: 'absolute',
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    borderWidth: 2,
+    width: 76,
+    height: 76,
+    borderRadius: 38,
+    borderWidth: 3,
     borderColor: '#FF3B30',
-    opacity: 0.3,
+    opacity: 0.4,
   },
   dropBadge: {
     position: 'absolute',
