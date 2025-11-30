@@ -350,9 +350,9 @@ export default function EnhancedProductCard({
 
   return (
     <View style={styles.container}>
-      {/* Image section - DEFINITIVE FIX: Proper pointer events hierarchy */}
+      {/* Image section - Proper pointer events hierarchy */}
       <View style={styles.imageWrapper} pointerEvents="box-none">
-        {/* Image pressable for gallery - Will NOT block wishlist button with box-only */}
+        {/* Image pressable for gallery */}
         <Pressable 
           style={styles.imagePressable}
           onPress={handleImagePress}
@@ -426,7 +426,7 @@ export default function EnhancedProductCard({
           )}
         </Pressable>
 
-        {/* Wishlist heart icon - DEFINITIVE FIX: Positioned absolutely with pointer events auto */}
+        {/* Wishlist heart icon - REPOSITIONED TO BOTTOM CENTER */}
         {isInDrop && dropId && (
           <Pressable
             style={styles.wishlistButtonWrapper}
@@ -851,8 +851,9 @@ const styles = StyleSheet.create({
   },
   wishlistButtonWrapper: {
     position: 'absolute',
-    top: 60,
-    right: 20,
+    bottom: 30,
+    left: '50%',
+    marginLeft: -28,
     zIndex: 999999,
     elevation: 999999,
     width: 56,
