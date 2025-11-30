@@ -350,8 +350,8 @@ export default function EnhancedProductCard({
 
   return (
     <View style={styles.container}>
-      {/* Image section */}
-      <View style={styles.imageWrapper}>
+      {/* Image section - CRITICAL: pointerEvents="box-none" allows children to receive touches */}
+      <View style={styles.imageWrapper} pointerEvents="box-none">
         {/* Image pressable for gallery */}
         <Pressable 
           style={styles.imagePressable}
@@ -425,27 +425,29 @@ export default function EnhancedProductCard({
           )}
         </Pressable>
 
-        {/* Wishlist heart icon - FIXED: Positioned absolutely with proper z-index and pointer events */}
+        {/* Wishlist heart icon - FIXED: Positioned absolutely outside imagePressable with maximum z-index */}
         {isInDrop && dropId && (
-          <Pressable
-            style={styles.wishlistButton}
-            onPress={handleWishlistToggle}
-            disabled={wishlistLoading}
-            hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
-          >
-            <Animated.View style={[styles.wishlistButtonInner, { transform: [{ scale: heartScaleAnim }] }]}>
-              {wishlistLoading ? (
-                <ActivityIndicator size="small" color="#FF6B6B" />
-              ) : (
-                <IconSymbol
-                  ios_icon_name={isInWishlist ? 'heart.fill' : 'heart'}
-                  android_material_icon_name={isInWishlist ? 'favorite' : 'favorite_border'}
-                  size={28}
-                  color={isInWishlist ? '#FF6B6B' : '#FFF'}
-                />
-              )}
-            </Animated.View>
-          </Pressable>
+          <View style={styles.wishlistButtonContainer} pointerEvents="box-none">
+            <Pressable
+              style={styles.wishlistButton}
+              onPress={handleWishlistToggle}
+              disabled={wishlistLoading}
+              hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
+            >
+              <Animated.View style={[styles.wishlistButtonInner, { transform: [{ scale: heartScaleAnim }] }]}>
+                {wishlistLoading ? (
+                  <ActivityIndicator size="small" color="#FF6B6B" />
+                ) : (
+                  <IconSymbol
+                    ios_icon_name={isInWishlist ? 'heart.fill' : 'heart'}
+                    android_material_icon_name={isInWishlist ? 'favorite' : 'favorite_border'}
+                    size={28}
+                    color={isInWishlist ? '#FF6B6B' : '#FFF'}
+                  />
+                )}
+              </Animated.View>
+            </Pressable>
+          </View>
         )}
       </View>
 
@@ -845,10 +847,13 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
   },
-  wishlistButton: {
+  wishlistButtonContainer: {
     position: 'absolute',
     top: 60,
     right: 20,
+    zIndex: 99999,
+  },
+  wishlistButton: {
     width: 56,
     height: 56,
     borderRadius: 28,
@@ -862,7 +867,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.4,
     shadowRadius: 6,
     elevation: 10,
-    zIndex: 10000,
   },
   wishlistButtonInner: {
     width: '100%',
