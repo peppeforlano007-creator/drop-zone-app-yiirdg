@@ -350,14 +350,15 @@ export default function EnhancedProductCard({
 
   return (
     <View style={styles.container}>
-      {/* Image section - CRITICAL FIX: Use proper layering with absolute positioning */}
-      <View style={styles.imageWrapper}>
-        {/* Image pressable for gallery - MUST NOT block wishlist button */}
+      {/* Image section - DEFINITIVE FIX: Proper pointer events hierarchy */}
+      <View style={styles.imageWrapper} pointerEvents="box-none">
+        {/* Image pressable for gallery - Will NOT block wishlist button with box-only */}
         <Pressable 
           style={styles.imagePressable}
           onPress={handleImagePress}
           activeOpacity={0.95}
           disabled={!hasValidImage}
+          pointerEvents="auto"
         >
           {hasValidImage && mainImageUrl ? (
             <Image
@@ -425,29 +426,31 @@ export default function EnhancedProductCard({
           )}
         </Pressable>
 
-        {/* Wishlist heart icon - DEFINITIVE FIX: Positioned absolutely with highest z-index and proper touch handling */}
+        {/* Wishlist heart icon - DEFINITIVE FIX: Positioned absolutely with pointer events auto */}
         {isInDrop && dropId && (
-          <View style={styles.wishlistButtonWrapper}>
-            <Pressable
-              style={styles.wishlistButton}
-              onPress={handleWishlistToggle}
-              disabled={wishlistLoading}
-              hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
-            >
-              <Animated.View style={[styles.wishlistButtonInner, { transform: [{ scale: heartScaleAnim }] }]}>
-                {wishlistLoading ? (
-                  <ActivityIndicator size="small" color="#FF6B6B" />
-                ) : (
-                  <IconSymbol
-                    ios_icon_name={isInWishlist ? 'heart.fill' : 'heart'}
-                    android_material_icon_name={isInWishlist ? 'favorite' : 'favorite_border'}
-                    size={28}
-                    color={isInWishlist ? '#FF6B6B' : '#FFF'}
-                  />
-                )}
-              </Animated.View>
-            </Pressable>
-          </View>
+          <Pressable
+            style={styles.wishlistButtonWrapper}
+            onPress={() => {
+              console.log('🔥🔥🔥 WISHLIST BUTTON PRESSED! 🔥🔥🔥');
+              handleWishlistToggle();
+            }}
+            disabled={wishlistLoading}
+            hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
+            pointerEvents="auto"
+          >
+            <Animated.View style={[styles.wishlistButton, { transform: [{ scale: heartScaleAnim }] }]}>
+              {wishlistLoading ? (
+                <ActivityIndicator size="small" color="#FF6B6B" />
+              ) : (
+                <IconSymbol
+                  ios_icon_name={isInWishlist ? 'heart.fill' : 'heart'}
+                  android_material_icon_name={isInWishlist ? 'favorite' : 'favorite_border'}
+                  size={28}
+                  color={isInWishlist ? '#FF6B6B' : '#FFF'}
+                />
+              )}
+            </Animated.View>
+          </Pressable>
         )}
       </View>
 
@@ -800,9 +803,6 @@ const styles = StyleSheet.create({
   imagePressable: {
     width: '100%',
     height: '100%',
-    position: 'absolute',
-    top: 0,
-    left: 0,
   },
   image: {
     width: '100%',
@@ -855,6 +855,8 @@ const styles = StyleSheet.create({
     right: 20,
     zIndex: 999999,
     elevation: 999999,
+    width: 56,
+    height: 56,
   },
   wishlistButton: {
     width: 56,
@@ -870,12 +872,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.4,
     shadowRadius: 6,
     elevation: 10,
-  },
-  wishlistButtonInner: {
-    width: '100%',
-    height: '100%',
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   dropBadge: {
     position: 'absolute',
