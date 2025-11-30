@@ -906,8 +906,6 @@ export default function HomeScreen() {
               product={product}
               onInterest={handleInterest}
               isInterested={interestedProducts.has(product.id)}
-              onWishlistToggle={handleWishlistToggle}
-              isInWishlist={wishlistProducts.has(product.id)}
             />
           )}
           keyExtractor={(product) => product.id}
@@ -1148,7 +1146,7 @@ export default function HomeScreen() {
           </View>
         </Pressable>
         
-        {/* TikTok-style Right Side Icons */}
+        {/* TikTok-style Right Side Icons - Improved Layout */}
         <View style={styles.rightSideIcons}>
           {/* Pickup Point */}
           <View style={styles.iconButton}>
@@ -1156,7 +1154,7 @@ export default function HomeScreen() {
               <IconSymbol 
                 ios_icon_name="mappin.circle.fill" 
                 android_material_icon_name="location_on" 
-                size={20} 
+                size={18} 
                 color={colors.text} 
               />
             </View>
@@ -1171,7 +1169,7 @@ export default function HomeScreen() {
               <IconSymbol 
                 ios_icon_name="list.bullet.rectangle" 
                 android_material_icon_name="list" 
-                size={20} 
+                size={18} 
                 color={colors.text} 
               />
             </View>
@@ -1213,7 +1211,7 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        {/* Enhanced List Navigation Buttons - Clearly visible and clickable */}
+        {/* Smaller List Navigation Buttons */}
         {currentListIndex > 0 && (
           <Pressable 
             style={({ pressed }) => [
@@ -1222,10 +1220,7 @@ export default function HomeScreen() {
             ]}
             onPress={handlePreviousList}
           >
-            <View style={styles.navButtonContent}>
-              <IconSymbol ios_icon_name="chevron.left" android_material_icon_name="chevron_left" size={24} color="#FFF" />
-              <Text style={styles.navButtonText}>Lista Precedente</Text>
-            </View>
+            <IconSymbol ios_icon_name="chevron.left" android_material_icon_name="chevron_left" size={18} color="#FFF" />
           </Pressable>
         )}
 
@@ -1237,10 +1232,7 @@ export default function HomeScreen() {
             ]}
             onPress={handleNextList}
           >
-            <View style={styles.navButtonContent}>
-              <Text style={styles.navButtonText}>Lista Successiva</Text>
-              <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="chevron_right" size={24} color="#FFF" />
-            </View>
+            <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="chevron_right" size={18} color="#FFF" />
           </Pressable>
         )}
 
@@ -1490,76 +1482,76 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 4,
   },
-  // TikTok-style Right Side Icons
+  // TikTok-style Right Side Icons - Improved Layout
   rightSideIcons: {
     position: 'absolute',
-    right: 12,
-    top: '20%',
-    bottom: '25%',
+    right: 10,
+    top: '22%',
+    bottom: '28%',
     justifyContent: 'space-evenly',
     alignItems: 'center',
-    gap: 20,
+    gap: 16,
     zIndex: 10,
   },
   iconButton: {
     alignItems: 'center',
-    gap: 4,
+    gap: 3,
   },
   iconCircle: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255, 255, 255, 0.92)',
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(0, 0, 0, 0.1)',
+    borderColor: 'rgba(0, 0, 0, 0.08)',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
+    shadowOpacity: 0.12,
+    shadowRadius: 3,
     elevation: 3,
   },
   iconLabel: {
-    fontSize: 9,
+    fontSize: 8,
     fontWeight: '700',
     color: colors.text,
     textAlign: 'center',
-    maxWidth: 60,
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
-    paddingHorizontal: 6,
+    maxWidth: 56,
+    backgroundColor: 'rgba(255, 255, 255, 0.92)',
+    paddingHorizontal: 5,
     paddingVertical: 2,
-    borderRadius: 8,
+    borderRadius: 6,
     overflow: 'hidden',
   },
   listCounterIcon: {
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: '800',
     color: colors.text,
     letterSpacing: 0.2,
   },
   // Progress Circle
   progressCircle: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     position: 'relative',
     justifyContent: 'center',
     alignItems: 'center',
   },
   progressCircleBackground: {
     position: 'absolute',
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255, 255, 255, 0.92)',
     borderWidth: 1,
-    borderColor: 'rgba(0, 0, 0, 0.1)',
+    borderColor: 'rgba(0, 0, 0, 0.08)',
     overflow: 'hidden',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
+    shadowOpacity: 0.12,
+    shadowRadius: 3,
     elevation: 3,
   },
   progressCircleFill: {
@@ -1576,71 +1568,61 @@ const styles = StyleSheet.create({
     zIndex: 1,
   },
   progressNumber: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '800',
     color: colors.text,
-    lineHeight: 14,
+    lineHeight: 13,
   },
   progressTotal: {
-    fontSize: 8,
+    fontSize: 7,
     fontWeight: '700',
     color: colors.textSecondary,
-    lineHeight: 10,
+    lineHeight: 9,
   },
+  // Smaller Navigation Buttons
   navButtonLeft: {
     position: 'absolute',
-    left: 12,
+    left: 8,
     top: '50%',
-    marginTop: -28,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 28,
-    backgroundColor: 'rgba(0, 0, 0, 0.85)',
+    marginTop: -20,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.75)',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#FFF',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
     zIndex: 10,
   },
   navButtonRight: {
     position: 'absolute',
-    right: 12,
+    right: 8,
     top: '50%',
-    marginTop: -28,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 28,
-    backgroundColor: 'rgba(0, 0, 0, 0.85)',
+    marginTop: -20,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.75)',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#FFF',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
     zIndex: 10,
   },
   navButtonPressed: {
     opacity: 0.7,
     transform: [{ scale: 0.95 }],
-  },
-  navButtonContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  navButtonText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#FFF',
-    letterSpacing: 0.5,
   },
   hintContainer: {
     position: 'absolute',

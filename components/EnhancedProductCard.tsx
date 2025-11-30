@@ -286,7 +286,7 @@ export default function EnhancedProductCard({
           </View>
         )}
 
-        {/* Wishlist Heart Button */}
+        {/* Wishlist Heart Button - Positioned at top-left, below image indicator */}
         {onWishlistToggle && (
           <Pressable 
             style={styles.wishlistButton}

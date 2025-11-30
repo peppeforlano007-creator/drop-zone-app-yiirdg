@@ -248,24 +248,6 @@ export default function ProductCard({
           </View>
         )}
 
-        {/* Wishlist Heart Button */}
-        {onWishlistToggle && (
-          <Pressable 
-            style={styles.wishlistButton}
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-              onWishlistToggle(product.id);
-            }}
-          >
-            <IconSymbol 
-              ios_icon_name={isInWishlist ? "heart.fill" : "heart"} 
-              android_material_icon_name={isInWishlist ? "favorite" : "favorite_border"} 
-              size={28} 
-              color={isInWishlist ? "#FF3B30" : "#FFF"} 
-            />
-          </Pressable>
-        )}
-
         {/* Drop badge moved to bottom-left - FIXED: Always round down using Math.floor */}
         {isInDrop && currentDiscount && (
           <View style={styles.dropBadge}>
@@ -642,22 +624,6 @@ const styles = StyleSheet.create({
     color: colors.background,
     fontSize: 13,
     fontWeight: '700',
-  },
-  wishlistButton: {
-    position: 'absolute',
-    top: 60,
-    left: 20,
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 5,
   },
   dropBadge: {
     position: 'absolute',
