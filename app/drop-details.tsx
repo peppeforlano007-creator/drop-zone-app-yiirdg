@@ -589,10 +589,11 @@ export default function DropDetailsScreen() {
           maxDiscount={drop?.supplier_lists?.max_discount}
           onBook={handleBook}
           isInterested={isBooked}
+          dropId={dropId}
         />
       </View>
     );
-  }, [drop, userBookings, handleBook]);
+  }, [drop, userBookings, handleBook, dropId]);
 
   if (loading) {
     return (

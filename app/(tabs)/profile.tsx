@@ -23,6 +23,7 @@ export default function ProfileScreen() {
   const [ordersReturned, setOrdersReturned] = useState(0);
   const [accountBlocked, setAccountBlocked] = useState(false);
   const [loadingProfile, setLoadingProfile] = useState(true);
+  const [wishlistCount, setWishlistCount] = useState(0);
 
   const loadUserProfile = useCallback(async () => {
     if (!user) return;
@@ -50,6 +51,26 @@ export default function ProfileScreen() {
       console.error('Exception loading user profile:', error);
     } finally {
       setLoadingProfile(false);
+    }
+  }, [user]);
+
+  const loadWishlistCount = useCallback(async () => {
+    if (!user) return;
+
+    try {
+      const { count, error } = await supabase
+        .from('wishlists')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id);
+
+      if (error) {
+        console.error('Error loading wishlist count:', error);
+        return;
+      }
+
+      setWishlistCount(count || 0);
+    } catch (error) {
+      console.error('Exception loading wishlist count:', error);
     }
   }, [user]);
 
@@ -108,7 +129,8 @@ export default function ProfileScreen() {
     loadPickupPoints();
     loadWhatsAppNumber();
     loadUserProfile();
-  }, [loadPickupPoints, loadWhatsAppNumber, loadUserProfile]);
+    loadWishlistCount();
+  }, [loadPickupPoints, loadWhatsAppNumber, loadUserProfile, loadWishlistCount]);
 
   useEffect(() => {
     if (user?.pickupPoint) {
@@ -185,6 +207,11 @@ export default function ProfileScreen() {
   const handleEditProfile = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push('/edit-profile');
+  };
+
+  const handleViewWishlist = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push('/wishlist');
   };
 
   const handleSupport = async () => {
@@ -437,6 +464,19 @@ export default function ProfileScreen() {
               <View style={styles.settingContent}>
                 <IconSymbol ios_icon_name="person.crop.circle" android_material_icon_name="edit" size={20} color={colors.text} />
                 <Text style={styles.settingText}>Modifica Profilo</Text>
+              </View>
+              <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="chevron_right" size={20} color={colors.textSecondary} />
+            </Pressable>
+
+            <Pressable style={styles.settingItem} onPress={handleViewWishlist}>
+              <View style={styles.settingContent}>
+                <IconSymbol ios_icon_name="heart.fill" android_material_icon_name="favorite" size={20} color="#FF6B6B" />
+                <Text style={styles.settingText}>❤️ La mia wishlist</Text>
+                {wishlistCount > 0 && (
+                  <View style={styles.badge}>
+                    <Text style={styles.badgeText}>{wishlistCount}</Text>
+                  </View>
+                )}
               </View>
               <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="chevron_right" size={20} color={colors.textSecondary} />
             </Pressable>
@@ -739,6 +779,21 @@ const styles = StyleSheet.create({
   settingText: {
     fontSize: 16,
     color: colors.text,
+  },
+  badge: {
+    backgroundColor: '#FF6B6B',
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+    marginLeft: 8,
+  },
+  badgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#FFF',
   },
   blockedContainer: {
     flex: 1,

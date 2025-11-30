@@ -1,5 +1,5 @@
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, Image, StyleSheet, Pressable, Dimensions, Alert, ActivityIndicator, Animated } from 'react-native';
 import { IconSymbol } from './IconSymbol';
 import { colors } from '@/styles/commonStyles';
@@ -7,6 +7,8 @@ import { Product } from '@/types/Product';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import ImageGallery from './ImageGallery';
+import { supabase } from '@/app/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 import { 
   getStandardizedImageUri, 
   getStandardizedImageUris, 
@@ -25,6 +27,7 @@ interface EnhancedProductCardProps {
   onInterest?: (productId: string) => void;
   onBook?: (productId: string) => void;
   isInterested?: boolean;
+  dropId?: string;
 }
 
 export default function EnhancedProductCard({
@@ -35,7 +38,9 @@ export default function EnhancedProductCard({
   onInterest,
   onBook,
   isInterested = false,
+  dropId,
 }: EnhancedProductCardProps) {
+  const { user } = useAuth();
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState(false);
   const [galleryVisible, setGalleryVisible] = useState(false);
@@ -44,9 +49,40 @@ export default function EnhancedProductCard({
   const [selectedColor, setSelectedColor] = useState<string | null>(null);
   const [descriptionExpanded, setDescriptionExpanded] = useState(false);
   const [descriptionHeight, setDescriptionHeight] = useState(0);
+  const [isInWishlist, setIsInWishlist] = useState(false);
+  const [wishlistLoading, setWishlistLoading] = useState(false);
   
   // Animation values
   const scaleAnim = useRef(new Animated.Value(1)).current;
+  const heartScaleAnim = useRef(new Animated.Value(1)).current;
+
+  // Check if product is in wishlist
+  useEffect(() => {
+    const checkWishlistStatus = async () => {
+      if (!user || !isInDrop || !dropId) return;
+
+      try {
+        const { data, error } = await supabase
+          .from('wishlists')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('product_id', product.id)
+          .eq('drop_id', dropId)
+          .maybeSingle();
+
+        if (error) {
+          console.error('Error checking wishlist status:', error);
+          return;
+        }
+
+        setIsInWishlist(!!data);
+      } catch (error) {
+        console.error('Exception checking wishlist status:', error);
+      }
+    };
+
+    checkWishlistStatus();
+  }, [user, product.id, dropId, isInDrop]);
 
   // Safe value extraction with defaults
   const originalPrice = product.originalPrice ?? 0;
@@ -198,6 +234,82 @@ export default function EnhancedProductCard({
     }
   };
 
+  const handleWishlistToggle = async () => {
+    if (!user) {
+      Alert.alert('Accesso richiesto', 'Devi effettuare l\'accesso per aggiungere articoli alla wishlist');
+      router.push('/login');
+      return;
+    }
+
+    if (!dropId) {
+      console.error('No dropId provided for wishlist toggle');
+      return;
+    }
+
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setWishlistLoading(true);
+
+    // Animate heart
+    Animated.sequence([
+      Animated.timing(heartScaleAnim, {
+        toValue: 1.3,
+        duration: 150,
+        useNativeDriver: true,
+      }),
+      Animated.timing(heartScaleAnim, {
+        toValue: 1,
+        duration: 150,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    try {
+      if (isInWishlist) {
+        // Remove from wishlist
+        const { error } = await supabase
+          .from('wishlists')
+          .delete()
+          .eq('user_id', user.id)
+          .eq('product_id', product.id)
+          .eq('drop_id', dropId);
+
+        if (error) {
+          console.error('Error removing from wishlist:', error);
+          Alert.alert('Errore', 'Impossibile rimuovere dalla wishlist');
+          return;
+        }
+
+        setIsInWishlist(false);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        console.log('Removed from wishlist:', product.id);
+      } else {
+        // Add to wishlist
+        const { error } = await supabase
+          .from('wishlists')
+          .insert({
+            user_id: user.id,
+            product_id: product.id,
+            drop_id: dropId,
+          });
+
+        if (error) {
+          console.error('Error adding to wishlist:', error);
+          Alert.alert('Errore', 'Impossibile aggiungere alla wishlist');
+          return;
+        }
+
+        setIsInWishlist(true);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        console.log('Added to wishlist:', product.id);
+      }
+    } catch (error) {
+      console.error('Exception toggling wishlist:', error);
+      Alert.alert('Errore', 'Si è verificato un errore');
+    } finally {
+      setWishlistLoading(false);
+    }
+  };
+
   const isFashionItem = product.category === 'Fashion';
 
   const getConditionColor = (condition?: string) => {
@@ -283,6 +395,28 @@ export default function EnhancedProductCard({
               />
               <Text style={styles.imageCount}>{imageUrls.length}</Text>
             </View>
+          )}
+
+          {/* Wishlist heart icon - top right */}
+          {isInDrop && dropId && (
+            <Pressable
+              style={styles.wishlistButton}
+              onPress={handleWishlistToggle}
+              disabled={wishlistLoading}
+            >
+              <Animated.View style={{ transform: [{ scale: heartScaleAnim }] }}>
+                {wishlistLoading ? (
+                  <ActivityIndicator size="small" color="#FF6B6B" />
+                ) : (
+                  <IconSymbol
+                    ios_icon_name={isInWishlist ? 'heart.fill' : 'heart'}
+                    android_material_icon_name={isInWishlist ? 'favorite' : 'favorite_border'}
+                    size={28}
+                    color={isInWishlist ? '#FF6B6B' : '#FFF'}
+                  />
+                )}
+              </Animated.View>
+            </Pressable>
           )}
 
           {/* Drop badge moved to bottom-left - FIXED: Always round down using Math.floor */}
@@ -703,6 +837,19 @@ const styles = StyleSheet.create({
     color: colors.background,
     fontSize: 13,
     fontWeight: '700',
+  },
+  wishlistButton: {
+    position: 'absolute',
+    top: 60,
+    right: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
   },
   dropBadge: {
     position: 'absolute',
