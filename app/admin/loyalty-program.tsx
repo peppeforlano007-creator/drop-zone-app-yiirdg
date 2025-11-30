@@ -166,28 +166,53 @@ export default function LoyaltyProgramManagementScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     try {
-      const { error } = await supabase
+      // Update the coupon with explicit select to verify the update
+      const { data: updatedData, error } = await supabase
         .from('coupons')
         .update({
           discount_percentage: discount,
           points_required: points,
           updated_at: new Date().toISOString(),
         })
-        .eq('id', couponId);
+        .eq('id', couponId)
+        .select()
+        .single();
 
       if (error) {
         console.error('Error updating coupon:', error);
-        Alert.alert('Errore', 'Impossibile aggiornare il coupon');
+        Alert.alert('Errore', `Impossibile aggiornare il coupon: ${error.message}`);
         return;
       }
+
+      console.log('Coupon updated successfully:', updatedData);
+
+      // Update local state immediately to reflect changes
+      setCoupons(prevCoupons => 
+        prevCoupons.map(coupon => 
+          coupon.id === couponId 
+            ? { ...coupon, discount_percentage: discount, points_required: points, updated_at: new Date().toISOString() }
+            : coupon
+        )
+      );
+
+      // Update edit values to match the new values
+      setEditValues(prev => ({
+        ...prev,
+        [couponId]: {
+          discount: discount.toString(),
+          points: points.toString(),
+        },
+      }));
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert('Successo', 'Coupon aggiornato con successo');
       setEditingCoupon(null);
-      loadData();
+      
+      // Reload data to ensure consistency
+      await loadData();
     } catch (error: any) {
       console.error('Error updating coupon:', error);
-      Alert.alert('Errore', 'Si è verificato un errore');
+      Alert.alert('Errore', `Si è verificato un errore: ${error.message || 'Errore sconosciuto'}`);
     }
   };
 

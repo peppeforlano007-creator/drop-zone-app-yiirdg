@@ -660,6 +660,52 @@ export type Database = {
         }
         Relationships: []
       }
+      wishlists: {
+        Row: {
+          id: string
+          user_id: string
+          product_id: string
+          drop_id: string | null
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          product_id: string
+          drop_id?: string | null
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          product_id?: string
+          drop_id?: string | null
+          created_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wishlists_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "auth.users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wishlists_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wishlists_drop_id_fkey"
+            columns: ["drop_id"]
+            isOneToOne: false
+            referencedRelation: "drops"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_coupons: {
         Row: {
           id: string

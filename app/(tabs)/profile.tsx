@@ -449,6 +449,20 @@ export default function ProfileScreen() {
               <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="chevron_right" size={20} color={colors.textSecondary} />
             </Pressable>
 
+            <Pressable 
+              style={styles.settingItem} 
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.push('/wishlist' as any);
+              }}
+            >
+              <View style={styles.settingContent}>
+                <IconSymbol ios_icon_name="heart.fill" android_material_icon_name="favorite" size={20} color="#FF3B30" />
+                <Text style={styles.settingText}>La Mia Wishlist</Text>
+              </View>
+              <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="chevron_right" size={20} color={colors.textSecondary} />
+            </Pressable>
+
             <Pressable style={styles.settingItem} onPress={handleNotifications}>
               <View style={styles.settingContent}>
                 <IconSymbol ios_icon_name="bell.fill" android_material_icon_name="notifications" size={20} color={colors.text} />

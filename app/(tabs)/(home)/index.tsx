@@ -30,6 +30,7 @@ const WELCOME_MODAL_KEY = 'feed_welcome_modal_shown';
 export default function HomeScreen() {
   const { logout, user } = useAuth();
   const [interestedProducts, setInterestedProducts] = useState<Set<string>>(new Set());
+  const [wishlistProducts, setWishlistProducts] = useState<Set<string>>(new Set());
   const [currentListIndex, setCurrentListIndex] = useState(0);
   const [currentProductIndex, setCurrentProductIndex] = useState(0);
   const [productLists, setProductLists] = useState<ProductList[]>([]);
@@ -39,6 +40,7 @@ export default function HomeScreen() {
   const [processingInterests, setProcessingInterests] = useState<Set<string>>(new Set());
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
+  const [showWishlistTip, setShowWishlistTip] = useState(false);
   const listFlatListRef = useRef<FlatList>(null);
   const productFlatListRef = useRef<FlatList>(null);
   const progressAnim = useRef(new Animated.Value(0)).current;
@@ -449,6 +451,30 @@ export default function HomeScreen() {
     }
   }, [user]);
 
+  const loadUserWishlist = useCallback(async () => {
+    if (!user) return;
+    
+    try {
+      const { data: wishlist, error } = await supabase
+        .from('wishlists')
+        .select('product_id')
+        .eq('user_id', user.id);
+
+      if (error) {
+        console.error('Error loading user wishlist:', error);
+        return;
+      }
+
+      if (wishlist) {
+        const productIds = new Set(wishlist.map(w => w.product_id));
+        setWishlistProducts(productIds);
+        console.log(`Loaded ${productIds.size} wishlist items`);
+      }
+    } catch (error) {
+      console.error('Exception loading user wishlist:', error);
+    }
+  }, [user]);
+
   const loadUnreadNotifications = useCallback(async () => {
     if (!user) return;
     
@@ -474,8 +500,9 @@ export default function HomeScreen() {
   useEffect(() => {
     loadProducts();
     loadUserInterests();
+    loadUserWishlist();
     loadUnreadNotifications();
-  }, [loadProducts, loadUserInterests, loadUnreadNotifications]);
+  }, [loadProducts, loadUserInterests, loadUserWishlist, loadUnreadNotifications]);
 
   // Subscribe to real-time notification updates
   useEffect(() => {
@@ -567,6 +594,71 @@ export default function HomeScreen() {
       useNativeDriver: false,
     }).start();
   }, [currentProductIndex, totalProductsInList, progressAnim]);
+
+  const handleWishlistToggle = async (productId: string) => {
+    if (!user) {
+      Alert.alert('Errore', 'Devi essere registrato per usare la wishlist');
+      return;
+    }
+
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    
+    const isCurrentlyInWishlist = wishlistProducts.has(productId);
+
+    try {
+      if (isCurrentlyInWishlist) {
+        // Remove from wishlist
+        const { error } = await supabase
+          .from('wishlists')
+          .delete()
+          .eq('user_id', user.id)
+          .eq('product_id', productId);
+
+        if (error) {
+          console.error('Error removing from wishlist:', error);
+          Alert.alert('Errore', 'Impossibile rimuovere dalla wishlist');
+          return;
+        }
+
+        setWishlistProducts(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(productId);
+          return newSet;
+        });
+        console.log('Product removed from wishlist:', productId);
+      } else {
+        // Add to wishlist
+        const { error } = await supabase
+          .from('wishlists')
+          .insert({
+            user_id: user.id,
+            product_id: productId,
+            drop_id: null, // No drop in main feed
+          });
+
+        if (error) {
+          console.error('Error adding to wishlist:', error);
+          Alert.alert('Errore', 'Impossibile aggiungere alla wishlist');
+          return;
+        }
+
+        setWishlistProducts(prev => {
+          const newSet = new Set(prev);
+          newSet.add(productId);
+          return newSet;
+        });
+        console.log('Product added to wishlist:', productId);
+        
+        // Show tip popup on first wishlist add
+        if (wishlistProducts.size === 0) {
+          setShowWishlistTip(true);
+        }
+      }
+    } catch (error: any) {
+      console.error('Exception handling wishlist:', error);
+      Alert.alert('Errore', 'Si è verificato un errore');
+    }
+  };
 
   const handleInterest = async (productId: string) => {
     if (!user || !user.pickupPointId) {
@@ -814,6 +906,8 @@ export default function HomeScreen() {
               product={product}
               onInterest={handleInterest}
               isInterested={interestedProducts.has(product.id)}
+              onWishlistToggle={handleWishlistToggle}
+              isInWishlist={wishlistProducts.has(product.id)}
             />
           )}
           keyExtractor={(product) => product.id}
@@ -1119,22 +1213,34 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        {/* Compact List Navigation Buttons - Small circular buttons on sides */}
+        {/* Enhanced List Navigation Buttons - Clearly visible and clickable */}
         {currentListIndex > 0 && (
           <Pressable 
-            style={styles.navButtonLeft}
+            style={({ pressed }) => [
+              styles.navButtonLeft,
+              pressed && styles.navButtonPressed,
+            ]}
             onPress={handlePreviousList}
           >
-            <IconSymbol ios_icon_name="chevron.left" android_material_icon_name="chevron_left" size={20} color="#000" />
+            <View style={styles.navButtonContent}>
+              <IconSymbol ios_icon_name="chevron.left" android_material_icon_name="chevron_left" size={24} color="#FFF" />
+              <Text style={styles.navButtonText}>Lista Precedente</Text>
+            </View>
           </Pressable>
         )}
 
         {currentListIndex < productLists.length - 1 && (
           <Pressable 
-            style={styles.navButtonRight}
+            style={({ pressed }) => [
+              styles.navButtonRight,
+              pressed && styles.navButtonPressed,
+            ]}
             onPress={handleNextList}
           >
-            <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="chevron_right" size={20} color="#000" />
+            <View style={styles.navButtonContent}>
+              <Text style={styles.navButtonText}>Lista Successiva</Text>
+              <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="chevron_right" size={24} color="#FFF" />
+            </View>
           </Pressable>
         )}
 
@@ -1166,6 +1272,46 @@ export default function HomeScreen() {
           visible={showWelcomeModal}
           onClose={handleCloseWelcomeModal}
         />
+
+        {/* Wishlist Tip Modal */}
+        {showWishlistTip && (
+          <View style={styles.modalOverlay}>
+            <View style={styles.wishlistTipModal}>
+              <Pressable 
+                style={styles.wishlistTipClose}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setShowWishlistTip(false);
+                }}
+              >
+                <IconSymbol ios_icon_name="xmark" android_material_icon_name="close" size={24} color={colors.text} />
+              </Pressable>
+              
+              <View style={styles.wishlistTipIcon}>
+                <IconSymbol ios_icon_name="heart.fill" android_material_icon_name="favorite" size={48} color="#FF3B30" />
+              </View>
+              
+              <Text style={styles.wishlistTipTitle}>Wishlist Creata!</Text>
+              <Text style={styles.wishlistTipText}>
+                Usa il cuore ❤️ per salvare gli articoli che ti interessano nella tua wishlist.
+                {'\n\n'}
+                Potrai trovarli nella sezione Profilo e raggiungerli direttamente nel feed quando vuoi!
+                {'\n\n'}
+                💡 Perfetto per non perdere di vista i prodotti che ami!
+              </Text>
+              
+              <Pressable 
+                style={styles.wishlistTipButton}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                  setShowWishlistTip(false);
+                }}
+              >
+                <Text style={styles.wishlistTipButtonText}>Ho Capito!</Text>
+              </Pressable>
+            </View>
+          </View>
+        )}
       </View>
     </>
   );
@@ -1445,41 +1591,56 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 12,
     top: '50%',
-    marginTop: -20,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.85)',
+    marginTop: -28,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 28,
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(0, 0, 0, 0.1)',
+    borderWidth: 2,
+    borderColor: '#FFF',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
     zIndex: 10,
   },
   navButtonRight: {
     position: 'absolute',
     right: 12,
     top: '50%',
-    marginTop: -20,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.85)',
+    marginTop: -28,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 28,
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(0, 0, 0, 0.1)',
+    borderWidth: 2,
+    borderColor: '#FFF',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
     zIndex: 10,
+  },
+  navButtonPressed: {
+    opacity: 0.7,
+    transform: [{ scale: 0.95 }],
+  },
+  navButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  navButtonText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#FFF',
+    letterSpacing: 0.5,
   },
   hintContainer: {
     position: 'absolute',
@@ -1514,5 +1675,66 @@ const styles = StyleSheet.create({
   closeBannerButton: {
     padding: 4,
     marginLeft: 4,
+  },
+  modalOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  wishlistTipModal: {
+    backgroundColor: colors.background,
+    borderRadius: 24,
+    padding: 32,
+    marginHorizontal: 24,
+    maxWidth: 400,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 10,
+  },
+  wishlistTipClose: {
+    position: 'absolute',
+    top: 16,
+    right: 16,
+    padding: 8,
+    zIndex: 1,
+  },
+  wishlistTipIcon: {
+    marginBottom: 20,
+  },
+  wishlistTipTitle: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: colors.text,
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  wishlistTipText: {
+    fontSize: 15,
+    color: colors.textSecondary,
+    lineHeight: 22,
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  wishlistTipButton: {
+    backgroundColor: colors.text,
+    paddingVertical: 14,
+    paddingHorizontal: 32,
+    borderRadius: 12,
+    minWidth: 200,
+    alignItems: 'center',
+  },
+  wishlistTipButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.background,
   },
 });
