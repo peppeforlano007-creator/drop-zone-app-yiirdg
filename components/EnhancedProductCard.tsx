@@ -358,9 +358,9 @@ export default function EnhancedProductCard({
           )}
         </Pressable>
 
-        {/* Wishlist Heart Button - FIXED: Separate from image pressable with proper z-index */}
+        {/* Wishlist Heart Button - FIXED: Changed pointerEvents to "auto" to capture touches */}
         {onWishlistToggle && (
-          <View style={styles.wishlistButtonWrapper} pointerEvents="box-none">
+          <View style={styles.wishlistButtonWrapper} pointerEvents="auto">
             <Animated.View 
               style={[
                 styles.wishlistButtonContainer,
@@ -370,7 +370,6 @@ export default function EnhancedProductCard({
                   ],
                 },
               ]}
-              pointerEvents="box-none"
             >
               <Pressable 
                 style={({ pressed }) => [
@@ -379,7 +378,7 @@ export default function EnhancedProductCard({
                   pressed && styles.wishlistButtonPressed,
                 ]}
                 onPress={handleWishlistPress}
-                hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+                hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
               >
                 <Animated.View
                   style={{
