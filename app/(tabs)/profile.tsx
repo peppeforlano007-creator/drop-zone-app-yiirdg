@@ -458,7 +458,7 @@ export default function ProfileScreen() {
             >
               <View style={styles.settingContent}>
                 <IconSymbol ios_icon_name="heart.fill" android_material_icon_name="favorite" size={20} color="#FF3B30" />
-                <Text style={styles.settingText}>La Mia Wishlist</Text>
+                <Text style={styles.settingText}>❤️ La mia wishlist</Text>
               </View>
               <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="chevron_right" size={20} color={colors.textSecondary} />
             </Pressable>

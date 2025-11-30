@@ -54,7 +54,7 @@ interface DropData {
 }
 
 export default function DropDetailsScreen() {
-  const { dropId } = useLocalSearchParams<{ dropId: string }>();
+  const { dropId, scrollToProductId } = useLocalSearchParams<{ dropId: string; scrollToProductId?: string }>();
   const [drop, setDrop] = useState<DropData | null>(null);
   const [products, setProducts] = useState<ProductData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -191,6 +191,22 @@ export default function DropDetailsScreen() {
     loadUserBookings();
     loadWishlist();
   }, [dropId, loadDropDetails, loadUserBookings, loadWishlist]);
+
+  // Scroll to specific product if coming from wishlist
+  useEffect(() => {
+    if (scrollToProductId && products.length > 0 && flatListRef.current) {
+      const productIndex = products.findIndex(p => p.id === scrollToProductId);
+      if (productIndex !== -1) {
+        console.log('📍 Scrolling to product at index:', productIndex);
+        setTimeout(() => {
+          flatListRef.current?.scrollToIndex({
+            index: productIndex,
+            animated: true,
+          });
+        }, 500);
+      }
+    }
+  }, [scrollToProductId, products]);
 
   // Real-time subscription for product stock updates
   useEffect(() => {
@@ -464,7 +480,7 @@ export default function DropDetailsScreen() {
           setTimeout(() => {
             Alert.alert(
               '❤️ Aggiunto alla Wishlist!',
-              'Usa la wishlist per non perdere di vista gli articoli che ti interessano. Puoi accedervi dalla sezione Profilo.',
+              'Puoi accedere alla tua wishlist dalla sezione Profilo → ❤️ La mia wishlist',
               [{ text: 'OK' }]
             );
           }, 300);
@@ -784,6 +800,16 @@ export default function DropDetailsScreen() {
           offset: height * index,
           index,
         })}
+        onScrollToIndexFailed={(info) => {
+          console.log('Scroll to index failed:', info);
+          // Retry after a delay
+          setTimeout(() => {
+            flatListRef.current?.scrollToIndex({
+              index: info.index,
+              animated: true,
+            });
+          }, 100);
+        }}
       />
 
       <View style={styles.timerOverlay} pointerEvents="box-none">
@@ -1112,7 +1138,7 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontFamily: 'System',
     textShadowColor: 'rgba(0, 0, 0, 0.75)',
-    textShadowOffset: { width: 0, height: 1 },
+    textShadowOffset: { width: 0, height:1 },
     textShadowRadius: 2,
   },
   underfundingWarningBottom: {

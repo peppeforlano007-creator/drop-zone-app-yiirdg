@@ -154,10 +154,13 @@ export default function WishlistScreen() {
       const dropStatus = item.drops.status;
       
       if (dropStatus === 'active' || dropStatus === 'approved') {
-        // Navigate to the drop details screen
+        // Navigate to the drop details screen with the product ID
         router.push({
           pathname: '/drop-details',
-          params: { dropId: item.drop_id },
+          params: { 
+            dropId: item.drop_id,
+            scrollToProductId: item.product_id,
+          },
         });
       } else {
         Alert.alert(
@@ -286,7 +289,7 @@ export default function WishlistScreen() {
         <Stack.Screen
           options={{
             headerShown: true,
-            title: 'La Mia Wishlist',
+            title: '❤️ La mia wishlist',
           }}
         />
         <View style={styles.loadingContainer}>
@@ -302,7 +305,7 @@ export default function WishlistScreen() {
       <Stack.Screen
         options={{
           headerShown: true,
-          title: 'La Mia Wishlist',
+          title: '❤️ La mia wishlist',
         }}
       />
       <SafeAreaView style={styles.container} edges={['bottom']}>
