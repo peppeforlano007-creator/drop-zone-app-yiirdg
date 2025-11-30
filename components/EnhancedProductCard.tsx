@@ -25,9 +25,6 @@ interface EnhancedProductCardProps {
   onInterest?: (productId: string) => void;
   onBook?: (productId: string) => void;
   isInterested?: boolean;
-  onWishlistToggle?: (productId: string) => void;
-  isInWishlist?: boolean;
-  dropId?: string;
 }
 
 export default function EnhancedProductCard({
@@ -38,9 +35,6 @@ export default function EnhancedProductCard({
   onInterest,
   onBook,
   isInterested = false,
-  onWishlistToggle,
-  isInWishlist = false,
-  dropId,
 }: EnhancedProductCardProps) {
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState(false);
@@ -53,8 +47,6 @@ export default function EnhancedProductCard({
   
   // Animation values
   const scaleAnim = useRef(new Animated.Value(1)).current;
-  const wishlistScaleAnim = useRef(new Animated.Value(1)).current;
-  const wishlistPulseAnim = useRef(new Animated.Value(1)).current;
 
   // Safe value extraction with defaults
   const originalPrice = product.originalPrice ?? 0;
@@ -118,51 +110,7 @@ export default function EnhancedProductCard({
     }).start();
   };
 
-  const handleWishlistPress = () => {
-    console.log('🔥🔥🔥 WISHLIST BUTTON PRESSED - Product ID:', product.id);
-    console.log('🔥 onWishlistToggle function:', onWishlistToggle ? 'DEFINED' : 'UNDEFINED');
-    console.log('🔥 isInWishlist:', isInWishlist);
-    
-    if (!onWishlistToggle) {
-      console.log('⚠️ onWishlistToggle is not defined - cannot toggle wishlist');
-      return;
-    }
-    
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-    
-    // Animate the button with a more pronounced effect
-    Animated.sequence([
-      Animated.parallel([
-        Animated.spring(wishlistScaleAnim, {
-          toValue: 1.4,
-          useNativeDriver: true,
-          speed: 50,
-          bounciness: 20,
-        }),
-        Animated.timing(wishlistPulseAnim, {
-          toValue: 1.2,
-          duration: 150,
-          useNativeDriver: true,
-        }),
-      ]),
-      Animated.parallel([
-        Animated.spring(wishlistScaleAnim, {
-          toValue: 1,
-          useNativeDriver: true,
-          speed: 50,
-          bounciness: 15,
-        }),
-        Animated.timing(wishlistPulseAnim, {
-          toValue: 1,
-          duration: 150,
-          useNativeDriver: true,
-        }),
-      ]),
-    ]).start();
-    
-    console.log('✅✅✅ Calling onWishlistToggle with product ID:', product.id);
-    onWishlistToggle(product.id);
-  };
+
 
   const handlePress = async () => {
     // Don't allow booking if out of stock
@@ -360,49 +308,6 @@ export default function EnhancedProductCard({
           )}
         </Pressable>
       </View>
-
-      {/* Wishlist Heart Button - FIXED: Moved OUTSIDE image wrapper to ensure it's always clickable */}
-      {onWishlistToggle && (
-        <View style={styles.wishlistButtonWrapper} pointerEvents="box-none">
-          <Animated.View 
-            style={[
-              styles.wishlistButtonAnimatedContainer,
-              {
-                transform: [
-                  { scale: wishlistScaleAnim },
-                ],
-              },
-            ]}
-          >
-            <Pressable 
-              style={({ pressed }) => [
-                styles.wishlistButton,
-                isInWishlist && styles.wishlistButtonActive,
-                pressed && styles.wishlistButtonPressed,
-              ]}
-              onPress={handleWishlistPress}
-              hitSlop={{ top: 25, bottom: 25, left: 25, right: 25 }}
-            >
-              <Animated.View
-                style={{
-                  transform: [{ scale: wishlistPulseAnim }],
-                }}
-              >
-                <IconSymbol 
-                  ios_icon_name={isInWishlist ? "heart.fill" : "heart"} 
-                  android_material_icon_name={isInWishlist ? "favorite" : "favorite_border"} 
-                  size={30} 
-                  color={isInWishlist ? "#FF3B30" : "#FFFFFF"} 
-                />
-              </Animated.View>
-              {/* Ripple effect indicator */}
-              {isInWishlist && (
-                <View style={styles.wishlistActiveIndicator} />
-              )}
-            </Pressable>
-          </Animated.View>
-        </View>
-      )}
 
       <View style={styles.overlay}>
         <View style={styles.content}>
@@ -798,55 +703,6 @@ const styles = StyleSheet.create({
     color: colors.background,
     fontSize: 13,
     fontWeight: '700',
-  },
-  wishlistButtonWrapper: {
-    position: 'absolute',
-    top: 60,
-    right: 20,
-    zIndex: 10000,
-    elevation: 10000,
-  },
-  wishlistButtonAnimatedContainer: {
-    zIndex: 10001,
-    elevation: 10001,
-  },
-  wishlistButton: {
-    width: 68,
-    height: 68,
-    borderRadius: 34,
-    backgroundColor: 'rgba(0, 0, 0, 0.90)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 3.5,
-    borderColor: 'rgba(255, 255, 255, 0.7)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.7,
-    shadowRadius: 20,
-    elevation: 25,
-  },
-  wishlistButtonActive: {
-    backgroundColor: 'rgba(255, 255, 255, 0.98)',
-    borderColor: '#FF3B30',
-    borderWidth: 4.5,
-    shadowColor: '#FF3B30',
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.8,
-    shadowRadius: 24,
-    elevation: 30,
-  },
-  wishlistButtonPressed: {
-    opacity: 0.85,
-    transform: [{ scale: 0.95 }],
-  },
-  wishlistActiveIndicator: {
-    position: 'absolute',
-    width: 82,
-    height: 82,
-    borderRadius: 41,
-    borderWidth: 3,
-    borderColor: '#FF3B30',
-    opacity: 0.4,
   },
   dropBadge: {
     position: 'absolute',
