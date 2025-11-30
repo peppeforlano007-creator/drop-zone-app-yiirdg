@@ -66,9 +66,14 @@ export default function DropDetailsScreen() {
   const flatListRef = useRef<FlatList>(null);
 
   const loadWishlist = useCallback(async () => {
-    if (!user || !dropId) return;
+    if (!user || !dropId) {
+      console.log('⏭️ No user or dropId for loading wishlist');
+      return;
+    }
 
     try {
+      console.log('📥 Loading wishlist for user:', user.id, 'drop:', dropId);
+      
       const { data, error } = await supabase
         .from('wishlists')
         .select('product_id')
@@ -76,15 +81,15 @@ export default function DropDetailsScreen() {
         .eq('drop_id', dropId);
 
       if (error) {
-        console.error('Error loading wishlist:', error);
+        console.error('❌ Error loading wishlist:', error);
         return;
       }
 
       const wishlistSet = new Set(data.map(w => w.product_id));
       setWishlistItems(wishlistSet);
-      console.log('✅ Wishlist loaded:', wishlistSet.size, 'items');
+      console.log('✅ Wishlist loaded:', wishlistSet.size, 'items', Array.from(wishlistSet));
     } catch (error) {
-      console.error('Error in loadWishlist:', error);
+      console.error('❌ Exception in loadWishlist:', error);
     }
   }, [user, dropId]);
 
@@ -386,18 +391,25 @@ export default function DropDetailsScreen() {
   }, [drop]);
 
   const handleWishlistToggle = useCallback(async (productId: string) => {
+    console.log('🔥🔥🔥 handleWishlistToggle called with productId:', productId);
+    console.log('🔥 User:', user?.id);
+    console.log('🔥 DropId:', dropId);
+    
     if (!user || !dropId) {
+      console.log('⚠️ User not logged in or no dropId');
       Alert.alert('Accesso richiesto', 'Devi effettuare l\'accesso per salvare prodotti nella wishlist');
       router.push('/login');
       return;
     }
 
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
 
     const isInWishlist = wishlistItems.has(productId);
+    console.log('🔥 Product is currently in wishlist:', isInWishlist);
 
     try {
       if (isInWishlist) {
+        console.log('🗑️ Removing from wishlist...');
         // Remove from wishlist
         const { error } = await supabase
           .from('wishlists')
@@ -407,7 +419,7 @@ export default function DropDetailsScreen() {
           .eq('drop_id', dropId);
 
         if (error) {
-          console.error('Error removing from wishlist:', error);
+          console.error('❌ Error removing from wishlist:', error);
           Alert.alert('Errore', 'Impossibile rimuovere dalla wishlist');
           return;
         }
@@ -415,11 +427,14 @@ export default function DropDetailsScreen() {
         setWishlistItems(prev => {
           const newSet = new Set(prev);
           newSet.delete(productId);
+          console.log('✅ Wishlist updated (removed):', Array.from(newSet));
           return newSet;
         });
 
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        console.log('✅ Product removed from wishlist successfully');
       } else {
+        console.log('➕ Adding to wishlist...');
         // Add to wishlist
         const { error } = await supabase
           .from('wishlists')
@@ -430,14 +445,19 @@ export default function DropDetailsScreen() {
           });
 
         if (error) {
-          console.error('Error adding to wishlist:', error);
+          console.error('❌ Error adding to wishlist:', error);
           Alert.alert('Errore', 'Impossibile aggiungere alla wishlist');
           return;
         }
 
-        setWishlistItems(prev => new Set([...prev, productId]));
+        setWishlistItems(prev => {
+          const newSet = new Set([...prev, productId]);
+          console.log('✅ Wishlist updated (added):', Array.from(newSet));
+          return newSet;
+        });
 
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        console.log('✅ Product added to wishlist successfully');
         
         // Show a helpful popup only the first time
         if (wishlistItems.size === 0) {
@@ -451,7 +471,7 @@ export default function DropDetailsScreen() {
         }
       }
     } catch (error) {
-      console.error('Error toggling wishlist:', error);
+      console.error('❌ Exception in handleWishlistToggle:', error);
       Alert.alert('Errore', 'Si è verificato un errore');
     }
   }, [user, dropId, wishlistItems]);
@@ -639,6 +659,8 @@ export default function DropDetailsScreen() {
   const renderProduct = useCallback(({ item }: { item: ProductData }) => {
     const isBooked = userBookings.has(item.id);
     const isInWishlist = wishlistItems.has(item.id);
+    
+    console.log('🎨 Rendering product:', item.id, 'isInWishlist:', isInWishlist);
     
     const productForCard = {
       id: item.id,

@@ -119,14 +119,16 @@ export default function EnhancedProductCard({
   };
 
   const handleWishlistPress = () => {
-    console.log('🔥 WISHLIST BUTTON PRESSED - Product ID:', product.id);
+    console.log('🔥🔥🔥 WISHLIST BUTTON PRESSED - Product ID:', product.id);
+    console.log('🔥 onWishlistToggle function:', onWishlistToggle ? 'DEFINED' : 'UNDEFINED');
+    console.log('🔥 isInWishlist:', isInWishlist);
     
     if (!onWishlistToggle) {
-      console.log('⚠️ onWishlistToggle is not defined');
+      console.log('⚠️ onWishlistToggle is not defined - cannot toggle wishlist');
       return;
     }
     
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     
     // Animate the button with a more pronounced effect
     Animated.sequence([
@@ -158,7 +160,7 @@ export default function EnhancedProductCard({
       ]),
     ]).start();
     
-    console.log('✅ Calling onWishlistToggle with product ID:', product.id);
+    console.log('✅✅✅ Calling onWishlistToggle with product ID:', product.id);
     onWishlistToggle(product.id);
   };
 
@@ -283,8 +285,8 @@ export default function EnhancedProductCard({
 
   return (
     <View style={styles.container}>
-      {/* Image wrapper with box-none to allow child elements to receive touches */}
-      <View style={styles.imageWrapper} pointerEvents="box-none">
+      {/* Image section - FIXED: Removed pointerEvents to allow normal touch handling */}
+      <View style={styles.imageWrapper}>
         {/* Image pressable for gallery */}
         <Pressable 
           style={styles.imagePressable}
@@ -357,50 +359,50 @@ export default function EnhancedProductCard({
             </View>
           )}
         </Pressable>
-
-        {/* Wishlist Heart Button - FIXED: Changed pointerEvents to "auto" to capture touches */}
-        {onWishlistToggle && (
-          <View style={styles.wishlistButtonWrapper} pointerEvents="auto">
-            <Animated.View 
-              style={[
-                styles.wishlistButtonContainer,
-                {
-                  transform: [
-                    { scale: wishlistScaleAnim },
-                  ],
-                },
-              ]}
-            >
-              <Pressable 
-                style={({ pressed }) => [
-                  styles.wishlistButton,
-                  isInWishlist && styles.wishlistButtonActive,
-                  pressed && styles.wishlistButtonPressed,
-                ]}
-                onPress={handleWishlistPress}
-                hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
-              >
-                <Animated.View
-                  style={{
-                    transform: [{ scale: wishlistPulseAnim }],
-                  }}
-                >
-                  <IconSymbol 
-                    ios_icon_name={isInWishlist ? "heart.fill" : "heart"} 
-                    android_material_icon_name={isInWishlist ? "favorite" : "favorite_border"} 
-                    size={28} 
-                    color={isInWishlist ? "#FF3B30" : "#FFFFFF"} 
-                  />
-                </Animated.View>
-                {/* Ripple effect indicator */}
-                {isInWishlist && (
-                  <View style={styles.wishlistActiveIndicator} />
-                )}
-              </Pressable>
-            </Animated.View>
-          </View>
-        )}
       </View>
+
+      {/* Wishlist Heart Button - FIXED: Moved OUTSIDE image wrapper to ensure it's always clickable */}
+      {onWishlistToggle && (
+        <View style={styles.wishlistButtonWrapper} pointerEvents="box-none">
+          <Animated.View 
+            style={[
+              styles.wishlistButtonAnimatedContainer,
+              {
+                transform: [
+                  { scale: wishlistScaleAnim },
+                ],
+              },
+            ]}
+          >
+            <Pressable 
+              style={({ pressed }) => [
+                styles.wishlistButton,
+                isInWishlist && styles.wishlistButtonActive,
+                pressed && styles.wishlistButtonPressed,
+              ]}
+              onPress={handleWishlistPress}
+              hitSlop={{ top: 25, bottom: 25, left: 25, right: 25 }}
+            >
+              <Animated.View
+                style={{
+                  transform: [{ scale: wishlistPulseAnim }],
+                }}
+              >
+                <IconSymbol 
+                  ios_icon_name={isInWishlist ? "heart.fill" : "heart"} 
+                  android_material_icon_name={isInWishlist ? "favorite" : "favorite_border"} 
+                  size={30} 
+                  color={isInWishlist ? "#FF3B30" : "#FFFFFF"} 
+                />
+              </Animated.View>
+              {/* Ripple effect indicator */}
+              {isInWishlist && (
+                <View style={styles.wishlistActiveIndicator} />
+              )}
+            </Pressable>
+          </Animated.View>
+        </View>
+      )}
 
       <View style={styles.overlay}>
         <View style={styles.content}>
@@ -801,37 +803,37 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 60,
     right: 20,
-    zIndex: 1000,
-    elevation: 1000,
+    zIndex: 10000,
+    elevation: 10000,
   },
-  wishlistButtonContainer: {
-    zIndex: 1001,
-    elevation: 1001,
+  wishlistButtonAnimatedContainer: {
+    zIndex: 10001,
+    elevation: 10001,
   },
   wishlistButton: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: 'rgba(0, 0, 0, 0.85)',
+    width: 68,
+    height: 68,
+    borderRadius: 34,
+    backgroundColor: 'rgba(0, 0, 0, 0.90)',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 3,
-    borderColor: 'rgba(255, 255, 255, 0.6)',
+    borderWidth: 3.5,
+    borderColor: 'rgba(255, 255, 255, 0.7)',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.6,
-    shadowRadius: 16,
-    elevation: 20,
-  },
-  wishlistButtonActive: {
-    backgroundColor: 'rgba(255, 255, 255, 0.98)',
-    borderColor: '#FF3B30',
-    borderWidth: 4,
-    shadowColor: '#FF3B30',
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.7,
     shadowRadius: 20,
     elevation: 25,
+  },
+  wishlistButtonActive: {
+    backgroundColor: 'rgba(255, 255, 255, 0.98)',
+    borderColor: '#FF3B30',
+    borderWidth: 4.5,
+    shadowColor: '#FF3B30',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.8,
+    shadowRadius: 24,
+    elevation: 30,
   },
   wishlistButtonPressed: {
     opacity: 0.85,
@@ -839,9 +841,9 @@ const styles = StyleSheet.create({
   },
   wishlistActiveIndicator: {
     position: 'absolute',
-    width: 76,
-    height: 76,
-    borderRadius: 38,
+    width: 82,
+    height: 82,
+    borderRadius: 41,
     borderWidth: 3,
     borderColor: '#FF3B30',
     opacity: 0.4,
