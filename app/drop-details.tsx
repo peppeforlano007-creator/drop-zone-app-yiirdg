@@ -66,19 +66,18 @@ export default function DropDetailsScreen() {
   const flatListRef = useRef<FlatList>(null);
 
   const loadWishlist = useCallback(async () => {
-    if (!user || !dropId) {
-      console.log('⏭️ No user or dropId for loading wishlist');
+    if (!user) {
+      console.log('⏭️ No user for loading wishlist');
       return;
     }
 
     try {
-      console.log('📥 Loading wishlist for user:', user.id, 'drop:', dropId);
+      console.log('📥 Loading wishlist for user:', user.id);
       
       const { data, error } = await supabase
         .from('wishlists')
         .select('product_id')
-        .eq('user_id', user.id)
-        .eq('drop_id', dropId);
+        .eq('user_id', user.id);
 
       if (error) {
         console.error('❌ Error loading wishlist:', error);
@@ -91,7 +90,7 @@ export default function DropDetailsScreen() {
     } catch (error) {
       console.error('❌ Exception in loadWishlist:', error);
     }
-  }, [user, dropId]);
+  }, [user]);
 
   const loadDropDetails = useCallback(async () => {
     if (!dropId) {
@@ -411,8 +410,8 @@ export default function DropDetailsScreen() {
     console.log('🔥 User:', user?.id);
     console.log('🔥 DropId:', dropId);
     
-    if (!user || !dropId) {
-      console.log('⚠️ User not logged in or no dropId');
+    if (!user) {
+      console.log('⚠️ User not logged in');
       Alert.alert('Accesso richiesto', 'Devi effettuare l\'accesso per salvare prodotti nella wishlist');
       router.push('/login');
       return;
@@ -431,8 +430,7 @@ export default function DropDetailsScreen() {
           .from('wishlists')
           .delete()
           .eq('user_id', user.id)
-          .eq('product_id', productId)
-          .eq('drop_id', dropId);
+          .eq('product_id', productId);
 
         if (error) {
           console.error('❌ Error removing from wishlist:', error);
@@ -451,13 +449,13 @@ export default function DropDetailsScreen() {
         console.log('✅ Product removed from wishlist successfully');
       } else {
         console.log('➕ Adding to wishlist...');
-        // Add to wishlist
+        // Add to wishlist with drop_id
         const { error } = await supabase
           .from('wishlists')
           .insert({
             user_id: user.id,
             product_id: productId,
-            drop_id: dropId,
+            drop_id: dropId || null,
           });
 
         if (error) {

@@ -49,10 +49,14 @@ export default function WishlistScreen() {
   const [removingId, setRemovingId] = useState<string | null>(null);
 
   const loadWishlist = useCallback(async () => {
-    if (!user) return;
+    if (!user) {
+      console.log('❌ No user logged in');
+      setLoading(false);
+      return;
+    }
 
     try {
-      setLoading(true);
+      console.log('📥 Loading wishlist for user:', user.id);
 
       const { data, error } = await supabase
         .from('wishlists')
@@ -81,15 +85,15 @@ export default function WishlistScreen() {
         .order('created_at', { ascending: false });
 
       if (error) {
-        console.error('Error loading wishlist:', error);
+        console.error('❌ Error loading wishlist:', error);
         Alert.alert('Errore', 'Impossibile caricare la wishlist');
         return;
       }
 
       setWishlistItems(data || []);
-      console.log(`Loaded ${data?.length || 0} wishlist items`);
+      console.log('✅ Wishlist loaded:', data?.length || 0, 'items');
     } catch (error) {
-      console.error('Exception loading wishlist:', error);
+      console.error('❌ Exception loading wishlist:', error);
       Alert.alert('Errore', 'Si è verificato un errore');
     } finally {
       setLoading(false);
@@ -127,15 +131,16 @@ export default function WishlistScreen() {
                 .eq('id', wishlistId);
 
               if (error) {
-                console.error('Error removing from wishlist:', error);
+                console.error('❌ Error removing from wishlist:', error);
                 Alert.alert('Errore', 'Impossibile rimuovere dalla wishlist');
                 return;
               }
 
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
               setWishlistItems(prev => prev.filter(item => item.id !== wishlistId));
+              console.log('✅ Item removed from wishlist');
             } catch (error) {
-              console.error('Exception removing from wishlist:', error);
+              console.error('❌ Exception removing from wishlist:', error);
               Alert.alert('Errore', 'Si è verificato un errore');
             } finally {
               setRemovingId(null);
@@ -155,6 +160,7 @@ export default function WishlistScreen() {
       
       if (dropStatus === 'active' || dropStatus === 'approved') {
         // Navigate to the drop details screen with the product ID
+        console.log('🚀 Navigating to drop:', item.drop_id, 'product:', item.product_id);
         router.push({
           pathname: '/drop-details',
           params: { 
@@ -170,13 +176,17 @@ export default function WishlistScreen() {
         );
       }
     } else {
-      // Product not in a drop yet, navigate to main feed
-      router.push('/(tabs)/(home)');
-      
+      // Product not in a drop yet
       Alert.alert(
-        'Prodotto nel Feed Principale',
-        'Questo prodotto non è ancora in un drop attivo. Scorri il feed principale per trovarlo e clicca su "VORRÒ PARTECIPARE AL DROP" per essere notificato quando sarà disponibile!',
-        [{ text: 'OK' }]
+        'Prodotto non in un Drop',
+        'Questo prodotto non è ancora in un drop attivo. Controlla la sezione Drop per vedere quando sarà disponibile!',
+        [
+          { text: 'OK' },
+          { 
+            text: 'Vai ai Drop', 
+            onPress: () => router.push('/(tabs)/drops')
+          }
+        ]
       );
     }
   };
@@ -321,7 +331,7 @@ export default function WishlistScreen() {
             <Text style={styles.emptyText}>
               Non hai ancora salvato nessun prodotto nella tua wishlist.
               {'\n\n'}
-              Usa il cuore ❤️ nel feed drop per salvare i prodotti che ti interessano!
+              Usa il cuore ❤️ sulle card prodotto nei drop per salvare i prodotti che ti interessano!
             </Text>
             <Pressable
               style={styles.goToFeedButton}
