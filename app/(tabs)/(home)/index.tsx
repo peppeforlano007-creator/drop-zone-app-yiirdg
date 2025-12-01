@@ -5,7 +5,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Stack, router } from 'expo-router';
 import { colors } from '@/styles/commonStyles';
 import ProductCard from '@/components/ProductCard';
-import { Product } from '@/types/Product';
+import { Product, ProductVariant } from '@/types/Product';
 import { IconSymbol } from '@/components/IconSymbol';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/app/integrations/supabase/client';
@@ -82,7 +82,7 @@ export default function HomeScreen() {
 
   const loadProducts = useCallback(async () => {
     try {
-      console.log('=== LOADING PRODUCTS ===');
+      console.log('=== LOADING PRODUCTS WITH VARIANTS ===');
       console.log('Timestamp:', new Date().toISOString());
       setError(null);
       setLoading(true);
@@ -118,17 +118,12 @@ export default function HomeScreen() {
         return;
       }
 
-      supplierLists.forEach((list, idx) => {
-        console.log(`  ${idx + 1}. "${list.name}" (ID: ${list.id.substring(0, 8)}...) - status: ${list.status}`);
-      });
-
       const listIds = supplierLists.map(list => list.id);
       console.log(`→ Will fetch products for ${listIds.length} lists`);
       
-      // STEP 2: Get ALL products for these lists with stock > 0 - ONLY filter by stock, not status
-      console.log('→ Fetching ALL products with stock > 0 (ignoring status field)...');
+      // STEP 2: Get ALL products with stock > 0 - Group by SKU
+      console.log('→ Fetching products with stock > 0 and grouping by SKU...');
       
-      // Fetch products in batches to avoid hitting limits
       const batchSize = 1000;
       let allProducts: any[] = [];
       let offset = 0;
@@ -140,7 +135,7 @@ export default function HomeScreen() {
           .from('products')
           .select('*')
           .in('supplier_list_id', listIds)
-          .gt('stock', 0) // Only fetch products with stock > 0, ignore status
+          .gt('stock', 0)
           .order('created_at', { ascending: false })
           .range(offset, offset + batchSize - 1);
 
@@ -155,11 +150,10 @@ export default function HomeScreen() {
           hasMore = false;
           console.log(`  No more products found at offset ${offset}`);
         } else {
-          console.log(`  ✓ Fetched ${productsBatch.length} products in this batch (with stock > 0)`);
+          console.log(`  ✓ Fetched ${productsBatch.length} products in this batch`);
           allProducts = allProducts.concat(productsBatch);
           offset += batchSize;
           
-          // If we got less than batchSize, we've reached the end
           if (productsBatch.length < batchSize) {
             hasMore = false;
             console.log(`  Reached end of products (got ${productsBatch.length} < ${batchSize})`);
@@ -168,7 +162,7 @@ export default function HomeScreen() {
       }
 
       const products = allProducts;
-      console.log(`✓ Found TOTAL of ${products.length} products with stock > 0 across all batches`);
+      console.log(`✓ Found TOTAL of ${products.length} products with stock > 0`);
 
       if (!products || products.length === 0) {
         console.log('⚠ No products with stock found for active lists');
@@ -177,20 +171,109 @@ export default function HomeScreen() {
         return;
       }
 
-      // Count products per list
-      const productsPerList = new Map<string, number>();
-      products.forEach(p => {
-        const count = productsPerList.get(p.supplier_list_id) || 0;
-        productsPerList.set(p.supplier_list_id, count + 1);
-      });
-      
-      console.log('Products per list (with stock > 0):');
-      productsPerList.forEach((count, listId) => {
-        const list = supplierLists.find(l => l.id === listId);
-        console.log(`  - ${list?.name || 'Unknown'} (${listId.substring(0, 8)}...): ${count} products`);
+      // STEP 3: Load variants for all products
+      console.log('→ Loading product variants...');
+      const productIds = products.map(p => p.id);
+      const { data: variants, error: variantsError } = await supabase
+        .from('product_variants')
+        .select('*')
+        .in('product_id', productIds)
+        .gt('stock', 0);
+
+      if (variantsError) {
+        console.error('⚠ Error loading variants:', variantsError);
+        // Don't fail completely if variants fail to load
+      }
+
+      console.log(`✓ Loaded ${variants?.length || 0} product variants`);
+
+      // Create a map of product_id to variants
+      const variantsMap = new Map<string, ProductVariant[]>();
+      variants?.forEach(v => {
+        if (!variantsMap.has(v.product_id)) {
+          variantsMap.set(v.product_id, []);
+        }
+        variantsMap.get(v.product_id)!.push({
+          id: v.id,
+          productId: v.product_id,
+          size: v.size || undefined,
+          color: v.color || undefined,
+          stock: v.stock,
+          status: v.status,
+        });
       });
 
-      // STEP 3: Get supplier profiles
+      // STEP 4: Group products by SKU
+      console.log('→ Grouping products by SKU...');
+      const skuMap = new Map<string, any[]>();
+      
+      products.forEach(product => {
+        const sku = product.sku || product.id; // Use product ID as fallback if no SKU
+        if (!skuMap.has(sku)) {
+          skuMap.set(sku, []);
+        }
+        skuMap.get(sku)!.push(product);
+      });
+
+      console.log(`✓ Grouped into ${skuMap.size} unique SKUs`);
+
+      // STEP 5: Aggregate products by SKU
+      const aggregatedProducts: any[] = [];
+      
+      skuMap.forEach((skuProducts, sku) => {
+        if (skuProducts.length === 1) {
+          // Single product, no variants from SKU grouping
+          const product = skuProducts[0];
+          const productVariants = variantsMap.get(product.id) || [];
+          
+          aggregatedProducts.push({
+            ...product,
+            hasVariants: productVariants.length > 0,
+            variants: productVariants,
+          });
+        } else {
+          // Multiple products with same SKU - treat as variants
+          console.log(`  SKU "${sku}" has ${skuProducts.length} products - aggregating as variants`);
+          
+          // Use the first product as the base
+          const baseProduct = skuProducts[0];
+          
+          // Aggregate stock from all products
+          const totalStock = skuProducts.reduce((sum, p) => sum + (p.stock || 0), 0);
+          
+          // Collect all sizes and colors
+          const allSizes = new Set<string>();
+          const allColors = new Set<string>();
+          const aggregatedVariants: ProductVariant[] = [];
+          
+          skuProducts.forEach(product => {
+            // Add product-level variants
+            const productVariants = variantsMap.get(product.id) || [];
+            aggregatedVariants.push(...productVariants);
+            
+            // Collect sizes and colors from product fields
+            if (product.available_sizes) {
+              product.available_sizes.forEach((s: string) => allSizes.add(s));
+            }
+            if (product.available_colors) {
+              product.available_colors.forEach((c: string) => allColors.add(c));
+            }
+          });
+          
+          aggregatedProducts.push({
+            ...baseProduct,
+            stock: totalStock,
+            available_sizes: Array.from(allSizes),
+            available_colors: Array.from(allColors),
+            hasVariants: aggregatedVariants.length > 0 || allSizes.size > 0 || allColors.size > 0,
+            variants: aggregatedVariants,
+          });
+        }
+      });
+
+      console.log(`✓ Created ${aggregatedProducts.length} aggregated products`);
+
+      // STEP 6: Get supplier profiles
       const supplierIds = supplierLists.map(list => list.supplier_id);
       console.log(`→ Fetching ${supplierIds.length} supplier profiles...`);
       const { data: profiles, error: profilesError } = await supabase
@@ -200,7 +283,6 @@ export default function HomeScreen() {
 
       if (profilesError) {
         console.error('⚠ Error loading profiles:', profilesError);
-        // Don't fail completely if profiles fail to load
       }
 
       console.log(`✓ Loaded ${profiles?.length || 0} supplier profiles`);
@@ -218,11 +300,6 @@ export default function HomeScreen() {
       ]));
 
       console.log('=== GROUPING PRODUCTS BY LIST ===');
-      console.log(`Lists map size: ${listsMap.size}`);
-      console.log('Lists in map:');
-      listsMap.forEach((listData, listId) => {
-        console.log(`  - ${listId.substring(0, 8)}... "${listData.name}" by ${listData.supplierName}`);
-      });
       
       // Group products by supplier list
       const groupedLists = new Map<string, ProductList>();
@@ -230,18 +307,17 @@ export default function HomeScreen() {
       let skippedProducts = 0;
       let processedProducts = 0;
       
-      console.log('→ Processing products...');
-      products.forEach((product: any, index: number) => {
+      console.log('→ Processing aggregated products...');
+      aggregatedProducts.forEach((product: any, index: number) => {
         const listId = product.supplier_list_id;
         const listData = listsMap.get(listId);
         
         if (!listData) {
-          console.warn(`⚠ Product ${index + 1}/${products.length}: No list data found for list ID: ${listId.substring(0, 8)}..., skipping product ${product.id.substring(0, 8)}...`);
+          console.warn(`⚠ Product ${index + 1}: No list data found for list ID: ${listId.substring(0, 8)}...`);
           skippedProducts++;
           return;
         }
 
-        // Skip products with 0 or negative stock
         if (product.stock <= 0) {
           console.log(`⚠ Product ${product.id.substring(0, 8)}... has stock ${product.stock}, skipping`);
           skippedProducts++;
@@ -262,21 +338,18 @@ export default function HomeScreen() {
           });
         }
         
-        // Properly map database fields to Product interface
-        // Handle additional_images being null or not an array
+        // Handle additional_images
         let additionalImages: string[] = [];
         if (product.additional_images) {
           if (Array.isArray(product.additional_images)) {
             additionalImages = product.additional_images.filter(Boolean);
           } else if (typeof product.additional_images === 'string') {
-            // If it's a string, try to parse it or split it
             try {
               const parsed = JSON.parse(product.additional_images);
               if (Array.isArray(parsed)) {
                 additionalImages = parsed.filter(Boolean);
               }
             } catch {
-              // If parsing fails, treat it as a single URL if it looks like one
               if (product.additional_images.startsWith('http')) {
                 additionalImages = [product.additional_images];
               }
@@ -291,6 +364,7 @@ export default function HomeScreen() {
           name: product.name,
           description: product.description || undefined,
           brand: product.brand || undefined,
+          sku: product.sku || undefined,
           imageUrl: product.image_url || '',
           imageUrls: imageUrls,
           originalPrice: parseFloat(product.original_price),
@@ -308,40 +382,29 @@ export default function HomeScreen() {
           maxDiscount: listData.max_discount || 80,
           minReservationValue: listData.min_reservation_value || 5000,
           maxReservationValue: listData.max_reservation_value || 30000,
+          hasVariants: product.hasVariants || false,
+          variants: product.variants || [],
         };
         
         groupedLists.get(listId)!.products.push(productData);
         processedProducts++;
         
         if ((index + 1) % 500 === 0) {
-          console.log(`  Processed ${index + 1}/${products.length} products...`);
+          console.log(`  Processed ${index + 1}/${aggregatedProducts.length} products...`);
         }
       });
       
       console.log(`✓ Processed ${processedProducts} products, skipped ${skippedProducts} products`);
-      console.log('=== FILTERING LISTS ===');
-      console.log(`Total grouped lists before filtering: ${groupedLists.size}`);
       
       // Filter out lists with no products
-      const lists = Array.from(groupedLists.values()).filter(list => {
-        const hasProducts = list.products.length > 0;
-        console.log(`  "${list.listName}" by ${list.supplierName}: ${list.products.length} products - ${hasProducts ? '✓ INCLUDED' : '✗ EXCLUDED'}`);
-        return hasProducts;
-      });
+      const lists = Array.from(groupedLists.values()).filter(list => list.products.length > 0);
       
       console.log('=== FINAL RESULT ===');
       console.log(`✓ Created ${lists.length} product lists with products:`);
       lists.forEach((list, index) => {
-        console.log(`  ${index + 1}. "${list.listName}" by ${list.supplierName} - ${list.products.length} products (ID: ${list.listId.substring(0, 8)}...)`);
+        const variantCount = list.products.filter(p => p.hasVariants).length;
+        console.log(`  ${index + 1}. "${list.listName}" by ${list.supplierName} - ${list.products.length} products (${variantCount} with variants)`);
       });
-      
-      if (lists.length === 0) {
-        console.error('❌ NO LISTS AFTER FILTERING! This should not happen.');
-        console.log('Debug info:');
-        console.log('- Supplier lists fetched:', supplierLists.length);
-        console.log('- Products fetched:', products.length);
-        console.log('- Grouped lists created:', groupedLists.size);
-      }
       
       setProductLists(lists);
       setLoading(false);
@@ -370,14 +433,11 @@ export default function HomeScreen() {
           console.log('📡 Product stock update received in home feed:', payload);
           const updatedProduct = payload.new as any;
           
-          // CRITICAL FIX: Only remove product if stock is 0 or less
-          // Keep the product visible if it has any stock remaining
           if (updatedProduct.stock <= 0) {
-            console.log('🗑️ Product stock is 0 or less, removing from home feed:', updatedProduct.id, 'stock:', updatedProduct.stock);
+            console.log('🗑️ Product stock is 0 or less, removing from home feed:', updatedProduct.id);
             
             setProductLists(prevLists => {
               const updatedLists = prevLists.map(list => {
-                // Remove the product from this list if it exists
                 const filteredProducts = list.products.filter(p => p.id !== updatedProduct.id);
                 
                 if (filteredProducts.length !== list.products.length) {
@@ -388,13 +448,12 @@ export default function HomeScreen() {
                   ...list,
                   products: filteredProducts,
                 };
-              }).filter(list => list.products.length > 0); // Remove lists with no products
+              }).filter(list => list.products.length > 0);
               
-              console.log(`✓ Updated lists count: ${updatedLists.length} (removed empty lists)`);
+              console.log(`✓ Updated lists count: ${updatedLists.length}`);
               return updatedLists;
             });
           } else {
-            // Update the product stock in the list (keep it visible if stock > 0)
             console.log('✅ Product stock updated, keeping in feed:', updatedProduct.id, 'new stock:', updatedProduct.stock);
             setProductLists(prevLists => {
               return prevLists.map(list => {
@@ -562,22 +621,13 @@ export default function HomeScreen() {
       interestedInCurrentList > 1 && 
       !bannerDismissed[currentList.listId];
 
-    console.log('Banner visibility check:', {
-      listId: currentList?.listId,
-      interestedCount: interestedInCurrentList,
-      isDismissed: bannerDismissed[currentList?.listId],
-      shouldShow: shouldShowBanner
-    });
-
     if (shouldShowBanner) {
-      // Show banner with animation
       Animated.timing(bannerOpacity, {
         toValue: 1,
         duration: 300,
         useNativeDriver: true,
       }).start();
     } else {
-      // Hide banner with animation
       Animated.timing(bannerOpacity, {
         toValue: 0,
         duration: 200,
@@ -607,7 +657,6 @@ export default function HomeScreen() {
 
     try {
       if (isCurrentlyInWishlist) {
-        // Remove from wishlist
         const { error } = await supabase
           .from('wishlists')
           .delete()
@@ -627,13 +676,12 @@ export default function HomeScreen() {
         });
         console.log('Product removed from wishlist:', productId);
       } else {
-        // Add to wishlist
         const { error } = await supabase
           .from('wishlists')
           .insert({
             user_id: user.id,
             product_id: productId,
-            drop_id: null, // No drop in main feed
+            drop_id: null,
           });
 
         if (error) {
@@ -649,7 +697,6 @@ export default function HomeScreen() {
         });
         console.log('Product added to wishlist:', productId);
         
-        // Show tip popup on first wishlist add
         if (wishlistProducts.size === 0) {
           setShowWishlistTip(true);
         }
@@ -666,7 +713,6 @@ export default function HomeScreen() {
       return;
     }
 
-    // Prevent multiple simultaneous requests for the same product
     if (processingInterests.has(productId)) {
       console.log('Already processing interest for product:', productId);
       return;
@@ -679,12 +725,10 @@ export default function HomeScreen() {
     
     if (!product) return;
 
-    // Mark as processing
     setProcessingInterests(prev => new Set(prev).add(productId));
 
     try {
       if (isCurrentlyInterested) {
-        // Remove interest
         const { error } = await supabase
           .from('user_interests')
           .delete()
@@ -704,7 +748,6 @@ export default function HomeScreen() {
         });
         console.log('Interest removed for product:', productId);
       } else {
-        // Add interest with retry logic
         let retryCount = 0;
         const maxRetries = 2;
         let success = false;
@@ -721,12 +764,10 @@ export default function HomeScreen() {
               });
 
             if (error) {
-              // Check if it's an RLS policy error (42501)
               if (error.code === '42501') {
                 console.error('RLS policy error (42501) - insufficient privileges. Retrying...', retryCount + 1);
                 retryCount++;
                 if (retryCount <= maxRetries) {
-                  // Wait a bit before retrying
                   await new Promise(resolve => setTimeout(resolve, 300 * retryCount));
                   continue;
                 }
@@ -763,7 +804,6 @@ export default function HomeScreen() {
         `Impossibile ${isCurrentlyInterested ? 'rimuovere' : 'aggiungere'} l'interesse.\n\nCodice: ${errorCode}\nMessaggio: ${errorMessage}\n\nRiprova tra qualche secondo.`
       );
     } finally {
-      // Remove from processing set
       setProcessingInterests(prev => {
         const newSet = new Set(prev);
         newSet.delete(productId);
@@ -803,11 +843,9 @@ export default function HomeScreen() {
       const nextIndex = currentListIndex + 1;
       console.log(`→ Switching to next list: ${nextIndex + 1}/${productLists.length} - "${productLists[nextIndex].listName}"`);
       
-      // Update state first
       setCurrentListIndex(nextIndex);
       setCurrentProductIndex(0);
       
-      // Scroll the horizontal list to show the next list
       setTimeout(() => {
         try {
           if (listFlatListRef.current) {
@@ -831,11 +869,9 @@ export default function HomeScreen() {
       const prevIndex = currentListIndex - 1;
       console.log(`← Switching to previous list: ${prevIndex + 1}/${productLists.length} - "${productLists[prevIndex].listName}"`);
       
-      // Update state first
       setCurrentListIndex(prevIndex);
       setCurrentProductIndex(0);
       
-      // Scroll the horizontal list to show the previous list
       setTimeout(() => {
         try {
           if (listFlatListRef.current) {
@@ -877,13 +913,11 @@ export default function HomeScreen() {
     
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     
-    // Update state immediately
     setBannerDismissed(prev => ({
       ...prev,
       [currentList.listId]: true
     }));
     
-    // Save to AsyncStorage for persistence
     const sessionKey = `banner_dismissed_${currentList.listId}`;
     try {
       await AsyncStorage.setItem(sessionKey, 'true');
@@ -986,7 +1020,6 @@ export default function HomeScreen() {
       <>
         <Stack.Screen options={{ headerShown: false }} />
         <View style={[styles.container, styles.centerContent]}>
-          {/* Top Buttons - Logout (Left) and Notifications (Right) */}
           <Pressable onPress={handleLogout} style={styles.topLeftButton}>
             <IconSymbol 
               ios_icon_name="rectangle.portrait.and.arrow.right" 
@@ -1094,7 +1127,6 @@ export default function HomeScreen() {
           windowSize={3}
           onScrollToIndexFailed={(info) => {
             console.warn('Scroll to index failed:', info);
-            // Retry after a delay
             setTimeout(() => {
               try {
                 listFlatListRef.current?.scrollToOffset({ 
@@ -1108,7 +1140,6 @@ export default function HomeScreen() {
           }}
         />
         
-        {/* Top Buttons - Logout (Left) and Notifications (Right) with Badge */}
         <Pressable onPress={handleLogout} style={styles.topLeftButton}>
           <IconSymbol 
             ios_icon_name="rectangle.portrait.and.arrow.right" 
@@ -1134,7 +1165,6 @@ export default function HomeScreen() {
           )}
         </Pressable>
 
-        {/* Help Button - Question Mark Icon */}
         <Pressable onPress={handleOpenWelcomeModal} style={styles.helpButton}>
           <View style={styles.helpButtonCircle}>
             <IconSymbol 
@@ -1146,9 +1176,7 @@ export default function HomeScreen() {
           </View>
         </Pressable>
         
-        {/* TikTok-style Right Side Icons - Improved Layout */}
         <View style={styles.rightSideIcons}>
-          {/* Pickup Point */}
           <View style={styles.iconButton}>
             <View style={styles.iconCircle}>
               <IconSymbol 
@@ -1163,7 +1191,6 @@ export default function HomeScreen() {
             </Text>
           </View>
 
-          {/* List Name */}
           <View style={styles.iconButton}>
             <View style={styles.iconCircle}>
               <IconSymbol 
@@ -1178,7 +1205,6 @@ export default function HomeScreen() {
             </Text>
           </View>
 
-          {/* Progress Bar with Product Counter */}
           <View style={styles.iconButton}>
             <View style={styles.progressCircle}>
               <View style={styles.progressCircleBackground}>
@@ -1201,7 +1227,6 @@ export default function HomeScreen() {
             </View>
           </View>
 
-          {/* List Counter */}
           <View style={styles.iconButton}>
             <View style={styles.iconCircle}>
               <Text style={styles.listCounterIcon}>
@@ -1211,7 +1236,6 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        {/* Smaller List Navigation Buttons */}
         {currentListIndex > 0 && (
           <Pressable 
             style={({ pressed }) => [
@@ -1236,7 +1260,6 @@ export default function HomeScreen() {
           </Pressable>
         )}
 
-        {/* Hint Message with Close Button - Only show when conditions are met */}
         {shouldShowBanner && (
           <Animated.View 
             style={[
@@ -1259,13 +1282,11 @@ export default function HomeScreen() {
           </Animated.View>
         )}
 
-        {/* Welcome Modal */}
         <FeedWelcomeModal
           visible={showWelcomeModal}
           onClose={handleCloseWelcomeModal}
         />
 
-        {/* Wishlist Tip Modal */}
         {showWishlistTip && (
           <View style={styles.modalOverlay}>
             <View style={styles.wishlistTipModal}>
@@ -1425,7 +1446,6 @@ const styles = StyleSheet.create({
     width: SCREEN_WIDTH,
     height: SCREEN_HEIGHT,
   },
-  // Top Buttons with Notification Badge
   topLeftButton: {
     position: 'absolute',
     top: Platform.OS === 'android' ? 48 : 60,
@@ -1461,7 +1481,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FFF',
   },
-  // Help Button - Question Mark
   helpButton: {
     position: 'absolute',
     top: Platform.OS === 'android' ? 48 : 60,
@@ -1482,7 +1501,6 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 4,
   },
-  // TikTok-style Right Side Icons - Improved Layout
   rightSideIcons: {
     position: 'absolute',
     right: 10,
@@ -1530,7 +1548,6 @@ const styles = StyleSheet.create({
     color: colors.text,
     letterSpacing: 0.2,
   },
-  // Progress Circle
   progressCircle: {
     width: 44,
     height: 44,
@@ -1579,7 +1596,6 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     lineHeight: 9,
   },
-  // Smaller Navigation Buttons
   navButtonLeft: {
     position: 'absolute',
     left: 8,
