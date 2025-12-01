@@ -48,7 +48,8 @@ export default function DropsScreen() {
 
   const loadDrops = useCallback(async () => {
     try {
-      console.log('Loading drops...');
+      console.log('=== LOADING DROPS WITH VARIANTS ===');
+      console.log('Timestamp:', new Date().toISOString());
 
       // Get user's pickup point
       if (user) {
@@ -90,11 +91,11 @@ export default function DropsScreen() {
         return;
       }
 
-      console.log('Drops loaded:', data?.length);
+      console.log('✓ Drops loaded:', data?.length);
       console.log('Drops details:', data?.map(d => ({ name: d.name, status: d.status, list: d.supplier_lists?.name })));
       setDrops(data || []);
     } catch (error) {
-      console.error('Error in loadDrops:', error);
+      console.error('❌ Exception loading drops:', error);
     } finally {
       setLoading(false);
       setRefreshing(false);

@@ -18,6 +18,15 @@ import * as Haptics from 'expo-haptics';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 
+interface ProductVariant {
+  id: string;
+  product_id: string;
+  size: string | null;
+  color: string | null;
+  stock: number;
+  status: string;
+}
+
 interface Product {
   id: string;
   name: string;
@@ -31,6 +40,9 @@ interface Product {
   stock: number;
   status: string;
   created_at: string;
+  sku: string | null;
+  brand: string | null;
+  variants?: ProductVariant[];
 }
 
 interface ListDetails {
@@ -60,7 +72,8 @@ export default function ListDetailsScreen() {
     try {
       setLoading(true);
 
-      console.log('Loading list details for listId:', listId);
+      console.log('=== LOADING LIST DETAILS WITH VARIANTS ===');
+      console.log('List ID:', listId);
 
       // Load list details first
       const { data: listData, error: listError } = await supabase
@@ -78,7 +91,7 @@ export default function ListDetailsScreen() {
         return;
       }
 
-      console.log('List data loaded:', listData);
+      console.log('✓ List data loaded:', listData.name);
 
       // Load supplier profile separately
       const { data: profileData, error: profileError } = await supabase
@@ -98,6 +111,7 @@ export default function ListDetailsScreen() {
       });
 
       // Load products for this list
+      console.log('→ Loading products...');
       const { data: productsData, error: productsError } = await supabase
         .from('products')
         .select('*')
@@ -110,10 +124,50 @@ export default function ListDetailsScreen() {
         return;
       }
 
+      console.log(`✓ Loaded ${productsData?.length || 0} products`);
+
+      // Load variants for all products
+      if (productsData && productsData.length > 0) {
+        console.log('→ Loading product variants...');
+        const productIds = productsData.map(p => p.id);
+        
+        const { data: variantsData, error: variantsError } = await supabase
+          .from('product_variants')
+          .select('*')
+          .in('product_id', productIds)
+          .order('size', { ascending: true });
+
+        if (variantsError) {
+          console.error('Error loading variants:', variantsError);
+          // Don't fail completely if variants fail to load
+        } else {
+          console.log(`✓ Loaded ${variantsData?.length || 0} variants`);
+          
+          // Create a map of product_id to variants
+          const variantsMap = new Map<string, ProductVariant[]>();
+          variantsData?.forEach(v => {
+            if (!variantsMap.has(v.product_id)) {
+              variantsMap.set(v.product_id, []);
+            }
+            variantsMap.get(v.product_id)!.push(v);
+          });
+
+          // Attach variants to products
+          const productsWithVariants = productsData.map(product => ({
+            ...product,
+            variants: variantsMap.get(product.id) || [],
+          }));
+
+          setProducts(productsWithVariants);
+          console.log('✓ Products with variants loaded');
+          return;
+        }
+      }
+
       setProducts(productsData || []);
-      console.log(`Loaded ${productsData?.length || 0} products for list ${listId}`);
+      console.log('=== LOADING COMPLETE ===');
     } catch (error) {
-      console.error('Error loading list details:', error);
+      console.error('❌ Exception loading list details:', error);
       Alert.alert('Errore', 'Si è verificato un errore');
     } finally {
       setLoading(false);
@@ -197,6 +251,31 @@ export default function ListDetailsScreen() {
     }
   };
 
+  const handleToggleVariantStatus = async (variantId: string, currentStatus: string) => {
+    const newStatus = currentStatus === 'active' ? 'inactive' : 'active';
+    
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    
+    try {
+      const { error } = await supabase
+        .from('product_variants')
+        .update({ status: newStatus })
+        .eq('id', variantId);
+
+      if (error) {
+        console.error('Error updating variant status:', error);
+        Alert.alert('Errore', 'Impossibile aggiornare lo stato della variante');
+        return;
+      }
+
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      loadListDetails();
+    } catch (error) {
+      console.error('Error updating variant status:', error);
+      Alert.alert('Errore', 'Si è verificato un errore');
+    }
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'active':
@@ -237,6 +316,11 @@ export default function ListDetailsScreen() {
   };
 
   const renderProduct = (product: Product) => {
+    const hasVariants = product.variants && product.variants.length > 0;
+    const totalVariantStock = hasVariants 
+      ? product.variants!.reduce((sum, v) => sum + v.stock, 0)
+      : 0;
+
     return (
       <View key={product.id} style={styles.productCard}>
         <View style={styles.productHeader}>
@@ -261,6 +345,20 @@ export default function ListDetailsScreen() {
             <Text style={styles.productName} numberOfLines={2}>
               {product.name}
             </Text>
+            {product.sku && (
+              <View style={styles.skuBadge}>
+                <IconSymbol
+                  ios_icon_name="barcode"
+                  android_material_icon_name="qr_code"
+                  size={10}
+                  color={colors.primary}
+                />
+                <Text style={styles.skuText}>SKU: {product.sku}</Text>
+              </View>
+            )}
+            {product.brand && (
+              <Text style={styles.productBrand}>{product.brand}</Text>
+            )}
             <Text style={styles.productPrice}>
               €{product.original_price.toLocaleString('it-IT', { minimumFractionDigits: 2 })}
             </Text>
@@ -268,7 +366,13 @@ export default function ListDetailsScreen() {
               <View style={[styles.conditionBadge, { backgroundColor: getConditionColor(product.condition) }]}>
                 <Text style={styles.conditionBadgeText}>{product.condition}</Text>
               </View>
-              <Text style={styles.productStock}>Stock: {product.stock}</Text>
+              {hasVariants ? (
+                <Text style={styles.productStock}>
+                  Stock totale: {totalVariantStock} ({product.variants!.length} varianti)
+                </Text>
+              ) : (
+                <Text style={styles.productStock}>Stock: {product.stock}</Text>
+              )}
             </View>
           </View>
 
@@ -286,6 +390,73 @@ export default function ListDetailsScreen() {
           <Text style={styles.productDescription} numberOfLines={2}>
             {product.description}
           </Text>
+        )}
+
+        {/* Variants Section */}
+        {hasVariants && (
+          <View style={styles.variantsSection}>
+            <View style={styles.variantsSectionHeader}>
+              <IconSymbol
+                ios_icon_name="square.grid.2x2"
+                android_material_icon_name="grid_view"
+                size={14}
+                color={colors.primary}
+              />
+              <Text style={styles.variantsSectionTitle}>Varianti ({product.variants!.length})</Text>
+            </View>
+            
+            {product.variants!.map((variant, index) => (
+              <View key={variant.id} style={styles.variantRow}>
+                <View style={styles.variantInfo}>
+                  <View style={styles.variantDetails}>
+                    {variant.size && (
+                      <View style={styles.variantBadge}>
+                        <IconSymbol
+                          ios_icon_name="ruler"
+                          android_material_icon_name="straighten"
+                          size={10}
+                          color={colors.textSecondary}
+                        />
+                        <Text style={styles.variantBadgeText}>{variant.size}</Text>
+                      </View>
+                    )}
+                    {variant.color && (
+                      <View style={styles.variantBadge}>
+                        <IconSymbol
+                          ios_icon_name="paintpalette"
+                          android_material_icon_name="palette"
+                          size={10}
+                          color={colors.textSecondary}
+                        />
+                        <Text style={styles.variantBadgeText}>{variant.color}</Text>
+                      </View>
+                    )}
+                    {!variant.size && !variant.color && (
+                      <Text style={styles.variantBadgeText}>Variante {index + 1}</Text>
+                    )}
+                  </View>
+                  <Text style={[
+                    styles.variantStock,
+                    { color: variant.stock > 0 ? colors.success : colors.error }
+                  ]}>
+                    Stock: {variant.stock}
+                  </Text>
+                </View>
+                
+                <Pressable
+                  style={[
+                    styles.variantStatusButton,
+                    { backgroundColor: getStatusColor(variant.status) }
+                  ]}
+                  onPress={() => handleToggleVariantStatus(variant.id, variant.status)}
+                >
+                  <Text style={styles.variantStatusButtonText}>
+                    {getStatusLabel(variant.status)}
+                  </Text>
+                </Pressable>
+              </View>
+            ))}
+          </View>
         )}
 
         <View style={styles.productDetails}>
@@ -372,6 +543,10 @@ export default function ListDetailsScreen() {
     );
   }
 
+  const totalProducts = products.length;
+  const totalVariants = products.reduce((sum, p) => sum + (p.variants?.length || 0), 0);
+  const productsWithVariants = products.filter(p => p.variants && p.variants.length > 0).length;
+
   return (
     <>
       <Stack.Screen
@@ -423,9 +598,21 @@ export default function ListDetailsScreen() {
                   size={20}
                   color={colors.textSecondary}
                 />
-                <Text style={styles.listStatValue}>{products.length}</Text>
+                <Text style={styles.listStatValue}>{totalProducts}</Text>
                 <Text style={styles.listStatLabel}>Prodotti</Text>
               </View>
+              {totalVariants > 0 && (
+                <View style={styles.listStatItem}>
+                  <IconSymbol
+                    ios_icon_name="square.grid.2x2"
+                    android_material_icon_name="grid_view"
+                    size={20}
+                    color={colors.textSecondary}
+                  />
+                  <Text style={styles.listStatValue}>{totalVariants}</Text>
+                  <Text style={styles.listStatLabel}>Varianti</Text>
+                </View>
+              )}
               <View style={styles.listStatItem}>
                 <IconSymbol
                   ios_icon_name="percent"
@@ -452,6 +639,20 @@ export default function ListDetailsScreen() {
               </View>
             </View>
 
+            {productsWithVariants > 0 && (
+              <View style={styles.variantsInfoBox}>
+                <IconSymbol
+                  ios_icon_name="info.circle.fill"
+                  android_material_icon_name="info"
+                  size={16}
+                  color={colors.info}
+                />
+                <Text style={styles.variantsInfoText}>
+                  {productsWithVariants} prodott{productsWithVariants === 1 ? 'o ha' : 'i hanno'} varianti (taglia/colore)
+                </Text>
+              </View>
+            )}
+
             <View style={styles.buttonRow}>
               <Pressable
                 style={[styles.toggleButton, { backgroundColor: list.status === 'active' ? '#FF9800' : '#4CAF50' }]}
@@ -474,7 +675,7 @@ export default function ListDetailsScreen() {
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Prodotti</Text>
-              <Text style={styles.sectionCount}>({products.length})</Text>
+              <Text style={styles.sectionCount}>({totalProducts})</Text>
               <Pressable
                 style={({ pressed }) => [
                   styles.addProductButton,
@@ -627,19 +828,39 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderColor: colors.border,
     marginBottom: 16,
+    flexWrap: 'wrap',
+    gap: 12,
   },
   listStatItem: {
     alignItems: 'center',
     gap: 6,
+    minWidth: 80,
   },
   listStatValue: {
     fontSize: 14,
     fontWeight: '700',
     color: colors.text,
+    textAlign: 'center',
   },
   listStatLabel: {
     fontSize: 10,
     color: colors.textTertiary,
+    textAlign: 'center',
+  },
+  variantsInfoBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.info + '15',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+    gap: 8,
+  },
+  variantsInfoText: {
+    flex: 1,
+    fontSize: 12,
+    color: colors.textSecondary,
+    lineHeight: 16,
   },
   buttonRow: {
     flexDirection: 'row',
@@ -727,6 +948,27 @@ const styles = StyleSheet.create({
     color: colors.text,
     marginBottom: 4,
   },
+  skuBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: colors.primary + '15',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    alignSelf: 'flex-start',
+    marginBottom: 4,
+  },
+  skuText: {
+    fontSize: 9,
+    color: colors.primary,
+    fontWeight: '700',
+  },
+  productBrand: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginBottom: 4,
+  },
   productPrice: {
     fontSize: 18,
     fontWeight: '700',
@@ -737,6 +979,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    flexWrap: 'wrap',
   },
   conditionBadge: {
     paddingHorizontal: 8,
@@ -771,6 +1014,73 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     lineHeight: 18,
     marginBottom: 12,
+  },
+  variantsSection: {
+    backgroundColor: colors.backgroundSecondary,
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 12,
+  },
+  variantsSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 12,
+  },
+  variantsSectionTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  variantRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: colors.card,
+    borderRadius: 6,
+    padding: 10,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  variantInfo: {
+    flex: 1,
+    marginRight: 8,
+  },
+  variantDetails: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
+    flexWrap: 'wrap',
+  },
+  variantBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: colors.background,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 4,
+  },
+  variantBadgeText: {
+    fontSize: 11,
+    color: colors.text,
+    fontWeight: '600',
+  },
+  variantStock: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  variantStatusButton: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 6,
+  },
+  variantStatusButtonText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#FFF',
   },
   productDetails: {
     gap: 6,
