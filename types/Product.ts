@@ -10,6 +10,15 @@ export type DropStatus =
   | 'expired' 
   | 'cancelled';
 
+export interface ProductVariant {
+  id: string;
+  productId: string;
+  size?: string;
+  color?: string;
+  stock: number;
+  status: string;
+}
+
 export interface Product {
   id: string;
   supplierId: string;
@@ -33,6 +42,8 @@ export interface Product {
   condition?: ProductCondition;
   availableSizes?: string[];
   availableColors?: string[];
+  variants?: ProductVariant[];
+  hasVariants?: boolean;
 }
 
 export interface ProductList {

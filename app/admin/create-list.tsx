@@ -37,12 +37,32 @@ interface ExcelProduct {
   immagine_url: string;
   immagini_aggiuntive?: string;
   prezzo: number;
-  taglie?: string;
-  colori?: string;
+  taglia?: string;
+  colore?: string;
   condizione: 'nuovo' | 'reso da cliente' | 'packaging rovinato';
   categoria?: string;
   brand?: string;
   stock: number;
+}
+
+interface ProductGroup {
+  sku: string;
+  nome: string;
+  descrizione?: string;
+  immagine_url: string;
+  immagini_aggiuntive?: string;
+  prezzo: number;
+  condizione: 'nuovo' | 'reso da cliente' | 'packaging rovinato';
+  categoria?: string;
+  brand?: string;
+  variants: Array<{
+    taglia?: string;
+    colore?: string;
+    stock: number;
+  }>;
+  totalStock: number;
+  availableSizes: string[];
+  availableColors: string[];
 }
 
 export default function CreateListScreen() {
@@ -69,7 +89,6 @@ export default function CreateListScreen() {
     try {
       const settings = await getPlatformSettings();
       
-      // Set default values from platform settings
       setMinReservationValue(settings.minDropValue.toString());
       setMaxReservationValue(settings.maxDropValue.toString());
       
@@ -79,7 +98,6 @@ export default function CreateListScreen() {
       });
     } catch (error) {
       console.error('Error loading platform settings:', error);
-      // Keep the hardcoded defaults if loading fails
     }
   };
 
@@ -174,7 +192,6 @@ export default function CreateListScreen() {
           return;
         }
 
-        // Accept any condition - no validation needed
         const condition = row.condizione || 'nuovo';
 
         if (row.sku) {
@@ -198,8 +215,8 @@ export default function CreateListScreen() {
           immagine_url: row.immagine_url,
           immagini_aggiuntive: row.immagini_aggiuntive || '',
           prezzo: price,
-          taglie: row.taglie || '',
-          colori: row.colori || '',
+          taglia: row.taglia || row.taglie || '',
+          colore: row.colore || row.colori || '',
           condizione: condition as 'nuovo' | 'reso da cliente' | 'packaging rovinato',
           categoria: row.categoria || '',
           brand: row.brand || '',
@@ -233,7 +250,7 @@ export default function CreateListScreen() {
       
       if (uniqueSkus > 0) {
         message += `\n\n📦 ${uniqueSkus} SKU unici trovati`;
-        message += `\n${productsWithSku} prodotti con SKU (verranno raggruppati)`;
+        message += `\n${productsWithSku} prodotti con SKU (verranno raggruppati come varianti)`;
         
         const topSkus = Object.entries(skuGroups)
           .sort((a, b) => b[1] - a[1])
@@ -336,87 +353,173 @@ export default function CreateListScreen() {
       console.log('List created successfully:', data.id);
 
       if (importMode === 'excel' && excelProducts.length > 0) {
-        console.log(`Importing ${excelProducts.length} products from Excel...`);
+        console.log(`Importing ${excelProducts.length} products from Excel with SKU aggregation...`);
         
-        const productsToInsert = excelProducts.map((product) => {
-          // Handle additional images - ensure it's a string before splitting
-          const additionalImagesStr = product.immagini_aggiuntive || '';
+        // Group products by SKU
+        const productGroups = new Map<string, ProductGroup>();
+        const productsWithoutSku: ExcelProduct[] = [];
+        
+        excelProducts.forEach((product) => {
+          if (product.sku) {
+            // Product has SKU - group it
+            if (!productGroups.has(product.sku)) {
+              // Create new product group
+              productGroups.set(product.sku, {
+                sku: product.sku,
+                nome: product.nome,
+                descrizione: product.descrizione,
+                immagine_url: product.immagine_url,
+                immagini_aggiuntive: product.immagini_aggiuntive,
+                prezzo: product.prezzo,
+                condizione: product.condizione,
+                categoria: product.categoria,
+                brand: product.brand,
+                variants: [],
+                totalStock: 0,
+                availableSizes: [],
+                availableColors: [],
+              });
+            }
+            
+            const group = productGroups.get(product.sku)!;
+            
+            // Add variant
+            group.variants.push({
+              taglia: product.taglia,
+              colore: product.colore,
+              stock: product.stock,
+            });
+            
+            group.totalStock += product.stock;
+            
+            // Collect unique sizes and colors
+            if (product.taglia && !group.availableSizes.includes(product.taglia)) {
+              group.availableSizes.push(product.taglia);
+            }
+            if (product.colore && !group.availableColors.includes(product.colore)) {
+              group.availableColors.push(product.colore);
+            }
+          } else {
+            // Product without SKU - treat as standalone
+            productsWithoutSku.push(product);
+          }
+        });
+        
+        console.log(`Grouped into ${productGroups.size} SKU groups and ${productsWithoutSku.length} standalone products`);
+        
+        // Insert grouped products
+        for (const [sku, group] of productGroups.entries()) {
+          console.log(`Inserting product group for SKU: ${sku} with ${group.variants.length} variants`);
+          
+          // Handle additional images
+          const additionalImagesStr = group.immagini_aggiuntive || '';
           const additionalImages = additionalImagesStr && typeof additionalImagesStr === 'string'
             ? additionalImagesStr.split(',').map(url => url.trim()).filter(url => url)
             : [];
           
-          // Handle sizes - ensure it's a string before splitting
-          const taglieStr = product.taglie || '';
-          const sizes = taglieStr && typeof taglieStr === 'string'
-            ? taglieStr.split(',').map(s => s.trim()).filter(s => s)
-            : [];
+          // Insert main product
+          const { data: productData, error: productError } = await supabase
+            .from('products')
+            .insert({
+              supplier_list_id: data.id,
+              supplier_id: selectedSupplierId,
+              sku: sku,
+              name: group.nome || '',
+              description: group.descrizione || null,
+              image_url: group.immagine_url || '',
+              additional_images: additionalImages.length > 0 ? additionalImages : null,
+              original_price: group.prezzo || 0,
+              available_sizes: group.availableSizes.length > 0 ? group.availableSizes : null,
+              available_colors: group.availableColors.length > 0 ? group.availableColors : null,
+              condition: group.condizione || 'nuovo',
+              category: group.categoria || null,
+              brand: group.brand || null,
+              stock: group.totalStock,
+              status: 'active',
+            })
+            .select()
+            .single();
           
-          // Handle colors - ensure it's a string before splitting
-          const coloriStr = product.colori || '';
-          const colors = coloriStr && typeof coloriStr === 'string'
-            ? coloriStr.split(',').map(c => c.trim()).filter(c => c)
-            : [];
-
-          const productData = {
-            supplier_list_id: data.id,
-            supplier_id: selectedSupplierId,
-            sku: product.sku || null,
-            name: product.nome || '',
-            description: product.descrizione || null,
-            image_url: product.immagine_url || '',
-            additional_images: additionalImages.length > 0 ? additionalImages : null,
-            original_price: product.prezzo || 0,
-            available_sizes: sizes.length > 0 ? sizes : null,
-            available_colors: colors.length > 0 ? colors : null,
-            condition: product.condizione || 'nuovo',
-            category: product.categoria || null,
-            brand: product.brand || null,
-            stock: product.stock || 1,
+          if (productError) {
+            console.error('Error inserting product:', productError);
+            throw productError;
+          }
+          
+          // Insert variants
+          const variantsToInsert = group.variants.map(variant => ({
+            product_id: productData.id,
+            size: variant.taglia || null,
+            color: variant.colore || null,
+            stock: variant.stock,
             status: 'active',
-          };
+          }));
+          
+          const { error: variantsError } = await supabase
+            .from('product_variants')
+            .insert(variantsToInsert);
+          
+          if (variantsError) {
+            console.error('Error inserting variants:', variantsError);
+            throw variantsError;
+          }
+          
+          console.log(`Inserted ${variantsToInsert.length} variants for product ${productData.id}`);
+        }
+        
+        // Insert standalone products (without SKU)
+        if (productsWithoutSku.length > 0) {
+          console.log(`Inserting ${productsWithoutSku.length} standalone products without SKU`);
+          
+          const standaloneProductsToInsert = productsWithoutSku.map((product) => {
+            const additionalImagesStr = product.immagini_aggiuntive || '';
+            const additionalImages = additionalImagesStr && typeof additionalImagesStr === 'string'
+              ? additionalImagesStr.split(',').map(url => url.trim()).filter(url => url)
+              : [];
+            
+            const sizes = product.taglia ? [product.taglia] : [];
+            const colors = product.colore ? [product.colore] : [];
 
-          console.log('Product data to insert:', productData);
-          return productData;
-        });
+            return {
+              supplier_list_id: data.id,
+              supplier_id: selectedSupplierId,
+              sku: null,
+              name: product.nome || '',
+              description: product.descrizione || null,
+              image_url: product.immagine_url || '',
+              additional_images: additionalImages.length > 0 ? additionalImages : null,
+              original_price: product.prezzo || 0,
+              available_sizes: sizes.length > 0 ? sizes : null,
+              available_colors: colors.length > 0 ? colors : null,
+              condition: product.condizione || 'nuovo',
+              category: product.categoria || null,
+              brand: product.brand || null,
+              stock: product.stock || 1,
+              status: 'active',
+            };
+          });
 
-        console.log('Sample product to insert:', productsToInsert[0]);
+          const { error: standaloneError } = await supabase
+            .from('products')
+            .insert(standaloneProductsToInsert);
 
-        const { error: productsError } = await supabase
-          .from('products')
-          .insert(productsToInsert);
-
-        if (productsError) {
-          console.error('Error importing products:', productsError);
-          console.error('Error details:', JSON.stringify(productsError, null, 2));
-          Alert.alert(
-            'Attenzione',
-            `Lista creata ma errore nell'importazione dei prodotti: ${productsError.message}\n\nPuoi aggiungere i prodotti manualmente.`,
-            [
-              {
-                text: 'OK',
-                onPress: () => {
-                  router.replace({
-                    pathname: '/admin/list-details',
-                    params: { listId: data.id },
-                  });
-                },
-              },
-            ]
-          );
-          return;
+          if (standaloneError) {
+            console.error('Error inserting standalone products:', standaloneError);
+            throw standaloneError;
+          }
         }
 
-        console.log('Products imported successfully');
+        console.log('All products and variants imported successfully');
         
-        const uniqueSkus = new Set(excelProducts.filter(p => p.sku).map(p => p.sku)).size;
+        const uniqueSkus = productGroups.size;
+        const totalVariants = Array.from(productGroups.values()).reduce((sum, g) => sum + g.variants.length, 0);
         const skuMessage = uniqueSkus > 0 
-          ? `\n\n📦 ${uniqueSkus} articoli unici (raggruppati per SKU)` 
+          ? `\n\n📦 ${uniqueSkus} articoli unici con ${totalVariants} varianti (raggruppati per SKU)` 
           : '';
         
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         Alert.alert(
           'Lista Creata!',
-          `La lista "${listName}" è stata creata con successo con ${excelProducts.length} prodott${excelProducts.length === 1 ? 'o' : 'i'}!${skuMessage}`,
+          `La lista "${listName}" è stata creata con successo!${skuMessage}\n\n${productsWithoutSku.length} prodotti senza SKU`,
           [
             {
               text: 'Visualizza Lista',
@@ -655,8 +758,10 @@ export default function CreateListScreen() {
                     • nome, immagine_url, prezzo, <Text style={styles.excelHintBold}>stock</Text>{'\n\n'}
                     <Text style={styles.excelHintBold}>Colonne opzionali:</Text>{'\n'}
                     • <Text style={styles.excelHintBold}>sku</Text> (per raggruppare varianti){'\n'}
+                    • <Text style={styles.excelHintBold}>taglia, colore</Text> (per varianti){'\n'}
                     • descrizione, brand, immagini_aggiuntive{'\n'}
-                    • taglie, colori, condizione, categoria
+                    • condizione, categoria{'\n\n'}
+                    <Text style={styles.excelHintBold}>💡 Varianti:</Text> Prodotti con lo stesso SKU verranno raggruppati. Le colonne taglia e colore definiranno le varianti disponibili.
                   </Text>
                 </View>
               )}
