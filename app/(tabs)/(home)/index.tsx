@@ -82,7 +82,7 @@ export default function HomeScreen() {
 
   const loadProducts = useCallback(async () => {
     try {
-      console.log('=== LOADING PRODUCTS WITH VARIANTS ===');
+      console.log('=== LOADING PRODUCTS (SIMPLIFIED - NO VARIANTS) ===');
       console.log('Timestamp:', new Date().toISOString());
       setError(null);
       setLoading(true);
@@ -121,8 +121,8 @@ export default function HomeScreen() {
       const listIds = supplierLists.map(list => list.id);
       console.log(`→ Will fetch products for ${listIds.length} lists`);
       
-      // STEP 2: Get ALL products with stock > 0 - Group by SKU
-      console.log('→ Fetching products with stock > 0 and grouping by SKU...');
+      // STEP 2: Get ALL products with stock > 0
+      console.log('→ Fetching products with stock > 0...');
       
       const batchSize = 1000;
       let allProducts: any[] = [];
@@ -171,109 +171,7 @@ export default function HomeScreen() {
         return;
       }
 
-      // STEP 3: Load variants for all products
-      console.log('→ Loading product variants...');
-      const productIds = products.map(p => p.id);
-      const { data: variants, error: variantsError } = await supabase
-        .from('product_variants')
-        .select('*')
-        .in('product_id', productIds)
-        .gt('stock', 0);
-
-      if (variantsError) {
-        console.error('⚠ Error loading variants:', variantsError);
-        // Don't fail completely if variants fail to load
-      }
-
-      console.log(`✓ Loaded ${variants?.length || 0} product variants`);
-
-      // Create a map of product_id to variants
-      const variantsMap = new Map<string, ProductVariant[]>();
-      variants?.forEach(v => {
-        if (!variantsMap.has(v.product_id)) {
-          variantsMap.set(v.product_id, []);
-        }
-        variantsMap.get(v.product_id)!.push({
-          id: v.id,
-          productId: v.product_id,
-          size: v.size || undefined,
-          color: v.color || undefined,
-          stock: v.stock,
-          status: v.status,
-        });
-      });
-
-      // STEP 4: Group products by SKU
-      console.log('→ Grouping products by SKU...');
-      const skuMap = new Map<string, any[]>();
-      
-      products.forEach(product => {
-        const sku = product.sku || product.id; // Use product ID as fallback if no SKU
-        if (!skuMap.has(sku)) {
-          skuMap.set(sku, []);
-        }
-        skuMap.get(sku)!.push(product);
-      });
-
-      console.log(`✓ Grouped into ${skuMap.size} unique SKUs`);
-
-      // STEP 5: Aggregate products by SKU
-      const aggregatedProducts: any[] = [];
-      
-      skuMap.forEach((skuProducts, sku) => {
-        if (skuProducts.length === 1) {
-          // Single product, no variants from SKU grouping
-          const product = skuProducts[0];
-          const productVariants = variantsMap.get(product.id) || [];
-          
-          aggregatedProducts.push({
-            ...product,
-            hasVariants: productVariants.length > 0,
-            variants: productVariants,
-          });
-        } else {
-          // Multiple products with same SKU - treat as variants
-          console.log(`  SKU "${sku}" has ${skuProducts.length} products - aggregating as variants`);
-          
-          // Use the first product as the base
-          const baseProduct = skuProducts[0];
-          
-          // Aggregate stock from all products
-          const totalStock = skuProducts.reduce((sum, p) => sum + (p.stock || 0), 0);
-          
-          // Collect all sizes and colors
-          const allSizes = new Set<string>();
-          const allColors = new Set<string>();
-          const aggregatedVariants: ProductVariant[] = [];
-          
-          skuProducts.forEach(product => {
-            // Add product-level variants
-            const productVariants = variantsMap.get(product.id) || [];
-            aggregatedVariants.push(...productVariants);
-            
-            // Collect sizes and colors from product fields
-            if (product.available_sizes) {
-              product.available_sizes.forEach((s: string) => allSizes.add(s));
-            }
-            if (product.available_colors) {
-              product.available_colors.forEach((c: string) => allColors.add(c));
-            }
-          });
-          
-          aggregatedProducts.push({
-            ...baseProduct,
-            stock: totalStock,
-            available_sizes: Array.from(allSizes),
-            available_colors: Array.from(allColors),
-            hasVariants: aggregatedVariants.length > 0 || allSizes.size > 0 || allColors.size > 0,
-            variants: aggregatedVariants,
-          });
-        }
-      });
-
-      console.log(`✓ Created ${aggregatedProducts.length} aggregated products`);
-
-      // STEP 6: Get supplier profiles
+      // STEP 3: Get supplier profiles
       const supplierIds = supplierLists.map(list => list.supplier_id);
       console.log(`→ Fetching ${supplierIds.length} supplier profiles...`);
       const { data: profiles, error: profilesError } = await supabase
@@ -307,8 +205,8 @@ export default function HomeScreen() {
       let skippedProducts = 0;
       let processedProducts = 0;
       
-      console.log('→ Processing aggregated products...');
-      aggregatedProducts.forEach((product: any, index: number) => {
+      console.log('→ Processing products...');
+      products.forEach((product: any, index: number) => {
         const listId = product.supplier_list_id;
         const listData = listsMap.get(listId);
         
@@ -382,15 +280,15 @@ export default function HomeScreen() {
           maxDiscount: listData.max_discount || 80,
           minReservationValue: listData.min_reservation_value || 5000,
           maxReservationValue: listData.max_reservation_value || 30000,
-          hasVariants: product.hasVariants || false,
-          variants: product.variants || [],
+          hasVariants: false,
+          variants: [],
         };
         
         groupedLists.get(listId)!.products.push(productData);
         processedProducts++;
         
         if ((index + 1) % 500 === 0) {
-          console.log(`  Processed ${index + 1}/${aggregatedProducts.length} products...`);
+          console.log(`  Processed ${index + 1}/${products.length} products...`);
         }
       });
       
@@ -402,8 +300,7 @@ export default function HomeScreen() {
       console.log('=== FINAL RESULT ===');
       console.log(`✓ Created ${lists.length} product lists with products:`);
       lists.forEach((list, index) => {
-        const variantCount = list.products.filter(p => p.hasVariants).length;
-        console.log(`  ${index + 1}. "${list.listName}" by ${list.supplierName} - ${list.products.length} products (${variantCount} with variants)`);
+        console.log(`  ${index + 1}. "${list.listName}" by ${list.supplierName} - ${list.products.length} products`);
       });
       
       setProductLists(lists);
