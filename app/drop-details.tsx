@@ -378,9 +378,10 @@ export default function DropDetailsScreen() {
 
 
 
-  const handleBook = useCallback(async (productId: string) => {
+  const handleBook = useCallback(async (productId: string, variantId?: string) => {
     console.log('=== HANDLE BOOK CALLED (COD) ===');
     console.log('Product ID:', productId);
+    console.log('Variant ID:', variantId);
     console.log('User:', user?.id);
     console.log('Drop:', drop?.id);
 
@@ -417,6 +418,7 @@ export default function DropDetailsScreen() {
       console.log('Creating booking with COD payment:', {
         user_id: user.id,
         product_id: productId,
+        variant_id: variantId || null,
         drop_id: drop.id,
         pickup_point_id: drop.pickup_point_id,
         original_price: originalPrice,
@@ -428,13 +430,14 @@ export default function DropDetailsScreen() {
       });
 
       // Create booking - the database trigger will automatically:
-      // 1. Decrement stock
+      // 1. Decrement variant stock (if variantId provided) or product stock
       // 2. Update drop discount and current_value
       const { data: bookingData, error: bookingError } = await supabase
         .from('bookings')
         .insert({
           user_id: user.id,
           product_id: productId,
+          variant_id: variantId || null,
           drop_id: drop.id,
           pickup_point_id: drop.pickup_point_id,
           original_price: originalPrice,
