@@ -272,7 +272,7 @@ export default function EnhancedProductCard({
   };
 
   const handleDescriptionPress = () => {
-    if (descriptionHeight > 17) {
+    if (descriptionHeight > 15) {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       setDescriptionExpanded(!descriptionExpanded);
     }
@@ -438,7 +438,7 @@ export default function EnhancedProductCard({
               <IconSymbol 
                 ios_icon_name="photo.stack" 
                 android_material_icon_name="collections" 
-                size={20} 
+                size={18} 
                 color={colors.background} 
               />
               <Text style={styles.imageCount}>{imageUrls.length}</Text>
@@ -487,7 +487,7 @@ export default function EnhancedProductCard({
                 <IconSymbol
                   ios_icon_name={isInWishlist ? 'heart.fill' : 'heart'}
                   android_material_icon_name={isInWishlist ? 'favorite' : 'favorite_border'}
-                  size={28}
+                  size={26}
                   color={isInWishlist ? '#FF6B6B' : '#FFF'}
                 />
               )}
@@ -498,38 +498,42 @@ export default function EnhancedProductCard({
 
       <View style={styles.overlay}>
         <View style={styles.content}>
-          {/* Product Name */}
+          {/* Product Name - Reduced size */}
           <Text style={styles.productName} numberOfLines={2}>{product.name ?? 'Prodotto'}</Text>
 
-          {/* Brand and Category Row */}
-          {(product.brand || product.category) && (
-            <View style={styles.brandCategoryRow}>
-              {product.brand && (
-                <View style={styles.brandBadge}>
-                  <IconSymbol 
-                    ios_icon_name="tag.fill" 
-                    android_material_icon_name="local_offer" 
-                    size={10} 
-                    color={colors.primary} 
-                  />
-                  <Text style={styles.brandText}>{product.brand}</Text>
-                </View>
-              )}
-              {product.category && (
-                <View style={styles.categoryBadge}>
-                  <IconSymbol 
-                    ios_icon_name="square.grid.2x2.fill" 
-                    android_material_icon_name="category" 
-                    size={10} 
-                    color={colors.textSecondary} 
-                  />
-                  <Text style={styles.categoryText}>{product.category}</Text>
-                </View>
-              )}
+          {/* Compact info row: Brand, Category, Condition, Stock */}
+          <View style={styles.compactInfoRow}>
+            {product.brand && (
+              <View style={styles.infoBadge}>
+                <Text style={styles.infoBadgeText}>{product.brand}</Text>
+              </View>
+            )}
+            {product.category && (
+              <View style={styles.infoBadge}>
+                <Text style={styles.infoBadgeText}>{product.category}</Text>
+              </View>
+            )}
+            {product.condition && (
+              <View style={[styles.infoBadge, { backgroundColor: getConditionColor(product.condition) + '20' }]}>
+                <Text style={[styles.infoBadgeText, { color: getConditionColor(product.condition) }]}>
+                  {product.condition}
+                </Text>
+              </View>
+            )}
+            <View style={styles.stockBadge}>
+              <IconSymbol 
+                ios_icon_name="cube.box.fill" 
+                android_material_icon_name="inventory" 
+                size={10} 
+                color={displayStock > 0 ? colors.success : colors.error} 
+              />
+              <Text style={[styles.stockBadgeText, { color: displayStock > 0 ? colors.success : colors.error }]}>
+                {displayStock}
+              </Text>
             </View>
-          )}
+          </View>
 
-          {/* Description with swipe up gesture */}
+          {/* Description - More compact */}
           {product.description && (
             <Pressable 
               style={styles.descriptionContainer}
@@ -547,87 +551,27 @@ export default function EnhancedProductCard({
               >
                 {product.description}
               </Text>
-              {descriptionHeight > 17 && !descriptionExpanded && (
-                <View style={styles.swipeUpIndicator}>
-                  <IconSymbol 
-                    ios_icon_name="chevron.up" 
-                    android_material_icon_name="expand_less" 
-                    size={12} 
-                    color={colors.primary} 
-                  />
-                  <Text style={styles.swipeUpText}>Tocca per espandere</Text>
-                </View>
-              )}
             </Pressable>
           )}
 
-          {/* Product Details Row: Condition */}
-          {product.condition && (
-            <View style={styles.detailsRow}>
-              <View style={[
-                styles.conditionBadge,
-                { backgroundColor: getConditionColor(product.condition) + '20' }
-              ]}>
-                <IconSymbol 
-                  ios_icon_name={conditionIcon.ios} 
-                  android_material_icon_name={conditionIcon.android} 
-                  size={10} 
-                  color={getConditionColor(product.condition)} 
-                />
-                <Text style={[
-                  styles.conditionText,
-                  { color: getConditionColor(product.condition) }
-                ]}>
-                  {product.condition}
-                </Text>
-              </View>
-            </View>
-          )}
-
-          {/* Stock Information - Shows variant stock if variant is selected */}
-          <View style={styles.stockContainer}>
-            <IconSymbol 
-              ios_icon_name="cube.box.fill" 
-              android_material_icon_name="inventory" 
-              size={12} 
-              color={displayStock > 0 ? colors.success : colors.error} 
-            />
-            <Text style={[
-              styles.stockText,
-              { color: displayStock > 0 ? colors.success : colors.error }
-            ]}>
-              {displayStock > 0 ? `${displayStock} disponibili` : 'Esaurito'}
-            </Text>
-          </View>
-
-          {/* Price row with discount badge */}
+          {/* Price row - More compact */}
           <View style={styles.priceRow}>
-            <View style={styles.priceInfo}>
-              <Text style={styles.discountedPrice}>€{discountedPrice.toFixed(2)}</Text>
-              <View style={styles.discountBadge}>
-                <Text style={styles.discountText}>-{Math.floor(discount)}%</Text>
-              </View>
-              <Text style={styles.originalPrice}>€{originalPrice.toFixed(2)}</Text>
+            <Text style={styles.discountedPrice}>€{discountedPrice.toFixed(2)}</Text>
+            <View style={styles.discountBadge}>
+              <Text style={styles.discountText}>-{Math.floor(discount)}%</Text>
             </View>
+            <Text style={styles.originalPrice}>€{originalPrice.toFixed(2)}</Text>
           </View>
 
-          {/* Size and Color Selection - Now works with variants */}
+          {/* Size and Color Selection - COMPACT VERSION WITH TEXT LABELS FOR COLORS */}
           {(availableSizes.length > 0 || availableColors.length > 0) && (
             <View style={styles.selectionContainer}>
-              {/* Size Selection */}
+              {/* Size Selection - Inline */}
               {availableSizes.length > 0 && (
-                <View style={styles.sizeColorSection}>
-                  <View style={styles.sectionHeader}>
-                    <IconSymbol 
-                      ios_icon_name="ruler" 
-                      android_material_icon_name="straighten" 
-                      size={12} 
-                      color={colors.textSecondary} 
-                    />
-                    <Text style={styles.sectionLabel}>Taglia</Text>
-                  </View>
+                <View style={styles.inlineSelection}>
+                  <Text style={styles.selectionLabel}>Taglia:</Text>
                   <View style={styles.optionsRow}>
-                    {availableSizes.slice(0, 5).map((size, index) => (
+                    {availableSizes.slice(0, 6).map((size, index) => (
                       <Pressable
                         key={index}
                         style={[
@@ -650,20 +594,12 @@ export default function EnhancedProductCard({
                 </View>
               )}
 
-              {/* Color Selection */}
+              {/* Color Selection - TEXT LABELS INSTEAD OF COLOR CIRCLES */}
               {availableColors.length > 0 && (
-                <View style={styles.sizeColorSection}>
-                  <View style={styles.sectionHeader}>
-                    <IconSymbol 
-                      ios_icon_name="paintpalette" 
-                      android_material_icon_name="palette" 
-                      size={12} 
-                      color={colors.textSecondary} 
-                    />
-                    <Text style={styles.sectionLabel}>Colore</Text>
-                  </View>
+                <View style={styles.inlineSelection}>
+                  <Text style={styles.selectionLabel}>Colore:</Text>
                   <View style={styles.optionsRow}>
-                    {availableColors.slice(0, 5).map((color, index) => (
+                    {availableColors.slice(0, 6).map((color, index) => (
                       <Pressable
                         key={index}
                         style={[
@@ -672,12 +608,14 @@ export default function EnhancedProductCard({
                         ]}
                         onPress={() => handleColorSelect(color)}
                       >
-                        <View
+                        <Text
                           style={[
-                            styles.colorCircle,
-                            { backgroundColor: color },
+                            styles.colorOptionText,
+                            selectedColor === color && styles.colorOptionTextSelected,
                           ]}
-                        />
+                        >
+                          {color}
+                        </Text>
                       </Pressable>
                     ))}
                   </View>
@@ -686,7 +624,7 @@ export default function EnhancedProductCard({
             </View>
           )}
 
-          {/* Action Button */}
+          {/* Action Button - More compact */}
           {isInDrop ? (
             <Animated.View 
               style={[
@@ -714,16 +652,13 @@ export default function EnhancedProductCard({
                       <IconSymbol 
                         ios_icon_name="xmark.circle.fill" 
                         android_material_icon_name="cancel" 
-                        size={22} 
+                        size={20} 
                         color="#999" 
                       />
                     </View>
                     <View style={styles.bookButtonTextContainer}>
                       <Text style={[styles.bookButtonTitle, styles.bookButtonTitleDisabled]}>
-                        ARTICOLO ESAURITO
-                      </Text>
-                      <Text style={[styles.bookButtonSubtitle, styles.bookButtonSubtitleDisabled]}>
-                        Non più disponibile
+                        ESAURITO
                       </Text>
                     </View>
                   </>
@@ -733,7 +668,7 @@ export default function EnhancedProductCard({
                       <IconSymbol 
                         ios_icon_name="cube.box.fill" 
                         android_material_icon_name="inventory" 
-                        size={22} 
+                        size={20} 
                         color="#333" 
                       />
                     </View>
@@ -747,7 +682,7 @@ export default function EnhancedProductCard({
                       <IconSymbol 
                         ios_icon_name="chevron.right" 
                         android_material_icon_name="chevron_right" 
-                        size={20} 
+                        size={18} 
                         color="#333" 
                       />
                     </View>
@@ -839,33 +774,33 @@ const styles = StyleSheet.create({
     top: 60,
     left: 20,
     backgroundColor: 'rgba(0, 0, 0, 0.75)',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 20,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 16,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
+    gap: 4,
     zIndex: 5,
   },
   imageCount: {
     color: colors.background,
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '700',
   },
   wishlistButtonWrapper: {
     position: 'absolute',
     bottom: 30,
     left: '50%',
-    marginLeft: -28,
+    marginLeft: -26,
     zIndex: 999999,
     elevation: 999999,
-    width: 56,
-    height: 56,
+    width: 52,
+    height: 52,
   },
   wishlistButton: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     backgroundColor: 'rgba(0, 0, 0, 0.75)',
     justifyContent: 'center',
     alignItems: 'center',
@@ -882,16 +817,16 @@ const styles = StyleSheet.create({
     bottom: 20,
     left: 20,
     backgroundColor: 'rgba(0, 0, 0, 0.85)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 6,
     zIndex: 5,
   },
   dropBadgeText: {
     color: '#FFF',
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '700',
-    letterSpacing: 0.8,
+    letterSpacing: 0.6,
   },
   outOfStockOverlay: {
     position: 'absolute',
@@ -928,171 +863,120 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 24,
   },
   content: {
-    padding: 16,
+    padding: 14,
     paddingBottom: 110,
   },
   productName: {
-    fontSize: 20,
+    fontSize: 17,
     fontWeight: '800',
     color: colors.text,
-    marginBottom: 6,
+    marginBottom: 5,
     letterSpacing: -0.3,
-    lineHeight: 24,
+    lineHeight: 20,
   },
-  brandCategoryRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginBottom: 8,
-    flexWrap: 'wrap',
-  },
-  brandBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: colors.primary + '15',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  brandText: {
-    fontSize: 10,
-    color: colors.primary,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.3,
-  },
-  categoryBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: colors.backgroundSecondary,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  categoryText: {
-    fontSize: 10,
-    color: colors.textSecondary,
-    fontWeight: '600',
-  },
-  descriptionContainer: {
-    marginBottom: 8,
-    paddingVertical: 6,
-  },
-  descriptionText: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    lineHeight: 17,
-  },
-  swipeUpIndicator: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginTop: 4,
-  },
-  swipeUpText: {
-    fontSize: 10,
-    color: colors.primary,
-    fontWeight: '600',
-  },
-  detailsRow: {
+  compactInfoRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    marginBottom: 8,
+    marginBottom: 5,
     flexWrap: 'wrap',
   },
-  conditionBadge: {
+  infoBadge: {
+    backgroundColor: colors.backgroundSecondary,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  infoBadgeText: {
+    fontSize: 9,
+    color: colors.textSecondary,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.2,
+  },
+  stockBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 7,
-    paddingVertical: 3,
-    borderRadius: 5,
+    gap: 3,
+    backgroundColor: colors.backgroundSecondary,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
   },
-  conditionText: {
+  stockBadgeText: {
     fontSize: 9,
     fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.3,
   },
-  stockContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    marginBottom: 8,
+  descriptionContainer: {
+    marginBottom: 5,
   },
-  stockText: {
-    fontSize: 11,
-    fontWeight: '600',
+  descriptionText: {
+    fontSize: 10,
+    color: colors.textSecondary,
+    lineHeight: 14,
   },
   priceRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  priceInfo: {
-    flexDirection: 'row',
     alignItems: 'baseline',
-    gap: 8,
+    gap: 6,
+    marginBottom: 8,
   },
-  originalPrice: {
-    fontSize: 13,
-    color: colors.textSecondary,
-    textDecorationLine: 'line-through',
+  discountedPrice: {
+    fontSize: 22,
+    fontWeight: '900',
+    color: colors.text,
+    letterSpacing: -0.6,
   },
   discountBadge: {
     backgroundColor: colors.text,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 5,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
   },
   discountText: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '700',
     color: colors.background,
-    letterSpacing: 0.4,
+    letterSpacing: 0.3,
   },
-  discountedPrice: {
-    fontSize: 26,
-    fontWeight: '900',
-    color: colors.text,
-    letterSpacing: -0.8,
+  originalPrice: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    textDecorationLine: 'line-through',
   },
   selectionContainer: {
-    marginBottom: 10,
-    gap: 8,
+    marginBottom: 8,
+    gap: 6,
   },
-  sizeColorSection: {
-    gap: 5,
-  },
-  sectionHeader: {
+  inlineSelection: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
+    gap: 6,
+    flexWrap: 'wrap',
   },
-  sectionLabel: {
+  selectionLabel: {
     fontSize: 10,
-    fontWeight: '600',
-    color: colors.textSecondary,
+    fontWeight: '700',
+    color: colors.text,
     textTransform: 'uppercase',
-    letterSpacing: 0.4,
+    letterSpacing: 0.3,
+    minWidth: 50,
   },
   optionsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 7,
+    gap: 5,
     flexWrap: 'wrap',
+    flex: 1,
   },
   sizeOption: {
-    minWidth: 34,
-    height: 34,
-    paddingHorizontal: 10,
+    minWidth: 30,
+    height: 28,
+    paddingHorizontal: 8,
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: colors.backgroundSecondary,
-    borderRadius: 7,
+    borderRadius: 6,
     borderWidth: 1.5,
     borderColor: 'transparent',
   },
@@ -1101,7 +985,7 @@ const styles = StyleSheet.create({
     borderColor: colors.text,
   },
   sizeOptionText: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '700',
     color: colors.text,
   },
@@ -1109,42 +993,44 @@ const styles = StyleSheet.create({
     color: colors.background,
   },
   colorOption: {
-    width: 34,
-    height: 34,
+    paddingHorizontal: 8,
+    height: 28,
     justifyContent: 'center',
     alignItems: 'center',
-    borderRadius: 17,
-    borderWidth: 2,
+    borderRadius: 6,
+    borderWidth: 1.5,
     borderColor: 'transparent',
     backgroundColor: colors.backgroundSecondary,
   },
   colorOptionSelected: {
+    backgroundColor: colors.text,
     borderColor: colors.text,
   },
-  colorCircle: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    borderWidth: 1,
-    borderColor: 'rgba(0, 0, 0, 0.1)',
+  colorOptionText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  colorOptionTextSelected: {
+    color: colors.background,
   },
   bookButtonWrapper: {
-    marginTop: 4,
+    marginTop: 2,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.12,
-    shadowRadius: 10,
-    elevation: 5,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
   },
   bookButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 16,
-    paddingHorizontal: 18,
-    gap: 12,
+    paddingVertical: 13,
+    paddingHorizontal: 16,
+    gap: 10,
     backgroundColor: '#FFF',
-    borderRadius: 14,
+    borderRadius: 12,
     borderWidth: 2,
     borderColor: '#333',
   },
@@ -1153,9 +1039,9 @@ const styles = StyleSheet.create({
     borderColor: '#999',
   },
   bookButtonIconContainer: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: '#F5F5F5',
     justifyContent: 'center',
     alignItems: 'center',
@@ -1164,11 +1050,11 @@ const styles = StyleSheet.create({
   },
   bookButtonTextContainer: {
     flex: 1,
-    gap: 2,
+    gap: 1,
   },
   bookButtonTitle: {
     color: '#000',
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '800',
     letterSpacing: 0.3,
   },
@@ -1177,18 +1063,15 @@ const styles = StyleSheet.create({
   },
   bookButtonSubtitle: {
     color: '#666',
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: '500',
     letterSpacing: 0.1,
-  },
-  bookButtonSubtitleDisabled: {
-    color: '#999',
   },
   bookButtonArrow: {
     opacity: 0.8,
   },
   actionButton: {
-    paddingVertical: 15,
+    paddingVertical: 13,
     borderRadius: 6,
     backgroundColor: colors.text,
     alignItems: 'center',
@@ -1202,8 +1085,8 @@ const styles = StyleSheet.create({
   },
   actionButtonText: {
     color: colors.background,
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '700',
-    letterSpacing: 1.2,
+    letterSpacing: 1,
   },
 });
