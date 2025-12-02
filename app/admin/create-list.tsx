@@ -426,7 +426,7 @@ export default function CreateListScreen() {
             .insert({
               supplier_list_id: data.id,
               supplier_id: selectedSupplierId,
-              sku: sku, // ✅ SKU is now properly saved
+              sku: sku,
               name: group.nome || '',
               description: group.descrizione || null,
               image_url: group.immagine_url || '',
@@ -448,8 +448,26 @@ export default function CreateListScreen() {
             throw productError;
           }
           
-          // Insert variants
-          const variantsToInsert = group.variants.map(variant => ({
+          // Deduplicate variants before insertion
+          // Create a map to track unique size/color combinations
+          const uniqueVariants = new Map<string, { taglia?: string; colore?: string; stock: number }>();
+          
+          group.variants.forEach(variant => {
+            const key = `${variant.taglia || 'null'}_${variant.colore || 'null'}`;
+            
+            if (uniqueVariants.has(key)) {
+              // If variant already exists, sum the stock
+              const existing = uniqueVariants.get(key)!;
+              existing.stock += variant.stock;
+              console.log(`⚠️ Duplicate variant detected for SKU ${sku}: size=${variant.taglia}, color=${variant.colore}. Summing stock: ${existing.stock}`);
+            } else {
+              // New unique variant
+              uniqueVariants.set(key, { ...variant });
+            }
+          });
+          
+          // Convert map back to array
+          const variantsToInsert = Array.from(uniqueVariants.values()).map(variant => ({
             product_id: productData.id,
             size: variant.taglia || null,
             color: variant.colore || null,
@@ -457,23 +475,29 @@ export default function CreateListScreen() {
             status: 'active',
           }));
           
+          console.log(`Inserting ${variantsToInsert.length} unique variants (deduplicated from ${group.variants.length} total)`);
+          
+          // Use upsert to handle any remaining duplicates gracefully
           const { error: variantsError } = await supabase
             .from('product_variants')
-            .insert(variantsToInsert);
+            .upsert(variantsToInsert, {
+              onConflict: 'product_id,size,color',
+              ignoreDuplicates: false, // Update existing records
+            });
           
           if (variantsError) {
             console.error('Error inserting variants:', variantsError);
             throw variantsError;
           }
           
-          console.log(`✅ Inserted product with SKU ${sku} and ${variantsToInsert.length} variants`);
+          console.log(`✅ Inserted product with SKU ${sku} and ${variantsToInsert.length} unique variants`);
         }
         
         // Insert standalone products (without SKU)
         if (productsWithoutSku.length > 0) {
           console.log(`Inserting ${productsWithoutSku.length} standalone products without SKU`);
           
-          const standaloneProductsToInsert = productsWithoutSku.map((product) => {
+          for (const product of productsWithoutSku) {
             const additionalImagesStr = product.immagini_aggiuntive || '';
             const additionalImages = additionalImagesStr && typeof additionalImagesStr === 'string'
               ? additionalImagesStr.split(',').map(url => url.trim()).filter(url => url)
@@ -482,32 +506,48 @@ export default function CreateListScreen() {
             const sizes = product.taglia ? [product.taglia] : [];
             const colors = product.colore ? [product.colore] : [];
 
-            return {
-              supplier_list_id: data.id,
-              supplier_id: selectedSupplierId,
-              sku: product.sku || null, // ✅ SKU is now properly saved even for standalone products
-              name: product.nome || '',
-              description: product.descrizione || null,
-              image_url: product.immagine_url || '',
-              additional_images: additionalImages.length > 0 ? additionalImages : null,
-              original_price: product.prezzo || 0,
-              available_sizes: sizes.length > 0 ? sizes : null,
-              available_colors: colors.length > 0 ? colors : null,
-              condition: product.condizione || 'nuovo',
-              category: product.categoria || null,
-              brand: product.brand || null,
-              stock: product.stock || 1,
-              status: 'active',
-            };
-          });
+            const { data: productData, error: productError } = await supabase
+              .from('products')
+              .insert({
+                supplier_list_id: data.id,
+                supplier_id: selectedSupplierId,
+                sku: product.sku || null,
+                name: product.nome || '',
+                description: product.descrizione || null,
+                image_url: product.immagine_url || '',
+                additional_images: additionalImages.length > 0 ? additionalImages : null,
+                original_price: product.prezzo || 0,
+                available_sizes: sizes.length > 0 ? sizes : null,
+                available_colors: colors.length > 0 ? colors : null,
+                condition: product.condizione || 'nuovo',
+                category: product.categoria || null,
+                brand: product.brand || null,
+                stock: product.stock || 1,
+                status: 'active',
+              })
+              .select()
+              .single();
 
-          const { error: standaloneError } = await supabase
-            .from('products')
-            .insert(standaloneProductsToInsert);
-
-          if (standaloneError) {
-            console.error('Error inserting standalone products:', standaloneError);
-            throw standaloneError;
+            if (productError) {
+              console.error('Error inserting standalone product:', productError);
+              throw productError;
+            }
+            
+            // Insert a single variant for standalone product
+            const { error: variantError } = await supabase
+              .from('product_variants')
+              .insert({
+                product_id: productData.id,
+                size: product.taglia || null,
+                color: product.colore || null,
+                stock: product.stock,
+                status: 'active',
+              });
+            
+            if (variantError) {
+              console.error('Error inserting standalone variant:', variantError);
+              throw variantError;
+            }
           }
           
           console.log(`✅ Inserted ${productsWithoutSku.length} standalone products`);
