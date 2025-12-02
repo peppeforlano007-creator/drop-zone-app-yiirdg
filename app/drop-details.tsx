@@ -804,10 +804,19 @@ export default function DropDetailsScreen() {
             </View>
           </View>
           
-          {/* NEW: Transparent progress bar under timer */}
+          {/* Enhanced progress bar with discount labels */}
           <View style={styles.progressBarContainer}>
-            <View style={styles.progressBarBackground}>
-              <View style={[styles.progressBarFill, { width: `${discountProgress}%` }]} />
+            <View style={styles.progressBarWrapper}>
+              <Text style={styles.progressBarLabel}>{Math.floor(minDiscount)}%</Text>
+              <View style={styles.progressBarTrack}>
+                <View style={styles.progressBarBackground}>
+                  <View style={[styles.progressBarFill, { width: `${discountProgress}%` }]} />
+                </View>
+                <View style={[styles.currentDiscountIndicator, { left: `${discountProgress}%` }]}>
+                  <Text style={styles.currentDiscountText}>{Math.floor(currentDiscount)}%</Text>
+                </View>
+              </View>
+              <Text style={styles.progressBarLabel}>{Math.floor(maxDiscount)}%</Text>
             </View>
           </View>
         </SafeAreaView>
@@ -999,16 +1008,52 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 8,
   },
+  progressBarWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  progressBarLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#FFF',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    minWidth: 32,
+    textAlign: 'center',
+  },
+  progressBarTrack: {
+    flex: 1,
+    position: 'relative',
+  },
   progressBarBackground: {
-    height: 4,
+    height: 6,
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 2,
+    borderRadius: 3,
     overflow: 'hidden',
   },
   progressBarFill: {
     height: '100%',
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
-    borderRadius: 2,
+    backgroundColor: 'rgba(76, 175, 80, 0.9)',
+    borderRadius: 3,
+  },
+  currentDiscountIndicator: {
+    position: 'absolute',
+    top: -20,
+    transform: [{ translateX: -15 }],
+    backgroundColor: 'rgba(76, 175, 80, 0.95)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: '#FFF',
+  },
+  currentDiscountText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#FFF',
   },
   backButtonOverlay: {
     position: 'absolute',
