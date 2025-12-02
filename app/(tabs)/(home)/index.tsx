@@ -27,40 +27,46 @@ interface ProductList {
 
 const WELCOME_MODAL_KEY = 'feed_welcome_modal_shown';
 
-// Helper function to load variants in batches
-async function loadVariantsInBatches(productIds: string[], batchSize: number = 100): Promise<any[]> {
+// Helper function to load variants in batches with improved error handling
+async function loadVariantsInBatches(productIds: string[], batchSize: number = 50): Promise<any[]> {
   console.log(`→ Loading variants for ${productIds.length} products in batches of ${batchSize}...`);
   
   const allVariants: any[] = [];
   const totalBatches = Math.ceil(productIds.length / batchSize);
+  let successfulBatches = 0;
+  let failedBatches = 0;
   
   for (let i = 0; i < productIds.length; i += batchSize) {
     const batch = productIds.slice(i, i + batchSize);
     const batchNumber = Math.floor(i / batchSize) + 1;
     
-    console.log(`  Batch ${batchNumber}/${totalBatches}: Loading variants for ${batch.length} products...`);
-    
-    const { data, error } = await supabase
-      .from('product_variants')
-      .select('*')
-      .in('product_id', batch)
-      .gt('stock', 0);
-    
-    if (error) {
-      console.error(`  ❌ Error loading variants batch ${batchNumber}:`, error);
-      // Continue with other batches even if one fails
+    try {
+      const { data, error } = await supabase
+        .from('product_variants')
+        .select('*')
+        .in('product_id', batch)
+        .gt('stock', 0);
+      
+      if (error) {
+        console.error(`  ❌ Batch ${batchNumber}/${totalBatches} failed:`, error.message);
+        failedBatches++;
+        // Continue with other batches even if one fails
+        continue;
+      }
+      
+      if (data && data.length > 0) {
+        allVariants.push(...data);
+        successfulBatches++;
+      }
+    } catch (error) {
+      console.error(`  ❌ Batch ${batchNumber}/${totalBatches} exception:`, error);
+      failedBatches++;
+      // Continue with other batches
       continue;
-    }
-    
-    if (data && data.length > 0) {
-      console.log(`  ✓ Batch ${batchNumber}: Loaded ${data.length} variants`);
-      allVariants.push(...data);
-    } else {
-      console.log(`  ⚠ Batch ${batchNumber}: No variants found`);
     }
   }
   
-  console.log(`✓ Total variants loaded: ${allVariants.length}`);
+  console.log(`✓ Variant loading complete: ${successfulBatches}/${totalBatches} batches successful, ${failedBatches} failed, ${allVariants.length} total variants loaded`);
   return allVariants;
 }
 
@@ -215,22 +221,21 @@ export default function HomeScreen() {
       let variants: any[] = [];
       if (productIds.length > 0) {
         try {
-          variants = await loadVariantsInBatches(productIds, 100);
+          // Use smaller batch size (50 instead of 100) to avoid URL length issues
+          variants = await loadVariantsInBatches(productIds, 50);
+          console.log(`✓ Successfully loaded ${variants.length} product variants`);
         } catch (error) {
-          console.error('⚠ Error loading variants:', error);
-          // Don't fail completely if variants fail to load - continue without variants
+          // Log error but don't fail the entire load - products can still be displayed without variants
+          console.error('⚠ Error loading variants (non-fatal):', error);
           variants = [];
         }
       }
-
-      console.log(`✓ Loaded ${variants.length} product variants`);
 
       // Create a map of product_id to variants
       const variantsMap = new Map<string, ProductVariant[]>();
       if (variants && variants.length > 0) {
         variants.forEach(v => {
           if (!v || !v.product_id) {
-            console.warn('⚠ Invalid variant data:', v);
             return;
           }
           
