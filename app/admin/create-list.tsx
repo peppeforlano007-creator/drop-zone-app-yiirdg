@@ -79,6 +79,7 @@ export default function CreateListScreen() {
   const [importMode, setImportMode] = useState<'manual' | 'excel'>('manual');
   const [excelProducts, setExcelProducts] = useState<ExcelProduct[]>([]);
   const [showFormatGuide, setShowFormatGuide] = useState(false);
+  const [importProgress, setImportProgress] = useState<string>('');
 
   useEffect(() => {
     loadSuppliers();
@@ -329,6 +330,7 @@ export default function CreateListScreen() {
     }
 
     setLoading(true);
+    setImportProgress('Creazione lista...');
 
     try {
       console.log('Creating supplier list...');
@@ -356,7 +358,8 @@ export default function CreateListScreen() {
       console.log('List created successfully:', data.id);
 
       if (importMode === 'excel' && excelProducts.length > 0) {
-        console.log(`Importing ${excelProducts.length} products from Excel with SKU aggregation...`);
+        console.log(`⚡ OPTIMIZED IMPORT: Processing ${excelProducts.length} products with batch inserts...`);
+        setImportProgress(`Elaborazione ${excelProducts.length} prodotti...`);
         
         // Group products by SKU
         const productGroups = new Map<string, ProductGroup>();
@@ -408,155 +411,203 @@ export default function CreateListScreen() {
           }
         });
         
-        console.log(`Grouped into ${productGroups.size} SKU groups and ${productsWithoutSku.length} standalone products`);
+        console.log(`✓ Grouped into ${productGroups.size} SKU groups and ${productsWithoutSku.length} standalone products`);
         
-        // Insert grouped products
+        // OPTIMIZATION 1: Prepare all products for batch insert
+        setImportProgress(`Preparazione ${productGroups.size + productsWithoutSku.length} prodotti...`);
+        const productsToInsert: any[] = [];
+        
+        // Add grouped products
         for (const [sku, group] of productGroups.entries()) {
-          console.log(`Inserting product group for SKU: ${sku} with ${group.variants.length} variants`);
-          
-          // Handle additional images
           const additionalImagesStr = group.immagini_aggiuntive || '';
           const additionalImages = additionalImagesStr && typeof additionalImagesStr === 'string'
             ? additionalImagesStr.split(',').map(url => url.trim()).filter(url => url)
             : [];
           
-          // Insert main product with SKU
-          const { data: productData, error: productError } = await supabase
-            .from('products')
-            .insert({
-              supplier_list_id: data.id,
-              supplier_id: selectedSupplierId,
-              sku: sku,
-              name: group.nome || '',
-              description: group.descrizione || null,
-              image_url: group.immagine_url || '',
-              additional_images: additionalImages.length > 0 ? additionalImages : null,
-              original_price: group.prezzo || 0,
-              available_sizes: group.availableSizes.length > 0 ? group.availableSizes : null,
-              available_colors: group.availableColors.length > 0 ? group.availableColors : null,
-              condition: group.condizione || 'nuovo',
-              category: group.categoria || null,
-              brand: group.brand || null,
-              stock: group.totalStock,
-              status: 'active',
-            })
-            .select()
-            .single();
+          productsToInsert.push({
+            supplier_list_id: data.id,
+            supplier_id: selectedSupplierId,
+            sku: sku,
+            name: group.nome || '',
+            description: group.descrizione || null,
+            image_url: group.immagine_url || '',
+            additional_images: additionalImages.length > 0 ? additionalImages : null,
+            original_price: group.prezzo || 0,
+            available_sizes: group.availableSizes.length > 0 ? group.availableSizes : null,
+            available_colors: group.availableColors.length > 0 ? group.availableColors : null,
+            condition: group.condizione || 'nuovo',
+            category: group.categoria || null,
+            brand: group.brand || null,
+            stock: group.totalStock,
+            status: 'active',
+          });
+        }
+        
+        // Add standalone products
+        for (const product of productsWithoutSku) {
+          const additionalImagesStr = product.immagini_aggiuntive || '';
+          const additionalImages = additionalImagesStr && typeof additionalImagesStr === 'string'
+            ? additionalImagesStr.split(',').map(url => url.trim()).filter(url => url)
+            : [];
           
-          if (productError) {
-            console.error('Error inserting product:', productError);
-            throw productError;
+          const sizes = product.taglia ? [product.taglia] : [];
+          const colors = product.colore ? [product.colore] : [];
+
+          productsToInsert.push({
+            supplier_list_id: data.id,
+            supplier_id: selectedSupplierId,
+            sku: product.sku || null,
+            name: product.nome || '',
+            description: product.descrizione || null,
+            image_url: product.immagine_url || '',
+            additional_images: additionalImages.length > 0 ? additionalImages : null,
+            original_price: product.prezzo || 0,
+            available_sizes: sizes.length > 0 ? sizes : null,
+            available_colors: colors.length > 0 ? colors : null,
+            condition: product.condizione || 'nuovo',
+            category: product.categoria || null,
+            brand: product.brand || null,
+            stock: product.stock || 1,
+            status: 'active',
+          });
+        }
+        
+        // OPTIMIZATION 2: Batch insert all products at once
+        console.log(`⚡ Batch inserting ${productsToInsert.length} products...`);
+        setImportProgress(`Inserimento ${productsToInsert.length} prodotti...`);
+        
+        const BATCH_SIZE = 500; // Supabase can handle large batches
+        const insertedProducts: any[] = [];
+        
+        for (let i = 0; i < productsToInsert.length; i += BATCH_SIZE) {
+          const batch = productsToInsert.slice(i, i + BATCH_SIZE);
+          const batchNum = Math.floor(i / BATCH_SIZE) + 1;
+          const totalBatches = Math.ceil(productsToInsert.length / BATCH_SIZE);
+          
+          console.log(`→ Inserting batch ${batchNum}/${totalBatches} (${batch.length} products)`);
+          setImportProgress(`Inserimento prodotti: ${batchNum}/${totalBatches} batch...`);
+          
+          const { data: batchData, error: batchError } = await supabase
+            .from('products')
+            .insert(batch)
+            .select('id, sku');
+          
+          if (batchError) {
+            console.error('Error inserting product batch:', batchError);
+            throw batchError;
+          }
+          
+          insertedProducts.push(...(batchData || []));
+          console.log(`✓ Batch ${batchNum}/${totalBatches} inserted successfully`);
+        }
+        
+        console.log(`✓ All ${insertedProducts.length} products inserted`);
+        
+        // OPTIMIZATION 3: Prepare all variants for batch insert
+        setImportProgress('Preparazione varianti...');
+        const variantsToInsert: any[] = [];
+        
+        // Create a map of SKU to product ID for quick lookup
+        const skuToProductId = new Map<string, string>();
+        insertedProducts.forEach(p => {
+          if (p.sku) {
+            skuToProductId.set(p.sku, p.id);
+          }
+        });
+        
+        // Add variants for grouped products
+        let productIndex = 0;
+        for (const [sku, group] of productGroups.entries()) {
+          const productId = skuToProductId.get(sku);
+          
+          if (!productId) {
+            console.error(`⚠️ Could not find product ID for SKU: ${sku}`);
+            continue;
           }
           
           // Deduplicate variants before insertion
-          // Create a map to track unique size/color combinations
           const uniqueVariants = new Map<string, { taglia?: string; colore?: string; stock: number }>();
           
           group.variants.forEach(variant => {
             const key = `${variant.taglia || 'null'}_${variant.colore || 'null'}`;
             
             if (uniqueVariants.has(key)) {
-              // If variant already exists, sum the stock
               const existing = uniqueVariants.get(key)!;
               existing.stock += variant.stock;
-              console.log(`⚠️ Duplicate variant detected for SKU ${sku}: size=${variant.taglia}, color=${variant.colore}. Summing stock: ${existing.stock}`);
             } else {
-              // New unique variant
               uniqueVariants.set(key, { ...variant });
             }
           });
           
-          // Convert map back to array
-          const variantsToInsert = Array.from(uniqueVariants.values()).map(variant => ({
-            product_id: productData.id,
-            size: variant.taglia || null,
-            color: variant.colore || null,
-            stock: variant.stock,
+          // Add to batch
+          uniqueVariants.forEach(variant => {
+            variantsToInsert.push({
+              product_id: productId,
+              size: variant.taglia || null,
+              color: variant.colore || null,
+              stock: variant.stock,
+              status: 'active',
+            });
+          });
+          
+          productIndex++;
+        }
+        
+        // Add variants for standalone products (products without SKU)
+        // These are at the end of the insertedProducts array
+        const standaloneStartIndex = productGroups.size;
+        for (let i = 0; i < productsWithoutSku.length; i++) {
+          const product = productsWithoutSku[i];
+          const insertedProduct = insertedProducts[standaloneStartIndex + i];
+          
+          if (!insertedProduct) {
+            console.error(`⚠️ Could not find inserted product for standalone product at index ${i}`);
+            continue;
+          }
+          
+          variantsToInsert.push({
+            product_id: insertedProduct.id,
+            size: product.taglia || null,
+            color: product.colore || null,
+            stock: product.stock,
             status: 'active',
-          }));
+          });
+        }
+        
+        // OPTIMIZATION 4: Batch insert all variants at once
+        console.log(`⚡ Batch inserting ${variantsToInsert.length} variants...`);
+        setImportProgress(`Inserimento ${variantsToInsert.length} varianti...`);
+        
+        const VARIANT_BATCH_SIZE = 1000; // Variants are smaller, can use larger batches
+        
+        for (let i = 0; i < variantsToInsert.length; i += VARIANT_BATCH_SIZE) {
+          const batch = variantsToInsert.slice(i, i + VARIANT_BATCH_SIZE);
+          const batchNum = Math.floor(i / VARIANT_BATCH_SIZE) + 1;
+          const totalBatches = Math.ceil(variantsToInsert.length / VARIANT_BATCH_SIZE);
           
-          console.log(`Inserting ${variantsToInsert.length} unique variants (deduplicated from ${group.variants.length} total)`);
+          console.log(`→ Inserting variant batch ${batchNum}/${totalBatches} (${batch.length} variants)`);
+          setImportProgress(`Inserimento varianti: ${batchNum}/${totalBatches} batch...`);
           
-          // Use upsert to handle any remaining duplicates gracefully
-          const { error: variantsError } = await supabase
+          const { error: variantError } = await supabase
             .from('product_variants')
-            .upsert(variantsToInsert, {
+            .upsert(batch, {
               onConflict: 'product_id,size,color',
-              ignoreDuplicates: false, // Update existing records
+              ignoreDuplicates: false,
             });
           
-          if (variantsError) {
-            console.error('Error inserting variants:', variantsError);
-            throw variantsError;
+          if (variantError) {
+            console.error('Error inserting variant batch:', variantError);
+            throw variantError;
           }
           
-          console.log(`✅ Inserted product with SKU ${sku} and ${variantsToInsert.length} unique variants`);
-        }
-        
-        // Insert standalone products (without SKU)
-        if (productsWithoutSku.length > 0) {
-          console.log(`Inserting ${productsWithoutSku.length} standalone products without SKU`);
-          
-          for (const product of productsWithoutSku) {
-            const additionalImagesStr = product.immagini_aggiuntive || '';
-            const additionalImages = additionalImagesStr && typeof additionalImagesStr === 'string'
-              ? additionalImagesStr.split(',').map(url => url.trim()).filter(url => url)
-              : [];
-            
-            const sizes = product.taglia ? [product.taglia] : [];
-            const colors = product.colore ? [product.colore] : [];
-
-            const { data: productData, error: productError } = await supabase
-              .from('products')
-              .insert({
-                supplier_list_id: data.id,
-                supplier_id: selectedSupplierId,
-                sku: product.sku || null,
-                name: product.nome || '',
-                description: product.descrizione || null,
-                image_url: product.immagine_url || '',
-                additional_images: additionalImages.length > 0 ? additionalImages : null,
-                original_price: product.prezzo || 0,
-                available_sizes: sizes.length > 0 ? sizes : null,
-                available_colors: colors.length > 0 ? colors : null,
-                condition: product.condizione || 'nuovo',
-                category: product.categoria || null,
-                brand: product.brand || null,
-                stock: product.stock || 1,
-                status: 'active',
-              })
-              .select()
-              .single();
-
-            if (productError) {
-              console.error('Error inserting standalone product:', productError);
-              throw productError;
-            }
-            
-            // Insert a single variant for standalone product
-            const { error: variantError } = await supabase
-              .from('product_variants')
-              .insert({
-                product_id: productData.id,
-                size: product.taglia || null,
-                color: product.colore || null,
-                stock: product.stock,
-                status: 'active',
-              });
-            
-            if (variantError) {
-              console.error('Error inserting standalone variant:', variantError);
-              throw variantError;
-            }
-          }
-          
-          console.log(`✅ Inserted ${productsWithoutSku.length} standalone products`);
+          console.log(`✓ Variant batch ${batchNum}/${totalBatches} inserted successfully`);
         }
 
-        console.log('All products and variants imported successfully');
+        console.log('✅ All products and variants imported successfully');
+        setImportProgress('Completato!');
         
         const uniqueSkus = productGroups.size;
-        const totalVariants = Array.from(productGroups.values()).reduce((sum, g) => sum + g.variants.length, 0);
+        const totalVariants = variantsToInsert.length;
         const skuMessage = uniqueSkus > 0 
           ? `\n\n📦 ${uniqueSkus} articoli unici con ${totalVariants} varianti (raggruppati per SKU)` 
           : '';
@@ -564,7 +615,7 @@ export default function CreateListScreen() {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         Alert.alert(
           'Lista Creata!',
-          `La lista "${listName}" è stata creata con successo!${skuMessage}\n\n${productsWithoutSku.length} prodotti senza SKU`,
+          `La lista "${listName}" è stata creata con successo!${skuMessage}\n\n${productsWithoutSku.length} prodotti senza SKU\n\n⚡ Importazione completata in modo ottimizzato!`,
           [
             {
               text: 'Visualizza Lista',
@@ -609,6 +660,7 @@ export default function CreateListScreen() {
       Alert.alert('Errore', `Si è verificato un errore imprevisto: ${error instanceof Error ? error.message : 'Errore sconosciuto'}`);
     } finally {
       setLoading(false);
+      setImportProgress('');
     }
   };
 
@@ -950,7 +1002,12 @@ export default function CreateListScreen() {
                 disabled={loading}
               >
                 {loading ? (
-                  <ActivityIndicator color="#FFFFFF" />
+                  <View style={styles.loadingButtonContent}>
+                    <ActivityIndicator color="#FFFFFF" />
+                    {importProgress && (
+                      <Text style={styles.createButtonText}>{importProgress}</Text>
+                    )}
+                  </View>
                 ) : (
                   <>
                     <IconSymbol
@@ -1260,6 +1317,11 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 18,
     fontWeight: '700',
+  },
+  loadingButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
   },
   cancelLink: {
     alignItems: 'center',
