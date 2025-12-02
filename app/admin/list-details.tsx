@@ -126,42 +126,67 @@ export default function ListDetailsScreen() {
 
       console.log(`✓ Loaded ${productsData?.length || 0} products`);
 
-      // Load variants for all products
+      // Load variants for all products with BATCH LOADING to avoid URL length issues
       if (productsData && productsData.length > 0) {
-        console.log('→ Loading product variants...');
+        console.log('→ Loading product variants with batch loading...');
         const productIds = productsData.map(p => p.id);
         
-        const { data: variantsData, error: variantsError } = await supabase
-          .from('product_variants')
-          .select('*')
-          .in('product_id', productIds)
-          .order('size', { ascending: true });
-
-        if (variantsError) {
-          console.error('Error loading variants:', variantsError);
-          // Don't fail completely if variants fail to load
-        } else {
-          console.log(`✓ Loaded ${variantsData?.length || 0} variants`);
+        // BATCH SIZE: Split into smaller chunks to avoid "Bad Request" error
+        const BATCH_SIZE = 50; // Reduced from 100 to be safer
+        const allVariants: ProductVariant[] = [];
+        
+        for (let i = 0; i < productIds.length; i += BATCH_SIZE) {
+          const batch = productIds.slice(i, i + BATCH_SIZE);
+          const batchNum = Math.floor(i / BATCH_SIZE) + 1;
+          const totalBatches = Math.ceil(productIds.length / BATCH_SIZE);
           
-          // Create a map of product_id to variants
-          const variantsMap = new Map<string, ProductVariant[]>();
-          variantsData?.forEach(v => {
-            if (!variantsMap.has(v.product_id)) {
-              variantsMap.set(v.product_id, []);
+          console.log(`→ Loading variant batch ${batchNum}/${totalBatches} (${batch.length} products)`);
+          
+          try {
+            const { data: variantsData, error: variantsError } = await supabase
+              .from('product_variants')
+              .select('*')
+              .in('product_id', batch)
+              .order('size', { ascending: true });
+
+            if (variantsError) {
+              console.error(`Error loading variant batch ${batchNum}:`, variantsError);
+              // Continue with other batches instead of failing completely
+              continue;
             }
-            variantsMap.get(v.product_id)!.push(v);
-          });
 
-          // Attach variants to products
-          const productsWithVariants = productsData.map(product => ({
-            ...product,
-            variants: variantsMap.get(product.id) || [],
-          }));
-
-          setProducts(productsWithVariants);
-          console.log('✓ Products with variants loaded');
-          return;
+            if (variantsData) {
+              allVariants.push(...variantsData);
+              console.log(`✓ Batch ${batchNum}/${totalBatches} loaded: ${variantsData.length} variants`);
+            }
+          } catch (batchError) {
+            console.error(`Exception loading variant batch ${batchNum}:`, batchError);
+            // Continue with other batches
+            continue;
+          }
         }
+
+        console.log(`✓ Loaded ${allVariants.length} total variants across all batches`);
+        
+        // Create a map of product_id to variants
+        const variantsMap = new Map<string, ProductVariant[]>();
+        allVariants.forEach(v => {
+          if (!variantsMap.has(v.product_id)) {
+            variantsMap.set(v.product_id, []);
+          }
+          variantsMap.get(v.product_id)!.push(v);
+        });
+
+        // Attach variants to products
+        const productsWithVariants = productsData.map(product => ({
+          ...product,
+          variants: variantsMap.get(product.id) || [],
+        }));
+
+        setProducts(productsWithVariants);
+        console.log('✓ Products with variants loaded');
+        console.log('=== LOADING COMPLETE ===');
+        return;
       }
 
       setProducts(productsData || []);
