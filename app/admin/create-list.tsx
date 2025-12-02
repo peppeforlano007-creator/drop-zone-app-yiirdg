@@ -415,7 +415,16 @@ export default function CreateListScreen() {
         
         // OPTIMIZATION 1: Prepare all products for batch insert
         setImportProgress(`Preparazione ${productGroups.size + productsWithoutSku.length} prodotti...`);
-        const productsToInsert: any[] = [];
+        
+        // Create a mapping structure to track which product corresponds to which SKU/standalone
+        interface ProductInsertMapping {
+          type: 'grouped' | 'standalone';
+          sku?: string;
+          standaloneIndex?: number;
+          data: any;
+        }
+        
+        const productsToInsert: ProductInsertMapping[] = [];
         
         // Add grouped products
         for (const [sku, group] of productGroups.entries()) {
@@ -425,26 +434,30 @@ export default function CreateListScreen() {
             : [];
           
           productsToInsert.push({
-            supplier_list_id: data.id,
-            supplier_id: selectedSupplierId,
+            type: 'grouped',
             sku: sku,
-            name: group.nome || '',
-            description: group.descrizione || null,
-            image_url: group.immagine_url || '',
-            additional_images: additionalImages.length > 0 ? additionalImages : null,
-            original_price: group.prezzo || 0,
-            available_sizes: group.availableSizes.length > 0 ? group.availableSizes : null,
-            available_colors: group.availableColors.length > 0 ? group.availableColors : null,
-            condition: group.condizione || 'nuovo',
-            category: group.categoria || null,
-            brand: group.brand || null,
-            stock: group.totalStock,
-            status: 'active',
+            data: {
+              supplier_list_id: data.id,
+              supplier_id: selectedSupplierId,
+              sku: sku,
+              name: group.nome || '',
+              description: group.descrizione || null,
+              image_url: group.immagine_url || '',
+              additional_images: additionalImages.length > 0 ? additionalImages : null,
+              original_price: group.prezzo || 0,
+              available_sizes: group.availableSizes.length > 0 ? group.availableSizes : null,
+              available_colors: group.availableColors.length > 0 ? group.availableColors : null,
+              condition: group.condizione || 'nuovo',
+              category: group.categoria || null,
+              brand: group.brand || null,
+              stock: group.totalStock,
+              status: 'active',
+            }
           });
         }
         
         // Add standalone products
-        for (const product of productsWithoutSku) {
+        productsWithoutSku.forEach((product, index) => {
           const additionalImagesStr = product.immagini_aggiuntive || '';
           const additionalImages = additionalImagesStr && typeof additionalImagesStr === 'string'
             ? additionalImagesStr.split(',').map(url => url.trim()).filter(url => url)
@@ -454,30 +467,34 @@ export default function CreateListScreen() {
           const colors = product.colore ? [product.colore] : [];
 
           productsToInsert.push({
-            supplier_list_id: data.id,
-            supplier_id: selectedSupplierId,
-            sku: product.sku || null,
-            name: product.nome || '',
-            description: product.descrizione || null,
-            image_url: product.immagine_url || '',
-            additional_images: additionalImages.length > 0 ? additionalImages : null,
-            original_price: product.prezzo || 0,
-            available_sizes: sizes.length > 0 ? sizes : null,
-            available_colors: colors.length > 0 ? colors : null,
-            condition: product.condizione || 'nuovo',
-            category: product.categoria || null,
-            brand: product.brand || null,
-            stock: product.stock || 1,
-            status: 'active',
+            type: 'standalone',
+            standaloneIndex: index,
+            data: {
+              supplier_list_id: data.id,
+              supplier_id: selectedSupplierId,
+              sku: product.sku || null,
+              name: product.nome || '',
+              description: product.descrizione || null,
+              image_url: product.immagine_url || '',
+              additional_images: additionalImages.length > 0 ? additionalImages : null,
+              original_price: product.prezzo || 0,
+              available_sizes: sizes.length > 0 ? sizes : null,
+              available_colors: colors.length > 0 ? colors : null,
+              condition: product.condizione || 'nuovo',
+              category: product.categoria || null,
+              brand: product.brand || null,
+              stock: product.stock || 1,
+              status: 'active',
+            }
           });
-        }
+        });
         
         // OPTIMIZATION 2: Batch insert all products at once
         console.log(`⚡ Batch inserting ${productsToInsert.length} products...`);
         setImportProgress(`Inserimento ${productsToInsert.length} prodotti...`);
         
         const BATCH_SIZE = 500; // Supabase can handle large batches
-        const insertedProducts: any[] = [];
+        const insertedProductsWithMapping: Array<{ id: string; sku: string | null; mapping: ProductInsertMapping }> = [];
         
         for (let i = 0; i < productsToInsert.length; i += BATCH_SIZE) {
           const batch = productsToInsert.slice(i, i + BATCH_SIZE);
@@ -489,7 +506,7 @@ export default function CreateListScreen() {
           
           const { data: batchData, error: batchError } = await supabase
             .from('products')
-            .insert(batch)
+            .insert(batch.map(p => p.data))
             .select('id, sku');
           
           if (batchError) {
@@ -497,26 +514,47 @@ export default function CreateListScreen() {
             throw batchError;
           }
           
-          insertedProducts.push(...(batchData || []));
+          // Map the returned products to their original mapping
+          if (batchData) {
+            batchData.forEach((insertedProduct, batchIndex) => {
+              const originalMapping = batch[batchIndex];
+              insertedProductsWithMapping.push({
+                id: insertedProduct.id,
+                sku: insertedProduct.sku,
+                mapping: originalMapping
+              });
+            });
+          }
+          
           console.log(`✓ Batch ${batchNum}/${totalBatches} inserted successfully`);
         }
         
-        console.log(`✓ All ${insertedProducts.length} products inserted`);
+        console.log(`✓ All ${insertedProductsWithMapping.length} products inserted`);
         
-        // OPTIMIZATION 3: Prepare all variants for batch insert
+        // OPTIMIZATION 3: Prepare all variants for batch insert with CORRECT mapping
         setImportProgress('Preparazione varianti...');
         const variantsToInsert: any[] = [];
         
         // Create a map of SKU to product ID for quick lookup
         const skuToProductId = new Map<string, string>();
-        insertedProducts.forEach(p => {
-          if (p.sku) {
-            skuToProductId.set(p.sku, p.id);
+        const standaloneProductIds: Array<{ index: number; productId: string }> = [];
+        
+        insertedProductsWithMapping.forEach(item => {
+          if (item.mapping.type === 'grouped' && item.mapping.sku) {
+            skuToProductId.set(item.mapping.sku, item.id);
+          } else if (item.mapping.type === 'standalone' && item.mapping.standaloneIndex !== undefined) {
+            standaloneProductIds.push({
+              index: item.mapping.standaloneIndex,
+              productId: item.id
+            });
           }
         });
         
+        console.log(`✓ Mapped ${skuToProductId.size} SKUs to product IDs`);
+        console.log(`✓ Mapped ${standaloneProductIds.length} standalone products`);
+        
         // Add variants for grouped products
-        let productIndex = 0;
+        let variantsCreated = 0;
         for (const [sku, group] of productGroups.entries()) {
           const productId = skuToProductId.get(sku);
           
@@ -548,37 +586,39 @@ export default function CreateListScreen() {
               stock: variant.stock,
               status: 'active',
             });
+            variantsCreated++;
           });
-          
-          productIndex++;
         }
         
+        console.log(`✓ Created ${variantsCreated} variants for grouped products`);
+        
         // Add variants for standalone products (products without SKU)
-        // These are at the end of the insertedProducts array
-        const standaloneStartIndex = productGroups.size;
-        for (let i = 0; i < productsWithoutSku.length; i++) {
-          const product = productsWithoutSku[i];
-          const insertedProduct = insertedProducts[standaloneStartIndex + i];
+        for (const { index, productId } of standaloneProductIds) {
+          const product = productsWithoutSku[index];
           
-          if (!insertedProduct) {
-            console.error(`⚠️ Could not find inserted product for standalone product at index ${i}`);
+          if (!product) {
+            console.error(`⚠️ Could not find standalone product at index ${index}`);
             continue;
           }
           
           variantsToInsert.push({
-            product_id: insertedProduct.id,
+            product_id: productId,
             size: product.taglia || null,
             color: product.colore || null,
             stock: product.stock,
             status: 'active',
           });
+          variantsCreated++;
         }
+        
+        console.log(`✓ Total variants to insert: ${variantsToInsert.length}`);
         
         // OPTIMIZATION 4: Batch insert all variants at once
         console.log(`⚡ Batch inserting ${variantsToInsert.length} variants...`);
         setImportProgress(`Inserimento ${variantsToInsert.length} varianti...`);
         
         const VARIANT_BATCH_SIZE = 1000; // Variants are smaller, can use larger batches
+        let variantsInserted = 0;
         
         for (let i = 0; i < variantsToInsert.length; i += VARIANT_BATCH_SIZE) {
           const batch = variantsToInsert.slice(i, i + VARIANT_BATCH_SIZE);
@@ -588,26 +628,29 @@ export default function CreateListScreen() {
           console.log(`→ Inserting variant batch ${batchNum}/${totalBatches} (${batch.length} variants)`);
           setImportProgress(`Inserimento varianti: ${batchNum}/${totalBatches} batch...`);
           
-          const { error: variantError } = await supabase
+          const { data: variantData, error: variantError } = await supabase
             .from('product_variants')
             .upsert(batch, {
               onConflict: 'product_id,size,color',
               ignoreDuplicates: false,
-            });
+            })
+            .select('id');
           
           if (variantError) {
             console.error('Error inserting variant batch:', variantError);
             throw variantError;
           }
           
-          console.log(`✓ Variant batch ${batchNum}/${totalBatches} inserted successfully`);
+          variantsInserted += (variantData?.length || 0);
+          console.log(`✓ Variant batch ${batchNum}/${totalBatches} inserted successfully (${variantData?.length || 0} variants)`);
         }
 
-        console.log('✅ All products and variants imported successfully');
+        console.log(`✅ All products and variants imported successfully`);
+        console.log(`📊 Summary: ${insertedProductsWithMapping.length} products, ${variantsInserted} variants`);
         setImportProgress('Completato!');
         
         const uniqueSkus = productGroups.size;
-        const totalVariants = variantsToInsert.length;
+        const totalVariants = variantsInserted;
         const skuMessage = uniqueSkus > 0 
           ? `\n\n📦 ${uniqueSkus} articoli unici con ${totalVariants} varianti (raggruppati per SKU)` 
           : '';
@@ -615,7 +658,7 @@ export default function CreateListScreen() {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         Alert.alert(
           'Lista Creata!',
-          `La lista "${listName}" è stata creata con successo!${skuMessage}\n\n${productsWithoutSku.length} prodotti senza SKU\n\n⚡ Importazione completata in modo ottimizzato!`,
+          `La lista "${listName}" è stata creata con successo!${skuMessage}\n\n${productsWithoutSku.length} prodotti senza SKU\n\n⚡ Importazione completata in modo ottimizzato!\n\n✅ ${insertedProductsWithMapping.length} prodotti e ${variantsInserted} varianti create`,
           [
             {
               text: 'Visualizza Lista',
