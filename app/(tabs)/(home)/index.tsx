@@ -1227,6 +1227,7 @@ export default function HomeScreen() {
           </View>
         </Pressable>
         
+        {/* UPDATED: Icons moved higher and rearranged */}
         <View style={styles.rightSideIcons}>
           <View style={styles.iconButton}>
             <View style={styles.iconCircle}>
@@ -1555,8 +1556,8 @@ const styles = StyleSheet.create({
   rightSideIcons: {
     position: 'absolute',
     right: 10,
-    top: '22%',
-    bottom: '28%',
+    top: '18%',
+    bottom: '35%',
     justifyContent: 'space-evenly',
     alignItems: 'center',
     gap: 16,
@@ -1650,8 +1651,7 @@ const styles = StyleSheet.create({
   navButtonLeft: {
     position: 'absolute',
     left: 8,
-    top: '50%',
-    marginTop: -20,
+    bottom: '22%',
     width: 40,
     height: 40,
     borderRadius: 20,
@@ -1670,8 +1670,7 @@ const styles = StyleSheet.create({
   navButtonRight: {
     position: 'absolute',
     right: 8,
-    top: '50%',
-    marginTop: -20,
+    bottom: '22%',
     width: 40,
     height: 40,
     borderRadius: 20,

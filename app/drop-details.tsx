@@ -803,6 +803,13 @@ export default function DropDetailsScreen() {
               <Text style={styles.timerText}>{timeRemaining}</Text>
             </View>
           </View>
+          
+          {/* NEW: Transparent progress bar under timer */}
+          <View style={styles.progressBarContainer}>
+            <View style={styles.progressBarBackground}>
+              <View style={[styles.progressBarFill, { width: `${discountProgress}%` }]} />
+            </View>
+          </View>
         </SafeAreaView>
       </View>
 
@@ -820,13 +827,14 @@ export default function DropDetailsScreen() {
         </SafeAreaView>
       </View>
 
+      {/* UPDATED: Smaller icons, removed min discount, max discount, and goal icons */}
       <View style={styles.rightSideIcons} pointerEvents="box-none">
         <Pressable style={styles.iconButton}>
           <View style={styles.iconCircle}>
             <IconSymbol 
               ios_icon_name="mappin.circle.fill" 
               android_material_icon_name="location_on" 
-              size={20} 
+              size={16} 
               color="#FFF" 
             />
           </View>
@@ -840,7 +848,7 @@ export default function DropDetailsScreen() {
             <IconSymbol 
               ios_icon_name="list.bullet.rectangle" 
               android_material_icon_name="list" 
-              size={20} 
+              size={16} 
               color="#FFF" 
             />
           </View>
@@ -856,25 +864,6 @@ export default function DropDetailsScreen() {
           <Text style={styles.iconLabel}>Sconto</Text>
         </Pressable>
 
-        <Pressable style={styles.iconButton}>
-          <View style={styles.iconCircle}>
-            <Text style={styles.maxDiscountText}>{Math.floor(maxDiscount)}%</Text>
-          </View>
-          <Text style={styles.iconLabel}>Max</Text>
-        </Pressable>
-
-        <Pressable style={styles.iconButton}>
-          <View style={styles.progressCircle}>
-            <View style={styles.progressCircleBackground}>
-              <View style={[styles.progressCircleFill, { height: `${valueProgress}%` }]} />
-            </View>
-            <View style={styles.progressCircleContent}>
-              <Text style={styles.progressPercentage}>{Math.floor(valueProgress)}%</Text>
-            </View>
-          </View>
-          <Text style={styles.iconLabel}>Obiettivo</Text>
-        </Pressable>
-
         <Pressable 
           style={styles.iconButton}
           onPress={handleShareWhatsApp}
@@ -885,11 +874,11 @@ export default function DropDetailsScreen() {
             <IconSymbol 
               ios_icon_name="square.and.arrow.up.fill" 
               android_material_icon_name="share" 
-              size={20} 
+              size={16} 
               color="#FFF" 
             />
           </Animated.View>
-          <Text style={styles.iconLabel}>Condividi Drop</Text>
+          <Text style={styles.iconLabel}>Condividi</Text>
         </Pressable>
       </View>
 
@@ -1006,6 +995,21 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontFamily: 'System',
   },
+  progressBarContainer: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
+  },
+  progressBarBackground: {
+    height: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 2,
+    overflow: 'hidden',
+  },
+  progressBarFill: {
+    height: '100%',
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    borderRadius: 2,
+  },
   backButtonOverlay: {
     position: 'absolute',
     top: 0,
@@ -1028,96 +1032,50 @@ const styles = StyleSheet.create({
   rightSideIcons: {
     position: 'absolute',
     right: 12,
-    top: '25%',
-    bottom: '25%',
+    top: '20%',
+    bottom: '30%',
     justifyContent: 'space-evenly',
     alignItems: 'center',
-    gap: 16,
+    gap: 12,
     zIndex: 10,
   },
   iconButton: {
     alignItems: 'center',
-    gap: 4,
+    gap: 3,
   },
   iconCircle: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     backgroundColor: 'rgba(0, 0, 0, 0.6)',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 2,
+    borderWidth: 1.5,
     borderColor: 'rgba(255, 255, 255, 0.3)',
   },
   shareCircle: {
     backgroundColor: 'rgba(76, 175, 80, 0.8)',
   },
   iconLabel: {
-    fontSize: 10,
+    fontSize: 8,
     fontWeight: '700',
     color: '#FFF',
     textAlign: 'center',
-    maxWidth: 60,
+    maxWidth: 50,
     backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 10,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
     overflow: 'hidden',
     textShadowColor: 'rgba(0, 0, 0, 0.75)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,
   },
   discountText: {
-    fontSize: 16,
-    fontWeight: '900',
-    color: '#FFF',
-    fontFamily: 'System',
-  },
-  maxDiscountText: {
     fontSize: 14,
-    fontWeight: '800',
-    color: '#FFF',
-    fontFamily: 'System',
-  },
-  progressCircle: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    position: 'relative',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  progressCircleBackground: {
-    position: 'absolute',
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
-    overflow: 'hidden',
-  },
-  progressCircleFill: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: colors.primary,
-    opacity: 0.8,
-  },
-  progressCircleContent: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 1,
-  },
-  progressPercentage: {
-    fontSize: 13,
     fontWeight: '900',
     color: '#FFF',
     fontFamily: 'System',
-    textShadowColor: 'rgba(0, 0, 0, 0.75)',
-    textShadowOffset: { width: 0, height:1 },
-    textShadowRadius: 2,
   },
   underfundingWarningBottom: {
     position: 'absolute',
