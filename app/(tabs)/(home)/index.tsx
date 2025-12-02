@@ -27,6 +27,43 @@ interface ProductList {
 
 const WELCOME_MODAL_KEY = 'feed_welcome_modal_shown';
 
+// Helper function to load variants in batches
+async function loadVariantsInBatches(productIds: string[], batchSize: number = 100): Promise<any[]> {
+  console.log(`→ Loading variants for ${productIds.length} products in batches of ${batchSize}...`);
+  
+  const allVariants: any[] = [];
+  const totalBatches = Math.ceil(productIds.length / batchSize);
+  
+  for (let i = 0; i < productIds.length; i += batchSize) {
+    const batch = productIds.slice(i, i + batchSize);
+    const batchNumber = Math.floor(i / batchSize) + 1;
+    
+    console.log(`  Batch ${batchNumber}/${totalBatches}: Loading variants for ${batch.length} products...`);
+    
+    const { data, error } = await supabase
+      .from('product_variants')
+      .select('*')
+      .in('product_id', batch)
+      .gt('stock', 0);
+    
+    if (error) {
+      console.error(`  ❌ Error loading variants batch ${batchNumber}:`, error);
+      // Continue with other batches even if one fails
+      continue;
+    }
+    
+    if (data && data.length > 0) {
+      console.log(`  ✓ Batch ${batchNumber}: Loaded ${data.length} variants`);
+      allVariants.push(...data);
+    } else {
+      console.log(`  ⚠ Batch ${batchNumber}: No variants found`);
+    }
+  }
+  
+  console.log(`✓ Total variants loaded: ${allVariants.length}`);
+  return allVariants;
+}
+
 export default function HomeScreen() {
   const { logout, user } = useAuth();
   const [interestedProducts, setInterestedProducts] = useState<Set<string>>(new Set());
@@ -171,24 +208,18 @@ export default function HomeScreen() {
         return;
       }
 
-      // STEP 3: Load variants for all products
-      console.log('→ Loading product variants...');
+      // STEP 3: Load variants for all products IN BATCHES to avoid URL length issues
+      console.log('→ Loading product variants in batches...');
       const productIds = products.map(p => p.id);
       
       let variants: any[] = [];
       if (productIds.length > 0) {
-        const { data: variantsData, error: variantsError } = await supabase
-          .from('product_variants')
-          .select('*')
-          .in('product_id', productIds)
-          .gt('stock', 0);
-
-        if (variantsError) {
-          console.error('⚠ Error loading variants:', variantsError);
+        try {
+          variants = await loadVariantsInBatches(productIds, 100);
+        } catch (error) {
+          console.error('⚠ Error loading variants:', error);
           // Don't fail completely if variants fail to load - continue without variants
           variants = [];
-        } else {
-          variants = variantsData || [];
         }
       }
 

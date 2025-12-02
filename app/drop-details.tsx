@@ -57,6 +57,43 @@ interface DropData {
   };
 }
 
+// Helper function to load variants in batches
+async function loadVariantsInBatches(productIds: string[], batchSize: number = 100): Promise<any[]> {
+  console.log(`→ Loading variants for ${productIds.length} products in batches of ${batchSize}...`);
+  
+  const allVariants: any[] = [];
+  const totalBatches = Math.ceil(productIds.length / batchSize);
+  
+  for (let i = 0; i < productIds.length; i += batchSize) {
+    const batch = productIds.slice(i, i + batchSize);
+    const batchNumber = Math.floor(i / batchSize) + 1;
+    
+    console.log(`  Batch ${batchNumber}/${totalBatches}: Loading variants for ${batch.length} products...`);
+    
+    const { data, error } = await supabase
+      .from('product_variants')
+      .select('*')
+      .in('product_id', batch)
+      .gt('stock', 0);
+    
+    if (error) {
+      console.error(`  ❌ Error loading variants batch ${batchNumber}:`, error);
+      // Continue with other batches even if one fails
+      continue;
+    }
+    
+    if (data && data.length > 0) {
+      console.log(`  ✓ Batch ${batchNumber}: Loaded ${data.length} variants`);
+      allVariants.push(...data);
+    } else {
+      console.log(`  ⚠ Batch ${batchNumber}: No variants found`);
+    }
+  }
+  
+  console.log(`✓ Total variants loaded: ${allVariants.length}`);
+  return allVariants;
+}
+
 export default function DropDetailsScreen() {
   const { dropId, scrollToProductId } = useLocalSearchParams<{ dropId: string; scrollToProductId?: string }>();
   const [drop, setDrop] = useState<DropData | null>(null);
@@ -126,23 +163,17 @@ export default function DropDetailsScreen() {
         const availableProducts = (productsData || []).filter(p => p.stock > 0);
         console.log('✅ Products loaded:', availableProducts.length, 'with stock > 0');
         
-        // Load variants for these products
+        // Load variants for these products IN BATCHES to avoid URL length issues
         if (availableProducts.length > 0) {
           const productIds = availableProducts.map(p => p.id);
-          const { data: variantsData, error: variantsError } = await supabase
-            .from('product_variants')
-            .select('*')
-            .in('product_id', productIds)
-            .gt('stock', 0);
-
-          if (variantsError) {
-            console.error('⚠ Error loading variants:', variantsError);
-          } else {
-            console.log('✅ Variants loaded:', variantsData?.length || 0);
+          
+          try {
+            const variantsData = await loadVariantsInBatches(productIds, 100);
+            console.log('✅ Variants loaded:', variantsData.length);
             
             // Map variants to products
             const variantsMap = new Map<string, any[]>();
-            (variantsData || []).forEach(v => {
+            variantsData.forEach(v => {
               if (!variantsMap.has(v.product_id)) {
                 variantsMap.set(v.product_id, []);
               }
@@ -157,6 +188,10 @@ export default function DropDetailsScreen() {
             }));
             
             setProducts(productsWithVariants);
+          } catch (error) {
+            console.error('⚠ Error loading variants:', error);
+            // Continue without variants if loading fails
+            setProducts(availableProducts);
           }
         } else {
           setProducts(availableProducts);
