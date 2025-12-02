@@ -27,6 +27,10 @@ interface ProductData {
   stock: number;
   status: string;
   supplier_list_id: string;
+  sku?: string | null;
+  brand?: string | null;
+  variants?: any[];
+  hasVariants?: boolean;
 }
 
 interface DropData {
@@ -121,7 +125,42 @@ export default function DropDetailsScreen() {
         // Filter to ensure only products with stock > 0
         const availableProducts = (productsData || []).filter(p => p.stock > 0);
         console.log('✅ Products loaded:', availableProducts.length, 'with stock > 0');
-        setProducts(availableProducts);
+        
+        // Load variants for these products
+        if (availableProducts.length > 0) {
+          const productIds = availableProducts.map(p => p.id);
+          const { data: variantsData, error: variantsError } = await supabase
+            .from('product_variants')
+            .select('*')
+            .in('product_id', productIds)
+            .gt('stock', 0);
+
+          if (variantsError) {
+            console.error('⚠ Error loading variants:', variantsError);
+          } else {
+            console.log('✅ Variants loaded:', variantsData?.length || 0);
+            
+            // Map variants to products
+            const variantsMap = new Map<string, any[]>();
+            (variantsData || []).forEach(v => {
+              if (!variantsMap.has(v.product_id)) {
+                variantsMap.set(v.product_id, []);
+              }
+              variantsMap.get(v.product_id)!.push(v);
+            });
+            
+            // Add variants to products
+            const productsWithVariants = availableProducts.map(p => ({
+              ...p,
+              variants: variantsMap.get(p.id) || [],
+              hasVariants: (variantsMap.get(p.id) || []).length > 0,
+            }));
+            
+            setProducts(productsWithVariants);
+          }
+        } else {
+          setProducts(availableProducts);
+        }
       }
     } catch (error) {
       console.error('❌ Error in loadDropDetails:', error);
@@ -568,6 +607,8 @@ export default function DropDetailsScreen() {
       id: item.id,
       name: item.name,
       description: item.description || '',
+      brand: item.brand || undefined,
+      sku: item.sku || undefined,
       imageUrl: item.image_url,
       imageUrls: item.additional_images || [item.image_url],
       originalPrice: Number(item.original_price),
@@ -581,6 +622,15 @@ export default function DropDetailsScreen() {
       category: item.category || '',
       stock: item.stock,
       supplierName: drop?.supplier_lists?.name || 'Fornitore',
+      hasVariants: item.hasVariants || false,
+      variants: (item.variants || []).map(v => ({
+        id: v.id,
+        productId: v.product_id,
+        size: v.size || undefined,
+        color: v.color || undefined,
+        stock: v.stock || 0,
+        status: v.status || 'active',
+      })),
     };
     
     return (

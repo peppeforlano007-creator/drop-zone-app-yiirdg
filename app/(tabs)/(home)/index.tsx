@@ -174,34 +174,49 @@ export default function HomeScreen() {
       // STEP 3: Load variants for all products
       console.log('→ Loading product variants...');
       const productIds = products.map(p => p.id);
-      const { data: variants, error: variantsError } = await supabase
-        .from('product_variants')
-        .select('*')
-        .in('product_id', productIds)
-        .gt('stock', 0);
+      
+      let variants: any[] = [];
+      if (productIds.length > 0) {
+        const { data: variantsData, error: variantsError } = await supabase
+          .from('product_variants')
+          .select('*')
+          .in('product_id', productIds)
+          .gt('stock', 0);
 
-      if (variantsError) {
-        console.error('⚠ Error loading variants:', variantsError);
-        // Don't fail completely if variants fail to load
+        if (variantsError) {
+          console.error('⚠ Error loading variants:', variantsError);
+          // Don't fail completely if variants fail to load - continue without variants
+          variants = [];
+        } else {
+          variants = variantsData || [];
+        }
       }
 
-      console.log(`✓ Loaded ${variants?.length || 0} product variants`);
+      console.log(`✓ Loaded ${variants.length} product variants`);
 
       // Create a map of product_id to variants
       const variantsMap = new Map<string, ProductVariant[]>();
-      variants?.forEach(v => {
-        if (!variantsMap.has(v.product_id)) {
-          variantsMap.set(v.product_id, []);
-        }
-        variantsMap.get(v.product_id)!.push({
-          id: v.id,
-          productId: v.product_id,
-          size: v.size || undefined,
-          color: v.color || undefined,
-          stock: v.stock,
-          status: v.status,
+      if (variants && variants.length > 0) {
+        variants.forEach(v => {
+          if (!v || !v.product_id) {
+            console.warn('⚠ Invalid variant data:', v);
+            return;
+          }
+          
+          if (!variantsMap.has(v.product_id)) {
+            variantsMap.set(v.product_id, []);
+          }
+          
+          variantsMap.get(v.product_id)!.push({
+            id: v.id,
+            productId: v.product_id,
+            size: v.size || undefined,
+            color: v.color || undefined,
+            stock: v.stock || 0,
+            status: v.status || 'active',
+          });
         });
-      });
+      }
 
       // STEP 4: Group products by SKU
       console.log('→ Grouping products by SKU...');
