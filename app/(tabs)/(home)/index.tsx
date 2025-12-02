@@ -71,6 +71,49 @@ async function loadVariantsInBatches(productIds: string[], batchSize: number = 1
   return allVariants;
 }
 
+// FIXED: Load products in batches to avoid Supabase 1000 row limit
+async function loadProductsInBatches(listIds: string[], batchSize: number = 2000): Promise<any[]> {
+  console.log(`→ Loading products for ${listIds.length} lists in batches of ${batchSize}...`);
+  
+  const allProducts: any[] = [];
+  let offset = 0;
+  let hasMore = true;
+  let batchNumber = 0;
+  
+  while (hasMore) {
+    batchNumber++;
+    console.log(`  → Fetching batch ${batchNumber} (offset: ${offset})...`);
+    
+    const { data, error, count } = await supabase
+      .from('products')
+      .select('*', { count: 'exact' })
+      .in('supplier_list_id', listIds)
+      .gt('stock', 0)
+      .eq('status', 'active')
+      .range(offset, offset + batchSize - 1);
+    
+    if (error) {
+      console.error(`  ❌ Batch ${batchNumber} failed:`, error.message);
+      throw error;
+    }
+    
+    const products = data || [];
+    console.log(`  ✓ Batch ${batchNumber}: Loaded ${products.length} products`);
+    
+    allProducts.push(...products);
+    
+    // Check if there are more products to fetch
+    if (products.length < batchSize) {
+      hasMore = false;
+      console.log(`  ✓ All products loaded (total: ${allProducts.length})`);
+    } else {
+      offset += batchSize;
+    }
+  }
+  
+  return allProducts;
+}
+
 export default function HomeScreen() {
   const { logout, user } = useAuth();
   const [interestedProducts, setInterestedProducts] = useState<Set<string>>(new Set());
@@ -126,7 +169,7 @@ export default function HomeScreen() {
 
   const loadProducts = useCallback(async () => {
     try {
-      console.log('=== LOADING PRODUCTS WITH VARIANTS (OPTIMIZED - ALL LISTS FIX) ===');
+      console.log('=== LOADING PRODUCTS WITH VARIANTS (FIXED - ALL LISTS) ===');
       console.log('Timestamp:', new Date().toISOString());
       setError(null);
       setLoading(true);
@@ -170,25 +213,19 @@ export default function HomeScreen() {
       const listIds = supplierLists.map(list => list.id);
       console.log(`→ Will fetch products for ${listIds.length} lists`);
       
-      // STEP 2: FIXED - Fetch ALL products from ALL lists without ordering by created_at
-      // This ensures we get products from all lists, not just the newest ones
-      console.log('→ Fetching ALL products from ALL active lists (no date ordering)...');
+      // STEP 2: FIXED - Fetch ALL products from ALL lists using batching to avoid 1000 row limit
+      console.log('→ Fetching ALL products from ALL active lists (with batching to avoid limits)...');
       
-      const { data: allProducts, error: productsError } = await supabase
-        .from('products')
-        .select('*')
-        .in('supplier_list_id', listIds)
-        .gt('stock', 0)
-        .eq('status', 'active');
-
-      if (productsError) {
+      let products: any[] = [];
+      try {
+        products = await loadProductsInBatches(listIds, 2000);
+      } catch (productsError: any) {
         console.error('❌ Error loading products:', productsError);
         setError(`Errore nel caricamento dei prodotti: ${productsError.message}`);
         setLoading(false);
         return;
       }
 
-      const products = allProducts || [];
       console.log(`✓ Found TOTAL of ${products.length} products with stock > 0`);
 
       // Log products per list
