@@ -126,7 +126,7 @@ export default function HomeScreen() {
 
   const loadProducts = useCallback(async () => {
     try {
-      console.log('=== LOADING PRODUCTS WITH VARIANTS (OPTIMIZED) ===');
+      console.log('=== LOADING PRODUCTS WITH VARIANTS (OPTIMIZED - ALL LISTS FIX) ===');
       console.log('Timestamp:', new Date().toISOString());
       setError(null);
       setLoading(true);
@@ -162,65 +162,47 @@ export default function HomeScreen() {
         return;
       }
 
+      // Log each list found
+      supplierLists.forEach((list, index) => {
+        console.log(`  ${index + 1}. "${list.name}" (ID: ${list.id})`);
+      });
+
       const listIds = supplierLists.map(list => list.id);
       console.log(`→ Will fetch products for ${listIds.length} lists`);
       
-      // STEP 2: OPTIMIZED - Fetch products with larger batch size and parallel loading
-      console.log('→ Fetching products with stock > 0 (optimized)...');
+      // STEP 2: FIXED - Fetch ALL products from ALL lists without ordering by created_at
+      // This ensures we get products from all lists, not just the newest ones
+      console.log('→ Fetching ALL products from ALL active lists (no date ordering)...');
       
-      const batchSize = 2000; // Increased batch size
-      let allProducts: any[] = [];
-      
-      // Fetch first batch immediately to show content faster
-      const { data: firstBatch, error: firstBatchError } = await supabase
+      const { data: allProducts, error: productsError } = await supabase
         .from('products')
         .select('*')
         .in('supplier_list_id', listIds)
         .gt('stock', 0)
-        .order('created_at', { ascending: false })
-        .limit(batchSize);
+        .eq('status', 'active');
 
-      if (firstBatchError) {
-        console.error('❌ Error loading products:', firstBatchError);
-        setError(`Errore nel caricamento dei prodotti: ${firstBatchError.message}`);
+      if (productsError) {
+        console.error('❌ Error loading products:', productsError);
+        setError(`Errore nel caricamento dei prodotti: ${productsError.message}`);
         setLoading(false);
         return;
       }
 
-      if (firstBatch && firstBatch.length > 0) {
-        allProducts = firstBatch;
-        console.log(`✓ Loaded first batch: ${firstBatch.length} products`);
-        
-        // If we got a full batch, there might be more
-        if (firstBatch.length === batchSize) {
-          // Load remaining batches in background
-          let offset = batchSize;
-          let hasMore = true;
-          
-          while (hasMore) {
-            const { data: nextBatch, error: nextBatchError } = await supabase
-              .from('products')
-              .select('*')
-              .in('supplier_list_id', listIds)
-              .gt('stock', 0)
-              .order('created_at', { ascending: false })
-              .range(offset, offset + batchSize - 1);
-
-            if (nextBatchError || !nextBatch || nextBatch.length === 0) {
-              hasMore = false;
-            } else {
-              allProducts = allProducts.concat(nextBatch);
-              offset += batchSize;
-              if (nextBatch.length < batchSize) {
-                hasMore = false;
-              }
-            }
-          }
-        }
-      }
-
-      const products = allProducts;
+      const products = allProducts || [];
       console.log(`✓ Found TOTAL of ${products.length} products with stock > 0`);
+
+      // Log products per list
+      const productsPerList = new Map<string, number>();
+      products.forEach(p => {
+        const count = productsPerList.get(p.supplier_list_id) || 0;
+        productsPerList.set(p.supplier_list_id, count + 1);
+      });
+      
+      console.log('→ Products per list:');
+      supplierLists.forEach(list => {
+        const count = productsPerList.get(list.id) || 0;
+        console.log(`  - "${list.name}": ${count} products`);
+      });
 
       if (!products || products.length === 0) {
         console.log('⚠ No products with stock found for active lists');
@@ -448,9 +430,14 @@ export default function HomeScreen() {
         console.log(`  ${index + 1}. "${list.listName}" by ${list.supplierName} - ${list.products.length} products (${variantCount} with variants)`);
       });
       
+      if (lists.length !== supplierLists.length) {
+        console.warn(`⚠️ WARNING: Expected ${supplierLists.length} lists but got ${lists.length} lists with products!`);
+        console.warn('   Some lists may not have products with stock > 0');
+      }
+      
       setProductLists(lists);
       setLoading(false);
-      console.log('=== LOADING COMPLETE (OPTIMIZED) ===');
+      console.log('=== LOADING COMPLETE (ALL LISTS FIXED) ===');
     } catch (error) {
       console.error('❌ Exception loading products:', error);
       setError(`Errore imprevisto: ${error instanceof Error ? error.message : 'Errore sconosciuto'}`);
@@ -1204,7 +1191,7 @@ export default function HomeScreen() {
                 {unreadNotifications > 99 ? '99+' : unreadNotifications}
               </Text>
             </View>
-          )}
+            )}
         </Pressable>
 
         <Pressable onPress={handleOpenWelcomeModal} style={styles.helpButton}>
