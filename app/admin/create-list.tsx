@@ -194,8 +194,11 @@ export default function CreateListScreen() {
 
         const condition = row.condizione || 'nuovo';
 
-        if (row.sku) {
-          skuGroups[row.sku] = (skuGroups[row.sku] || 0) + 1;
+        // Read SKU from Excel - this is the key fix!
+        const sku = row.sku || row.SKU || row.codice || row.codice_articolo || null;
+
+        if (sku) {
+          skuGroups[sku] = (skuGroups[sku] || 0) + 1;
         }
 
         if (!row.descrizione) {
@@ -204,12 +207,12 @@ export default function CreateListScreen() {
         if (!row.categoria) {
           warnings.push(`Riga ${rowNum}: Categoria mancante`);
         }
-        if (!row.sku) {
+        if (!sku) {
           warnings.push(`Riga ${rowNum}: SKU mancante - consigliato per raggruppare varianti`);
         }
 
         products.push({
-          sku: row.sku || null,
+          sku: sku,
           nome: row.nome,
           descrizione: row.descrizione || '',
           immagine_url: row.immagine_url,
@@ -417,13 +420,13 @@ export default function CreateListScreen() {
             ? additionalImagesStr.split(',').map(url => url.trim()).filter(url => url)
             : [];
           
-          // Insert main product
+          // Insert main product with SKU
           const { data: productData, error: productError } = await supabase
             .from('products')
             .insert({
               supplier_list_id: data.id,
               supplier_id: selectedSupplierId,
-              sku: sku,
+              sku: sku, // ✅ SKU is now properly saved
               name: group.nome || '',
               description: group.descrizione || null,
               image_url: group.immagine_url || '',
@@ -463,7 +466,7 @@ export default function CreateListScreen() {
             throw variantsError;
           }
           
-          console.log(`Inserted ${variantsToInsert.length} variants for product ${productData.id}`);
+          console.log(`✅ Inserted product with SKU ${sku} and ${variantsToInsert.length} variants`);
         }
         
         // Insert standalone products (without SKU)
@@ -482,7 +485,7 @@ export default function CreateListScreen() {
             return {
               supplier_list_id: data.id,
               supplier_id: selectedSupplierId,
-              sku: null,
+              sku: product.sku || null, // ✅ SKU is now properly saved even for standalone products
               name: product.nome || '',
               description: product.descrizione || null,
               image_url: product.immagine_url || '',
@@ -506,6 +509,8 @@ export default function CreateListScreen() {
             console.error('Error inserting standalone products:', standaloneError);
             throw standaloneError;
           }
+          
+          console.log(`✅ Inserted ${productsWithoutSku.length} standalone products`);
         }
 
         console.log('All products and variants imported successfully');
