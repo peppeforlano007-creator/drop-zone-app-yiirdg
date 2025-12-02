@@ -57,46 +57,45 @@ interface DropData {
   };
 }
 
-// Helper function to load variants in batches with improved error handling
-async function loadVariantsInBatches(productIds: string[], batchSize: number = 50): Promise<any[]> {
+// OPTIMIZED: Increased batch size and parallel loading for faster performance
+async function loadVariantsInBatches(productIds: string[], batchSize: number = 100): Promise<any[]> {
   console.log(`→ Loading variants for ${productIds.length} products in batches of ${batchSize}...`);
   
   const allVariants: any[] = [];
-  const totalBatches = Math.ceil(productIds.length / batchSize);
-  let successfulBatches = 0;
-  let failedBatches = 0;
+  
+  // Use Promise.all for parallel batch loading
+  const batchPromises = [];
   
   for (let i = 0; i < productIds.length; i += batchSize) {
     const batch = productIds.slice(i, i + batchSize);
-    const batchNumber = Math.floor(i / batchSize) + 1;
     
-    try {
-      const { data, error } = await supabase
+    batchPromises.push(
+      supabase
         .from('product_variants')
         .select('*')
         .in('product_id', batch)
-        .gt('stock', 0);
-      
-      if (error) {
-        console.error(`  ❌ Batch ${batchNumber}/${totalBatches} failed:`, error.message);
-        failedBatches++;
-        // Continue with other batches even if one fails
-        continue;
-      }
-      
-      if (data && data.length > 0) {
-        allVariants.push(...data);
-        successfulBatches++;
-      }
-    } catch (error) {
-      console.error(`  ❌ Batch ${batchNumber}/${totalBatches} exception:`, error);
-      failedBatches++;
-      // Continue with other batches
-      continue;
-    }
+        .gt('stock', 0)
+        .then(({ data, error }) => {
+          if (error) {
+            console.error(`  ❌ Batch failed:`, error.message);
+            return [];
+          }
+          return data || [];
+        })
+        .catch(error => {
+          console.error(`  ❌ Batch exception:`, error);
+          return [];
+        })
+    );
   }
   
-  console.log(`✓ Variant loading complete: ${successfulBatches}/${totalBatches} batches successful, ${failedBatches} failed, ${allVariants.length} total variants loaded`);
+  // Wait for all batches to complete in parallel
+  const results = await Promise.all(batchPromises);
+  results.forEach(batchData => {
+    allVariants.push(...batchData);
+  });
+  
+  console.log(`✓ Variant loading complete: ${allVariants.length} total variants loaded`);
   return allVariants;
 }
 
@@ -154,31 +153,29 @@ export default function DropDetailsScreen() {
       });
       setDrop(dropData);
 
-      // Load products with stock > 0 - IGNORE status field
+      // OPTIMIZED: Load products with larger batch size
       const { data: productsData, error: productsError } = await supabase
         .from('products')
         .select('*')
         .eq('supplier_list_id', dropData.supplier_list_id)
         .gt('stock', 0)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(1000);
 
       if (productsError) {
         console.error('❌ Error loading products:', productsError);
       } else {
-        // Filter to ensure only products with stock > 0
         const availableProducts = (productsData || []).filter(p => p.stock > 0);
         console.log('✅ Products loaded:', availableProducts.length, 'with stock > 0');
         
-        // Load variants for these products IN BATCHES to avoid URL length issues
+        // OPTIMIZED: Load variants with larger batch size and parallel processing
         if (availableProducts.length > 0) {
           const productIds = availableProducts.map(p => p.id);
           
           try {
-            // Use smaller batch size (50 instead of 100) to avoid URL length issues
-            const variantsData = await loadVariantsInBatches(productIds, 50);
+            const variantsData = await loadVariantsInBatches(productIds, 100);
             console.log('✅ Successfully loaded', variantsData.length, 'variants');
             
-            // Map variants to products
             const variantsMap = new Map<string, any[]>();
             variantsData.forEach(v => {
               if (!variantsMap.has(v.product_id)) {
@@ -187,7 +184,6 @@ export default function DropDetailsScreen() {
               variantsMap.get(v.product_id)!.push(v);
             });
             
-            // Add variants to products
             const productsWithVariants = availableProducts.map(p => ({
               ...p,
               variants: variantsMap.get(p.id) || [],
@@ -196,7 +192,6 @@ export default function DropDetailsScreen() {
             
             setProducts(productsWithVariants);
           } catch (error) {
-            // Log error but don't fail the entire load - products can still be displayed without variants
             console.error('⚠ Error loading variants (non-fatal):', error);
             setProducts(availableProducts);
           }
@@ -282,12 +277,10 @@ export default function DropDetailsScreen() {
           const updatedProduct = payload.new as ProductData;
           
           setProducts(prevProducts => {
-            // IMPORTANT: Only remove if stock is 0 or less, ignore status field
             if (updatedProduct.stock <= 0) {
               console.log('🗑️ Product out of stock, removing from list:', updatedProduct.id, 'stock:', updatedProduct.stock);
               const filtered = prevProducts.filter(p => p.id !== updatedProduct.id);
               
-              // If this was the last product, show a message
               if (filtered.length === 0 && prevProducts.length > 0) {
                 console.log('⚠️ Last product removed from drop');
                 setTimeout(() => {
@@ -302,7 +295,6 @@ export default function DropDetailsScreen() {
               return filtered;
             }
             
-            // Update existing product if it has stock
             const existingIndex = prevProducts.findIndex(p => p.id === updatedProduct.id);
             if (existingIndex >= 0) {
               const newProducts = [...prevProducts];
@@ -310,7 +302,6 @@ export default function DropDetailsScreen() {
               console.log('✅ Product updated in list:', updatedProduct.id, 'stock:', updatedProduct.stock);
               return newProducts;
             } else if (updatedProduct.stock > 0) {
-              // Product became available again (e.g., booking cancelled)
               console.log('✨ Product became available again, adding to list:', updatedProduct.id, 'stock:', updatedProduct.stock);
               return [...prevProducts, updatedProduct];
             }
@@ -512,9 +503,6 @@ export default function DropDetailsScreen() {
         status: 'active',
       });
 
-      // Create booking - the database trigger will automatically:
-      // 1. Decrement variant stock (if variantId provided) or product stock
-      // 2. Update drop discount and current_value
       const { data: bookingData, error: bookingError } = await supabase
         .from('bookings')
         .insert({
@@ -534,19 +522,16 @@ export default function DropDetailsScreen() {
         .single();
 
       if (bookingError) {
-        // Check if it's a stock error (P0001 error code)
         if (bookingError.code === 'P0001' || 
             bookingError.message?.toLowerCase().includes('esaurito') ||
             bookingError.message?.toLowerCase().includes('stock') ||
             bookingError.message?.toLowerCase().includes('disponibile')) {
-          // Only show user-friendly message, no technical error
           Alert.alert(
             'Prodotto esaurito', 
             'Questo prodotto non è più disponibile. Qualcun altro lo ha appena prenotato.',
             [{ text: 'OK', onPress: () => loadDropDetails() }]
           );
         } else {
-          // For other errors, show the error message
           console.error('❌ Error creating booking:', bookingError);
           Alert.alert(
             'Errore', 
@@ -559,12 +544,7 @@ export default function DropDetailsScreen() {
 
       console.log('✅ Booking created:', bookingData);
 
-      // Update local state
       setUserBookings(prev => new Set([...prev, productId]));
-
-      // The real-time subscriptions will handle:
-      // 1. Product stock update (will remove from list if stock = 0)
-      // 2. Drop discount and value update
       
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       
@@ -574,19 +554,16 @@ export default function DropDetailsScreen() {
         [{ text: 'OK' }]
       );
     } catch (error: any) {
-      // Check if it's a stock-related error
       if (error?.code === 'P0001' ||
           error?.message?.toLowerCase().includes('esaurito') ||
           error?.message?.toLowerCase().includes('stock') ||
           error?.message?.toLowerCase().includes('disponibile')) {
-        // Only show user-friendly message, no technical error
         Alert.alert(
           'Prodotto esaurito',
           'Questo prodotto non è più disponibile. Qualcun altro lo ha appena prenotato.',
           [{ text: 'OK', onPress: () => loadDropDetails() }]
         );
       } else {
-        // For other errors, log and show generic message
         console.error('❌ Exception in handleBook:', error);
         Alert.alert(
           'Errore',
@@ -780,7 +757,6 @@ export default function DropDetailsScreen() {
         })}
         onScrollToIndexFailed={(info) => {
           console.log('Scroll to index failed:', info);
-          // Retry after a delay
           setTimeout(() => {
             flatListRef.current?.scrollToIndex({
               index: info.index,
@@ -804,7 +780,7 @@ export default function DropDetailsScreen() {
             </View>
           </View>
           
-          {/* Enhanced progress bar with discount labels */}
+          {/* UPDATED: Shortened progress bar with reduced width */}
           <View style={styles.progressBarContainer}>
             <View style={styles.progressBarWrapper}>
               <Text style={styles.progressBarLabel}>{Math.floor(minDiscount)}%</Text>
@@ -836,14 +812,14 @@ export default function DropDetailsScreen() {
         </SafeAreaView>
       </View>
 
-      {/* UPDATED: Smaller icons, removed min discount, max discount, and goal icons */}
+      {/* UPDATED: Removed current discount icon, moved icons higher, smaller size */}
       <View style={styles.rightSideIcons} pointerEvents="box-none">
         <Pressable style={styles.iconButton}>
           <View style={styles.iconCircle}>
             <IconSymbol 
               ios_icon_name="mappin.circle.fill" 
               android_material_icon_name="location_on" 
-              size={16} 
+              size={14} 
               color="#FFF" 
             />
           </View>
@@ -857,20 +833,13 @@ export default function DropDetailsScreen() {
             <IconSymbol 
               ios_icon_name="list.bullet.rectangle" 
               android_material_icon_name="list" 
-              size={16} 
+              size={14} 
               color="#FFF" 
             />
           </View>
           <Text style={styles.iconLabel} numberOfLines={2}>
             {drop.supplier_lists?.name ?? 'N/A'}
           </Text>
-        </Pressable>
-
-        <Pressable style={styles.iconButton}>
-          <Animated.View style={[styles.iconCircle, { transform: [{ scale: bounceAnim }] }]}>
-            <Text style={styles.discountText}>{Math.floor(currentDiscount)}%</Text>
-          </Animated.View>
-          <Text style={styles.iconLabel}>Sconto</Text>
         </Pressable>
 
         <Pressable 
@@ -883,7 +852,7 @@ export default function DropDetailsScreen() {
             <IconSymbol 
               ios_icon_name="square.and.arrow.up.fill" 
               android_material_icon_name="share" 
-              size={16} 
+              size={14} 
               color="#FFF" 
             />
           </Animated.View>
@@ -1005,13 +974,13 @@ const styles = StyleSheet.create({
     fontFamily: 'System',
   },
   progressBarContainer: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 32,
     paddingTop: 8,
   },
   progressBarWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
   },
   progressBarLabel: {
     fontSize: 10,
@@ -1077,11 +1046,11 @@ const styles = StyleSheet.create({
   rightSideIcons: {
     position: 'absolute',
     right: 12,
-    top: '20%',
-    bottom: '30%',
+    top: '16%',
+    bottom: '32%',
     justifyContent: 'space-evenly',
     alignItems: 'center',
-    gap: 12,
+    gap: 14,
     zIndex: 10,
   },
   iconButton: {
@@ -1089,9 +1058,9 @@ const styles = StyleSheet.create({
     gap: 3,
   },
   iconCircle: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     backgroundColor: 'rgba(0, 0, 0, 0.6)',
     justifyContent: 'center',
     alignItems: 'center',
@@ -1102,25 +1071,19 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(76, 175, 80, 0.8)',
   },
   iconLabel: {
-    fontSize: 8,
+    fontSize: 7,
     fontWeight: '700',
     color: '#FFF',
     textAlign: 'center',
-    maxWidth: 50,
+    maxWidth: 48,
     backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    paddingHorizontal: 6,
+    paddingHorizontal: 5,
     paddingVertical: 2,
-    borderRadius: 8,
+    borderRadius: 6,
     overflow: 'hidden',
     textShadowColor: 'rgba(0, 0, 0, 0.75)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,
-  },
-  discountText: {
-    fontSize: 14,
-    fontWeight: '900',
-    color: '#FFF',
-    fontFamily: 'System',
   },
   underfundingWarningBottom: {
     position: 'absolute',

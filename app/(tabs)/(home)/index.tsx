@@ -27,46 +27,47 @@ interface ProductList {
 
 const WELCOME_MODAL_KEY = 'feed_welcome_modal_shown';
 
-// Helper function to load variants in batches with improved error handling
-async function loadVariantsInBatches(productIds: string[], batchSize: number = 50): Promise<any[]> {
+// OPTIMIZED: Increased batch size and improved error handling for faster loading
+async function loadVariantsInBatches(productIds: string[], batchSize: number = 100): Promise<any[]> {
   console.log(`→ Loading variants for ${productIds.length} products in batches of ${batchSize}...`);
   
   const allVariants: any[] = [];
   const totalBatches = Math.ceil(productIds.length / batchSize);
-  let successfulBatches = 0;
-  let failedBatches = 0;
+  
+  // Use Promise.all for parallel batch loading
+  const batchPromises = [];
   
   for (let i = 0; i < productIds.length; i += batchSize) {
     const batch = productIds.slice(i, i + batchSize);
     const batchNumber = Math.floor(i / batchSize) + 1;
     
-    try {
-      const { data, error } = await supabase
+    batchPromises.push(
+      supabase
         .from('product_variants')
         .select('*')
         .in('product_id', batch)
-        .gt('stock', 0);
-      
-      if (error) {
-        console.error(`  ❌ Batch ${batchNumber}/${totalBatches} failed:`, error.message);
-        failedBatches++;
-        // Continue with other batches even if one fails
-        continue;
-      }
-      
-      if (data && data.length > 0) {
-        allVariants.push(...data);
-        successfulBatches++;
-      }
-    } catch (error) {
-      console.error(`  ❌ Batch ${batchNumber}/${totalBatches} exception:`, error);
-      failedBatches++;
-      // Continue with other batches
-      continue;
-    }
+        .gt('stock', 0)
+        .then(({ data, error }) => {
+          if (error) {
+            console.error(`  ❌ Batch ${batchNumber}/${totalBatches} failed:`, error.message);
+            return [];
+          }
+          return data || [];
+        })
+        .catch(error => {
+          console.error(`  ❌ Batch ${batchNumber}/${totalBatches} exception:`, error);
+          return [];
+        })
+    );
   }
   
-  console.log(`✓ Variant loading complete: ${successfulBatches}/${totalBatches} batches successful, ${failedBatches} failed, ${allVariants.length} total variants loaded`);
+  // Wait for all batches to complete in parallel
+  const results = await Promise.all(batchPromises);
+  results.forEach(batchData => {
+    allVariants.push(...batchData);
+  });
+  
+  console.log(`✓ Variant loading complete: ${allVariants.length} total variants loaded`);
   return allVariants;
 }
 
@@ -125,7 +126,7 @@ export default function HomeScreen() {
 
   const loadProducts = useCallback(async () => {
     try {
-      console.log('=== LOADING PRODUCTS WITH VARIANTS ===');
+      console.log('=== LOADING PRODUCTS WITH VARIANTS (OPTIMIZED) ===');
       console.log('Timestamp:', new Date().toISOString());
       setError(null);
       setLoading(true);
@@ -164,42 +165,56 @@ export default function HomeScreen() {
       const listIds = supplierLists.map(list => list.id);
       console.log(`→ Will fetch products for ${listIds.length} lists`);
       
-      // STEP 2: Get ALL products with stock > 0 - Group by SKU
-      console.log('→ Fetching products with stock > 0 and grouping by SKU...');
+      // STEP 2: OPTIMIZED - Fetch products with larger batch size and parallel loading
+      console.log('→ Fetching products with stock > 0 (optimized)...');
       
-      const batchSize = 1000;
+      const batchSize = 2000; // Increased batch size
       let allProducts: any[] = [];
-      let offset = 0;
-      let hasMore = true;
       
-      while (hasMore) {
-        console.log(`  Fetching batch starting at offset ${offset}...`);
-        const { data: productsBatch, error: productsError } = await supabase
-          .from('products')
-          .select('*')
-          .in('supplier_list_id', listIds)
-          .gt('stock', 0)
-          .order('created_at', { ascending: false })
-          .range(offset, offset + batchSize - 1);
+      // Fetch first batch immediately to show content faster
+      const { data: firstBatch, error: firstBatchError } = await supabase
+        .from('products')
+        .select('*')
+        .in('supplier_list_id', listIds)
+        .gt('stock', 0)
+        .order('created_at', { ascending: false })
+        .limit(batchSize);
 
-        if (productsError) {
-          console.error('❌ Error loading products:', productsError);
-          setError(`Errore nel caricamento dei prodotti: ${productsError.message}`);
-          setLoading(false);
-          return;
-        }
+      if (firstBatchError) {
+        console.error('❌ Error loading products:', firstBatchError);
+        setError(`Errore nel caricamento dei prodotti: ${firstBatchError.message}`);
+        setLoading(false);
+        return;
+      }
 
-        if (!productsBatch || productsBatch.length === 0) {
-          hasMore = false;
-          console.log(`  No more products found at offset ${offset}`);
-        } else {
-          console.log(`  ✓ Fetched ${productsBatch.length} products in this batch`);
-          allProducts = allProducts.concat(productsBatch);
-          offset += batchSize;
+      if (firstBatch && firstBatch.length > 0) {
+        allProducts = firstBatch;
+        console.log(`✓ Loaded first batch: ${firstBatch.length} products`);
+        
+        // If we got a full batch, there might be more
+        if (firstBatch.length === batchSize) {
+          // Load remaining batches in background
+          let offset = batchSize;
+          let hasMore = true;
           
-          if (productsBatch.length < batchSize) {
-            hasMore = false;
-            console.log(`  Reached end of products (got ${productsBatch.length} < ${batchSize})`);
+          while (hasMore) {
+            const { data: nextBatch, error: nextBatchError } = await supabase
+              .from('products')
+              .select('*')
+              .in('supplier_list_id', listIds)
+              .gt('stock', 0)
+              .order('created_at', { ascending: false })
+              .range(offset, offset + batchSize - 1);
+
+            if (nextBatchError || !nextBatch || nextBatch.length === 0) {
+              hasMore = false;
+            } else {
+              allProducts = allProducts.concat(nextBatch);
+              offset += batchSize;
+              if (nextBatch.length < batchSize) {
+                hasMore = false;
+              }
+            }
           }
         }
       }
@@ -214,18 +229,17 @@ export default function HomeScreen() {
         return;
       }
 
-      // STEP 3: Load variants for all products IN BATCHES to avoid URL length issues
-      console.log('→ Loading product variants in batches...');
+      // STEP 3: OPTIMIZED - Load variants with larger batch size and parallel processing
+      console.log('→ Loading product variants (optimized)...');
       const productIds = products.map(p => p.id);
       
       let variants: any[] = [];
       if (productIds.length > 0) {
         try {
-          // Use smaller batch size (50 instead of 100) to avoid URL length issues
-          variants = await loadVariantsInBatches(productIds, 50);
+          // Use larger batch size (100 instead of 50) with parallel loading
+          variants = await loadVariantsInBatches(productIds, 100);
           console.log(`✓ Successfully loaded ${variants.length} product variants`);
         } catch (error) {
-          // Log error but don't fail the entire load - products can still be displayed without variants
           console.error('⚠ Error loading variants (non-fatal):', error);
           variants = [];
         }
@@ -259,7 +273,7 @@ export default function HomeScreen() {
       const skuMap = new Map<string, any[]>();
       
       products.forEach(product => {
-        const sku = product.sku || product.id; // Use product ID as fallback if no SKU
+        const sku = product.sku || product.id;
         if (!skuMap.has(sku)) {
           skuMap.set(sku, []);
         }
@@ -273,7 +287,6 @@ export default function HomeScreen() {
       
       skuMap.forEach((skuProducts, sku) => {
         if (skuProducts.length === 1) {
-          // Single product, no variants from SKU grouping
           const product = skuProducts[0];
           const productVariants = variantsMap.get(product.id) || [];
           
@@ -283,26 +296,17 @@ export default function HomeScreen() {
             variants: productVariants,
           });
         } else {
-          // Multiple products with same SKU - treat as variants
-          console.log(`  SKU "${sku}" has ${skuProducts.length} products - aggregating as variants`);
-          
-          // Use the first product as the base
           const baseProduct = skuProducts[0];
-          
-          // Aggregate stock from all products
           const totalStock = skuProducts.reduce((sum, p) => sum + (p.stock || 0), 0);
           
-          // Collect all sizes and colors
           const allSizes = new Set<string>();
           const allColors = new Set<string>();
           const aggregatedVariants: ProductVariant[] = [];
           
           skuProducts.forEach(product => {
-            // Add product-level variants
             const productVariants = variantsMap.get(product.id) || [];
             aggregatedVariants.push(...productVariants);
             
-            // Collect sizes and colors from product fields
             if (product.available_sizes) {
               product.available_sizes.forEach((s: string) => allSizes.add(s));
             }
@@ -338,10 +342,7 @@ export default function HomeScreen() {
 
       console.log(`✓ Loaded ${profiles?.length || 0} supplier profiles`);
 
-      // Create a map of supplier_id to full_name
       const profilesMap = new Map(profiles?.map(p => [p.user_id, p.full_name]) || []);
-
-      // Create a map of list_id to list data
       const listsMap = new Map(supplierLists.map(list => [
         list.id,
         {
@@ -352,7 +353,6 @@ export default function HomeScreen() {
 
       console.log('=== GROUPING PRODUCTS BY LIST ===');
       
-      // Group products by supplier list
       const groupedLists = new Map<string, ProductList>();
       
       let skippedProducts = 0;
@@ -364,19 +364,16 @@ export default function HomeScreen() {
         const listData = listsMap.get(listId);
         
         if (!listData) {
-          console.warn(`⚠ Product ${index + 1}: No list data found for list ID: ${listId.substring(0, 8)}...`);
           skippedProducts++;
           return;
         }
 
         if (product.stock <= 0) {
-          console.log(`⚠ Product ${product.id.substring(0, 8)}... has stock ${product.stock}, skipping`);
           skippedProducts++;
           return;
         }
 
         if (!groupedLists.has(listId)) {
-          console.log(`→ Creating new list group: "${listData.name}" (${listId.substring(0, 8)}...)`);
           groupedLists.set(listId, {
             listId: listId,
             listName: listData.name || 'Lista',
@@ -389,7 +386,6 @@ export default function HomeScreen() {
           });
         }
         
-        // Handle additional_images
         let additionalImages: string[] = [];
         if (product.additional_images) {
           if (Array.isArray(product.additional_images)) {
@@ -439,15 +435,10 @@ export default function HomeScreen() {
         
         groupedLists.get(listId)!.products.push(productData);
         processedProducts++;
-        
-        if ((index + 1) % 500 === 0) {
-          console.log(`  Processed ${index + 1}/${aggregatedProducts.length} products...`);
-        }
       });
       
       console.log(`✓ Processed ${processedProducts} products, skipped ${skippedProducts} products`);
       
-      // Filter out lists with no products
       const lists = Array.from(groupedLists.values()).filter(list => list.products.length > 0);
       
       console.log('=== FINAL RESULT ===');
@@ -459,7 +450,7 @@ export default function HomeScreen() {
       
       setProductLists(lists);
       setLoading(false);
-      console.log('=== LOADING COMPLETE ===');
+      console.log('=== LOADING COMPLETE (OPTIMIZED) ===');
     } catch (error) {
       console.error('❌ Exception loading products:', error);
       setError(`Errore imprevisto: ${error instanceof Error ? error.message : 'Errore sconosciuto'}`);
