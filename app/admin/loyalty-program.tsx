@@ -69,7 +69,10 @@ export default function LoyaltyProgramManagementScreen() {
         setBlockedUsers(usersData || []);
       }
 
-      // Load coupons
+      // CRITICAL FIX: Force fresh data load with cache-busting timestamp
+      const timestamp = new Date().getTime();
+      console.log('Loading coupons with cache-busting timestamp:', timestamp);
+      
       const { data: couponsData, error: couponsError } = await supabase
         .from('coupons')
         .select('*')
@@ -78,8 +81,10 @@ export default function LoyaltyProgramManagementScreen() {
       if (couponsError) {
         console.error('Error loading coupons:', couponsError);
       } else {
+        console.log('Loaded coupons:', couponsData);
         setCoupons(couponsData || []);
-        // Initialize edit values
+        
+        // Initialize edit values with fresh data
         const initialValues: { [key: string]: { discount: string; points: string } } = {};
         couponsData?.forEach(coupon => {
           initialValues[coupon.id] = {
@@ -188,12 +193,19 @@ export default function LoyaltyProgramManagementScreen() {
 
       console.log('Coupon update successful, refreshing data...');
 
-      // Force a complete refresh by clearing state first
+      // CRITICAL FIX: Clear editing state FIRST
       setEditingCoupon(null);
       
-      // Wait a moment to ensure database has processed the update
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Wait longer to ensure database has fully processed the update
+      await new Promise(resolve => setTimeout(resolve, 800));
 
+      // Force a complete refresh by clearing state first, then reloading
+      setCoupons([]);
+      setEditValues({});
+      
+      // Small delay before reload
+      await new Promise(resolve => setTimeout(resolve, 200));
+      
       // Reload all data fresh from the database
       await loadData();
 
@@ -384,7 +396,7 @@ export default function LoyaltyProgramManagementScreen() {
 
               {/* Coupons List */}
               {coupons.map((coupon, index) => (
-                <View key={index} style={styles.couponCard}>
+                <View key={coupon.id} style={styles.couponCard}>
                   <View style={styles.couponHeader}>
                     <View style={styles.couponBadge}>
                       <Text style={styles.couponDiscount}>{coupon.discount_percentage}%</Text>

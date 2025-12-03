@@ -220,24 +220,25 @@ export default function ProductCard({
       return;
     }
 
-    // STRICT VARIANT SELECTION ENFORCEMENT - First validation before showing alert
+    // CRITICAL FIX: Validate BEFORE showing the confirmation alert
     if (isInDrop) {
       const validation = validateVariantSelection();
       if (!validation.isValid) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
         Alert.alert('Selezione richiesta', validation.message || 'Seleziona le opzioni richieste.');
-        return;
+        return; // STOP HERE - Don't show confirmation alert
       }
     }
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     
     if (isInDrop && onBook) {
-      // Show confirmation alert
+      // Build variant info for display
       const variantInfo = selectedVariant 
         ? `\n\n📦 Variante: ${selectedVariant.size || ''} ${selectedVariant.color || ''}`.trim()
         : '';
 
+      // Show confirmation alert ONLY after validation passes
       Alert.alert(
         'Conferma Prenotazione',
         `Vuoi prenotare ${product.name}?${variantInfo}\n\nPrezzo attuale: €${discountedPrice.toFixed(2)} (-${Math.floor(discount)}%)\n\nPagamento alla consegna.`,
@@ -246,14 +247,6 @@ export default function ProductCard({
           {
             text: 'Prenota',
             onPress: async () => {
-              // CRITICAL: Re-validate variant selection before processing booking
-              const revalidation = validateVariantSelection();
-              if (!revalidation.isValid) {
-                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-                Alert.alert('Errore', revalidation.message || 'Selezione non valida.');
-                return;
-              }
-
               // Double-check stock before processing
               if (displayStock <= 0) {
                 Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
