@@ -166,6 +166,49 @@ export default function ProductCard({
     }).start();
   };
 
+  // Validation function to check if variant selection is complete
+  const validateVariantSelection = (): { isValid: boolean; message?: string } => {
+    // Check if there are sizes or colors to select
+    const hasSizesToSelect = availableSizes.length > 0;
+    const hasColorsToSelect = availableColors.length > 0;
+    
+    // If product has no variants, it's always valid
+    if (!hasSizesToSelect && !hasColorsToSelect) {
+      console.log('Product has no variants - validation passed');
+      return { isValid: true };
+    }
+    
+    // Check size selection
+    if (hasSizesToSelect && !selectedSize) {
+      console.log('Size selection required but not selected');
+      return { 
+        isValid: false, 
+        message: 'Devi selezionare una taglia prima di prenotare questo articolo.' 
+      };
+    }
+    
+    // Check color selection
+    if (hasColorsToSelect && !selectedColor) {
+      console.log('Color selection required but not selected');
+      return { 
+        isValid: false, 
+        message: 'Devi selezionare un colore prima di prenotare questo articolo.' 
+      };
+    }
+    
+    // If product has variants, ensure a valid variant is selected
+    if (hasVariants && !selectedVariant) {
+      console.log('Variant required but not selected or not available');
+      return { 
+        isValid: false, 
+        message: 'La combinazione selezionata non è disponibile. Seleziona un\'altra taglia o colore.' 
+      };
+    }
+    
+    console.log('Variant selection validation passed:', { selectedSize, selectedColor, selectedVariant: selectedVariant?.id });
+    return { isValid: true };
+  };
+
   const handlePress = async () => {
     // Don't allow booking if out of stock
     if (isInDrop && isOutOfStock) {
@@ -177,43 +220,13 @@ export default function ProductCard({
       return;
     }
 
-    // STRICT VARIANT SELECTION ENFORCEMENT
+    // STRICT VARIANT SELECTION ENFORCEMENT - First validation before showing alert
     if (isInDrop) {
-      // Check if there are sizes or colors to select
-      const hasSizesToSelect = availableSizes.length > 0;
-      const hasColorsToSelect = availableColors.length > 0;
-      
-      // If product has variants (sizes or colors), enforce selection
-      if (hasSizesToSelect || hasColorsToSelect) {
-        // Check size selection
-        if (hasSizesToSelect && !selectedSize) {
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-          Alert.alert(
-            'Selezione richiesta',
-            'Devi selezionare una taglia prima di prenotare questo articolo.'
-          );
-          return;
-        }
-        
-        // Check color selection
-        if (hasColorsToSelect && !selectedColor) {
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-          Alert.alert(
-            'Selezione richiesta',
-            'Devi selezionare un colore prima di prenotare questo articolo.'
-          );
-          return;
-        }
-        
-        // If product has variants, ensure a valid variant is selected
-        if (hasVariants && !selectedVariant) {
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-          Alert.alert(
-            'Variante non disponibile',
-            'La combinazione selezionata non è disponibile. Seleziona un\'altra taglia o colore.'
-          );
-          return;
-        }
+      const validation = validateVariantSelection();
+      if (!validation.isValid) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+        Alert.alert('Selezione richiesta', validation.message || 'Seleziona le opzioni richieste.');
+        return;
       }
     }
 
@@ -233,6 +246,14 @@ export default function ProductCard({
           {
             text: 'Prenota',
             onPress: async () => {
+              // CRITICAL: Re-validate variant selection before processing booking
+              const revalidation = validateVariantSelection();
+              if (!revalidation.isValid) {
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+                Alert.alert('Errore', revalidation.message || 'Selezione non valida.');
+                return;
+              }
+
               // Double-check stock before processing
               if (displayStock <= 0) {
                 Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -245,6 +266,7 @@ export default function ProductCard({
 
               setIsProcessing(true);
               try {
+                console.log('Processing booking with variant:', selectedVariant?.id);
                 Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
                 onBook(product.id, selectedVariant?.id);
               } catch (error) {
