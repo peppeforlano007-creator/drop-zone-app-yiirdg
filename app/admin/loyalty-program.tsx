@@ -51,6 +51,8 @@ export default function LoyaltyProgramManagementScreen() {
   const [editingCoupon, setEditingCoupon] = useState<string | null>(null);
   const [editValues, setEditValues] = useState<{ [key: string]: { discount: string; points: string } }>({});
   const [savingCoupon, setSavingCoupon] = useState<string | null>(null);
+  // CRITICAL FIX: Add a refresh key to force re-render
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const loadData = useCallback(async () => {
     try {
@@ -71,7 +73,9 @@ export default function LoyaltyProgramManagementScreen() {
 
       // CRITICAL FIX: Force fresh data load with cache-busting timestamp
       const timestamp = new Date().getTime();
-      console.log('Loading coupons with cache-busting timestamp:', timestamp);
+      console.log('=== LOADING COUPONS ===');
+      console.log('Timestamp:', timestamp);
+      console.log('Refresh key:', refreshKey);
       
       const { data: couponsData, error: couponsError } = await supabase
         .from('coupons')
@@ -81,17 +85,30 @@ export default function LoyaltyProgramManagementScreen() {
       if (couponsError) {
         console.error('Error loading coupons:', couponsError);
       } else {
-        console.log('Loaded coupons:', couponsData);
-        setCoupons(couponsData || []);
+        console.log('Loaded coupons from database:', couponsData);
+        
+        // CRITICAL FIX: Create completely new objects to force React to detect changes
+        const freshCoupons = couponsData?.map(coupon => ({
+          id: coupon.id,
+          name: coupon.name,
+          description: coupon.description,
+          discount_percentage: coupon.discount_percentage,
+          points_required: coupon.points_required,
+          is_active: coupon.is_active,
+        })) || [];
+        
+        console.log('Setting fresh coupons:', freshCoupons);
+        setCoupons(freshCoupons);
         
         // Initialize edit values with fresh data
         const initialValues: { [key: string]: { discount: string; points: string } } = {};
-        couponsData?.forEach(coupon => {
+        freshCoupons.forEach(coupon => {
           initialValues[coupon.id] = {
             discount: coupon.discount_percentage.toString(),
             points: coupon.points_required.toString(),
           };
         });
+        console.log('Setting edit values:', initialValues);
         setEditValues(initialValues);
       }
     } catch (error) {
@@ -101,7 +118,7 @@ export default function LoyaltyProgramManagementScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [refreshKey]);
 
   useEffect(() => {
     loadData();
@@ -109,7 +126,8 @@ export default function LoyaltyProgramManagementScreen() {
 
   const handleRefresh = () => {
     setRefreshing(true);
-    loadData();
+    // CRITICAL FIX: Increment refresh key to force complete reload
+    setRefreshKey(prev => prev + 1);
   };
 
   const handleUnblockUser = async (userId: string, userName: string) => {
@@ -173,7 +191,9 @@ export default function LoyaltyProgramManagementScreen() {
 
     try {
       setSavingCoupon(couponId);
-      console.log('Updating coupon:', couponId, 'with values:', { discount, points });
+      console.log('=== UPDATING COUPON ===');
+      console.log('Coupon ID:', couponId);
+      console.log('New values:', { discount, points });
 
       // Update the coupon in the database
       const { error: updateError } = await supabase
@@ -191,26 +211,25 @@ export default function LoyaltyProgramManagementScreen() {
         return;
       }
 
-      console.log('Coupon update successful, refreshing data...');
+      console.log('✅ Coupon update successful in database');
 
       // CRITICAL FIX: Clear editing state FIRST
       setEditingCoupon(null);
+      console.log('→ Cleared editing state');
       
-      // Wait longer to ensure database has fully processed the update
-      await new Promise(resolve => setTimeout(resolve, 800));
+      // CRITICAL FIX: Wait for database to fully process the update
+      console.log('→ Waiting 1 second for database to process...');
+      await new Promise(resolve => setTimeout(resolve, 1000));
 
-      // Force a complete refresh by clearing state first, then reloading
-      setCoupons([]);
-      setEditValues({});
-      
-      // Small delay before reload
-      await new Promise(resolve => setTimeout(resolve, 200));
-      
-      // Reload all data fresh from the database
-      await loadData();
+      // CRITICAL FIX: Force a complete refresh by incrementing the refresh key
+      // This will trigger useEffect to reload all data with fresh queries
+      console.log('→ Forcing complete data refresh...');
+      setRefreshKey(prev => prev + 1);
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert('Successo', 'Coupon aggiornato con successo. Le modifiche sono ora visibili nell\'app utente.');
+      
+      console.log('=== COUPON UPDATE COMPLETE ===');
     } catch (error: any) {
       console.error('Error updating coupon:', error);
       Alert.alert('Errore', `Si è verificato un errore: ${error.message || 'Errore sconosciuto'}`);
@@ -394,9 +413,9 @@ export default function LoyaltyProgramManagementScreen() {
                 </Text>
               </View>
 
-              {/* Coupons List */}
-              {coupons.map((coupon, index) => (
-                <View key={coupon.id} style={styles.couponCard}>
+              {/* Coupons List - CRITICAL FIX: Use refreshKey to force re-render */}
+              {coupons.map((coupon) => (
+                <View key={`${coupon.id}-${refreshKey}`} style={styles.couponCard}>
                   <View style={styles.couponHeader}>
                     <View style={styles.couponBadge}>
                       <Text style={styles.couponDiscount}>{coupon.discount_percentage}%</Text>

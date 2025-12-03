@@ -66,6 +66,23 @@ export default function ProductCard({
     ? [...new Set(product.variants!.filter(v => v.color).map(v => v.color!))]
     : product.availableColors || [];
 
+  // CRITICAL FIX: Determine if this product actually requires variant selection
+  // A product requires variant selection if it has actual size or color options available
+  const requiresSizeSelection = availableSizes.length > 0;
+  const requiresColorSelection = availableColors.length > 0;
+  const requiresVariantSelection = requiresSizeSelection || requiresColorSelection;
+
+  console.log('ProductCard variant info:', {
+    productId: product.id,
+    productName: product.name,
+    hasVariants,
+    availableSizes,
+    availableColors,
+    requiresSizeSelection,
+    requiresColorSelection,
+    requiresVariantSelection,
+  });
+
   // Update selected variant when size or color changes
   useEffect(() => {
     if (!hasVariants) return;
@@ -166,52 +183,64 @@ export default function ProductCard({
     }).start();
   };
 
-  // Validation function to check if variant selection is complete
+  // CRITICAL FIX: Improved validation function with better logic
   const validateVariantSelection = (): { isValid: boolean; message?: string } => {
-    // Check if there are sizes or colors to select
-    const hasSizesToSelect = availableSizes.length > 0;
-    const hasColorsToSelect = availableColors.length > 0;
+    console.log('=== VALIDATING VARIANT SELECTION ===');
+    console.log('Product:', product.name);
+    console.log('Requires variant selection:', requiresVariantSelection);
+    console.log('Requires size selection:', requiresSizeSelection);
+    console.log('Requires color selection:', requiresColorSelection);
+    console.log('Selected size:', selectedSize);
+    console.log('Selected color:', selectedColor);
+    console.log('Available sizes:', availableSizes);
+    console.log('Available colors:', availableColors);
     
-    // If product has no variants, it's always valid
-    if (!hasSizesToSelect && !hasColorsToSelect) {
-      console.log('Product has no variants - validation passed');
+    // If product doesn't require any variant selection, it's always valid
+    if (!requiresVariantSelection) {
+      console.log('✅ Product has no variants - validation passed');
       return { isValid: true };
     }
     
-    // Check size selection
-    if (hasSizesToSelect && !selectedSize) {
-      console.log('Size selection required but not selected');
+    // Check size selection if required
+    if (requiresSizeSelection && !selectedSize) {
+      console.log('❌ Size selection required but not selected');
       return { 
         isValid: false, 
         message: 'Devi selezionare una taglia prima di prenotare questo articolo.' 
       };
     }
     
-    // Check color selection
-    if (hasColorsToSelect && !selectedColor) {
-      console.log('Color selection required but not selected');
+    // Check color selection if required
+    if (requiresColorSelection && !selectedColor) {
+      console.log('❌ Color selection required but not selected');
       return { 
         isValid: false, 
         message: 'Devi selezionare un colore prima di prenotare questo articolo.' 
       };
     }
     
-    // If product has variants, ensure a valid variant is selected
+    // If product has variants system enabled, ensure a valid variant is selected
     if (hasVariants && !selectedVariant) {
-      console.log('Variant required but not selected or not available');
+      console.log('❌ Variant system enabled but no valid variant selected');
       return { 
         isValid: false, 
         message: 'La combinazione selezionata non è disponibile. Seleziona un\'altra taglia o colore.' 
       };
     }
     
-    console.log('Variant selection validation passed:', { selectedSize, selectedColor, selectedVariant: selectedVariant?.id });
+    console.log('✅ Variant selection validation passed');
     return { isValid: true };
   };
 
   const handlePress = async () => {
+    console.log('=== BOOKING BUTTON PRESSED ===');
+    console.log('Product:', product.name);
+    console.log('Is in drop:', isInDrop);
+    console.log('Is out of stock:', isOutOfStock);
+    
     // Don't allow booking if out of stock
     if (isInDrop && isOutOfStock) {
+      console.log('❌ Product is out of stock');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       Alert.alert(
         'Prodotto esaurito', 
@@ -221,13 +250,19 @@ export default function ProductCard({
     }
 
     // CRITICAL FIX: Validate BEFORE showing the confirmation alert
+    // This is the FIRST check - no alert should appear if validation fails
     if (isInDrop) {
+      console.log('→ Running validation before showing confirmation alert...');
       const validation = validateVariantSelection();
+      
       if (!validation.isValid) {
+        console.log('❌ Validation failed:', validation.message);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
         Alert.alert('Selezione richiesta', validation.message || 'Seleziona le opzioni richieste.');
         return; // STOP HERE - Don't show confirmation alert
       }
+      
+      console.log('✅ Validation passed, showing confirmation alert');
     }
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
@@ -247,8 +282,11 @@ export default function ProductCard({
           {
             text: 'Prenota',
             onPress: async () => {
+              console.log('→ User confirmed booking');
+              
               // Double-check stock before processing
               if (displayStock <= 0) {
+                console.log('❌ Stock check failed at confirmation');
                 Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
                 Alert.alert(
                   'Prodotto esaurito',
@@ -472,10 +510,10 @@ export default function ProductCard({
           </View>
 
           {/* Size and Color Selection - COMPACT VERSION WITH TEXT LABELS FOR COLORS */}
-          {(availableSizes.length > 0 || availableColors.length > 0) && (
+          {requiresVariantSelection && (
             <View style={styles.selectionContainer}>
               {/* Size Selection - Inline */}
-              {availableSizes.length > 0 && (
+              {requiresSizeSelection && (
                 <View style={styles.inlineSelection}>
                   <Text style={styles.selectionLabel}>Taglia:</Text>
                   <View style={styles.optionsRow}>
@@ -503,7 +541,7 @@ export default function ProductCard({
               )}
 
               {/* Color Selection - TEXT LABELS INSTEAD OF COLOR CIRCLES */}
-              {availableColors.length > 0 && (
+              {requiresColorSelection && (
                 <View style={styles.inlineSelection}>
                   <Text style={styles.selectionLabel}>Colore:</Text>
                   <View style={styles.optionsRow}>
