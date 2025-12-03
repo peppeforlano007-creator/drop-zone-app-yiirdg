@@ -157,32 +157,44 @@ export default function AnalyticsScreen() {
         };
       }).sort((a, b) => b.revenue - a.revenue).slice(0, 5);
 
-      // Get top products
-      const { data: productsData } = await supabase
-        .from('products')
-        .select(`
-          name,
-          bookings (
-            final_price,
-            payment_status
-          )
-        `)
-        .limit(100);
+      // Get top products - FIXED QUERY
+      // First, get all bookings grouped by product_id
+      const { data: bookingsByProduct } = await supabase
+        .from('bookings')
+        .select('product_id, final_price, payment_status');
 
-      const topProducts = (productsData || [])
+      // Group bookings by product_id
+      const productBookingsMap = new Map<string, { count: number; revenue: number }>();
+      bookingsByProduct?.forEach(booking => {
+        const existing = productBookingsMap.get(booking.product_id) || { count: 0, revenue: 0 };
+        existing.count++;
+        if (booking.payment_status === 'captured') {
+          existing.revenue += booking.final_price;
+        }
+        productBookingsMap.set(booking.product_id, existing);
+      });
+
+      // Get product details for top products
+      const topProductIds = Array.from(productBookingsMap.entries())
+        .sort((a, b) => b[1].count - a[1].count)
+        .slice(0, 5)
+        .map(([productId]) => productId);
+
+      const { data: topProductsData } = await supabase
+        .from('products')
+        .select('id, name')
+        .in('id', topProductIds);
+
+      const topProducts = (topProductsData || [])
         .map(product => {
-          const bookings = product.bookings?.length || 0;
-          const revenue = product.bookings
-            ?.filter((b: any) => b.payment_status === 'captured')
-            .reduce((sum: number, b: any) => sum + b.final_price, 0) || 0;
+          const stats = productBookingsMap.get(product.id) || { count: 0, revenue: 0 };
           return {
             name: product.name,
-            bookings,
-            revenue,
+            bookings: stats.count,
+            revenue: stats.revenue,
           };
         })
-        .sort((a, b) => b.revenue - a.revenue)
-        .slice(0, 5);
+        .sort((a, b) => b.bookings - a.bookings);
 
       // Get top pickup points
       const { data: pickupPointsData } = await supabase
@@ -368,22 +380,28 @@ export default function AnalyticsScreen() {
 
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Top Prodotti</Text>
-            {analytics.topProducts.map((product, index) => (
-              <View key={index} style={styles.listItem}>
-                <View style={styles.listItemLeft}>
-                  <Text style={styles.listItemRank}>#{index + 1}</Text>
-                  <View>
-                    <Text style={styles.listItemTitle} numberOfLines={1}>
-                      {product.name}
-                    </Text>
-                    <Text style={styles.listItemSubtitle}>
-                      {product.bookings} prenotazioni
-                    </Text>
+            {analytics.topProducts.length > 0 ? (
+              analytics.topProducts.map((product, index) => (
+                <View key={index} style={styles.listItem}>
+                  <View style={styles.listItemLeft}>
+                    <Text style={styles.listItemRank}>#{index + 1}</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.listItemTitle} numberOfLines={2}>
+                        {product.name}
+                      </Text>
+                      <Text style={styles.listItemSubtitle}>
+                        {product.bookings} prenotazioni
+                      </Text>
+                    </View>
                   </View>
+                  <Text style={styles.listItemValue}>€{product.revenue.toFixed(2)}</Text>
                 </View>
-                <Text style={styles.listItemValue}>€{product.revenue.toFixed(2)}</Text>
+              ))
+            ) : (
+              <View style={styles.emptySection}>
+                <Text style={styles.emptySectionText}>Nessuna prenotazione ancora</Text>
               </View>
-            ))}
+            )}
           </View>
 
           <View style={styles.section}>
@@ -535,6 +553,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
     flex: 1,
+    marginRight: 12,
   },
   listItemRank: {
     fontSize: 18,
@@ -556,6 +575,18 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: colors.success,
+  },
+  emptySection: {
+    backgroundColor: colors.card,
+    borderRadius: 12,
+    padding: 32,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  emptySectionText: {
+    fontSize: 14,
+    color: colors.textSecondary,
   },
   metricsCard: {
     flexDirection: 'row',

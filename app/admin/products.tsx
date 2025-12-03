@@ -19,6 +19,7 @@ import * as Haptics from 'expo-haptics';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 import { errorHandler, ErrorCategory, ErrorSeverity } from '@/utils/errorHandler';
+import { Picker } from '@react-native-picker/picker';
 
 interface ProductData {
   id: string;
@@ -32,6 +33,7 @@ interface ProductData {
   status: string;
   created_at: string;
   supplier_lists: {
+    id: string;
     name: string;
   } | null;
   supplier_profile?: {
@@ -39,13 +41,20 @@ interface ProductData {
   } | null;
 }
 
+interface SupplierList {
+  id: string;
+  name: string;
+}
+
 export default function ProductsScreen() {
   const [products, setProducts] = useState<ProductData[]>([]);
   const [filteredProducts, setFilteredProducts] = useState<ProductData[]>([]);
+  const [supplierLists, setSupplierLists] = useState<SupplierList[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive' | 'sold_out'>('all');
+  const [supplierListFilter, setSupplierListFilter] = useState<string>('all');
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [page, setPage] = useState(0);
@@ -55,21 +64,49 @@ export default function ProductsScreen() {
   const filterProducts = useCallback(() => {
     let filtered = products;
 
+    // Filter by status
     if (statusFilter !== 'all') {
       filtered = filtered.filter(product => product.status === statusFilter);
     }
 
+    // Filter by supplier list
+    if (supplierListFilter !== 'all') {
+      filtered = filtered.filter(product => product.supplier_lists?.id === supplierListFilter);
+    }
+
+    // Filter by search query
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(product =>
         product.name?.toLowerCase().includes(query) ||
         product.category?.toLowerCase().includes(query) ||
-        product.supplier_lists?.name?.toLowerCase().includes(query)
+        product.supplier_lists?.name?.toLowerCase().includes(query) ||
+        product.brand?.toLowerCase().includes(query) ||
+        product.sku?.toLowerCase().includes(query)
       );
     }
 
     setFilteredProducts(filtered);
-  }, [products, searchQuery, statusFilter]);
+  }, [products, searchQuery, statusFilter, supplierListFilter]);
+
+  const loadSupplierLists = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from('supplier_lists')
+        .select('id, name')
+        .eq('status', 'active')
+        .order('name', { ascending: true });
+
+      if (error) {
+        console.error('Error loading supplier lists:', error);
+        return;
+      }
+
+      setSupplierLists(data || []);
+    } catch (error) {
+      console.error('Error loading supplier lists:', error);
+    }
+  }, []);
 
   const loadProducts = useCallback(async (pageNum: number = 0, append: boolean = false) => {
     try {
@@ -90,6 +127,7 @@ export default function ProductsScreen() {
         .select(`
           *,
           supplier_lists (
+            id,
             name
           )
         `, { count: 'exact' })
@@ -174,8 +212,9 @@ export default function ProductsScreen() {
   }, []);
 
   useEffect(() => {
+    loadSupplierLists();
     loadProducts(0, false);
-  }, [loadProducts]);
+  }, [loadSupplierLists, loadProducts]);
 
   useEffect(() => {
     filterProducts();
@@ -262,6 +301,7 @@ export default function ProductsScreen() {
         }}
       />
       <SafeAreaView style={styles.safeArea} edges={['bottom']}>
+        {/* Search Bar */}
         <View style={styles.searchContainer}>
           <View style={styles.searchInputContainer}>
             <IconSymbol
@@ -272,7 +312,7 @@ export default function ProductsScreen() {
             />
             <TextInput
               style={styles.searchInput}
-              placeholder="Cerca prodotti..."
+              placeholder="Cerca per nome, categoria, marca, SKU..."
               placeholderTextColor={colors.textTertiary}
               value={searchQuery}
               onChangeText={setSearchQuery}
@@ -290,6 +330,27 @@ export default function ProductsScreen() {
           </View>
         </View>
 
+        {/* Supplier List Filter */}
+        <View style={styles.supplierFilterContainer}>
+          <Text style={styles.filterLabel}>Lista Fornitore:</Text>
+          <View style={styles.pickerContainer}>
+            <Picker
+              selectedValue={supplierListFilter}
+              onValueChange={(value) => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setSupplierListFilter(value);
+              }}
+              style={styles.picker}
+            >
+              <Picker.Item label="Tutte le liste" value="all" />
+              {supplierLists.map((list) => (
+                <Picker.Item key={list.id} label={list.name} value={list.id} />
+              ))}
+            </Picker>
+          </View>
+        </View>
+
+        {/* Status Filter */}
         <View style={styles.filterContainer}>
           <ScrollView 
             horizontal 
@@ -342,7 +403,7 @@ export default function ProductsScreen() {
         >
           <View style={styles.statsRow}>
             <Text style={styles.statsText}>
-              Caricati: {products.length} / {totalCount} prodotti
+              Visualizzati: {filteredProducts.length} / {products.length} caricati / {totalCount} totali
             </Text>
             {hasMore && (
               <Text style={styles.loadMoreText}>
@@ -501,6 +562,30 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: colors.text,
   },
+  supplierFilterContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: colors.background,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  filterLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 8,
+  },
+  pickerContainer: {
+    backgroundColor: colors.card,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    overflow: 'hidden',
+  },
+  picker: {
+    height: 50,
+    color: colors.text,
+  },
   filterContainer: {
     backgroundColor: colors.background,
     borderBottomWidth: 1,
@@ -541,12 +626,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   statsText: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '600',
     color: colors.textSecondary,
   },
   loadMoreText: {
-    fontSize: 12,
+    fontSize: 11,
     color: colors.textTertiary,
     fontStyle: 'italic',
   },

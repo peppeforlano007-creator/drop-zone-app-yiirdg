@@ -186,41 +186,19 @@ export default function LoyaltyProgramManagementScreen() {
         return;
       }
 
-      console.log('Coupon update successful, fetching fresh data...');
+      console.log('Coupon update successful, refreshing data...');
 
+      // Force a complete refresh by clearing state first
+      setEditingCoupon(null);
+      
       // Wait a moment to ensure database has processed the update
-      await new Promise(resolve => setTimeout(resolve, 300));
+      await new Promise(resolve => setTimeout(resolve, 500));
 
-      // Fetch ALL coupons fresh from the database to ensure we have the latest data
-      const { data: allCouponsData, error: fetchError } = await supabase
-        .from('coupons')
-        .select('*')
-        .order('points_required', { ascending: true });
-
-      if (fetchError) {
-        console.error('Error fetching updated coupons:', fetchError);
-        Alert.alert('Errore', 'Coupon aggiornato ma impossibile verificare le modifiche');
-        return;
-      }
-
-      console.log('Fresh coupons data fetched:', allCouponsData);
-
-      // Update the entire coupons list with fresh data
-      setCoupons(allCouponsData || []);
-
-      // Update edit values to match the fresh data
-      const newEditValues: { [key: string]: { discount: string; points: string } } = {};
-      allCouponsData?.forEach(coupon => {
-        newEditValues[coupon.id] = {
-          discount: coupon.discount_percentage.toString(),
-          points: coupon.points_required.toString(),
-        };
-      });
-      setEditValues(newEditValues);
+      // Reload all data fresh from the database
+      await loadData();
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert('Successo', 'Coupon aggiornato con successo');
-      setEditingCoupon(null);
+      Alert.alert('Successo', 'Coupon aggiornato con successo. Le modifiche sono ora visibili nell\'app utente.');
     } catch (error: any) {
       console.error('Error updating coupon:', error);
       Alert.alert('Errore', `Si è verificato un errore: ${error.message || 'Errore sconosciuto'}`);

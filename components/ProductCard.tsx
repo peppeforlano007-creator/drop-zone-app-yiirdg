@@ -177,39 +177,43 @@ export default function ProductCard({
       return;
     }
 
-    // ENFORCE VARIANT SELECTION: Check if variant selection is required
-    if (isInDrop && hasVariants) {
+    // STRICT VARIANT SELECTION ENFORCEMENT
+    if (isInDrop) {
       // Check if there are sizes or colors to select
       const hasSizesToSelect = availableSizes.length > 0;
       const hasColorsToSelect = availableColors.length > 0;
       
-      // Enforce selection if there are options available
-      if (hasSizesToSelect && !selectedSize) {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-        Alert.alert(
-          'Selezione richiesta',
-          'Seleziona una taglia prima di prenotare.'
-        );
-        return;
-      }
-      
-      if (hasColorsToSelect && !selectedColor) {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-        Alert.alert(
-          'Selezione richiesta',
-          'Seleziona un colore prima di prenotare.'
-        );
-        return;
-      }
-      
-      // Ensure a valid variant is selected
-      if (!selectedVariant) {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-        Alert.alert(
-          'Variante non disponibile',
-          'La combinazione selezionata non è disponibile. Seleziona un\'altra taglia o colore.'
-        );
-        return;
+      // If product has variants (sizes or colors), enforce selection
+      if (hasSizesToSelect || hasColorsToSelect) {
+        // Check size selection
+        if (hasSizesToSelect && !selectedSize) {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+          Alert.alert(
+            'Selezione richiesta',
+            'Devi selezionare una taglia prima di prenotare questo articolo.'
+          );
+          return;
+        }
+        
+        // Check color selection
+        if (hasColorsToSelect && !selectedColor) {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+          Alert.alert(
+            'Selezione richiesta',
+            'Devi selezionare un colore prima di prenotare questo articolo.'
+          );
+          return;
+        }
+        
+        // If product has variants, ensure a valid variant is selected
+        if (hasVariants && !selectedVariant) {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+          Alert.alert(
+            'Variante non disponibile',
+            'La combinazione selezionata non è disponibile. Seleziona un\'altra taglia o colore.'
+          );
+          return;
+        }
       }
     }
 
