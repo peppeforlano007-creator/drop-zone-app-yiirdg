@@ -47,18 +47,14 @@ interface BookingData {
   user_id: string;
   product_id: string;
   original_price: number;
-  authorized_amount: number;
+  final_price: number;
   discount_percentage: number;
   payment_status: string;
   status: string;
   created_at: string;
-  profiles: {
-    full_name: string;
-    email: string;
-  };
-  products: {
-    name: string;
-  };
+  user_email: string;
+  user_full_name: string;
+  product_name: string;
 }
 
 export default function DropAnalyticsScreen() {
@@ -97,19 +93,12 @@ export default function DropAnalyticsScreen() {
         return;
       }
 
-      // Load bookings
+      // Load bookings with FIXED query - join with auth.users and profiles separately
+      console.log('Loading bookings for drop:', dropId);
+      
       const { data: bookingsData, error: bookingsError } = await supabase
         .from('bookings')
-        .select(`
-          *,
-          profiles (
-            full_name,
-            email
-          ),
-          products (
-            name
-          )
-        `)
+        .select('*')
         .eq('drop_id', dropId)
         .order('created_at', { ascending: false });
 
@@ -117,9 +106,48 @@ export default function DropAnalyticsScreen() {
         console.error('Error loading bookings:', bookingsError);
       }
 
-      const totalBookings = bookingsData?.length || 0;
-      const totalValue = bookingsData?.reduce((sum, b) => sum + parseFloat(b.authorized_amount), 0) || 0;
-      const uniqueUsers = new Set(bookingsData?.map(b => b.user_id)).size;
+      // Load user data and product data separately to avoid relationship issues
+      const enrichedBookings: BookingData[] = [];
+      
+      if (bookingsData && bookingsData.length > 0) {
+        for (const booking of bookingsData) {
+          // Get user email from auth.users
+          const { data: userData } = await supabase.auth.admin.getUserById(booking.user_id);
+          
+          // Get user full name from profiles
+          const { data: profileData } = await supabase
+            .from('profiles')
+            .select('full_name')
+            .eq('user_id', booking.user_id)
+            .single();
+          
+          // Get product name
+          const { data: productData } = await supabase
+            .from('products')
+            .select('name')
+            .eq('id', booking.product_id)
+            .single();
+          
+          enrichedBookings.push({
+            id: booking.id,
+            user_id: booking.user_id,
+            product_id: booking.product_id,
+            original_price: booking.original_price,
+            final_price: booking.final_price,
+            discount_percentage: booking.discount_percentage,
+            payment_status: booking.payment_status,
+            status: booking.status,
+            created_at: booking.created_at,
+            user_email: userData?.user?.email || 'N/A',
+            user_full_name: profileData?.full_name || 'N/A',
+            product_name: productData?.name || 'N/A',
+          });
+        }
+      }
+
+      const totalBookings = enrichedBookings.length;
+      const totalValue = enrichedBookings.reduce((sum, b) => sum + parseFloat(b.final_price.toString()), 0);
+      const uniqueUsers = new Set(enrichedBookings.map(b => b.user_id)).size;
       const averageBookingValue = totalBookings > 0 ? totalValue / totalBookings : 0;
 
       // Load total interests for conversion rate
@@ -140,7 +168,7 @@ export default function DropAnalyticsScreen() {
         conversion_rate: conversionRate,
       });
 
-      setBookings(bookingsData || []);
+      setBookings(enrichedBookings);
     } catch (error) {
       console.error('Error loading analytics:', error);
     } finally {
@@ -338,25 +366,25 @@ export default function DropAnalyticsScreen() {
                         size={20}
                         color={colors.primary}
                       />
-                      <Text style={styles.bookingUserName}>{booking.profiles.full_name}</Text>
+                      <Text style={styles.bookingUserName}>{booking.user_full_name}</Text>
                     </View>
                     <View style={[
                       styles.bookingStatusBadge,
-                      { backgroundColor: booking.payment_status === 'authorized' ? colors.success + '20' : colors.warning + '20' }
+                      { backgroundColor: booking.payment_status === 'pending' ? colors.warning + '20' : colors.success + '20' }
                     ]}>
                       <Text style={[
                         styles.bookingStatusText,
-                        { color: booking.payment_status === 'authorized' ? colors.success : colors.warning }
+                        { color: booking.payment_status === 'pending' ? colors.warning : colors.success }
                       ]}>
                         {booking.payment_status}
                       </Text>
                     </View>
                   </View>
                   
-                  <Text style={styles.bookingProduct}>{booking.products.name}</Text>
+                  <Text style={styles.bookingProduct}>{booking.product_name}</Text>
                   
                   <View style={styles.bookingFooter}>
-                    <Text style={styles.bookingPrice}>€{parseFloat(booking.authorized_amount).toFixed(2)}</Text>
+                    <Text style={styles.bookingPrice}>€{parseFloat(booking.final_price.toString()).toFixed(2)}</Text>
                     <Text style={styles.bookingDiscount}>-{booking.discount_percentage}%</Text>
                     <Text style={styles.bookingDate}>
                       {new Date(booking.created_at).toLocaleDateString('it-IT', {

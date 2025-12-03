@@ -49,6 +49,7 @@ export default function ProductCard({
   const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(null);
   const [descriptionExpanded, setDescriptionExpanded] = useState(false);
   const [descriptionHeight, setDescriptionHeight] = useState(0);
+  const [currentImageUrl, setCurrentImageUrl] = useState<string>(product.imageUrl);
   
   // Animation values
   const scaleAnim = useRef(new Animated.Value(1)).current;
@@ -78,6 +79,26 @@ export default function ProductCard({
     setSelectedVariant(variant || null);
     console.log('Selected variant:', variant);
   }, [selectedSize, selectedColor, hasVariants, product.variants]);
+
+  // Update image when color is selected - check for color-specific image
+  useEffect(() => {
+    if (selectedColor && product.imageUrls && Array.isArray(product.imageUrls)) {
+      // Check if there's a color-specific image in the additional images
+      // This assumes the supplier has added color-specific images during import
+      const colorImageIndex = availableColors.indexOf(selectedColor);
+      if (colorImageIndex >= 0 && colorImageIndex < product.imageUrls.length) {
+        const colorSpecificImage = product.imageUrls[colorImageIndex];
+        if (colorSpecificImage && isValidImageUrl(colorSpecificImage)) {
+          console.log(`Using color-specific image for ${selectedColor}:`, colorSpecificImage);
+          setCurrentImageUrl(colorSpecificImage);
+          return;
+        }
+      }
+    }
+    
+    // Fallback to main image
+    setCurrentImageUrl(product.imageUrl);
+  }, [selectedColor, product.imageUrl, product.imageUrls, availableColors]);
 
   // Get stock for display
   const displayStock = hasVariants 
@@ -156,14 +177,40 @@ export default function ProductCard({
       return;
     }
 
-    // Check if variant selection is required
-    if (isInDrop && hasVariants && !selectedVariant) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-      Alert.alert(
-        'Selezione richiesta',
-        'Seleziona taglia e/o colore prima di prenotare.'
-      );
-      return;
+    // ENFORCE VARIANT SELECTION: Check if variant selection is required
+    if (isInDrop && hasVariants) {
+      // Check if there are sizes or colors to select
+      const hasSizesToSelect = availableSizes.length > 0;
+      const hasColorsToSelect = availableColors.length > 0;
+      
+      // Enforce selection if there are options available
+      if (hasSizesToSelect && !selectedSize) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+        Alert.alert(
+          'Selezione richiesta',
+          'Seleziona una taglia prima di prenotare.'
+        );
+        return;
+      }
+      
+      if (hasColorsToSelect && !selectedColor) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+        Alert.alert(
+          'Selezione richiesta',
+          'Seleziona un colore prima di prenotare.'
+        );
+        return;
+      }
+      
+      // Ensure a valid variant is selected
+      if (!selectedVariant) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+        Alert.alert(
+          'Variante non disponibile',
+          'La combinazione selezionata non è disponibile. Seleziona un\'altra taglia o colore.'
+        );
+        return;
+      }
     }
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
@@ -261,8 +308,8 @@ export default function ProductCard({
 
   const conditionIcon = getConditionIcon(product.condition);
 
-  // Get the main image URL (first in the array or empty string)
-  const mainImageUrl = imageUrls[0] || '';
+  // Get the main image URL (use current image which may be color-specific)
+  const mainImageUrl = currentImageUrl || imageUrls[0] || '';
 
   return (
     <View style={styles.container}>
