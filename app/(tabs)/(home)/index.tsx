@@ -14,6 +14,17 @@ import FeedWelcomeModal from '@/components/FeedWelcomeModal';
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
 
+interface SupplierList {
+  id: string;
+  name: string;
+  supplier_id: string;
+  supplier_name: string;
+  min_discount: number;
+  max_discount: number;
+  min_reservation_value: number;
+  max_reservation_value: number;
+}
+
 interface ProductList {
   listId: string;
   listName: string;
@@ -26,7 +37,6 @@ interface ProductList {
 }
 
 const WELCOME_MODAL_KEY = 'feed_welcome_modal_shown';
-const VARIANT_BATCH_SIZE = 100; // Load variants in batches of 100 product IDs to avoid URL length limits
 
 export default function HomeScreen() {
   const { logout, user } = useAuth();
@@ -53,7 +63,6 @@ export default function HomeScreen() {
       try {
         const hasShown = await AsyncStorage.getItem(WELCOME_MODAL_KEY);
         if (!hasShown) {
-          // Show modal after a short delay for better UX
           setTimeout(() => {
             setShowWelcomeModal(true);
           }, 1000);
@@ -83,178 +92,131 @@ export default function HomeScreen() {
 
   const loadProducts = useCallback(async () => {
     try {
-      console.log('╔════════════════════════════════════════════════════════════════╗');
-      console.log('║  COMPREHENSIVE SUPPLIER LIST LOADING - DIAGNOSTIC MODE        ║');
+      console.log('\n╔════════════════════════════════════════════════════════════════╗');
+      console.log('║  🔄 SUPPLIER LIST LOADING - SIMPLIFIED & BULLETPROOF         ║');
       console.log('╚════════════════════════════════════════════════════════════════╝');
-      console.log('Timestamp:', new Date().toISOString());
+      console.log('⏰ Timestamp:', new Date().toISOString());
+      console.log('👤 User:', user?.email || 'Not logged in');
+      
       setError(null);
       setLoading(true);
       
       // ═══════════════════════════════════════════════════════════════════
-      // STEP 1: FETCH ALL ACTIVE SUPPLIER LISTS
+      // STEP 1: FETCH ACTIVE SUPPLIER LISTS
       // ═══════════════════════════════════════════════════════════════════
       console.log('\n┌─ STEP 1: Fetching Active Supplier Lists ─────────────────────┐');
+      
       const { data: supplierLists, error: listsError } = await supabase
         .from('supplier_lists')
-        .select(`
-          id,
-          name,
-          min_discount,
-          max_discount,
-          min_reservation_value,
-          max_reservation_value,
-          supplier_id,
-          status
-        `)
+        .select('*')
         .eq('status', 'active')
         .order('created_at', { ascending: false });
 
       if (listsError) {
-        console.error('❌ CRITICAL ERROR loading supplier lists:', listsError);
-        setError(`Errore nel caricamento delle liste fornitori: ${listsError.message}`);
-        setLoading(false);
-        return;
+        throw new Error(`Failed to fetch supplier lists: ${listsError.message}`);
       }
 
-      console.log(`✓ Query successful - Found ${supplierLists?.length || 0} active supplier lists`);
-      
       if (!supplierLists || supplierLists.length === 0) {
-        console.log('⚠️  WARNING: No active supplier lists found in database');
+        console.log('⚠️  No active supplier lists found');
         console.log('└───────────────────────────────────────────────────────────────┘\n');
         setProductLists([]);
         setLoading(false);
         return;
       }
 
-      // Log each list with details
-      console.log('\n📋 Active Supplier Lists:');
-      supplierLists.forEach((list, index) => {
-        console.log(`   ${index + 1}. "${list.name}"`);
-        console.log(`      • ID: ${list.id}`);
-        console.log(`      • Supplier ID: ${list.supplier_id}`);
-        console.log(`      • Discount: ${list.min_discount}% - ${list.max_discount}%`);
-        console.log(`      • Value Range: €${list.min_reservation_value} - €${list.max_reservation_value}`);
+      console.log(`✅ Found ${supplierLists.length} active supplier lists:`);
+      supplierLists.forEach((list, idx) => {
+        console.log(`   ${idx + 1}. "${list.name}" (ID: ${list.id.substring(0, 8)}...)`);
       });
       console.log('└───────────────────────────────────────────────────────────────┘\n');
 
+      // ═══════════════════════════════════════════════════════════════════
+      // STEP 2: FETCH SUPPLIER PROFILES
+      // ═══════════════════════════════════════════════════════════════════
+      console.log('┌─ STEP 2: Fetching Supplier Profiles ─────────────────────────┐');
+      
+      const supplierIds = supplierLists.map(list => list.supplier_id);
+      const { data: profiles, error: profilesError } = await supabase
+        .from('profiles')
+        .select('user_id, full_name')
+        .in('user_id', supplierIds);
+
+      if (profilesError) {
+        console.warn('⚠️  Error loading profiles (non-fatal):', profilesError.message);
+      }
+
+      const profilesMap = new Map(profiles?.map(p => [p.user_id, p.full_name]) || []);
+      console.log(`✅ Loaded ${profiles?.length || 0} supplier profiles`);
+      console.log('└───────────────────────────────────────────────────────────────┘\n');
+
+      // ═══════════════════════════════════════════════════════════════════
+      // STEP 3: FETCH ALL PRODUCTS WITH STOCK
+      // ═══════════════════════════════════════════════════════════════════
+      console.log('┌─ STEP 3: Fetching Products with Stock ───────────────────────┐');
+      
       const listIds = supplierLists.map(list => list.id);
-      
-      // ═══════════════════════════════════════════════════════════════════
-      // STEP 2: FETCH ALL PRODUCTS FROM ACTIVE LISTS
-      // ═══════════════════════════════════════════════════════════════════
-      console.log('┌─ STEP 2: Fetching Products from Active Lists ────────────────┐');
-      console.log(`→ Querying products for ${listIds.length} list IDs...`);
-      
-      const { data: products, error: productsError, count } = await supabase
+      const { data: products, error: productsError } = await supabase
         .from('products')
-        .select('*', { count: 'exact' })
+        .select('*')
         .in('supplier_list_id', listIds)
         .gt('stock', 0)
         .eq('status', 'active')
         .order('created_at', { ascending: false });
-      
+
       if (productsError) {
-        console.error('❌ CRITICAL ERROR loading products:', productsError);
-        setError(`Errore nel caricamento dei prodotti: ${productsError.message}`);
-        setLoading(false);
-        return;
+        throw new Error(`Failed to fetch products: ${productsError.message}`);
       }
 
-      console.log(`✓ Query successful - Loaded ${products?.length || 0} products (Total in DB: ${count})`);
-
+      console.log(`✅ Loaded ${products?.length || 0} products with stock > 0`);
+      
       if (!products || products.length === 0) {
-        console.log('⚠️  WARNING: No products with stock > 0 found for active lists');
+        console.log('⚠️  No products with stock found');
         console.log('└───────────────────────────────────────────────────────────────┘\n');
         setProductLists([]);
         setLoading(false);
         return;
       }
 
-      // Analyze products per list
-      console.log('\n📦 Products Distribution by List:');
+      // Log products per list
       const productsPerList = new Map<string, number>();
       products.forEach(p => {
         const count = productsPerList.get(p.supplier_list_id) || 0;
         productsPerList.set(p.supplier_list_id, count + 1);
       });
-      
-      supplierLists.forEach((list, index) => {
-        const count = productsPerList.get(list.id) || 0;
-        const status = count > 0 ? '✓' : '⚠️ ';
-        console.log(`   ${status} "${list.name}": ${count} products`);
-      });
 
-      // Check for lists without products
-      const listsWithoutProducts = supplierLists.filter(list => !productsPerList.has(list.id));
-      if (listsWithoutProducts.length > 0) {
-        console.log(`\n⚠️  WARNING: ${listsWithoutProducts.length} lists have NO products with stock > 0:`);
-        listsWithoutProducts.forEach(list => {
-          console.log(`   • "${list.name}" (ID: ${list.id})`);
-        });
-      }
+      console.log('\n📊 Products per List:');
+      supplierLists.forEach((list, idx) => {
+        const count = productsPerList.get(list.id) || 0;
+        console.log(`   ${idx + 1}. "${list.name}": ${count} products`);
+      });
       console.log('└───────────────────────────────────────────────────────────────┘\n');
 
       // ═══════════════════════════════════════════════════════════════════
-      // STEP 3: LOAD PRODUCT VARIANTS IN BATCHES
+      // STEP 4: LOAD PRODUCT VARIANTS
       // ═══════════════════════════════════════════════════════════════════
-      console.log('┌─ STEP 3: Loading Product Variants (Batched) ─────────────────┐');
+      console.log('┌─ STEP 4: Loading Product Variants ───────────────────────────┐');
+      
       const productIds = products.map(p => p.id);
-      console.log(`→ Total products to load variants for: ${productIds.length}`);
-      
-      let allVariants: any[] = [];
-      
-      if (productIds.length > 0) {
-        // Split product IDs into batches
-        const batches: string[][] = [];
-        for (let i = 0; i < productIds.length; i += VARIANT_BATCH_SIZE) {
-          batches.push(productIds.slice(i, i + VARIANT_BATCH_SIZE));
-        }
-        
-        console.log(`→ Split into ${batches.length} batches (max ${VARIANT_BATCH_SIZE} products each)`);
-        
-        // Load variants for each batch
-        for (let i = 0; i < batches.length; i++) {
-          const batch = batches[i];
-          console.log(`   Loading batch ${i + 1}/${batches.length} (${batch.length} products)...`);
-          
-          try {
-            const { data: variantsData, error: variantsError } = await supabase
-              .from('product_variants')
-              .select('*')
-              .in('product_id', batch)
-              .gt('stock', 0);
+      const { data: variants, error: variantsError } = await supabase
+        .from('product_variants')
+        .select('*')
+        .in('product_id', productIds)
+        .gt('stock', 0);
 
-            if (variantsError) {
-              console.error(`   ⚠️  Error loading batch ${i + 1} (non-fatal):`, variantsError.message);
-              continue;
-            }
-
-            if (variantsData && variantsData.length > 0) {
-              allVariants.push(...variantsData);
-              console.log(`   ✓ Batch ${i + 1} loaded ${variantsData.length} variants`);
-            } else {
-              console.log(`   ✓ Batch ${i + 1} has no variants`);
-            }
-          } catch (error) {
-            console.error(`   ⚠️  Exception loading batch ${i + 1} (non-fatal):`, error);
-            continue;
-          }
-        }
-        
-        console.log(`✓ Total variants loaded: ${allVariants.length}`);
+      if (variantsError) {
+        console.warn('⚠️  Error loading variants (non-fatal):', variantsError.message);
       }
+
+      console.log(`✅ Loaded ${variants?.length || 0} product variants`);
       console.log('└───────────────────────────────────────────────────────────────┘\n');
 
       // Create variants map
       const variantsMap = new Map<string, ProductVariant[]>();
-      if (allVariants && allVariants.length > 0) {
-        allVariants.forEach(v => {
-          if (!v || !v.product_id) return;
-          
+      if (variants && variants.length > 0) {
+        variants.forEach(v => {
           if (!variantsMap.has(v.product_id)) {
             variantsMap.set(v.product_id, []);
           }
-          
           variantsMap.get(v.product_id)!.push({
             id: v.id,
             productId: v.product_id,
@@ -266,319 +228,132 @@ export default function HomeScreen() {
         });
       }
 
-      console.log(`✓ Created variants map for ${variantsMap.size} products with variants`);
-
       // ═══════════════════════════════════════════════════════════════════
-      // STEP 4: SKU AGGREGATION (CRITICAL SECTION)
+      // STEP 5: BUILD PRODUCT LISTS (CRITICAL - NO FILTERING)
       // ═══════════════════════════════════════════════════════════════════
-      console.log('\n┌─ STEP 4: SKU Aggregation (Grouping Products) ────────────────┐');
-      const skuMap = new Map<string, any[]>();
+      console.log('┌─ STEP 5: Building Product Lists ─────────────────────────────┐');
       
-      products.forEach(product => {
-        const sku = product.sku || product.id;
-        if (!skuMap.has(sku)) {
-          skuMap.set(sku, []);
-        }
-        skuMap.get(sku)!.push(product);
-      });
+      const finalLists: ProductList[] = [];
 
-      console.log(`✓ Grouped ${products.length} products into ${skuMap.size} unique SKUs`);
-
-      // Analyze SKU distribution
-      const skuSizes = Array.from(skuMap.values()).map(arr => arr.length);
-      const multiVariantSkus = skuSizes.filter(size => size > 1).length;
-      console.log(`   • Single-product SKUs: ${skuMap.size - multiVariantSkus}`);
-      console.log(`   • Multi-variant SKUs: ${multiVariantSkus}`);
-      if (multiVariantSkus > 0) {
-        console.log(`   • Max variants per SKU: ${Math.max(...skuSizes)}`);
-      }
-
-      // Aggregate products by SKU
-      const aggregatedProducts: any[] = [];
-      let aggregationErrors = 0;
-      
-      skuMap.forEach((skuProducts, sku) => {
-        try {
-          if (skuProducts.length === 1) {
-            // Single product - no aggregation needed
-            const product = skuProducts[0];
-            const productVariants = variantsMap.get(product.id) || [];
-            
-            aggregatedProducts.push({
-              ...product,
-              hasVariants: productVariants.length > 0,
-              variants: productVariants,
-            });
-          } else {
-            // Multiple products with same SKU - aggregate them
-            const baseProduct = skuProducts[0];
-            const totalStock = skuProducts.reduce((sum, p) => sum + (p.stock || 0), 0);
-            
-            const allSizes = new Set<string>();
-            const allColors = new Set<string>();
-            const aggregatedVariants: ProductVariant[] = [];
-            
-            skuProducts.forEach(product => {
-              const productVariants = variantsMap.get(product.id) || [];
-              aggregatedVariants.push(...productVariants);
-              
-              if (product.available_sizes && Array.isArray(product.available_sizes)) {
-                product.available_sizes.forEach((s: string) => {
-                  if (s && s.trim()) allSizes.add(s);
-                });
-              }
-              if (product.available_colors && Array.isArray(product.available_colors)) {
-                product.available_colors.forEach((c: string) => {
-                  if (c && c.trim()) allColors.add(c);
-                });
-              }
-            });
-            
-            aggregatedProducts.push({
-              ...baseProduct,
-              stock: totalStock,
-              available_sizes: Array.from(allSizes),
-              available_colors: Array.from(allColors),
-              hasVariants: aggregatedVariants.length > 0 || allSizes.size > 0 || allColors.size > 0,
-              variants: aggregatedVariants,
-            });
-          }
-        } catch (error) {
-          console.error(`   ⚠️  Error aggregating SKU "${sku}":`, error);
-          aggregationErrors++;
-        }
-      });
-
-      console.log(`✓ Created ${aggregatedProducts.length} aggregated products`);
-      if (aggregationErrors > 0) {
-        console.log(`⚠️  ${aggregationErrors} SKUs failed aggregation`);
-      }
-      console.log('└───────────────────────────────────────────────────────────────┘\n');
-
-      // ═══════════════════════════════════════════════════════════════════
-      // STEP 5: FETCH SUPPLIER PROFILES
-      // ═══════════════════════════════════════════════════════════════════
-      console.log('┌─ STEP 5: Fetching Supplier Profiles ─────────────────────────┐');
-      const supplierIds = supplierLists.map(list => list.supplier_id);
-      console.log(`→ Fetching profiles for ${supplierIds.length} suppliers...`);
-      
-      const { data: profiles, error: profilesError } = await supabase
-        .from('profiles')
-        .select('user_id, full_name')
-        .in('user_id', supplierIds);
-
-      if (profilesError) {
-        console.error('⚠️  Error loading profiles (non-fatal):', profilesError.message);
-      }
-
-      console.log(`✓ Loaded ${profiles?.length || 0} supplier profiles`);
-      console.log('└───────────────────────────────────────────────────────────────┘\n');
-
-      const profilesMap = new Map(profiles?.map(p => [p.user_id, p.full_name]) || []);
-      const listsMap = new Map(supplierLists.map(list => [
-        list.id,
-        {
-          ...list,
-          supplierName: profilesMap.get(list.supplier_id) || 'Fornitore'
-        }
-      ]));
-
-      // ═══════════════════════════════════════════════════════════════════
-      // STEP 6: GROUP PRODUCTS BY LIST (CRITICAL SECTION)
-      // ═══════════════════════════════════════════════════════════════════
-      console.log('┌─ STEP 6: Grouping Products by Supplier List ─────────────────┐');
-      
-      const groupedLists = new Map<string, ProductList>();
-      
-      // Initialize all lists (even if they have no products yet)
-      supplierLists.forEach(list => {
-        const listData = listsMap.get(list.id);
-        if (listData) {
-          groupedLists.set(list.id, {
-            listId: list.id,
-            listName: listData.name || 'Lista',
-            supplierName: listData.supplierName,
-            products: [],
-            minDiscount: listData.min_discount || 30,
-            maxDiscount: listData.max_discount || 80,
-            minReservationValue: listData.min_reservation_value || 5000,
-            maxReservationValue: listData.max_reservation_value || 30000,
-          });
-        }
-      });
-      
-      console.log(`→ Initialized ${groupedLists.size} list containers`);
-      
-      let skippedProducts = 0;
-      let processedProducts = 0;
-      const productsPerListCounter = new Map<string, number>();
-      
-      console.log('→ Processing aggregated products...');
-      aggregatedProducts.forEach((product: any) => {
-        const listId = product.supplier_list_id;
-        const listData = listsMap.get(listId);
+      // Process each supplier list
+      for (const supplierList of supplierLists) {
+        const listProducts = products.filter(p => p.supplier_list_id === supplierList.id);
         
-        if (!listData) {
-          console.warn(`   ⚠️  Product ${product.id} has invalid list ID: ${listId}`);
-          skippedProducts++;
-          return;
+        console.log(`\n📦 Processing "${supplierList.name}":`);
+        console.log(`   • Raw products: ${listProducts.length}`);
+
+        if (listProducts.length === 0) {
+          console.log(`   ⚠️  Skipping - no products`);
+          continue;
         }
 
-        if (product.stock <= 0) {
-          skippedProducts++;
-          return;
-        }
-
-        // Ensure list exists in groupedLists
-        if (!groupedLists.has(listId)) {
-          console.warn(`   ⚠️  List ${listId} not found in groupedLists, creating it...`);
-          groupedLists.set(listId, {
-            listId: listId,
-            listName: listData.name || 'Lista',
-            supplierName: listData.supplierName,
-            products: [],
-            minDiscount: listData.min_discount || 30,
-            maxDiscount: listData.max_discount || 80,
-            minReservationValue: listData.min_reservation_value || 5000,
-            maxReservationValue: listData.max_reservation_value || 30000,
-          });
-        }
-        
-        let additionalImages: string[] = [];
-        if (product.additional_images) {
-          if (Array.isArray(product.additional_images)) {
-            additionalImages = product.additional_images.filter(Boolean);
-          } else if (typeof product.additional_images === 'string') {
-            try {
-              const parsed = JSON.parse(product.additional_images);
-              if (Array.isArray(parsed)) {
-                additionalImages = parsed.filter(Boolean);
-              }
-            } catch {
-              if (product.additional_images.startsWith('http')) {
-                additionalImages = [product.additional_images];
-              }
+        // Transform products
+        const transformedProducts: Product[] = listProducts.map(p => {
+          const productVariants = variantsMap.get(p.id) || [];
+          
+          let additionalImages: string[] = [];
+          if (p.additional_images) {
+            if (Array.isArray(p.additional_images)) {
+              additionalImages = p.additional_images.filter(Boolean);
             }
           }
-        }
-        
-        const imageUrls = [product.image_url, ...additionalImages].filter(Boolean);
-        
-        const productData: Product = {
-          id: product.id,
-          name: product.name,
-          description: product.description || undefined,
-          brand: product.brand || undefined,
-          sku: product.sku || undefined,
-          imageUrl: product.image_url || '',
-          imageUrls: imageUrls,
-          originalPrice: parseFloat(product.original_price),
-          availableSizes: product.available_sizes || [],
-          availableColors: product.available_colors || [],
-          sizes: product.available_sizes || [],
-          colors: product.available_colors || [],
-          condition: product.condition as any,
-          category: product.category || undefined,
-          stock: product.stock,
-          listId: listId,
-          supplierId: product.supplier_id,
-          supplierName: listData.supplierName,
-          minDiscount: listData.min_discount || 30,
-          maxDiscount: listData.max_discount || 80,
-          minReservationValue: listData.min_reservation_value || 5000,
-          maxReservationValue: listData.max_reservation_value || 30000,
-          hasVariants: product.hasVariants || false,
-          variants: product.variants || [],
-        };
-        
-        groupedLists.get(listId)!.products.push(productData);
-        processedProducts++;
-        
-        const count = productsPerListCounter.get(listId) || 0;
-        productsPerListCounter.set(listId, count + 1);
-      });
-      
-      console.log(`✓ Processed ${processedProducts} products`);
-      console.log(`✓ Skipped ${skippedProducts} products (no stock or invalid list)`);
-      
-      console.log('\n📊 Final Products per List:');
-      supplierLists.forEach((list, index) => {
-        const count = productsPerListCounter.get(list.id) || 0;
-        const status = count > 0 ? '✓' : '⚠️ ';
-        console.log(`   ${status} "${list.name}": ${count} products`);
-      });
-      console.log('└───────────────────────────────────────────────────────────────┘\n');
-      
+          
+          const imageUrls = [p.image_url, ...additionalImages].filter(Boolean);
+          
+          return {
+            id: p.id,
+            name: p.name,
+            description: p.description || undefined,
+            brand: p.brand || undefined,
+            sku: p.sku || undefined,
+            imageUrl: p.image_url || '',
+            imageUrls: imageUrls,
+            originalPrice: parseFloat(p.original_price),
+            availableSizes: p.available_sizes || [],
+            availableColors: p.available_colors || [],
+            sizes: p.available_sizes || [],
+            colors: p.available_colors || [],
+            condition: p.condition as any,
+            category: p.category || undefined,
+            stock: p.stock,
+            listId: supplierList.id,
+            supplierId: p.supplier_id,
+            supplierName: profilesMap.get(supplierList.supplier_id) || 'Fornitore',
+            minDiscount: supplierList.min_discount || 30,
+            maxDiscount: supplierList.max_discount || 80,
+            minReservationValue: supplierList.min_reservation_value || 5000,
+            maxReservationValue: supplierList.max_reservation_value || 30000,
+            hasVariants: productVariants.length > 0,
+            variants: productVariants,
+          };
+        });
+
+        console.log(`   ✅ Transformed: ${transformedProducts.length} products`);
+
+        // Add to final lists
+        finalLists.push({
+          listId: supplierList.id,
+          listName: supplierList.name,
+          supplierName: profilesMap.get(supplierList.supplier_id) || 'Fornitore',
+          products: transformedProducts,
+          minDiscount: supplierList.min_discount || 30,
+          maxDiscount: supplierList.max_discount || 80,
+          minReservationValue: supplierList.min_reservation_value || 5000,
+          maxReservationValue: supplierList.max_reservation_value || 30000,
+        });
+      }
+
+      console.log('\n└───────────────────────────────────────────────────────────────┘\n');
+
       // ═══════════════════════════════════════════════════════════════════
-      // STEP 7: FILTER AND FINALIZE LISTS
+      // FINAL VALIDATION
       // ═══════════════════════════════════════════════════════════════════
-      console.log('┌─ STEP 7: Filtering and Finalizing Lists ─────────────────────┐');
-      
-      // CRITICAL: Only filter out lists with NO products
-      const lists = Array.from(groupedLists.values()).filter(list => list.products.length > 0);
-      
-      console.log(`→ Filtered to ${lists.length} lists with products (from ${groupedLists.size} total)`);
-      
-      // ═══════════════════════════════════════════════════════════════════
-      // FINAL VALIDATION AND REPORTING
-      // ═══════════════════════════════════════════════════════════════════
-      console.log('\n╔════════════════════════════════════════════════════════════════╗');
-      console.log('║  FINAL RESULT SUMMARY                                          ║');
+      console.log('╔════════════════════════════════════════════════════════════════╗');
+      console.log('║  📊 FINAL RESULT                                               ║');
       console.log('╚════════════════════════════════════════════════════════════════╝');
-      console.log(`✓ Active Supplier Lists in DB: ${supplierLists.length}`);
-      console.log(`✓ Lists with Products: ${lists.length}`);
-      console.log(`✓ Total Products in Feed: ${lists.reduce((sum, l) => sum + l.products.length, 0)}`);
+      console.log(`✅ Active Supplier Lists in DB: ${supplierLists.length}`);
+      console.log(`✅ Lists with Products: ${finalLists.length}`);
+      console.log(`✅ Total Products in Feed: ${finalLists.reduce((sum, l) => sum + l.products.length, 0)}`);
       
-      console.log('\n📋 Final List Details:');
-      lists.forEach((list, index) => {
-        const variantCount = list.products.filter(p => p.hasVariants).length;
-        console.log(`   ${index + 1}. "${list.listName}" by ${list.supplierName}`);
+      console.log('\n📋 Final Lists:');
+      finalLists.forEach((list, idx) => {
+        console.log(`   ${idx + 1}. "${list.listName}" by ${list.supplierName}`);
         console.log(`      • Products: ${list.products.length}`);
-        console.log(`      • With Variants: ${variantCount}`);
-        console.log(`      • Discount Range: ${list.minDiscount}% - ${list.maxDiscount}%`);
+        console.log(`      • Discount: ${list.minDiscount}% - ${list.maxDiscount}%`);
       });
-      
-      if (lists.length !== supplierLists.length) {
-        console.log('\n⚠️  WARNING: MISMATCH DETECTED!');
-        console.log(`   Expected ${supplierLists.length} lists but got ${lists.length} lists with products`);
-        
-        const listIdsWithProducts = new Set(lists.map(l => l.listId));
-        const missingLists = supplierLists.filter(sl => !listIdsWithProducts.has(sl.id));
-        
-        if (missingLists.length > 0) {
-          console.log('\n❌ Missing Lists (have no products with stock > 0):');
-          missingLists.forEach(ml => {
-            const originalCount = productsPerList.get(ml.id) || 0;
-            console.log(`   • "${ml.name}" (ID: ${ml.id})`);
-            console.log(`     - Products in DB: ${originalCount}`);
-            console.log(`     - Products after processing: 0`);
-            console.log(`     - Possible cause: All products filtered out during aggregation`);
-          });
-        }
+
+      if (finalLists.length !== supplierLists.length) {
+        console.log('\n⚠️  WARNING: Some lists have no products!');
+        const missingLists = supplierLists.filter(sl => 
+          !finalLists.find(fl => fl.listId === sl.id)
+        );
+        missingLists.forEach(ml => {
+          console.log(`   • "${ml.name}" - no products with stock > 0`);
+        });
       } else {
         console.log('\n✅ SUCCESS: All active lists are present in the feed!');
       }
       
-      console.log('\n╔════════════════════════════════════════════════════════════════╗');
-      console.log('║  LOADING COMPLETE                                              ║');
-      console.log('╚════════════════════════════════════════════════════════════════╝\n');
+      console.log('\n╚════════════════════════════════════════════════════════════════╝\n');
       
-      setProductLists(lists);
+      // Set the state
+      setProductLists(finalLists);
       setLoading(false);
+
     } catch (error) {
       console.error('\n╔════════════════════════════════════════════════════════════════╗');
-      console.error('║  CRITICAL EXCEPTION                                            ║');
+      console.error('║  ❌ CRITICAL ERROR                                             ║');
       console.error('╚════════════════════════════════════════════════════════════════╝');
-      console.error('Exception loading products:', error);
-      console.error('Stack trace:', error instanceof Error ? error.stack : 'No stack trace');
-      setError(`Errore imprevisto: ${error instanceof Error ? error.message : 'Errore sconosciuto'}`);
+      console.error('Error:', error);
+      console.error('Stack:', error instanceof Error ? error.stack : 'No stack trace');
+      setError(`Errore: ${error instanceof Error ? error.message : 'Errore sconosciuto'}`);
       setLoading(false);
     }
-  }, []);
+  }, [user]);
 
-  // Subscribe to real-time product updates (stock changes)
+  // Subscribe to real-time product updates
   useEffect(() => {
-    console.log('Setting up real-time subscription for product stock updates in home feed');
+    console.log('Setting up real-time subscription for product stock updates');
     
     const channel = supabase
       .channel('home_product_stock_updates')
@@ -590,20 +365,15 @@ export default function HomeScreen() {
           table: 'products',
         },
         (payload) => {
-          console.log('📡 Product stock update received in home feed:', payload);
+          console.log('📡 Product stock update received:', payload);
           const updatedProduct = payload.new as any;
           
           if (updatedProduct.stock <= 0) {
-            console.log('🗑️ Product stock is 0 or less, removing from home feed:', updatedProduct.id);
+            console.log('🗑️ Product stock is 0, removing from feed:', updatedProduct.id);
             
             setProductLists(prevLists => {
               const updatedLists = prevLists.map(list => {
                 const filteredProducts = list.products.filter(p => p.id !== updatedProduct.id);
-                
-                if (filteredProducts.length !== list.products.length) {
-                  console.log(`  Removed product ${updatedProduct.id} from list "${list.listName}"`);
-                }
-                
                 return {
                   ...list,
                   products: filteredProducts,
@@ -614,23 +384,18 @@ export default function HomeScreen() {
               return updatedLists;
             });
           } else {
-            console.log('✅ Product stock updated, keeping in feed:', updatedProduct.id, 'new stock:', updatedProduct.stock);
+            console.log('✅ Product stock updated:', updatedProduct.id, 'new stock:', updatedProduct.stock);
             setProductLists(prevLists => {
               return prevLists.map(list => {
                 if (list.listId === updatedProduct.supplier_list_id) {
-                  const productExists = list.products.some(p => p.id === updatedProduct.id);
-                  
-                  if (productExists) {
-                    console.log(`  Updating stock for product ${updatedProduct.id} in list "${list.listName}" to ${updatedProduct.stock}`);
-                    return {
-                      ...list,
-                      products: list.products.map(p => 
-                        p.id === updatedProduct.id 
-                          ? { ...p, stock: updatedProduct.stock }
-                          : p
-                      ),
-                    };
-                  }
+                  return {
+                    ...list,
+                    products: list.products.map(p => 
+                      p.id === updatedProduct.id 
+                        ? { ...p, stock: updatedProduct.stock }
+                        : p
+                    ),
+                  };
                 }
                 return list;
               });
@@ -641,7 +406,7 @@ export default function HomeScreen() {
       .subscribe();
 
     return () => {
-      console.log('Cleaning up real-time subscription in home feed');
+      console.log('Cleaning up real-time subscription');
       supabase.removeChannel(channel);
     };
   }, []);
@@ -710,7 +475,6 @@ export default function HomeScreen() {
       }
 
       setUnreadNotifications(count || 0);
-      console.log(`Unread notifications: ${count || 0}`);
     } catch (error) {
       console.error('Exception loading unread notifications:', error);
     }
@@ -738,7 +502,6 @@ export default function HomeScreen() {
           filter: `user_id=eq.${user.id}`,
         },
         () => {
-          console.log('Notification change detected, reloading count...');
           loadUnreadNotifications();
         }
       )
@@ -774,7 +537,7 @@ export default function HomeScreen() {
     loadBannerState();
   }, [currentList]);
 
-  // Animate banner visibility based on conditions
+  // Animate banner visibility
   useEffect(() => {
     const shouldShowBanner = 
       currentList && 
@@ -834,7 +597,6 @@ export default function HomeScreen() {
           newSet.delete(productId);
           return newSet;
         });
-        console.log('Product removed from wishlist:', productId);
       } else {
         const { error } = await supabase
           .from('wishlists')
@@ -855,7 +617,6 @@ export default function HomeScreen() {
           newSet.add(productId);
           return newSet;
         });
-        console.log('Product added to wishlist:', productId);
         
         if (wishlistProducts.size === 0) {
           setShowWishlistTip(true);
@@ -874,7 +635,6 @@ export default function HomeScreen() {
     }
 
     if (processingInterests.has(productId)) {
-      console.log('Already processing interest for product:', productId);
       return;
     }
 
@@ -906,63 +666,29 @@ export default function HomeScreen() {
           newSet.delete(productId);
           return newSet;
         });
-        console.log('Interest removed for product:', productId);
       } else {
-        let retryCount = 0;
-        const maxRetries = 2;
-        let success = false;
+        const { error } = await supabase
+          .from('user_interests')
+          .insert({
+            user_id: user.id,
+            product_id: productId,
+            supplier_list_id: product.listId,
+            pickup_point_id: user.pickupPointId,
+          });
 
-        while (retryCount <= maxRetries && !success) {
-          try {
-            const { error } = await supabase
-              .from('user_interests')
-              .insert({
-                user_id: user.id,
-                product_id: productId,
-                supplier_list_id: product.listId,
-                pickup_point_id: user.pickupPointId,
-              });
-
-            if (error) {
-              if (error.code === '42501') {
-                console.error('RLS policy error (42501) - insufficient privileges. Retrying...', retryCount + 1);
-                retryCount++;
-                if (retryCount <= maxRetries) {
-                  await new Promise(resolve => setTimeout(resolve, 300 * retryCount));
-                  continue;
-                }
-              }
-              throw error;
-            }
-
-            success = true;
-            setInterestedProducts(prev => {
-              const newSet = new Set(prev);
-              newSet.add(productId);
-              return newSet;
-            });
-            console.log('Interest added for product:', productId);
-          } catch (innerError) {
-            if (retryCount >= maxRetries) {
-              throw innerError;
-            }
-            retryCount++;
-          }
+        if (error) {
+          throw error;
         }
 
-        if (!success) {
-          throw new Error('Failed to add interest after retries');
-        }
+        setInterestedProducts(prev => {
+          const newSet = new Set(prev);
+          newSet.add(productId);
+          return newSet;
+        });
       }
     } catch (error: any) {
       console.error('Exception handling interest:', error);
-      const errorMessage = error?.message || 'Errore imprevisto';
-      const errorCode = error?.code || 'unknown';
-      
-      Alert.alert(
-        'Errore',
-        `Impossibile ${isCurrentlyInterested ? 'rimuovere' : 'aggiungere'} l'interesse.\n\nCodice: ${errorCode}\nMessaggio: ${errorMessage}\n\nRiprova tra qualche secondo.`
-      );
+      Alert.alert('Errore', `Impossibile gestire l'interesse: ${error.message}`);
     } finally {
       setProcessingInterests(prev => {
         const newSet = new Set(prev);
@@ -994,14 +720,13 @@ export default function HomeScreen() {
   const handleNotifications = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push('/(tabs)/notifications');
-    console.log('Navigating to notifications screen');
   };
 
   const handleNextList = () => {
     if (currentListIndex < productLists.length - 1) {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       const nextIndex = currentListIndex + 1;
-      console.log(`→ Switching to next list: ${nextIndex + 1}/${productLists.length} - "${productLists[nextIndex].listName}"`);
+      console.log(`→ Switching to list ${nextIndex + 1}/${productLists.length}: "${productLists[nextIndex].listName}"`);
       
       setCurrentListIndex(nextIndex);
       setCurrentProductIndex(0);
@@ -1018,8 +743,6 @@ export default function HomeScreen() {
           console.error('Error scrolling to next list:', error);
         }
       }, 100);
-    } else {
-      console.log('Already at last list');
     }
   };
 
@@ -1027,7 +750,7 @@ export default function HomeScreen() {
     if (currentListIndex > 0) {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       const prevIndex = currentListIndex - 1;
-      console.log(`← Switching to previous list: ${prevIndex + 1}/${productLists.length} - "${productLists[prevIndex].listName}"`);
+      console.log(`← Switching to list ${prevIndex + 1}/${productLists.length}: "${productLists[prevIndex].listName}"`);
       
       setCurrentListIndex(prevIndex);
       setCurrentProductIndex(0);
@@ -1044,8 +767,6 @@ export default function HomeScreen() {
           console.error('Error scrolling to previous list:', error);
         }
       }, 100);
-    } else {
-      console.log('Already at first list');
     }
   };
 
@@ -1081,7 +802,6 @@ export default function HomeScreen() {
     const sessionKey = `banner_dismissed_${currentList.listId}`;
     try {
       await AsyncStorage.setItem(sessionKey, 'true');
-      console.log('Banner dismissed for list:', currentList.listId);
     } catch (error) {
       console.error('Error saving banner state:', error);
     }
@@ -1265,11 +985,7 @@ export default function HomeScreen() {
 
   return (
     <>
-      <Stack.Screen
-        options={{
-          headerShown: false,
-        }}
-      />
+      <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.container}>
         <FlatList
           ref={listFlatListRef}
@@ -1336,7 +1052,6 @@ export default function HomeScreen() {
           </View>
         </Pressable>
         
-        {/* UPDATED: Icons moved higher and rearranged */}
         <View style={styles.rightSideIcons}>
           <View style={styles.iconButton}>
             <View style={styles.iconCircle}>
