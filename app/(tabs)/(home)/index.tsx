@@ -27,117 +27,6 @@ interface ProductList {
 
 const WELCOME_MODAL_KEY = 'feed_welcome_modal_shown';
 
-// OPTIMIZED: Increased batch size and improved error handling for faster loading
-async function loadVariantsInBatches(productIds: string[], batchSize: number = 100): Promise<any[]> {
-  console.log(`→ Loading variants for ${productIds.length} products in batches of ${batchSize}...`);
-  
-  const allVariants: any[] = [];
-  const totalBatches = Math.ceil(productIds.length / batchSize);
-  
-  // Use Promise.all for parallel batch loading
-  const batchPromises = [];
-  
-  for (let i = 0; i < productIds.length; i += batchSize) {
-    const batch = productIds.slice(i, i + batchSize);
-    const batchNumber = Math.floor(i / batchSize) + 1;
-    
-    batchPromises.push(
-      supabase
-        .from('product_variants')
-        .select('*')
-        .in('product_id', batch)
-        .gt('stock', 0)
-        .then(({ data, error }) => {
-          if (error) {
-            console.error(`  ❌ Batch ${batchNumber}/${totalBatches} failed:`, error.message);
-            return [];
-          }
-          return data || [];
-        })
-        .catch(error => {
-          console.error(`  ❌ Batch ${batchNumber}/${totalBatches} exception:`, error);
-          return [];
-        })
-    );
-  }
-  
-  // Wait for all batches to complete in parallel
-  const results = await Promise.all(batchPromises);
-  results.forEach(batchData => {
-    allVariants.push(...batchData);
-  });
-  
-  console.log(`✓ Variant loading complete: ${allVariants.length} total variants loaded`);
-  return allVariants;
-}
-
-// FIXED: Load ALL products from ALL lists with improved pagination
-async function loadAllProducts(listIds: string[]): Promise<any[]> {
-  console.log(`→ Loading ALL products for ${listIds.length} lists...`);
-  console.log(`   List IDs:`, listIds);
-  
-  const allProducts: any[] = [];
-  let offset = 0;
-  const batchSize = 1000;
-  let hasMore = true;
-  let batchNumber = 0;
-  
-  while (hasMore) {
-    batchNumber++;
-    const rangeEnd = offset + batchSize - 1;
-    console.log(`  → Fetching batch ${batchNumber} (range: ${offset}-${rangeEnd})...`);
-    
-    const { data, error, count } = await supabase
-      .from('products')
-      .select('*', { count: 'exact' })
-      .in('supplier_list_id', listIds)
-      .gt('stock', 0)
-      .eq('status', 'active')
-      .range(offset, rangeEnd);
-    
-    if (error) {
-      console.error(`  ❌ Batch ${batchNumber} failed:`, error.message);
-      throw error;
-    }
-    
-    const products = data || [];
-    console.log(`  ✓ Batch ${batchNumber}: Loaded ${products.length} products (Total in DB: ${count})`);
-    
-    if (products.length > 0) {
-      allProducts.push(...products);
-    }
-    
-    // FIXED: Continue if we got a full batch AND there are more products to load
-    // Stop if we got less than a full batch OR we've loaded all products
-    if (products.length < batchSize) {
-      hasMore = false;
-      console.log(`  ✓ Reached end of products (batch had ${products.length} items, less than ${batchSize})`);
-    } else if (count && allProducts.length >= count) {
-      hasMore = false;
-      console.log(`  ✓ Loaded all ${count} products from database`);
-    } else {
-      offset += batchSize;
-    }
-  }
-  
-  console.log(`✓ Total products loaded: ${allProducts.length}`);
-  
-  // Log products per list to verify all lists are included
-  const productsPerList = new Map<string, number>();
-  allProducts.forEach(p => {
-    const count = productsPerList.get(p.supplier_list_id) || 0;
-    productsPerList.set(p.supplier_list_id, count + 1);
-  });
-  
-  console.log('✓ Products loaded per list:');
-  listIds.forEach(listId => {
-    const count = productsPerList.get(listId) || 0;
-    console.log(`   - ${listId}: ${count} products`);
-  });
-  
-  return allProducts;
-}
-
 export default function HomeScreen() {
   const { logout, user } = useAuth();
   const [interestedProducts, setInterestedProducts] = useState<Set<string>>(new Set());
@@ -193,7 +82,7 @@ export default function HomeScreen() {
 
   const loadProducts = useCallback(async () => {
     try {
-      console.log('=== LOADING PRODUCTS - FIXED VERSION (ALL LISTS) ===');
+      console.log('=== LOADING PRODUCTS - SIMPLIFIED (NO BATCHING) ===');
       console.log('Timestamp:', new Date().toISOString());
       setError(null);
       setLoading(true);
@@ -237,24 +126,28 @@ export default function HomeScreen() {
       const listIds = supplierLists.map(list => list.id);
       console.log(`→ Will fetch products for ${listIds.length} lists`);
       
-      // STEP 2: FIXED - Fetch ALL products from ALL lists using improved batching
-      console.log('→ Fetching ALL products from ALL active lists...');
+      // STEP 2: SIMPLIFIED - Fetch ALL products at once without batching
+      console.log('→ Fetching ALL products from ALL active lists (no batching)...');
       
-      let products: any[] = [];
-      try {
-        products = await loadAllProducts(listIds);
-      } catch (productsError: any) {
+      const { data: products, error: productsError, count } = await supabase
+        .from('products')
+        .select('*', { count: 'exact' })
+        .in('supplier_list_id', listIds)
+        .gt('stock', 0)
+        .eq('status', 'active');
+      
+      if (productsError) {
         console.error('❌ Error loading products:', productsError);
         setError(`Errore nel caricamento dei prodotti: ${productsError.message}`);
         setLoading(false);
         return;
       }
 
-      console.log(`✓ Found TOTAL of ${products.length} products with stock > 0`);
+      console.log(`✓ Loaded ${products?.length || 0} products with stock > 0 (Total in DB: ${count})`);
 
       // Log products per list
       const productsPerList = new Map<string, number>();
-      products.forEach(p => {
+      (products || []).forEach(p => {
         const count = productsPerList.get(p.supplier_list_id) || 0;
         productsPerList.set(p.supplier_list_id, count + 1);
       });
@@ -281,18 +174,28 @@ export default function HomeScreen() {
         return;
       }
 
-      // STEP 3: OPTIMIZED - Load variants with larger batch size and parallel processing
-      console.log('→ Loading product variants (optimized)...');
+      // STEP 3: Load variants - simplified without batching
+      console.log('→ Loading product variants (no batching)...');
       const productIds = products.map(p => p.id);
       
       let variants: any[] = [];
       if (productIds.length > 0) {
         try {
-          // Use larger batch size (100 instead of 50) with parallel loading
-          variants = await loadVariantsInBatches(productIds, 100);
-          console.log(`✓ Successfully loaded ${variants.length} product variants`);
+          const { data: variantsData, error: variantsError } = await supabase
+            .from('product_variants')
+            .select('*')
+            .in('product_id', productIds)
+            .gt('stock', 0);
+
+          if (variantsError) {
+            console.error('⚠ Error loading variants (non-fatal):', variantsError);
+            variants = [];
+          } else {
+            variants = variantsData || [];
+            console.log(`✓ Successfully loaded ${variants.length} product variants`);
+          }
         } catch (error) {
-          console.error('⚠ Error loading variants (non-fatal):', error);
+          console.error('⚠ Exception loading variants (non-fatal):', error);
           variants = [];
         }
       }
@@ -519,7 +422,7 @@ export default function HomeScreen() {
       
       setProductLists(lists);
       setLoading(false);
-      console.log('=== LOADING COMPLETE (ALL LISTS FIXED) ===');
+      console.log('=== LOADING COMPLETE (SIMPLIFIED - NO BATCHING) ===');
     } catch (error) {
       console.error('❌ Exception loading products:', error);
       setError(`Errore imprevisto: ${error instanceof Error ? error.message : 'Errore sconosciuto'}`);
