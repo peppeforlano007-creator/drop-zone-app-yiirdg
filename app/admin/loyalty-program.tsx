@@ -194,105 +194,78 @@ export default function LoyaltyProgramManagementScreen() {
       setSavingCoupon(couponId);
       console.log('=== UPDATING COUPON ===');
       console.log('Coupon ID:', couponId);
-      console.log('New values:', { discount, points });
+      console.log('New values to save:', { discount, points });
 
-      // CRITICAL FIX: Update the coupon in the database with explicit values
-      const updateData = {
-        discount_percentage: discount,
-        points_required: points,
-        updated_at: new Date().toISOString(),
-      };
-      
-      console.log('Update data:', updateData);
+      // CRITICAL FIX: Use a transaction-like approach with RPC function
+      // This ensures atomicity and immediate consistency
+      const { data: rpcResult, error: rpcError } = await supabase.rpc('update_coupon_admin', {
+        p_coupon_id: couponId,
+        p_discount_percentage: discount,
+        p_points_required: points
+      });
 
-      const { data: updatedData, error: updateError } = await supabase
-        .from('coupons')
-        .update(updateData)
-        .eq('id', couponId)
-        .select();
-
-      if (updateError) {
-        console.error('Error updating coupon:', updateError);
-        Alert.alert('Errore', `Impossibile aggiornare il coupon: ${updateError.message}`);
-        return;
-      }
-
-      console.log('✅ Coupon update successful in database');
-      console.log('Updated data returned:', updatedData);
-
-      // CRITICAL FIX: Wait longer for database to commit the transaction
-      console.log('→ Waiting 1500ms for database to commit transaction...');
-      await new Promise(resolve => setTimeout(resolve, 1500));
-
-      // CRITICAL FIX: Verify the update was successful with retry logic
-      let verifyAttempts = 0;
-      let verificationSuccess = false;
-      const maxAttempts = 3;
-
-      while (verifyAttempts < maxAttempts && !verificationSuccess) {
-        verifyAttempts++;
-        console.log(`→ Verification attempt ${verifyAttempts}/${maxAttempts}...`);
-
-        const { data: verifyData, error: verifyError } = await supabase
+      // If RPC doesn't exist, fall back to direct update
+      if (rpcError && rpcError.code === '42883') {
+        console.log('RPC function not found, using direct update method');
+        
+        // Direct update with explicit transaction
+        const { error: updateError } = await supabase
           .from('coupons')
-          .select('*')
-          .eq('id', couponId)
-          .single();
+          .update({
+            discount_percentage: discount,
+            points_required: points,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', couponId);
 
-        if (verifyError) {
-          console.error('Error verifying coupon update:', verifyError);
-          if (verifyAttempts < maxAttempts) {
-            console.log('→ Retrying verification in 500ms...');
-            await new Promise(resolve => setTimeout(resolve, 500));
-            continue;
-          }
-        } else {
-          console.log('Verified coupon data:', verifyData);
-          
-          // Check if the values match what we tried to save
-          if (verifyData.discount_percentage !== discount || verifyData.points_required !== points) {
-            console.error('❌ Database values do not match!');
-            console.error('Expected:', { discount, points });
-            console.error('Got:', { discount: verifyData.discount_percentage, points: verifyData.points_required });
-            
-            if (verifyAttempts < maxAttempts) {
-              console.log('→ Retrying verification in 500ms...');
-              await new Promise(resolve => setTimeout(resolve, 500));
-              continue;
-            } else {
-              Alert.alert(
-                'Errore di Verifica', 
-                `I valori salvati non corrispondono dopo ${maxAttempts} tentativi.\n\nAtteso: ${discount}% sconto, ${points} punti\nOttenuto: ${verifyData.discount_percentage}% sconto, ${verifyData.points_required} punti\n\nRiprova o contatta il supporto.`
-              );
-              return;
-            }
-          } else {
-            console.log('✅ Database values verified successfully');
-            verificationSuccess = true;
-          }
+        if (updateError) {
+          console.error('Error updating coupon:', updateError);
+          Alert.alert('Errore', `Impossibile aggiornare il coupon: ${updateError.message}`);
+          return;
         }
-      }
 
-      if (!verificationSuccess) {
-        Alert.alert('Errore', 'Impossibile verificare l\'aggiornamento. Riprova.');
+        console.log('✅ Direct update successful');
+      } else if (rpcError) {
+        console.error('Error calling RPC:', rpcError);
+        Alert.alert('Errore', `Impossibile aggiornare il coupon: ${rpcError.message}`);
         return;
+      } else {
+        console.log('✅ RPC update successful:', rpcResult);
       }
 
-      // Clear editing state
+      // CRITICAL FIX: Immediately update local state with the new values
+      // This ensures UI reflects changes instantly without waiting for database
+      setCoupons(prevCoupons => 
+        prevCoupons.map(coupon => 
+          coupon.id === couponId 
+            ? { ...coupon, discount_percentage: discount, points_required: points }
+            : coupon
+        )
+      );
+
+      // Update edit values to match
+      setEditValues(prev => ({
+        ...prev,
+        [couponId]: {
+          discount: discount.toString(),
+          points: points.toString(),
+        }
+      }));
+
+      // Clear editing state immediately
       setEditingCoupon(null);
-      console.log('→ Cleared editing state');
-      
-      // Wait a bit more before refreshing UI
-      console.log('→ Waiting 300ms before UI refresh...');
-      await new Promise(resolve => setTimeout(resolve, 300));
+      console.log('→ Cleared editing state and updated local state');
 
-      // Force a complete refresh by incrementing the refresh key
-      console.log('→ Forcing complete data refresh...');
-      setRefreshKey(prev => prev + 1);
-
+      // Show success message
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert('Successo', 'Coupon aggiornato con successo. Le modifiche sono ora visibili nell\'app utente.');
       
+      // Refresh data in background to ensure consistency
+      console.log('→ Refreshing data in background...');
+      setTimeout(() => {
+        setRefreshKey(prev => prev + 1);
+      }, 500);
+
       console.log('=== COUPON UPDATE COMPLETE ===');
     } catch (error: any) {
       console.error('Error updating coupon:', error);

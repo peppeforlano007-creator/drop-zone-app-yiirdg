@@ -66,22 +66,21 @@ export default function ProductCard({
     ? [...new Set(product.variants!.filter(v => v.color).map(v => v.color!))]
     : product.availableColors || [];
 
-  // CRITICAL FIX: Determine if this product actually requires variant selection
-  // A product requires variant selection ONLY if it has actual size or color options available
+  // CRITICAL: Determine if this product requires variant selection
+  // A product requires variant selection if it has actual size OR color options available
   const requiresSizeSelection = availableSizes.length > 0;
   const requiresColorSelection = availableColors.length > 0;
   const requiresVariantSelection = requiresSizeSelection || requiresColorSelection;
 
-  console.log('ProductCard variant info:', {
-    productId: product.id,
-    productName: product.name,
-    hasVariants,
-    availableSizes,
-    availableColors,
-    requiresSizeSelection,
-    requiresColorSelection,
-    requiresVariantSelection,
-  });
+  console.log('=== PRODUCT CARD INITIALIZATION ===');
+  console.log('Product ID:', product.id);
+  console.log('Product Name:', product.name);
+  console.log('Has Variants:', hasVariants);
+  console.log('Available Sizes:', availableSizes);
+  console.log('Available Colors:', availableColors);
+  console.log('Requires Size Selection:', requiresSizeSelection);
+  console.log('Requires Color Selection:', requiresColorSelection);
+  console.log('Requires Variant Selection:', requiresVariantSelection);
 
   // Update selected variant when size or color changes
   useEffect(() => {
@@ -94,7 +93,7 @@ export default function ProductCard({
     });
 
     setSelectedVariant(variant || null);
-    console.log('Selected variant:', variant);
+    console.log('Selected variant updated:', variant);
   }, [selectedSize, selectedColor, hasVariants, product.variants]);
 
   // Update image when color is selected - check for color-specific image
@@ -183,7 +182,7 @@ export default function ProductCard({
     }).start();
   };
 
-  // CRITICAL FIX: Improved validation function with strict logic
+  // CRITICAL FIX: Strict validation function that blocks booking without required selections
   const validateVariantSelection = (): { isValid: boolean; message?: string } => {
     console.log('=== VALIDATING VARIANT SELECTION ===');
     console.log('Product:', product.name);
@@ -192,38 +191,34 @@ export default function ProductCard({
     console.log('Requires color selection:', requiresColorSelection);
     console.log('Selected size:', selectedSize);
     console.log('Selected color:', selectedColor);
-    console.log('Available sizes:', availableSizes);
-    console.log('Available colors:', availableColors);
     
     // CRITICAL: If product doesn't require any variant selection, it's always valid
-    // This means products without size/color options can be booked immediately
     if (!requiresVariantSelection) {
-      console.log('✅ Product has no variants - validation passed (no selection required)');
+      console.log('✅ No variant selection required - validation passed');
       return { isValid: true };
     }
     
-    // CRITICAL: Check size selection if required
+    // CRITICAL: If size selection is required, user MUST select a size
     if (requiresSizeSelection && !selectedSize) {
       console.log('❌ Size selection required but not selected');
       return { 
         isValid: false, 
-        message: 'Devi selezionare una taglia prima di prenotare questo articolo.' 
+        message: `Devi selezionare una taglia prima di prenotare questo articolo.\n\nTaglie disponibili: ${availableSizes.join(', ')}` 
       };
     }
     
-    // CRITICAL: Check color selection if required
+    // CRITICAL: If color selection is required, user MUST select a color
     if (requiresColorSelection && !selectedColor) {
       console.log('❌ Color selection required but not selected');
       return { 
         isValid: false, 
-        message: 'Devi selezionare un colore prima di prenotare questo articolo.' 
+        message: `Devi selezionare un colore prima di prenotare questo articolo.\n\nColori disponibili: ${availableColors.join(', ')}` 
       };
     }
     
-    // CRITICAL: If product has variants system enabled AND requires selection,
-    // ensure a valid variant is selected
+    // CRITICAL: If product has variants system AND requires selection, ensure valid variant exists
     if (hasVariants && requiresVariantSelection && !selectedVariant) {
-      console.log('❌ Variant system enabled but no valid variant selected');
+      console.log('❌ No valid variant found for selected options');
       return { 
         isValid: false, 
         message: 'La combinazione selezionata non è disponibile. Seleziona un\'altra taglia o colore.' 
@@ -239,10 +234,13 @@ export default function ProductCard({
     console.log('Product:', product.name);
     console.log('Is in drop:', isInDrop);
     console.log('Is out of stock:', isOutOfStock);
+    console.log('Requires variant selection:', requiresVariantSelection);
+    console.log('Selected size:', selectedSize);
+    console.log('Selected color:', selectedColor);
     
-    // Don't allow booking if out of stock
+    // CRITICAL: Block if out of stock
     if (isInDrop && isOutOfStock) {
-      console.log('❌ Product is out of stock');
+      console.log('❌ Product is out of stock - blocking booking');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       Alert.alert(
         'Prodotto esaurito', 
@@ -251,44 +249,62 @@ export default function ProductCard({
       return;
     }
 
-    // CRITICAL FIX: Validate BEFORE showing the confirmation alert
-    // This is the FIRST and ONLY check - no alert should appear if validation fails
+    // CRITICAL FIX: Validate BEFORE showing ANY alert
+    // This is the ONLY validation check - it must pass before proceeding
     if (isInDrop) {
-      console.log('→ Running validation before showing confirmation alert...');
+      console.log('→ Running strict validation before proceeding...');
       const validation = validateVariantSelection();
       
       if (!validation.isValid) {
-        console.log('❌ Validation failed:', validation.message);
+        console.log('❌ VALIDATION FAILED - BLOCKING BOOKING');
+        console.log('Validation message:', validation.message);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-        Alert.alert('Selezione richiesta', validation.message || 'Seleziona le opzioni richieste prima di prenotare.');
-        return; // STOP HERE - Don't show confirmation alert
+        Alert.alert(
+          '⚠️ Selezione Richiesta', 
+          validation.message || 'Seleziona le opzioni richieste prima di prenotare.',
+          [{ text: 'OK', style: 'default' }]
+        );
+        return; // STOP HERE - Don't proceed to confirmation
       }
       
-      console.log('✅ Validation passed, showing confirmation alert');
+      console.log('✅ VALIDATION PASSED - Proceeding to confirmation');
     }
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     
     if (isInDrop && onBook) {
       // Build variant info for display
-      const variantInfo = selectedVariant 
-        ? `\n\n📦 Variante: ${selectedVariant.size || ''} ${selectedVariant.color || ''}`.trim()
-        : '';
+      let variantInfo = '';
+      if (selectedVariant) {
+        const parts = [];
+        if (selectedVariant.size) parts.push(`Taglia: ${selectedVariant.size}`);
+        if (selectedVariant.color) parts.push(`Colore: ${selectedVariant.color}`);
+        if (parts.length > 0) {
+          variantInfo = `\n\n📦 ${parts.join(' • ')}`;
+        }
+      }
 
       // Show confirmation alert ONLY after validation passes
       Alert.alert(
         'Conferma Prenotazione',
         `Vuoi prenotare ${product.name}?${variantInfo}\n\nPrezzo attuale: €${discountedPrice.toFixed(2)} (-${Math.floor(discount)}%)\n\nPagamento alla consegna.`,
         [
-          { text: 'Annulla', style: 'cancel' },
+          { 
+            text: 'Annulla', 
+            style: 'cancel',
+            onPress: () => {
+              console.log('User cancelled booking');
+            }
+          },
           {
             text: 'Prenota',
+            style: 'default',
             onPress: async () => {
               console.log('→ User confirmed booking');
               
-              // Double-check stock before processing
+              // Final stock check before processing
               if (displayStock <= 0) {
-                console.log('❌ Stock check failed at confirmation');
+                console.log('❌ Stock depleted at confirmation');
                 Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
                 Alert.alert(
                   'Prodotto esaurito',
@@ -511,13 +527,16 @@ export default function ProductCard({
             <Text style={styles.originalPrice}>€{originalPrice.toFixed(2)}</Text>
           </View>
 
-          {/* Size and Color Selection - COMPACT VERSION WITH TEXT LABELS FOR COLORS */}
+          {/* CRITICAL: Size and Color Selection - ALWAYS SHOW IF REQUIRED */}
           {requiresVariantSelection && (
             <View style={styles.selectionContainer}>
-              {/* Size Selection - Inline */}
+              {/* CRITICAL: Size Selection - REQUIRED if sizes exist */}
               {requiresSizeSelection && (
                 <View style={styles.inlineSelection}>
-                  <Text style={styles.selectionLabel}>Taglia:</Text>
+                  <View style={styles.selectionLabelContainer}>
+                    <Text style={styles.selectionLabel}>Taglia:</Text>
+                    <Text style={styles.requiredIndicator}>*</Text>
+                  </View>
                   <View style={styles.optionsRow}>
                     {availableSizes.slice(0, 6).map((size, index) => (
                       <Pressable
@@ -542,10 +561,13 @@ export default function ProductCard({
                 </View>
               )}
 
-              {/* Color Selection - TEXT LABELS INSTEAD OF COLOR CIRCLES */}
+              {/* CRITICAL: Color Selection - REQUIRED if colors exist */}
               {requiresColorSelection && (
                 <View style={styles.inlineSelection}>
-                  <Text style={styles.selectionLabel}>Colore:</Text>
+                  <View style={styles.selectionLabelContainer}>
+                    <Text style={styles.selectionLabel}>Colore:</Text>
+                    <Text style={styles.requiredIndicator}>*</Text>
+                  </View>
                   <View style={styles.optionsRow}>
                     {availableColors.slice(0, 6).map((color, index) => (
                       <Pressable
@@ -623,7 +645,9 @@ export default function ProductCard({
                     <View style={styles.bookButtonTextContainer}>
                       <Text style={styles.bookButtonTitle}>PRENOTA ARTICOLO</Text>
                       <Text style={styles.bookButtonSubtitle}>
-                        Pagamento alla consegna
+                        {requiresVariantSelection && (!selectedSize || !selectedColor) 
+                          ? '⚠️ Seleziona taglia e colore'
+                          : 'Pagamento alla consegna'}
                       </Text>
                     </View>
                     <View style={styles.bookButtonArrow}>
@@ -865,6 +889,11 @@ const styles = StyleSheet.create({
   selectionContainer: {
     marginBottom: 8,
     gap: 6,
+    backgroundColor: colors.backgroundSecondary + '40',
+    padding: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   inlineSelection: {
     flexDirection: 'row',
@@ -872,13 +901,23 @@ const styles = StyleSheet.create({
     gap: 6,
     flexWrap: 'wrap',
   },
+  selectionLabelContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    minWidth: 60,
+  },
   selectionLabel: {
     fontSize: 10,
     fontWeight: '700',
     color: colors.text,
     textTransform: 'uppercase',
     letterSpacing: 0.3,
-    minWidth: 50,
+  },
+  requiredIndicator: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.error,
+    marginLeft: 2,
   },
   optionsRow: {
     flexDirection: 'row',
