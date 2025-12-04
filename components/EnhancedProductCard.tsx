@@ -80,9 +80,21 @@ export default function EnhancedProductCard({
   const hasRequiredColorSelection = !requiresColorSelection || selectedColor !== null;
   const hasAllRequiredSelections = hasRequiredSizeSelection && hasRequiredColorSelection;
 
+  console.log('=== ENHANCED PRODUCT CARD INITIALIZATION ===');
+  console.log('Product ID:', product.id);
+  console.log('Product Name:', product.name);
+  console.log('Is In Drop:', isInDrop);
+  console.log('Has Variants:', hasVariants);
+  console.log('Available Sizes:', availableSizes);
+  console.log('Available Colors:', availableColors);
+  console.log('Requires Size Selection:', requiresSizeSelection);
+  console.log('Requires Color Selection:', requiresColorSelection);
+  console.log('Requires Variant Selection:', requiresVariantSelection);
+  console.log('Has All Required Selections:', hasAllRequiredSelections);
+
   // Pulse animation for selection container when selections are missing
   useEffect(() => {
-    if (requiresVariantSelection && !hasAllRequiredSelections) {
+    if (isInDrop && requiresVariantSelection && !hasAllRequiredSelections) {
       const pulse = Animated.loop(
         Animated.sequence([
           Animated.timing(pulseAnim, {
@@ -100,7 +112,7 @@ export default function EnhancedProductCard({
       pulse.start();
       return () => pulse.stop();
     }
-  }, [requiresVariantSelection, hasAllRequiredSelections, pulseAnim]);
+  }, [isInDrop, requiresVariantSelection, hasAllRequiredSelections, pulseAnim]);
 
   // Update selected variant when size or color changes
   useEffect(() => {
@@ -209,15 +221,18 @@ export default function EnhancedProductCard({
   };
 
   const handlePress = async () => {
-    console.log('=== BOOKING BUTTON PRESSED ===');
+    console.log('=== BOOKING BUTTON PRESSED (ENHANCED) ===');
     console.log('Product:', product.name);
     console.log('Is in drop:', isInDrop);
     console.log('Is out of stock:', isOutOfStock);
     console.log('Requires variant selection:', requiresVariantSelection);
     console.log('Has all required selections:', hasAllRequiredSelections);
+    console.log('Selected size:', selectedSize);
+    console.log('Selected color:', selectedColor);
     
     // CRITICAL: Block if out of stock
     if (isInDrop && isOutOfStock) {
+      console.log('❌ Product is out of stock - blocking booking');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       Alert.alert(
         'Prodotto esaurito', 
@@ -226,7 +241,7 @@ export default function EnhancedProductCard({
       return;
     }
 
-    // CRITICAL: Block if required selections are missing
+    // CRITICAL: Block if required selections are missing (ONLY IN DROP)
     if (isInDrop && requiresVariantSelection && !hasAllRequiredSelections) {
       console.log('❌ REQUIRED SELECTIONS MISSING - BLOCKING BOOKING');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
@@ -254,6 +269,7 @@ export default function EnhancedProductCard({
         ? `\n\n📦 Variante: ${selectedVariant.size || ''} ${selectedVariant.color || ''}`.trim()
         : '';
 
+      // Show confirmation alert ONLY after all validations pass
       Alert.alert(
         '🎉 Conferma Prenotazione',
         `Stai prenotando: ${product.name}${variantInfo}\n\n` +
@@ -267,13 +283,18 @@ export default function EnhancedProductCard({
             text: 'Annulla', 
             style: 'cancel',
             onPress: () => {
+              console.log('User cancelled booking');
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
             }
           },
           {
             text: 'Prenota Articolo',
             onPress: async () => {
+              console.log('→ User confirmed booking');
+              
+              // Final stock check before processing
               if (displayStock <= 0) {
+                console.log('❌ Stock depleted at confirmation');
                 Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
                 Alert.alert(
                   'Prodotto esaurito',
@@ -284,6 +305,7 @@ export default function EnhancedProductCard({
               
               setIsProcessing(true);
               try {
+                console.log('Processing booking with variant:', selectedVariant?.id);
                 Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
                 onBook(product.id, selectedVariant?.id);
               } catch (error) {
@@ -417,8 +439,8 @@ export default function EnhancedProductCard({
 
   const mainImageUrl = imageUrls[0] || '';
 
-  // CRITICAL: Determine if booking button should be disabled
-  const isBookingDisabled = isProcessing || isOutOfStock || (requiresVariantSelection && !hasAllRequiredSelections);
+  // CRITICAL: Determine if booking button should be disabled (ONLY IN DROP)
+  const isBookingDisabled = isProcessing || isOutOfStock || (isInDrop && requiresVariantSelection && !hasAllRequiredSelections);
 
   return (
     <View style={styles.container}>
@@ -584,16 +606,16 @@ export default function EnhancedProductCard({
             <Text style={styles.originalPrice}>€{originalPrice.toFixed(2)}</Text>
           </View>
 
-          {/* CRITICAL: Enhanced selection container with visual feedback */}
+          {/* CRITICAL: Enhanced selection container with visual feedback (ONLY IN DROP) */}
           {requiresVariantSelection && (
             <Animated.View 
               style={[
                 styles.selectionContainer,
-                !hasAllRequiredSelections && styles.selectionContainerRequired,
-                { transform: [{ scale: pulseAnim }] }
+                isInDrop && !hasAllRequiredSelections && styles.selectionContainerRequired,
+                isInDrop && { transform: [{ scale: pulseAnim }] }
               ]}
             >
-              {!hasAllRequiredSelections && (
+              {isInDrop && !hasAllRequiredSelections && (
                 <View style={styles.selectionWarningBanner}>
                   <IconSymbol 
                     ios_icon_name="exclamationmark.triangle.fill" 
@@ -611,8 +633,8 @@ export default function EnhancedProductCard({
                 <View style={styles.inlineSelection}>
                   <View style={styles.selectionLabelContainer}>
                     <Text style={styles.selectionLabel}>Taglia:</Text>
-                    <Text style={styles.requiredIndicator}>*</Text>
-                    {!selectedSize && (
+                    {isInDrop && <Text style={styles.requiredIndicator}>*</Text>}
+                    {isInDrop && !selectedSize && (
                       <View style={styles.missingBadge}>
                         <Text style={styles.missingBadgeText}>RICHIESTA</Text>
                       </View>
@@ -646,8 +668,8 @@ export default function EnhancedProductCard({
                 <View style={styles.inlineSelection}>
                   <View style={styles.selectionLabelContainer}>
                     <Text style={styles.selectionLabel}>Colore:</Text>
-                    <Text style={styles.requiredIndicator}>*</Text>
-                    {!selectedColor && (
+                    {isInDrop && <Text style={styles.requiredIndicator}>*</Text>}
+                    {isInDrop && !selectedColor && (
                       <View style={styles.missingBadge}>
                         <Text style={styles.missingBadgeText}>RICHIESTO</Text>
                       </View>
@@ -679,7 +701,7 @@ export default function EnhancedProductCard({
             </Animated.View>
           )}
 
-          {/* CRITICAL: Enhanced booking button with clear disabled state */}
+          {/* CRITICAL: Enhanced booking button with clear disabled state (ONLY IN DROP) */}
           {isInDrop ? (
             <Animated.View 
               style={[
