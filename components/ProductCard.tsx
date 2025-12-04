@@ -67,7 +67,7 @@ export default function ProductCard({
     : product.availableColors || [];
 
   // CRITICAL FIX: Determine if this product actually requires variant selection
-  // A product requires variant selection if it has actual size or color options available
+  // A product requires variant selection ONLY if it has actual size or color options available
   const requiresSizeSelection = availableSizes.length > 0;
   const requiresColorSelection = availableColors.length > 0;
   const requiresVariantSelection = requiresSizeSelection || requiresColorSelection;
@@ -183,7 +183,7 @@ export default function ProductCard({
     }).start();
   };
 
-  // CRITICAL FIX: Improved validation function with better logic
+  // CRITICAL FIX: Improved validation function with strict logic
   const validateVariantSelection = (): { isValid: boolean; message?: string } => {
     console.log('=== VALIDATING VARIANT SELECTION ===');
     console.log('Product:', product.name);
@@ -195,13 +195,14 @@ export default function ProductCard({
     console.log('Available sizes:', availableSizes);
     console.log('Available colors:', availableColors);
     
-    // If product doesn't require any variant selection, it's always valid
+    // CRITICAL: If product doesn't require any variant selection, it's always valid
+    // This means products without size/color options can be booked immediately
     if (!requiresVariantSelection) {
-      console.log('✅ Product has no variants - validation passed');
+      console.log('✅ Product has no variants - validation passed (no selection required)');
       return { isValid: true };
     }
     
-    // Check size selection if required
+    // CRITICAL: Check size selection if required
     if (requiresSizeSelection && !selectedSize) {
       console.log('❌ Size selection required but not selected');
       return { 
@@ -210,7 +211,7 @@ export default function ProductCard({
       };
     }
     
-    // Check color selection if required
+    // CRITICAL: Check color selection if required
     if (requiresColorSelection && !selectedColor) {
       console.log('❌ Color selection required but not selected');
       return { 
@@ -219,8 +220,9 @@ export default function ProductCard({
       };
     }
     
-    // If product has variants system enabled, ensure a valid variant is selected
-    if (hasVariants && !selectedVariant) {
+    // CRITICAL: If product has variants system enabled AND requires selection,
+    // ensure a valid variant is selected
+    if (hasVariants && requiresVariantSelection && !selectedVariant) {
       console.log('❌ Variant system enabled but no valid variant selected');
       return { 
         isValid: false, 
@@ -250,7 +252,7 @@ export default function ProductCard({
     }
 
     // CRITICAL FIX: Validate BEFORE showing the confirmation alert
-    // This is the FIRST check - no alert should appear if validation fails
+    // This is the FIRST and ONLY check - no alert should appear if validation fails
     if (isInDrop) {
       console.log('→ Running validation before showing confirmation alert...');
       const validation = validateVariantSelection();
@@ -258,7 +260,7 @@ export default function ProductCard({
       if (!validation.isValid) {
         console.log('❌ Validation failed:', validation.message);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-        Alert.alert('Selezione richiesta', validation.message || 'Seleziona le opzioni richieste.');
+        Alert.alert('Selezione richiesta', validation.message || 'Seleziona le opzioni richieste prima di prenotare.');
         return; // STOP HERE - Don't show confirmation alert
       }
       

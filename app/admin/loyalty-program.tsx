@@ -220,37 +220,71 @@ export default function LoyaltyProgramManagementScreen() {
       console.log('✅ Coupon update successful in database');
       console.log('Updated data returned:', updatedData);
 
-      // CRITICAL FIX: Verify the update was successful
-      const { data: verifyData, error: verifyError } = await supabase
-        .from('coupons')
-        .select('*')
-        .eq('id', couponId)
-        .single();
+      // CRITICAL FIX: Wait longer for database to commit the transaction
+      console.log('→ Waiting 1500ms for database to commit transaction...');
+      await new Promise(resolve => setTimeout(resolve, 1500));
 
-      if (verifyError) {
-        console.error('Error verifying coupon update:', verifyError);
-      } else {
-        console.log('Verified coupon data:', verifyData);
-        
-        // Check if the values match what we tried to save
-        if (verifyData.discount_percentage !== discount || verifyData.points_required !== points) {
-          console.error('❌ Database values do not match!');
-          console.error('Expected:', { discount, points });
-          console.error('Got:', { discount: verifyData.discount_percentage, points: verifyData.points_required });
-          Alert.alert('Errore', 'I valori salvati non corrispondono. Riprova.');
-          return;
+      // CRITICAL FIX: Verify the update was successful with retry logic
+      let verifyAttempts = 0;
+      let verificationSuccess = false;
+      const maxAttempts = 3;
+
+      while (verifyAttempts < maxAttempts && !verificationSuccess) {
+        verifyAttempts++;
+        console.log(`→ Verification attempt ${verifyAttempts}/${maxAttempts}...`);
+
+        const { data: verifyData, error: verifyError } = await supabase
+          .from('coupons')
+          .select('*')
+          .eq('id', couponId)
+          .single();
+
+        if (verifyError) {
+          console.error('Error verifying coupon update:', verifyError);
+          if (verifyAttempts < maxAttempts) {
+            console.log('→ Retrying verification in 500ms...');
+            await new Promise(resolve => setTimeout(resolve, 500));
+            continue;
+          }
         } else {
-          console.log('✅ Database values verified successfully');
+          console.log('Verified coupon data:', verifyData);
+          
+          // Check if the values match what we tried to save
+          if (verifyData.discount_percentage !== discount || verifyData.points_required !== points) {
+            console.error('❌ Database values do not match!');
+            console.error('Expected:', { discount, points });
+            console.error('Got:', { discount: verifyData.discount_percentage, points: verifyData.points_required });
+            
+            if (verifyAttempts < maxAttempts) {
+              console.log('→ Retrying verification in 500ms...');
+              await new Promise(resolve => setTimeout(resolve, 500));
+              continue;
+            } else {
+              Alert.alert(
+                'Errore di Verifica', 
+                `I valori salvati non corrispondono dopo ${maxAttempts} tentativi.\n\nAtteso: ${discount}% sconto, ${points} punti\nOttenuto: ${verifyData.discount_percentage}% sconto, ${verifyData.points_required} punti\n\nRiprova o contatta il supporto.`
+              );
+              return;
+            }
+          } else {
+            console.log('✅ Database values verified successfully');
+            verificationSuccess = true;
+          }
         }
+      }
+
+      if (!verificationSuccess) {
+        Alert.alert('Errore', 'Impossibile verificare l\'aggiornamento. Riprova.');
+        return;
       }
 
       // Clear editing state
       setEditingCoupon(null);
       console.log('→ Cleared editing state');
       
-      // Wait for database to fully process the update
-      console.log('→ Waiting 500ms for database to process...');
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Wait a bit more before refreshing UI
+      console.log('→ Waiting 300ms before UI refresh...');
+      await new Promise(resolve => setTimeout(resolve, 300));
 
       // Force a complete refresh by incrementing the refresh key
       console.log('→ Forcing complete data refresh...');
