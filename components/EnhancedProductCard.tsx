@@ -61,14 +61,18 @@ export default function EnhancedProductCard({
   // Check if product has variants
   const hasVariants = product.hasVariants && product.variants && product.variants.length > 0;
 
-  // Get available sizes and colors from variants
+  // CRITICAL FIX: Filter out empty/null/undefined values and only include actual sizes/colors
   const availableSizes = hasVariants 
-    ? [...new Set(product.variants!.filter(v => v.size).map(v => v.size!))]
-    : product.availableSizes || [];
+    ? [...new Set(product.variants!.filter(v => v.size && v.size.trim() !== '').map(v => v.size!))]
+    : (product.availableSizes && product.availableSizes.length > 0 
+        ? product.availableSizes.filter(s => s && s.trim() !== '') 
+        : []);
   
   const availableColors = hasVariants
-    ? [...new Set(product.variants!.filter(v => v.color).map(v => v.color!))]
-    : product.availableColors || [];
+    ? [...new Set(product.variants!.filter(v => v.color && v.color.trim() !== '').map(v => v.color!))]
+    : (product.availableColors && product.availableColors.length > 0 
+        ? product.availableColors.filter(c => c && c.trim() !== '') 
+        : []);
 
   // CRITICAL: Determine if this product requires variant selection
   const requiresSizeSelection = availableSizes.length > 0;
@@ -85,8 +89,8 @@ export default function EnhancedProductCard({
   console.log('Product Name:', product.name);
   console.log('Is In Drop:', isInDrop);
   console.log('Has Variants:', hasVariants);
-  console.log('Available Sizes:', availableSizes);
-  console.log('Available Colors:', availableColors);
+  console.log('Available Sizes (filtered):', availableSizes);
+  console.log('Available Colors (filtered):', availableColors);
   console.log('Requires Size Selection:', requiresSizeSelection);
   console.log('Requires Color Selection:', requiresColorSelection);
   console.log('Requires Variant Selection:', requiresVariantSelection);
@@ -606,7 +610,7 @@ export default function EnhancedProductCard({
             <Text style={styles.originalPrice}>€{originalPrice.toFixed(2)}</Text>
           </View>
 
-          {/* CRITICAL: Enhanced selection container with visual feedback (ONLY IN DROP) */}
+          {/* CRITICAL FIX: Only show selection container if product actually has variants */}
           {requiresVariantSelection && (
             <Animated.View 
               style={[

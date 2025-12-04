@@ -57,20 +57,32 @@ export default function ProductCard({
   // Check if product has variants
   const hasVariants = product.hasVariants && product.variants && product.variants.length > 0;
 
-  // Get available sizes and colors from variants
-  // CRITICAL FIX: Only include sizes/colors if they actually exist (not empty arrays)
+  // CRITICAL FIX: Filter out empty/null/undefined values and only include actual sizes/colors
   const availableSizes = hasVariants 
-    ? [...new Set(product.variants!.filter(v => v.size).map(v => v.size!))]
-    : (product.availableSizes && product.availableSizes.length > 0 ? product.availableSizes : []);
+    ? [...new Set(product.variants!.filter(v => v.size && v.size.trim() !== '').map(v => v.size!))]
+    : (product.availableSizes && product.availableSizes.length > 0 
+        ? product.availableSizes.filter(s => s && s.trim() !== '') 
+        : []);
   
   const availableColors = hasVariants
-    ? [...new Set(product.variants!.filter(v => v.color).map(v => v.color!))]
-    : (product.availableColors && product.availableColors.length > 0 ? product.availableColors : []);
+    ? [...new Set(product.variants!.filter(v => v.color && v.color.trim() !== '').map(v => v.color!))]
+    : (product.availableColors && product.availableColors.length > 0 
+        ? product.availableColors.filter(c => c && c.trim() !== '') 
+        : []);
 
   // CRITICAL: Determine if this product actually has size/color options
   const hasSizeOptions = availableSizes.length > 0;
   const hasColorOptions = availableColors.length > 0;
   const hasAnyVariantOptions = hasSizeOptions || hasColorOptions;
+
+  console.log('=== PRODUCT CARD VARIANT CHECK ===');
+  console.log('Product:', product.name);
+  console.log('Has Variants:', hasVariants);
+  console.log('Available Sizes (filtered):', availableSizes);
+  console.log('Available Colors (filtered):', availableColors);
+  console.log('Has Size Options:', hasSizeOptions);
+  console.log('Has Color Options:', hasColorOptions);
+  console.log('Has Any Variant Options:', hasAnyVariantOptions);
 
   // Update selected variant when size or color changes
   useEffect(() => {
