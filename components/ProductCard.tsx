@@ -53,6 +53,7 @@ export default function ProductCard({
   
   // Animation values
   const scaleAnim = useRef(new Animated.Value(1)).current;
+  const pulseAnim = useRef(new Animated.Value(1)).current;
 
   // Check if product has variants
   const hasVariants = product.hasVariants && product.variants && product.variants.length > 0;
@@ -67,10 +68,14 @@ export default function ProductCard({
     : product.availableColors || [];
 
   // CRITICAL: Determine if this product requires variant selection
-  // A product requires variant selection if it has actual size OR color options available
   const requiresSizeSelection = availableSizes.length > 0;
   const requiresColorSelection = availableColors.length > 0;
   const requiresVariantSelection = requiresSizeSelection || requiresColorSelection;
+
+  // CRITICAL: Check if all required selections are made
+  const hasRequiredSizeSelection = !requiresSizeSelection || selectedSize !== null;
+  const hasRequiredColorSelection = !requiresColorSelection || selectedColor !== null;
+  const hasAllRequiredSelections = hasRequiredSizeSelection && hasRequiredColorSelection;
 
   console.log('=== PRODUCT CARD INITIALIZATION ===');
   console.log('Product ID:', product.id);
@@ -81,6 +86,29 @@ export default function ProductCard({
   console.log('Requires Size Selection:', requiresSizeSelection);
   console.log('Requires Color Selection:', requiresColorSelection);
   console.log('Requires Variant Selection:', requiresVariantSelection);
+  console.log('Has All Required Selections:', hasAllRequiredSelections);
+
+  // Pulse animation for selection container when selections are missing
+  useEffect(() => {
+    if (requiresVariantSelection && !hasAllRequiredSelections) {
+      const pulse = Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, {
+            toValue: 1.02,
+            duration: 1000,
+            useNativeDriver: true,
+          }),
+          Animated.timing(pulseAnim, {
+            toValue: 1,
+            duration: 1000,
+            useNativeDriver: true,
+          }),
+        ])
+      );
+      pulse.start();
+      return () => pulse.stop();
+    }
+  }, [requiresVariantSelection, hasAllRequiredSelections, pulseAnim]);
 
   // Update selected variant when size or color changes
   useEffect(() => {
@@ -99,8 +127,6 @@ export default function ProductCard({
   // Update image when color is selected - check for color-specific image
   useEffect(() => {
     if (selectedColor && product.imageUrls && Array.isArray(product.imageUrls)) {
-      // Check if there's a color-specific image in the additional images
-      // This assumes the supplier has added color-specific images during import
       const colorImageIndex = availableColors.indexOf(selectedColor);
       if (colorImageIndex >= 0 && colorImageIndex < product.imageUrls.length) {
         const colorSpecificImage = product.imageUrls[colorImageIndex];
@@ -112,7 +138,6 @@ export default function ProductCard({
       }
     }
     
-    // Fallback to main image
     setCurrentImageUrl(product.imageUrl);
   }, [selectedColor, product.imageUrl, product.imageUrls, availableColors]);
 
@@ -133,12 +158,10 @@ export default function ProductCard({
   const imageUrls = React.useMemo(() => {
     const urls: string[] = [];
     
-    // Add main image if it exists and is valid
     if (product.imageUrl && isValidImageUrl(product.imageUrl)) {
       urls.push(product.imageUrl);
     }
     
-    // Add additional images if they exist, are an array, and are valid URLs
     if (product.imageUrls && Array.isArray(product.imageUrls)) {
       const validAdditionalUrls = product.imageUrls.filter(url => 
         url && 
@@ -148,7 +171,6 @@ export default function ProductCard({
       urls.push(...validAdditionalUrls);
     }
     
-    // Apply standardization to all URLs
     return getStandardizedImageUris(urls, STANDARD_IMAGE_TEMPLATE);
   }, [product.imageUrl, product.imageUrls]);
 
@@ -182,59 +204,13 @@ export default function ProductCard({
     }).start();
   };
 
-  // CRITICAL FIX: Strict validation function that blocks booking without required selections
-  const validateVariantSelection = (): { isValid: boolean; message?: string } => {
-    console.log('=== VALIDATING VARIANT SELECTION ===');
-    console.log('Product:', product.name);
-    console.log('Requires variant selection:', requiresVariantSelection);
-    console.log('Requires size selection:', requiresSizeSelection);
-    console.log('Requires color selection:', requiresColorSelection);
-    console.log('Selected size:', selectedSize);
-    console.log('Selected color:', selectedColor);
-    
-    // CRITICAL: If product doesn't require any variant selection, it's always valid
-    if (!requiresVariantSelection) {
-      console.log('✅ No variant selection required - validation passed');
-      return { isValid: true };
-    }
-    
-    // CRITICAL: If size selection is required, user MUST select a size
-    if (requiresSizeSelection && !selectedSize) {
-      console.log('❌ Size selection required but not selected');
-      return { 
-        isValid: false, 
-        message: `Devi selezionare una taglia prima di prenotare questo articolo.\n\nTaglie disponibili: ${availableSizes.join(', ')}` 
-      };
-    }
-    
-    // CRITICAL: If color selection is required, user MUST select a color
-    if (requiresColorSelection && !selectedColor) {
-      console.log('❌ Color selection required but not selected');
-      return { 
-        isValid: false, 
-        message: `Devi selezionare un colore prima di prenotare questo articolo.\n\nColori disponibili: ${availableColors.join(', ')}` 
-      };
-    }
-    
-    // CRITICAL: If product has variants system AND requires selection, ensure valid variant exists
-    if (hasVariants && requiresVariantSelection && !selectedVariant) {
-      console.log('❌ No valid variant found for selected options');
-      return { 
-        isValid: false, 
-        message: 'La combinazione selezionata non è disponibile. Seleziona un\'altra taglia o colore.' 
-      };
-    }
-    
-    console.log('✅ Variant selection validation passed');
-    return { isValid: true };
-  };
-
   const handlePress = async () => {
     console.log('=== BOOKING BUTTON PRESSED ===');
     console.log('Product:', product.name);
     console.log('Is in drop:', isInDrop);
     console.log('Is out of stock:', isOutOfStock);
     console.log('Requires variant selection:', requiresVariantSelection);
+    console.log('Has all required selections:', hasAllRequiredSelections);
     console.log('Selected size:', selectedSize);
     console.log('Selected color:', selectedColor);
     
@@ -249,25 +225,25 @@ export default function ProductCard({
       return;
     }
 
-    // CRITICAL FIX: Validate BEFORE showing ANY alert
-    // This is the ONLY validation check - it must pass before proceeding
-    if (isInDrop) {
-      console.log('→ Running strict validation before proceeding...');
-      const validation = validateVariantSelection();
+    // CRITICAL: Block if required selections are missing
+    if (isInDrop && requiresVariantSelection && !hasAllRequiredSelections) {
+      console.log('❌ REQUIRED SELECTIONS MISSING - BLOCKING BOOKING');
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
       
-      if (!validation.isValid) {
-        console.log('❌ VALIDATION FAILED - BLOCKING BOOKING');
-        console.log('Validation message:', validation.message);
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-        Alert.alert(
-          '⚠️ Selezione Richiesta', 
-          validation.message || 'Seleziona le opzioni richieste prima di prenotare.',
-          [{ text: 'OK', style: 'default' }]
-        );
-        return; // STOP HERE - Don't proceed to confirmation
+      const missingSelections = [];
+      if (requiresSizeSelection && !selectedSize) {
+        missingSelections.push(`Taglia (disponibili: ${availableSizes.join(', ')})`);
+      }
+      if (requiresColorSelection && !selectedColor) {
+        missingSelections.push(`Colore (disponibili: ${availableColors.join(', ')})`);
       }
       
-      console.log('✅ VALIDATION PASSED - Proceeding to confirmation');
+      Alert.alert(
+        '⚠️ Selezione Obbligatoria', 
+        `Per prenotare questo articolo devi prima selezionare:\n\n${missingSelections.map(s => `• ${s}`).join('\n')}\n\nSeleziona le opzioni richieste e riprova.`,
+        [{ text: 'OK', style: 'default' }]
+      );
+      return;
     }
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
@@ -284,7 +260,7 @@ export default function ProductCard({
         }
       }
 
-      // Show confirmation alert ONLY after validation passes
+      // Show confirmation alert ONLY after all validations pass
       Alert.alert(
         'Conferma Prenotazione',
         `Vuoi prenotare ${product.name}?${variantInfo}\n\nPrezzo attuale: €${discountedPrice.toFixed(2)} (-${Math.floor(discount)}%)\n\nPagamento alla consegna.`,
@@ -382,9 +358,10 @@ export default function ProductCard({
   };
 
   const conditionIcon = getConditionIcon(product.condition);
-
-  // Get the main image URL (use current image which may be color-specific)
   const mainImageUrl = currentImageUrl || imageUrls[0] || '';
+
+  // CRITICAL: Determine if booking button should be disabled
+  const isBookingDisabled = isProcessing || isOutOfStock || (requiresVariantSelection && !hasAllRequiredSelections);
 
   return (
     <View style={styles.container}>
@@ -437,14 +414,12 @@ export default function ProductCard({
           </View>
         )}
 
-        {/* Drop badge moved to bottom-left */}
         {isInDrop && currentDiscount && (
           <View style={styles.dropBadge}>
             <Text style={styles.dropBadgeText}>Drop -{Math.floor(currentDiscount)}%</Text>
           </View>
         )}
 
-        {/* Out of stock overlay */}
         {isOutOfStock && (
           <View style={styles.outOfStockOverlay}>
             <View style={styles.outOfStockBadge}>
@@ -462,10 +437,8 @@ export default function ProductCard({
 
       <View style={styles.overlay}>
         <View style={styles.content}>
-          {/* Product Name - Reduced size */}
           <Text style={styles.productName} numberOfLines={2}>{product.name ?? 'Prodotto'}</Text>
 
-          {/* Compact info row: Brand, Category, Condition, Stock */}
           <View style={styles.compactInfoRow}>
             {product.brand && (
               <View style={styles.infoBadge}>
@@ -497,7 +470,6 @@ export default function ProductCard({
             </View>
           </View>
 
-          {/* Description - More compact */}
           {product.description && (
             <Pressable 
               style={styles.descriptionContainer}
@@ -518,7 +490,6 @@ export default function ProductCard({
             </Pressable>
           )}
 
-          {/* Price row - More compact */}
           <View style={styles.priceRow}>
             <Text style={styles.discountedPrice}>€{discountedPrice.toFixed(2)}</Text>
             <View style={styles.discountBadge}>
@@ -527,15 +498,39 @@ export default function ProductCard({
             <Text style={styles.originalPrice}>€{originalPrice.toFixed(2)}</Text>
           </View>
 
-          {/* CRITICAL: Size and Color Selection - ALWAYS SHOW IF REQUIRED */}
+          {/* CRITICAL: Enhanced selection container with visual feedback */}
           {requiresVariantSelection && (
-            <View style={styles.selectionContainer}>
-              {/* CRITICAL: Size Selection - REQUIRED if sizes exist */}
+            <Animated.View 
+              style={[
+                styles.selectionContainer,
+                !hasAllRequiredSelections && styles.selectionContainerRequired,
+                { transform: [{ scale: pulseAnim }] }
+              ]}
+            >
+              {!hasAllRequiredSelections && (
+                <View style={styles.selectionWarningBanner}>
+                  <IconSymbol 
+                    ios_icon_name="exclamationmark.triangle.fill" 
+                    android_material_icon_name="warning" 
+                    size={16} 
+                    color="#FF6B00" 
+                  />
+                  <Text style={styles.selectionWarningText}>
+                    SELEZIONE OBBLIGATORIA PER PRENOTARE
+                  </Text>
+                </View>
+              )}
+
               {requiresSizeSelection && (
                 <View style={styles.inlineSelection}>
                   <View style={styles.selectionLabelContainer}>
                     <Text style={styles.selectionLabel}>Taglia:</Text>
                     <Text style={styles.requiredIndicator}>*</Text>
+                    {!selectedSize && (
+                      <View style={styles.missingBadge}>
+                        <Text style={styles.missingBadgeText}>RICHIESTA</Text>
+                      </View>
+                    )}
                   </View>
                   <View style={styles.optionsRow}>
                     {availableSizes.slice(0, 6).map((size, index) => (
@@ -561,12 +556,16 @@ export default function ProductCard({
                 </View>
               )}
 
-              {/* CRITICAL: Color Selection - REQUIRED if colors exist */}
               {requiresColorSelection && (
                 <View style={styles.inlineSelection}>
                   <View style={styles.selectionLabelContainer}>
                     <Text style={styles.selectionLabel}>Colore:</Text>
                     <Text style={styles.requiredIndicator}>*</Text>
+                    {!selectedColor && (
+                      <View style={styles.missingBadge}>
+                        <Text style={styles.missingBadgeText}>RICHIESTO</Text>
+                      </View>
+                    )}
                   </View>
                   <View style={styles.optionsRow}>
                     {availableColors.slice(0, 6).map((color, index) => (
@@ -591,10 +590,10 @@ export default function ProductCard({
                   </View>
                 </View>
               )}
-            </View>
+            </Animated.View>
           )}
 
-          {/* Action Button - More compact */}
+          {/* CRITICAL: Enhanced booking button with clear disabled state */}
           {isInDrop ? (
             <Animated.View 
               style={[
@@ -608,10 +607,10 @@ export default function ProductCard({
                 onPress={handlePress}
                 onPressIn={handlePressIn}
                 onPressOut={handlePressOut}
-                disabled={isProcessing || isOutOfStock}
+                disabled={isBookingDisabled}
                 style={[
                   styles.bookButton,
-                  (isProcessing || isOutOfStock) && styles.bookButtonDisabled,
+                  isBookingDisabled && styles.bookButtonDisabled,
                 ]}
               >
                 {isProcessing ? (
@@ -632,6 +631,25 @@ export default function ProductCard({
                       </Text>
                     </View>
                   </>
+                ) : requiresVariantSelection && !hasAllRequiredSelections ? (
+                  <>
+                    <View style={[styles.bookButtonIconContainer, styles.bookButtonIconWarning]}>
+                      <IconSymbol 
+                        ios_icon_name="exclamationmark.triangle.fill" 
+                        android_material_icon_name="warning" 
+                        size={20} 
+                        color="#FF6B00" 
+                      />
+                    </View>
+                    <View style={styles.bookButtonTextContainer}>
+                      <Text style={[styles.bookButtonTitle, styles.bookButtonTitleWarning]}>
+                        SELEZIONA {!selectedSize && !selectedColor ? 'TAGLIA E COLORE' : !selectedSize ? 'TAGLIA' : 'COLORE'}
+                      </Text>
+                      <Text style={styles.bookButtonSubtitleWarning}>
+                        ⚠️ Selezione obbligatoria per prenotare
+                      </Text>
+                    </View>
+                  </>
                 ) : (
                   <>
                     <View style={styles.bookButtonIconContainer}>
@@ -645,9 +663,7 @@ export default function ProductCard({
                     <View style={styles.bookButtonTextContainer}>
                       <Text style={styles.bookButtonTitle}>PRENOTA ARTICOLO</Text>
                       <Text style={styles.bookButtonSubtitle}>
-                        {requiresVariantSelection && (!selectedSize || !selectedColor) 
-                          ? '⚠️ Seleziona taglia e colore'
-                          : 'Pagamento alla consegna'}
+                        Pagamento alla consegna
                       </Text>
                     </View>
                     <View style={styles.bookButtonArrow}>
@@ -895,6 +911,33 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
+  selectionContainerRequired: {
+    backgroundColor: '#FFF3E0',
+    borderWidth: 2,
+    borderColor: '#FF6B00',
+    shadowColor: '#FF6B00',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  selectionWarningBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#FF6B00',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+    marginBottom: 4,
+  },
+  selectionWarningText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#FFF',
+    letterSpacing: 0.5,
+    flex: 1,
+  },
   inlineSelection: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -905,6 +948,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     minWidth: 60,
+    gap: 4,
   },
   selectionLabel: {
     fontSize: 10,
@@ -917,7 +961,19 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     color: colors.error,
-    marginLeft: 2,
+  },
+  missingBadge: {
+    backgroundColor: '#FF6B00',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    marginLeft: 4,
+  },
+  missingBadgeText: {
+    fontSize: 8,
+    fontWeight: '800',
+    color: '#FFF',
+    letterSpacing: 0.3,
   },
   optionsRow: {
     flexDirection: 'row',
@@ -992,8 +1048,9 @@ const styles = StyleSheet.create({
     borderColor: '#333',
   },
   bookButtonDisabled: {
-    opacity: 0.5,
+    opacity: 0.6,
     borderColor: '#999',
+    backgroundColor: '#F5F5F5',
   },
   bookButtonIconContainer: {
     width: 40,
@@ -1004,6 +1061,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#E0E0E0',
+  },
+  bookButtonIconWarning: {
+    backgroundColor: '#FFF3E0',
+    borderColor: '#FF6B00',
   },
   bookButtonTextContainer: {
     flex: 1,
@@ -1018,10 +1079,19 @@ const styles = StyleSheet.create({
   bookButtonTitleDisabled: {
     color: '#999',
   },
+  bookButtonTitleWarning: {
+    color: '#FF6B00',
+  },
   bookButtonSubtitle: {
     color: '#666',
     fontSize: 9,
     fontWeight: '500',
+    letterSpacing: 0.1,
+  },
+  bookButtonSubtitleWarning: {
+    color: '#FF6B00',
+    fontSize: 9,
+    fontWeight: '700',
     letterSpacing: 0.1,
   },
   bookButtonArrow: {
