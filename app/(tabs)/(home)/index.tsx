@@ -71,27 +71,29 @@ async function loadVariantsInBatches(productIds: string[], batchSize: number = 1
   return allVariants;
 }
 
-// FIXED: Load ALL products from ALL lists - no more missing lists!
+// FIXED: Load ALL products from ALL lists with improved pagination
 async function loadAllProducts(listIds: string[]): Promise<any[]> {
   console.log(`→ Loading ALL products for ${listIds.length} lists...`);
+  console.log(`   List IDs:`, listIds);
   
   const allProducts: any[] = [];
   let offset = 0;
-  const batchSize = 1000; // Use 1000 as batch size for better performance
+  const batchSize = 1000;
   let hasMore = true;
   let batchNumber = 0;
   
   while (hasMore) {
     batchNumber++;
-    console.log(`  → Fetching batch ${batchNumber} (offset: ${offset}, limit: ${batchSize})...`);
+    const rangeEnd = offset + batchSize - 1;
+    console.log(`  → Fetching batch ${batchNumber} (range: ${offset}-${rangeEnd})...`);
     
-    const { data, error } = await supabase
+    const { data, error, count } = await supabase
       .from('products')
-      .select('*')
+      .select('*', { count: 'exact' })
       .in('supplier_list_id', listIds)
       .gt('stock', 0)
       .eq('status', 'active')
-      .range(offset, offset + batchSize - 1);
+      .range(offset, rangeEnd);
     
     if (error) {
       console.error(`  ❌ Batch ${batchNumber} failed:`, error.message);
@@ -99,22 +101,40 @@ async function loadAllProducts(listIds: string[]): Promise<any[]> {
     }
     
     const products = data || [];
-    console.log(`  ✓ Batch ${batchNumber}: Loaded ${products.length} products`);
+    console.log(`  ✓ Batch ${batchNumber}: Loaded ${products.length} products (Total in DB: ${count})`);
     
     if (products.length > 0) {
       allProducts.push(...products);
     }
     
-    // Continue if we got a full batch, stop if we got less
+    // FIXED: Continue if we got a full batch AND there are more products to load
+    // Stop if we got less than a full batch OR we've loaded all products
     if (products.length < batchSize) {
       hasMore = false;
       console.log(`  ✓ Reached end of products (batch had ${products.length} items, less than ${batchSize})`);
+    } else if (count && allProducts.length >= count) {
+      hasMore = false;
+      console.log(`  ✓ Loaded all ${count} products from database`);
     } else {
       offset += batchSize;
     }
   }
   
   console.log(`✓ Total products loaded: ${allProducts.length}`);
+  
+  // Log products per list to verify all lists are included
+  const productsPerList = new Map<string, number>();
+  allProducts.forEach(p => {
+    const count = productsPerList.get(p.supplier_list_id) || 0;
+    productsPerList.set(p.supplier_list_id, count + 1);
+  });
+  
+  console.log('✓ Products loaded per list:');
+  listIds.forEach(listId => {
+    const count = productsPerList.get(listId) || 0;
+    console.log(`   - ${listId}: ${count} products`);
+  });
+  
   return allProducts;
 }
 
@@ -215,7 +235,7 @@ export default function HomeScreen() {
       });
 
       const listIds = supplierLists.map(list => list.id);
-      console.log(`→ Will fetch products for ${listIds.length} lists:`, listIds);
+      console.log(`→ Will fetch products for ${listIds.length} lists`);
       
       // STEP 2: FIXED - Fetch ALL products from ALL lists using improved batching
       console.log('→ Fetching ALL products from ALL active lists...');
