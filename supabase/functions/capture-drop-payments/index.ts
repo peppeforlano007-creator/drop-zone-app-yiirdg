@@ -42,12 +42,12 @@ interface UserNotificationData {
   userId: string;
   userName: string;
   userEmail: string;
-  bookings: Array<{
+  bookings: {
     productName: string;
     originalPrice: number;
     finalPrice: number;
     savings: number;
-  }>;
+  }[];
   totalOriginal: number;
   totalFinal: number;
   totalSavings: number;

@@ -55,11 +55,11 @@ interface ProductGroup {
   condizione: 'nuovo' | 'reso da cliente' | 'packaging rovinato';
   categoria?: string;
   brand?: string;
-  variants: Array<{
+  variants: {
     taglia?: string;
     colore?: string;
     stock: number;
-  }>;
+  }[];
   totalStock: number;
   availableSizes: string[];
   availableColors: string[];
@@ -494,7 +494,7 @@ export default function CreateListScreen() {
         setImportProgress(`Inserimento ${productsToInsert.length} prodotti...`);
         
         const BATCH_SIZE = 500; // Supabase can handle large batches
-        const insertedProductsWithMapping: Array<{ id: string; sku: string | null; mapping: ProductInsertMapping }> = [];
+        const insertedProductsWithMapping: { id: string; sku: string | null; mapping: ProductInsertMapping }[] = [];
         
         for (let i = 0; i < productsToInsert.length; i += BATCH_SIZE) {
           const batch = productsToInsert.slice(i, i + BATCH_SIZE);
@@ -537,7 +537,7 @@ export default function CreateListScreen() {
         
         // Create a map of SKU to product ID for quick lookup
         const skuToProductId = new Map<string, string>();
-        const standaloneProductIds: Array<{ index: number; productId: string }> = [];
+        const standaloneProductIds: { index: number; productId: string }[] = [];
         
         insertedProductsWithMapping.forEach(item => {
           if (item.mapping.type === 'grouped' && item.mapping.sku) {

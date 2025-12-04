@@ -1,5 +1,5 @@
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { View, Text, Image, StyleSheet, Pressable, Dimensions, Alert, ActivityIndicator, Animated } from 'react-native';
 import { IconSymbol } from './IconSymbol';
 import { colors } from '@/styles/commonStyles';
@@ -58,17 +58,22 @@ export default function ProductCard({
   const hasVariants = product.hasVariants && product.variants && product.variants.length > 0;
 
   // CRITICAL FIX: Filter out empty/null/undefined values and only include actual sizes/colors
-  const availableSizes = hasVariants 
-    ? [...new Set(product.variants!.filter(v => v.size && v.size.trim() !== '').map(v => v.size!))]
-    : (product.availableSizes && product.availableSizes.length > 0 
-        ? product.availableSizes.filter(s => s && s.trim() !== '') 
-        : []);
+  // Wrap availableColors in useMemo to fix the useEffect dependency warning
+  const availableSizes = useMemo(() => {
+    return hasVariants 
+      ? [...new Set(product.variants!.filter(v => v.size && v.size.trim() !== '').map(v => v.size!))]
+      : (product.availableSizes && product.availableSizes.length > 0 
+          ? product.availableSizes.filter(s => s && s.trim() !== '') 
+          : []);
+  }, [hasVariants, product.variants, product.availableSizes]);
   
-  const availableColors = hasVariants
-    ? [...new Set(product.variants!.filter(v => v.color && v.color.trim() !== '').map(v => v.color!))]
-    : (product.availableColors && product.availableColors.length > 0 
-        ? product.availableColors.filter(c => c && c.trim() !== '') 
-        : []);
+  const availableColors = useMemo(() => {
+    return hasVariants
+      ? [...new Set(product.variants!.filter(v => v.color && v.color.trim() !== '').map(v => v.color!))]
+      : (product.availableColors && product.availableColors.length > 0 
+          ? product.availableColors.filter(c => c && c.trim() !== '') 
+          : []);
+  }, [hasVariants, product.variants, product.availableColors]);
 
   // CRITICAL: Determine if this product actually has size/color options
   const hasSizeOptions = availableSizes.length > 0;

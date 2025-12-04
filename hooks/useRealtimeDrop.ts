@@ -66,6 +66,9 @@ export function useRealtimeDrop({ dropId, onUpdate, enabled = true }: UseRealtim
 
     console.log('🚀 Setting up realtime subscription for drop:', dropId);
 
+    // Copy the ref value to a variable inside the effect
+    const lastUpdate = lastUpdateRef.current;
+
     // Create a channel for this specific drop
     const dropChannel = supabase.channel(`drop:${dropId}`, {
       config: {
@@ -97,9 +100,10 @@ export function useRealtimeDrop({ dropId, onUpdate, enabled = true }: UseRealtim
 
     setChannel(dropChannel);
 
-    // Cleanup function
+    // Cleanup function - use the copied variable
     return () => {
       console.log('🧹 Cleaning up realtime subscription for drop:', dropId);
+      console.log('Last update value at cleanup:', lastUpdate);
       dropChannel.unsubscribe();
       setChannel(null);
       setIsConnected(false);
@@ -164,6 +168,9 @@ export function useRealtimeDrops({ pickupPointId, onUpdate, enabled = true }: Us
 
     console.log('🚀 Setting up realtime subscription for drops');
 
+    // Copy the ref value to a variable inside the effect
+    const lastUpdateMap = new Map(lastUpdateRef.current);
+
     // Create a channel for all drops
     const dropsChannel = supabase.channel('drops:all', {
       config: {
@@ -195,9 +202,10 @@ export function useRealtimeDrops({ pickupPointId, onUpdate, enabled = true }: Us
 
     setChannel(dropsChannel);
 
-    // Cleanup function
+    // Cleanup function - use the copied variable
     return () => {
       console.log('🧹 Cleaning up realtime subscription for drops');
+      console.log('Last update map size at cleanup:', lastUpdateMap.size);
       dropsChannel.unsubscribe();
       setChannel(null);
       setIsConnected(false);
