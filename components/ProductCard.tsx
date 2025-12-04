@@ -58,13 +58,19 @@ export default function ProductCard({
   const hasVariants = product.hasVariants && product.variants && product.variants.length > 0;
 
   // Get available sizes and colors from variants
+  // CRITICAL FIX: Only include sizes/colors if they actually exist (not empty arrays)
   const availableSizes = hasVariants 
     ? [...new Set(product.variants!.filter(v => v.size).map(v => v.size!))]
-    : product.availableSizes || [];
+    : (product.availableSizes && product.availableSizes.length > 0 ? product.availableSizes : []);
   
   const availableColors = hasVariants
     ? [...new Set(product.variants!.filter(v => v.color).map(v => v.color!))]
-    : product.availableColors || [];
+    : (product.availableColors && product.availableColors.length > 0 ? product.availableColors : []);
+
+  // CRITICAL: Determine if this product actually has size/color options
+  const hasSizeOptions = availableSizes.length > 0;
+  const hasColorOptions = availableColors.length > 0;
+  const hasAnyVariantOptions = hasSizeOptions || hasColorOptions;
 
   // Update selected variant when size or color changes
   useEffect(() => {
@@ -392,9 +398,10 @@ export default function ProductCard({
             <Text style={styles.originalPrice}>€{originalPrice.toFixed(2)}</Text>
           </View>
 
-          {(availableSizes.length > 0 || availableColors.length > 0) && (
+          {/* CRITICAL FIX: Only show selection container if product actually has size or color options */}
+          {hasAnyVariantOptions && (
             <View style={styles.selectionContainer}>
-              {availableSizes.length > 0 && (
+              {hasSizeOptions && (
                 <View style={styles.inlineSelection}>
                   <Text style={styles.selectionLabel}>Taglia:</Text>
                   <View style={styles.optionsRow}>
@@ -421,7 +428,7 @@ export default function ProductCard({
                 </View>
               )}
 
-              {availableColors.length > 0 && (
+              {hasColorOptions && (
                 <View style={styles.inlineSelection}>
                   <Text style={styles.selectionLabel}>Colore:</Text>
                   <View style={styles.optionsRow}>
