@@ -93,7 +93,7 @@ export default function HomeScreen() {
   const loadProducts = useCallback(async () => {
     try {
       console.log('\n╔════════════════════════════════════════════════════════════════╗');
-      console.log('║  🔄 SUPPLIER LIST LOADING - DEFINITIVE FIX                   ║');
+      console.log('║  🔄 SUPPLIER LIST LOADING - FINAL FIX                        ║');
       console.log('╚════════════════════════════════════════════════════════════════╝');
       console.log('⏰ Timestamp:', new Date().toISOString());
       console.log('👤 User:', user?.email || 'Not logged in');
@@ -184,7 +184,7 @@ export default function HomeScreen() {
         productsPerList.set(p.supplier_list_id, count + 1);
       });
 
-      console.log('\n📊 Products per List:');
+      console.log('\n📊 Products per List (from DB):');
       supplierLists.forEach((list, idx) => {
         const count = productsPerList.get(list.id) || 0;
         console.log(`   ${idx + 1}. "${list.name}": ${count} products`);
@@ -229,35 +229,22 @@ export default function HomeScreen() {
       }
 
       // ═══════════════════════════════════════════════════════════════════
-      // STEP 5: BUILD PRODUCT LISTS (CRITICAL - ENSURE ALL LISTS INCLUDED)
+      // STEP 5: BUILD PRODUCT LISTS - ONLY INCLUDE LISTS WITH PRODUCTS
       // ═══════════════════════════════════════════════════════════════════
       console.log('┌─ STEP 5: Building Product Lists ─────────────────────────────┐');
       
       const finalLists: ProductList[] = [];
 
-      // CRITICAL: Process EVERY supplier list, even if it has no products
+      // CRITICAL FIX: Only process lists that have products
       for (const supplierList of supplierLists) {
         const listProducts = products.filter(p => p.supplier_list_id === supplierList.id);
         
         console.log(`\n📦 Processing "${supplierList.name}":`);
         console.log(`   • Raw products: ${listProducts.length}`);
 
-        // CRITICAL FIX: Include lists even with 0 products for debugging
-        // In production, you might want to skip empty lists, but for now we include them
+        // CRITICAL FIX: Skip lists with no products
         if (listProducts.length === 0) {
-          console.log(`   ⚠️  WARNING: No products for this list - STILL ADDING TO FEED FOR DEBUGGING`);
-          
-          // Add empty list for debugging
-          finalLists.push({
-            listId: supplierList.id,
-            listName: supplierList.name,
-            supplierName: profilesMap.get(supplierList.supplier_id) || 'Fornitore',
-            products: [],
-            minDiscount: supplierList.min_discount || 30,
-            maxDiscount: supplierList.max_discount || 80,
-            minReservationValue: supplierList.min_reservation_value || 5000,
-            maxReservationValue: supplierList.max_reservation_value || 30000,
-          });
+          console.log(`   ⚠️  WARNING: No products for this list - SKIPPING`);
           continue;
         }
 
@@ -326,7 +313,7 @@ export default function HomeScreen() {
       console.log('║  📊 FINAL RESULT & STATE UPDATE                                ║');
       console.log('╚════════════════════════════════════════════════════════════════╝');
       console.log(`✅ Active Supplier Lists in DB: ${supplierLists.length}`);
-      console.log(`✅ Lists Being Added to State: ${finalLists.length}`);
+      console.log(`✅ Lists with Products Being Added: ${finalLists.length}`);
       console.log(`✅ Total Products in Feed: ${finalLists.reduce((sum, l) => sum + l.products.length, 0)}`);
       
       console.log('\n📋 Final Lists Being Set:');
@@ -337,11 +324,19 @@ export default function HomeScreen() {
         console.log(`      • List ID: ${list.listId.substring(0, 8)}...`);
       });
 
-      if (finalLists.length !== supplierLists.length) {
-        console.log('\n⚠️  WARNING: Mismatch between DB lists and final lists!');
-        console.log(`   Expected: ${supplierLists.length}, Got: ${finalLists.length}`);
+      if (finalLists.length === 0) {
+        console.log('\n⚠️  WARNING: No lists with products found!');
+        console.log('   This means all lists are empty or products failed to load.');
+      } else if (finalLists.length < supplierLists.length) {
+        console.log(`\n⚠️  INFO: ${supplierLists.length - finalLists.length} list(s) skipped due to no products`);
+        const skippedLists = supplierLists.filter(sl => 
+          !finalLists.some(fl => fl.listId === sl.id)
+        );
+        skippedLists.forEach(sl => {
+          console.log(`   • "${sl.name}" - no products available`);
+        });
       } else {
-        console.log('\n✅ SUCCESS: All active lists are being added to state!');
+        console.log('\n✅ SUCCESS: All lists with products are included!');
       }
       
       console.log('\n🎯 SETTING STATE NOW...');
@@ -837,26 +832,6 @@ export default function HomeScreen() {
 
   const renderList = ({ item, index }: { item: ProductList; index: number }) => {
     const isCurrentList = index === currentListIndex;
-    
-    // CRITICAL: Handle empty lists
-    if (item.products.length === 0) {
-      return (
-        <View style={styles.listContainer}>
-          <View style={[styles.container, styles.centerContent]}>
-            <IconSymbol 
-              ios_icon_name="tray" 
-              android_material_icon_name="inbox" 
-              size={80} 
-              color={colors.textTertiary} 
-            />
-            <Text style={styles.emptyTitle}>Lista Vuota</Text>
-            <Text style={styles.emptyText}>
-              La lista &quot;{item.listName}&quot; non ha prodotti disponibili al momento.
-            </Text>
-          </View>
-        </View>
-      );
-    }
     
     return (
       <View style={styles.listContainer}>
