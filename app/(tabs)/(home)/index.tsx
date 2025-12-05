@@ -16,7 +16,6 @@ const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
 
 // PERFORMANCE OPTIMIZATION: Batch size for loading variants
 const VARIANT_BATCH_SIZE = 50;
-const PRODUCT_BATCH_SIZE = 100;
 
 interface SupplierList {
   id: string;
@@ -138,7 +137,7 @@ export default function HomeScreen() {
   const loadProducts = useCallback(async () => {
     try {
       console.log('\n╔════════════════════════════════════════════════════════════════╗');
-      console.log('║  🚀 OPTIMIZED FEED LOADING - PERFORMANCE MODE                 ║');
+      console.log('║  🚀 FEED LOADING - MULTI-LIST NAVIGATION FIX                  ║');
       console.log('╚════════════════════════════════════════════════════════════════╝');
       console.log('⏰ Timestamp:', new Date().toISOString());
       console.log('👤 User:', user?.email || 'Not logged in');
@@ -380,6 +379,7 @@ export default function HomeScreen() {
       setProductLists(finalLists);
       
       console.log('✅ STATE SET COMPLETE');
+      console.log(`🔢 Total lists in state: ${finalLists.length}`);
       console.log('\n╚════════════════════════════════════════════════════════════════╝\n');
       
       setLoading(false);
@@ -1067,6 +1067,10 @@ export default function HomeScreen() {
     interestedInCurrentList > 1 && 
     !bannerDismissed[currentList.listId];
 
+  // CRITICAL FIX: Always show navigation buttons when there are multiple lists
+  const showLeftNav = productLists.length > 1 && currentListIndex > 0;
+  const showRightNav = productLists.length > 1 && currentListIndex < productLists.length - 1;
+
   return (
     <>
       <Stack.Screen options={{ headerShown: false }} />
@@ -1196,28 +1200,62 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        {currentListIndex > 0 && (
+        {/* CRITICAL FIX: Enhanced navigation buttons - always visible when multiple lists exist */}
+        {showLeftNav && (
           <Pressable 
             style={({ pressed }) => [
               styles.navButtonLeft,
               pressed && styles.navButtonPressed,
             ]}
             onPress={handlePreviousList}
+            hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
           >
-            <IconSymbol ios_icon_name="chevron.left" android_material_icon_name="chevron_left" size={18} color="#FFF" />
+            <View style={styles.navButtonInner}>
+              <IconSymbol 
+                ios_icon_name="chevron.left" 
+                android_material_icon_name="chevron_left" 
+                size={24} 
+                color="#FFF" 
+              />
+            </View>
           </Pressable>
         )}
 
-        {currentListIndex < productLists.length - 1 && (
+        {showRightNav && (
           <Pressable 
             style={({ pressed }) => [
               styles.navButtonRight,
               pressed && styles.navButtonPressed,
             ]}
             onPress={handleNextList}
+            hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
           >
-            <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="chevron_right" size={18} color="#FFF" />
+            <View style={styles.navButtonInner}>
+              <IconSymbol 
+                ios_icon_name="chevron.right" 
+                android_material_icon_name="chevron_right" 
+                size={24} 
+                color="#FFF" 
+              />
+            </View>
           </Pressable>
+        )}
+
+        {/* Multi-list indicator banner */}
+        {productLists.length > 1 && (
+          <View style={styles.multiListBanner}>
+            <View style={styles.multiListBannerContent}>
+              <IconSymbol 
+                ios_icon_name="list.bullet" 
+                android_material_icon_name="list" 
+                size={16} 
+                color="#FFF" 
+              />
+              <Text style={styles.multiListBannerText}>
+                {productLists.length} liste disponibili • Scorri con le frecce
+              </Text>
+            </View>
+          </View>
         )}
 
         {shouldShowBanner && (
@@ -1564,45 +1602,79 @@ const styles = StyleSheet.create({
   },
   navButtonLeft: {
     position: 'absolute',
-    left: 8,
+    left: 16,
     bottom: '22%',
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 1.5,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.4)',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
-    zIndex: 10,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+    zIndex: 100,
   },
   navButtonRight: {
     position: 'absolute',
-    right: 8,
+    right: 16,
     bottom: '22%',
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 1.5,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.4)',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
-    zIndex: 10,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+    zIndex: 100,
   },
   navButtonPressed: {
     opacity: 0.7,
     transform: [{ scale: 0.95 }],
+  },
+  navButtonInner: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  multiListBanner: {
+    position: 'absolute',
+    top: Platform.OS === 'android' ? 120 : 130,
+    left: 20,
+    right: 20,
+    zIndex: 50,
+  },
+  multiListBannerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(59, 130, 246, 0.95)',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    gap: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  multiListBannerText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#FFF',
+    letterSpacing: 0.3,
   },
   hintContainer: {
     position: 'absolute',
