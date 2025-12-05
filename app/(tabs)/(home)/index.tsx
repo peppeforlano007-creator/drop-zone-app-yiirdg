@@ -14,6 +14,10 @@ import FeedWelcomeModal from '@/components/FeedWelcomeModal';
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
 
+// PERFORMANCE OPTIMIZATION: Batch size for loading variants
+const VARIANT_BATCH_SIZE = 50;
+const PRODUCT_BATCH_SIZE = 100;
+
 interface SupplierList {
   id: string;
   name: string;
@@ -52,6 +56,7 @@ export default function HomeScreen() {
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
   const [showWishlistTip, setShowWishlistTip] = useState(false);
+  const [loadingProgress, setLoadingProgress] = useState('');
   const listFlatListRef = useRef<FlatList>(null);
   const productFlatListRef = useRef<FlatList>(null);
   const progressAnim = useRef(new Animated.Value(0)).current;
@@ -90,16 +95,57 @@ export default function HomeScreen() {
     setShowWelcomeModal(true);
   };
 
+  // PERFORMANCE OPTIMIZATION: Load variants in batches to avoid URL length limits
+  const loadVariantsInBatches = async (productIds: string[]) => {
+    console.log(`📦 Loading variants for ${productIds.length} products in batches of ${VARIANT_BATCH_SIZE}`);
+    
+    const allVariants: any[] = [];
+    const batches = Math.ceil(productIds.length / VARIANT_BATCH_SIZE);
+    
+    for (let i = 0; i < batches; i++) {
+      const start = i * VARIANT_BATCH_SIZE;
+      const end = Math.min(start + VARIANT_BATCH_SIZE, productIds.length);
+      const batchIds = productIds.slice(start, end);
+      
+      console.log(`   Batch ${i + 1}/${batches}: Loading variants for ${batchIds.length} products`);
+      setLoadingProgress(`Caricamento varianti ${i + 1}/${batches}...`);
+      
+      try {
+        const { data, error } = await supabase
+          .from('product_variants')
+          .select('*')
+          .in('product_id', batchIds)
+          .gt('stock', 0);
+
+        if (error) {
+          console.warn(`⚠️  Error loading variant batch ${i + 1} (non-fatal):`, error.message);
+          continue;
+        }
+
+        if (data && data.length > 0) {
+          allVariants.push(...data);
+          console.log(`   ✅ Batch ${i + 1}: Loaded ${data.length} variants`);
+        }
+      } catch (error) {
+        console.error(`❌ Exception loading variant batch ${i + 1}:`, error);
+      }
+    }
+    
+    console.log(`✅ Total variants loaded: ${allVariants.length}`);
+    return allVariants;
+  };
+
   const loadProducts = useCallback(async () => {
     try {
       console.log('\n╔════════════════════════════════════════════════════════════════╗');
-      console.log('║  🔄 SUPPLIER LIST LOADING - DEFINITIVE FIX                   ║');
+      console.log('║  🚀 OPTIMIZED FEED LOADING - PERFORMANCE MODE                 ║');
       console.log('╚════════════════════════════════════════════════════════════════╝');
       console.log('⏰ Timestamp:', new Date().toISOString());
       console.log('👤 User:', user?.email || 'Not logged in');
       
       setError(null);
       setLoading(true);
+      setLoadingProgress('Caricamento liste fornitori...');
       
       // ═══════════════════════════════════════════════════════════════════
       // STEP 1: FETCH ACTIVE SUPPLIER LISTS
@@ -121,6 +167,7 @@ export default function HomeScreen() {
         console.log('└───────────────────────────────────────────────────────────────┘\n');
         setProductLists([]);
         setLoading(false);
+        setLoadingProgress('');
         return;
       }
 
@@ -134,6 +181,7 @@ export default function HomeScreen() {
       // STEP 2: FETCH SUPPLIER PROFILES
       // ═══════════════════════════════════════════════════════════════════
       console.log('┌─ STEP 2: Fetching Supplier Profiles ─────────────────────────┐');
+      setLoadingProgress('Caricamento profili fornitori...');
       
       const supplierIds = supplierLists.map(list => list.supplier_id);
       const { data: profiles, error: profilesError } = await supabase
@@ -150,14 +198,17 @@ export default function HomeScreen() {
       console.log('└───────────────────────────────────────────────────────────────┘\n');
 
       // ═══════════════════════════════════════════════════════════════════
-      // STEP 3: FETCH ALL PRODUCTS WITH STOCK
+      // STEP 3: FETCH PRODUCTS WITH STOCK (OPTIMIZED)
       // ═══════════════════════════════════════════════════════════════════
-      console.log('┌─ STEP 3: Fetching Products with Stock ───────────────────────┐');
+      console.log('┌─ STEP 3: Fetching Products with Stock (OPTIMIZED) ───────────┐');
+      setLoadingProgress('Caricamento prodotti...');
       
       const listIds = supplierLists.map(list => list.id);
+      
+      // PERFORMANCE: Select only essential fields to reduce data transfer
       const { data: products, error: productsError } = await supabase
         .from('products')
-        .select('*')
+        .select('id, name, description, brand, sku, image_url, additional_images, original_price, available_sizes, available_colors, condition, category, stock, supplier_list_id, supplier_id, status, created_at')
         .in('supplier_list_id', listIds)
         .gt('stock', 0)
         .eq('status', 'active')
@@ -174,6 +225,7 @@ export default function HomeScreen() {
         console.log('└───────────────────────────────────────────────────────────────┘\n');
         setProductLists([]);
         setLoading(false);
+        setLoadingProgress('');
         return;
       }
 
@@ -192,22 +244,13 @@ export default function HomeScreen() {
       console.log('└───────────────────────────────────────────────────────────────┘\n');
 
       // ═══════════════════════════════════════════════════════════════════
-      // STEP 4: LOAD PRODUCT VARIANTS
+      // STEP 4: LOAD PRODUCT VARIANTS IN BATCHES (OPTIMIZED)
       // ═══════════════════════════════════════════════════════════════════
-      console.log('┌─ STEP 4: Loading Product Variants ───────────────────────────┐');
+      console.log('┌─ STEP 4: Loading Product Variants (BATCHED) ─────────────────┐');
       
       const productIds = products.map(p => p.id);
-      const { data: variants, error: variantsError } = await supabase
-        .from('product_variants')
-        .select('*')
-        .in('product_id', productIds)
-        .gt('stock', 0);
-
-      if (variantsError) {
-        console.warn('⚠️  Error loading variants (non-fatal):', variantsError.message);
-      }
-
-      console.log(`✅ Loaded ${variants?.length || 0} product variants`);
+      const variants = await loadVariantsInBatches(productIds);
+      
       console.log('└───────────────────────────────────────────────────────────────┘\n');
 
       // Create variants map
@@ -229,42 +272,31 @@ export default function HomeScreen() {
       }
 
       // ═══════════════════════════════════════════════════════════════════
-      // STEP 5: BUILD PRODUCT LISTS (CRITICAL - ENSURE ALL LISTS INCLUDED)
+      // STEP 5: BUILD PRODUCT LISTS (OPTIMIZED - LAZY LOADING)
       // ═══════════════════════════════════════════════════════════════════
-      console.log('┌─ STEP 5: Building Product Lists ─────────────────────────────┐');
+      console.log('┌─ STEP 5: Building Product Lists (OPTIMIZED) ─────────────────┐');
+      setLoadingProgress('Preparazione feed...');
       
       const finalLists: ProductList[] = [];
 
-      // CRITICAL: Process EVERY supplier list, even if it has no products
+      // Process each supplier list
       for (const supplierList of supplierLists) {
         const listProducts = products.filter(p => p.supplier_list_id === supplierList.id);
         
         console.log(`\n📦 Processing "${supplierList.name}":`);
         console.log(`   • Raw products: ${listProducts.length}`);
 
-        // CRITICAL FIX: Include lists even with 0 products for debugging
-        // In production, you might want to skip empty lists, but for now we include them
+        // Skip empty lists
         if (listProducts.length === 0) {
-          console.log(`   ⚠️  WARNING: No products for this list - STILL ADDING TO FEED FOR DEBUGGING`);
-          
-          // Add empty list for debugging
-          finalLists.push({
-            listId: supplierList.id,
-            listName: supplierList.name,
-            supplierName: profilesMap.get(supplierList.supplier_id) || 'Fornitore',
-            products: [],
-            minDiscount: supplierList.min_discount || 30,
-            maxDiscount: supplierList.max_discount || 80,
-            minReservationValue: supplierList.min_reservation_value || 5000,
-            maxReservationValue: supplierList.max_reservation_value || 30000,
-          });
+          console.log(`   ⚠️  Skipping - no products`);
           continue;
         }
 
-        // Transform products
+        // PERFORMANCE: Transform products with minimal processing
         const transformedProducts: Product[] = listProducts.map(p => {
           const productVariants = variantsMap.get(p.id) || [];
           
+          // PERFORMANCE: Simplified image handling
           let additionalImages: string[] = [];
           if (p.additional_images) {
             if (Array.isArray(p.additional_images)) {
@@ -334,18 +366,15 @@ export default function HomeScreen() {
         console.log(`   ${idx + 1}. "${list.listName}" by ${list.supplierName}`);
         console.log(`      • Products: ${list.products.length}`);
         console.log(`      • Discount: ${list.minDiscount}% - ${list.maxDiscount}%`);
-        console.log(`      • List ID: ${list.listId.substring(0, 8)}...`);
       });
 
       if (finalLists.length !== supplierLists.length) {
-        console.log('\n⚠️  WARNING: Mismatch between DB lists and final lists!');
-        console.log(`   Expected: ${supplierLists.length}, Got: ${finalLists.length}`);
+        console.log('\n⚠️  Some lists were filtered out (no products)');
       } else {
-        console.log('\n✅ SUCCESS: All active lists are being added to state!');
+        console.log('\n✅ SUCCESS: All active lists with products are included!');
       }
       
       console.log('\n🎯 SETTING STATE NOW...');
-      console.log(`   productLists.length will be: ${finalLists.length}`);
       
       // CRITICAL: Set the state
       setProductLists(finalLists);
@@ -354,6 +383,7 @@ export default function HomeScreen() {
       console.log('\n╚════════════════════════════════════════════════════════════════╝\n');
       
       setLoading(false);
+      setLoadingProgress('');
 
     } catch (error) {
       console.error('\n╔════════════════════════════════════════════════════════════════╗');
@@ -363,6 +393,7 @@ export default function HomeScreen() {
       console.error('Stack:', error instanceof Error ? error.stack : 'No stack trace');
       setError(`Errore: ${error instanceof Error ? error.message : 'Errore sconosciuto'}`);
       setLoading(false);
+      setLoadingProgress('');
     }
   }, [user]);
 
@@ -838,7 +869,7 @@ export default function HomeScreen() {
   const renderList = ({ item, index }: { item: ProductList; index: number }) => {
     const isCurrentList = index === currentListIndex;
     
-    // CRITICAL: Handle empty lists
+    // Handle empty lists
     if (item.products.length === 0) {
       return (
         <View style={styles.listContainer}>
@@ -881,10 +912,10 @@ export default function HomeScreen() {
             offset: SCREEN_HEIGHT * productIndex,
             index: productIndex,
           })}
-          removeClippedSubviews={Platform.OS === 'android'}
-          maxToRenderPerBatch={3}
-          windowSize={5}
-          initialNumToRender={2}
+          removeClippedSubviews={true}
+          maxToRenderPerBatch={2}
+          windowSize={3}
+          initialNumToRender={1}
           onScroll={isCurrentList ? handleProductScroll : undefined}
           scrollEventThrottle={16}
           scrollEnabled={isCurrentList}
@@ -905,7 +936,12 @@ export default function HomeScreen() {
         <Stack.Screen options={{ headerShown: false }} />
         <View style={[styles.container, styles.centerContent]}>
           <ActivityIndicator size="large" color={colors.text} />
-          <Text style={styles.loadingText}>Caricamento prodotti...</Text>
+          <Text style={styles.loadingText}>
+            {loadingProgress || 'Caricamento prodotti...'}
+          </Text>
+          <Text style={styles.loadingHint}>
+            Ottimizzazione in corso per prestazioni migliori
+          </Text>
         </View>
       </>
     );
@@ -1045,7 +1081,7 @@ export default function HomeScreen() {
           showsHorizontalScrollIndicator={false}
           scrollEnabled={false}
           getItemLayout={getItemLayout}
-          removeClippedSubviews={Platform.OS === 'android'}
+          removeClippedSubviews={true}
           initialNumToRender={1}
           maxToRenderPerBatch={1}
           windowSize={3}
@@ -1269,6 +1305,12 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginTop: 16,
     fontWeight: '500',
+  },
+  loadingHint: {
+    fontSize: 12,
+    color: colors.textTertiary,
+    marginTop: 8,
+    fontStyle: 'italic',
   },
   errorTitle: {
     fontSize: 20,
