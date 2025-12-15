@@ -26,4 +26,15 @@ config.resolver = {
   },
 };
 
+// Ensure polyfills are loaded first by configuring serializer
+config.serializer = {
+  ...config.serializer,
+  getModulesRunBeforeMainModule: () => {
+    // This ensures polyfills are loaded before the main module
+    return [
+      require.resolve('./app/polyfills.ts'),
+    ];
+  },
+};
+
 module.exports = config;

@@ -1,7 +1,7 @@
 
-// CRITICAL: Polyfills must be imported FIRST, before expo-router
-// This ensures URL polyfills are available for @supabase/supabase-js
-import 'react-native-url-polyfill/auto';
+// CRITICAL: Load polyfills FIRST before anything else
+// This must be a synchronous import to ensure URL is available
+import './app/polyfills';
 
 // Now we can safely import expo-router
 import 'expo-router/entry';
