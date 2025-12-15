@@ -1,7 +1,4 @@
 
-// CRITICAL: Load polyfills FIRST before anything else
-// This must be a synchronous import to ensure URL is available
-import './app/polyfills';
-
-// Now we can safely import expo-router
+// Load polyfills first via Metro configuration
+// See metro.config.js for getModulesRunBeforeMainModule
 import 'expo-router/entry';

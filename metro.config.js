@@ -26,14 +26,16 @@ config.resolver = {
   },
 };
 
-// Ensure polyfills are loaded first by configuring serializer
+// CRITICAL: Ensure polyfills are loaded BEFORE the main module
+// This is the key to fixing the Supabase initialization error
 config.serializer = {
   ...config.serializer,
   getModulesRunBeforeMainModule: () => {
-    // This ensures polyfills are loaded before the main module
-    return [
-      require.resolve('./app/polyfills.ts'),
-    ];
+    // Load the polyfill file before any other code runs
+    // This ensures URL is available when @supabase/supabase-js is imported
+    const polyfillPath = path.resolve(__dirname, 'app/polyfills.ts');
+    console.log('📦 Metro: Loading polyfills from:', polyfillPath);
+    return [polyfillPath];
   },
 };
 
