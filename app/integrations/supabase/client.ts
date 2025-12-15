@@ -1,41 +1,38 @@
 
-// Supabase client initialization with inline polyfill loading
+// Supabase client initialization
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Database } from './types';
 
-// CRITICAL: Ensure polyfills are loaded before importing Supabase
-// If URL is not defined, load the polyfill synchronously
+// Double-check polyfills are loaded (should already be loaded by index.ts)
 if (typeof URL === 'undefined') {
-  console.log('⚠️ URL not defined, loading polyfill inline...');
-  // Load the polyfill synchronously
+  console.error('❌ CRITICAL: URL not available in client.ts!');
+  // Try to load it one more time as a last resort
   require('react-native-url-polyfill/auto');
   
-  // Verify it loaded
   if (typeof URL === 'undefined') {
     throw new Error(
       '❌ CRITICAL ERROR: URL polyfill failed to load!\n\n' +
       'The react-native-url-polyfill could not be loaded.\n\n' +
-      'If you see this error:\n' +
-      '1. Stop the dev server\n' +
+      'Steps to fix:\n' +
+      '1. Stop the dev server (Ctrl+C)\n' +
       '2. Clear cache: npm start -- --clear\n' +
-      '3. Delete node_modules and run: npm install\n' +
-      '4. Restart the dev server'
+      '3. If that doesn\'t work, delete node_modules and reinstall:\n' +
+      '   rm -rf node_modules\n' +
+      '   npm install\n' +
+      '4. Restart: npm start -- --clear'
     );
   }
-  
-  console.log('✅ Polyfill loaded inline successfully');
 }
 
-console.log('✅ URL polyfill verified, importing Supabase...');
+console.log('✅ [client.ts] URL polyfill verified');
 
 // Now it's safe to import Supabase
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { createClient } from '@supabase/supabase-js';
 
 const SUPABASE_URL = "https://sippdylyuzejudmzbwdn.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNpcHBkeWx5dXplanVkbXpid2RuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjMwNDAyNTEsImV4cCI6MjA3ODYxNjI1MX0.yPqwhFDcucUNxXnxnQ4orHBvxVNkxjEBUOypW6MV6jE";
 
-console.log('🔧 Creating Supabase client...');
-console.log('📍 URL:', SUPABASE_URL);
+console.log('🔧 [client.ts] Creating Supabase client...');
 
 // Create the Supabase client
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
@@ -60,7 +57,7 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
   },
 });
 
-console.log('✅ Supabase client created successfully');
+console.log('✅ [client.ts] Supabase client created successfully');
 
 // Test connection function
 export const testSupabaseConnection = async () => {
