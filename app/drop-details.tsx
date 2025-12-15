@@ -106,6 +106,7 @@ export default function DropDetailsScreen() {
   const [loading, setLoading] = useState(true);
   const [userBookings, setUserBookings] = useState<Set<string>>(new Set());
   const [timeRemaining, setTimeRemaining] = useState('');
+  const [isExpired, setIsExpired] = useState(false);
   const bounceAnim = useRef(new Animated.Value(1)).current;
   const { user } = useAuth();
   const flatListRef = useRef<FlatList>(null);
@@ -147,11 +148,28 @@ export default function DropDetailsScreen() {
       console.log('✅ Drop data loaded:', {
         id: dropData.id,
         name: dropData.name,
+        status: dropData.status,
         current_discount: dropData.current_discount,
         current_value: dropData.current_value,
+        end_time: dropData.end_time,
         updated_at: dropData.updated_at,
       });
+
+      // Check if drop is expired or closed
+      const now = new Date();
+      const endTime = new Date(dropData.end_time);
+      const expired = now > endTime || !['active', 'approved'].includes(dropData.status);
+      
+      setIsExpired(expired);
       setDrop(dropData);
+
+      // If drop is expired/closed, show message and don't load products
+      if (expired) {
+        console.log('⚠️ Drop is expired or closed, status:', dropData.status);
+        setProducts([]);
+        setLoading(false);
+        return;
+      }
 
       // OPTIMIZED: Load products with larger batch size
       const { data: productsData, error: productsError } = await supabase
@@ -258,7 +276,7 @@ export default function DropDetailsScreen() {
 
   // Real-time subscription for product stock updates
   useEffect(() => {
-    if (!drop) return;
+    if (!drop || isExpired) return;
 
     console.log('🚀 Setting up real-time subscription for product stock updates');
     
@@ -318,15 +336,28 @@ export default function DropDetailsScreen() {
       console.log('🧹 Cleaning up real-time subscription');
       supabase.removeChannel(channel);
     };
-  }, [drop]);
+  }, [drop, isExpired]);
 
   const handleDropUpdate = useCallback((updatedDrop: any) => {
     console.log('🔄 Real-time drop update received in drop-details:', {
       id: updatedDrop.id,
+      status: updatedDrop.status,
       current_discount: updatedDrop.current_discount,
       current_value: updatedDrop.current_value,
       updated_at: updatedDrop.updated_at,
     });
+    
+    // If drop status changed to expired/completed/underfunded, mark as expired
+    if (updatedDrop.status && !['active', 'approved'].includes(updatedDrop.status)) {
+      console.log('⚠️ Drop status changed to', updatedDrop.status);
+      setIsExpired(true);
+      Alert.alert(
+        'Drop Terminato',
+        'Questo drop è stato chiuso e non accetta più prenotazioni.',
+        [{ text: 'OK', onPress: () => router.back() }]
+      );
+      return;
+    }
     
     setDrop(prevDrop => {
       if (!prevDrop || prevDrop.id !== updatedDrop.id) return prevDrop;
@@ -369,7 +400,7 @@ export default function DropDetailsScreen() {
   const { isConnected } = useRealtimeDrop({
     dropId: dropId || '',
     onUpdate: handleDropUpdate,
-    enabled: !!dropId,
+    enabled: !!dropId && !isExpired,
   });
 
   useEffect(() => {
@@ -382,6 +413,7 @@ export default function DropDetailsScreen() {
 
       if (distance < 0) {
         setTimeRemaining('Drop terminato');
+        setIsExpired(true);
         return;
       }
 
@@ -450,14 +482,13 @@ export default function DropDetailsScreen() {
     return (currentValue / minValue) * 100;
   }, [drop]);
 
-
-
   const handleBook = useCallback(async (productId: string, variantId?: string) => {
     console.log('=== HANDLE BOOK CALLED (COD) ===');
     console.log('Product ID:', productId);
     console.log('Variant ID:', variantId);
     console.log('User:', user?.id);
     console.log('Drop:', drop?.id);
+    console.log('Is Expired:', isExpired);
 
     if (!user) {
       Alert.alert('Accesso richiesto', 'Devi effettuare l\'accesso per prenotare');
@@ -467,6 +498,16 @@ export default function DropDetailsScreen() {
 
     if (!drop) {
       Alert.alert('Errore', 'Impossibile prenotare in questo momento');
+      return;
+    }
+
+    // Check if drop is expired
+    if (isExpired || !['active', 'approved'].includes(drop.status)) {
+      Alert.alert(
+        'Drop Terminato',
+        'Questo drop è terminato e non accetta più prenotazioni.',
+        [{ text: 'OK' }]
+      );
       return;
     }
 
@@ -522,7 +563,16 @@ export default function DropDetailsScreen() {
         .single();
 
       if (bookingError) {
-        if (bookingError.code === 'P0001' || 
+        console.error('❌ Booking error:', bookingError);
+        
+        // Check for specific error messages
+        if (bookingError.message?.toLowerCase().includes('terminato')) {
+          Alert.alert(
+            'Drop Terminato',
+            'Questo drop è terminato e non accetta più prenotazioni.',
+            [{ text: 'OK', onPress: () => router.back() }]
+          );
+        } else if (bookingError.code === 'P0001' || 
             bookingError.message?.toLowerCase().includes('esaurito') ||
             bookingError.message?.toLowerCase().includes('stock') ||
             bookingError.message?.toLowerCase().includes('disponibile')) {
@@ -532,10 +582,9 @@ export default function DropDetailsScreen() {
             [{ text: 'OK', onPress: () => loadDropDetails() }]
           );
         } else {
-          console.error('❌ Error creating booking:', bookingError);
           Alert.alert(
             'Errore', 
-            'Impossibile creare la prenotazione. Riprova più tardi.',
+            bookingError.message || 'Impossibile creare la prenotazione. Riprova più tardi.',
             [{ text: 'OK' }]
           );
         }
@@ -554,7 +603,15 @@ export default function DropDetailsScreen() {
         [{ text: 'OK' }]
       );
     } catch (error: any) {
-      if (error?.code === 'P0001' ||
+      console.error('❌ Exception in handleBook:', error);
+      
+      if (error?.message?.toLowerCase().includes('terminato')) {
+        Alert.alert(
+          'Drop Terminato',
+          'Questo drop è terminato e non accetta più prenotazioni.',
+          [{ text: 'OK', onPress: () => router.back() }]
+        );
+      } else if (error?.code === 'P0001' ||
           error?.message?.toLowerCase().includes('esaurito') ||
           error?.message?.toLowerCase().includes('stock') ||
           error?.message?.toLowerCase().includes('disponibile')) {
@@ -564,7 +621,6 @@ export default function DropDetailsScreen() {
           [{ text: 'OK', onPress: () => loadDropDetails() }]
         );
       } else {
-        console.error('❌ Exception in handleBook:', error);
         Alert.alert(
           'Errore',
           'Si è verificato un errore durante la prenotazione. Riprova più tardi.',
@@ -572,7 +628,7 @@ export default function DropDetailsScreen() {
         );
       }
     }
-  }, [user, drop, products, loadDropDetails]);
+  }, [user, drop, products, loadDropDetails, isExpired]);
 
   const handlePressIn = () => {
     Animated.spring(bounceAnim, {
@@ -690,6 +746,27 @@ export default function DropDetailsScreen() {
           <Text style={styles.errorText}>Drop non trovato</Text>
           <Pressable style={styles.backButton} onPress={() => router.back()}>
             <Text style={styles.backButtonText}>Torna indietro</Text>
+          </Pressable>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // Show expired message if drop is closed
+  if (isExpired || !['active', 'approved'].includes(drop.status)) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <Stack.Screen options={{ headerShown: false }} />
+        <View style={styles.errorContainer}>
+          <IconSymbol ios_icon_name="clock.badge.xmark" android_material_icon_name="schedule" size={64} color={colors.warning} />
+          <Text style={styles.errorText}>Drop Terminato</Text>
+          <Text style={styles.errorSubtext}>
+            Questo drop è terminato e non accetta più prenotazioni.
+            {drop.status === 'completed' && '\n\nGli ordini sono stati inviati al fornitore.'}
+            {drop.status === 'underfunded' && '\n\nIl drop non ha raggiunto il valore minimo ed è stato annullato.'}
+          </Text>
+          <Pressable style={styles.backButton} onPress={() => router.back()}>
+            <Text style={styles.backButtonText}>Torna ai Drop Attivi</Text>
           </Pressable>
         </View>
       </SafeAreaView>
@@ -926,6 +1003,7 @@ const styles = StyleSheet.create({
     fontFamily: 'System',
     textAlign: 'center',
     paddingHorizontal: 32,
+    lineHeight: 20,
   },
   backButton: {
     marginTop: 24,

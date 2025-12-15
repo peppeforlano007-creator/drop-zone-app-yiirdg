@@ -64,9 +64,10 @@ export default function DropsScreen() {
         }
       }
 
-      // Include both 'active' and 'approved' drops
-      // 'approved' drops are waiting to be activated by admin
-      // 'active' drops are currently running
+      // First, run the lifecycle processor to update drop statuses
+      await supabase.rpc('process_drop_lifecycle');
+
+      // Only show active and approved drops (not expired, completed, or underfunded)
       const { data, error } = await supabase
         .from('drops')
         .select(`
@@ -84,6 +85,7 @@ export default function DropsScreen() {
           )
         `)
         .in('status', ['active', 'approved'])
+        .gt('end_time', new Date().toISOString()) // Only show drops that haven't expired yet
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -96,7 +98,8 @@ export default function DropsScreen() {
         console.log('Drops details:', data.map(d => ({ 
           name: d.name, 
           status: d.status, 
-          list: d.supplier_lists?.name 
+          list: d.supplier_lists?.name,
+          end_time: d.end_time
         })));
       }
       setDrops(data || []);
@@ -118,6 +121,12 @@ export default function DropsScreen() {
     
     setDrops(prevDrops => {
       const dropIndex = prevDrops.findIndex(d => d.id === updatedDrop.id);
+      
+      // If drop status changed to expired/completed/underfunded, remove it from the list
+      if (updatedDrop.status && !['active', 'approved'].includes(updatedDrop.status)) {
+        console.log('Drop status changed to', updatedDrop.status, '- removing from list');
+        return prevDrops.filter(d => d.id !== updatedDrop.id);
+      }
       
       if (dropIndex === -1) {
         // New drop - reload the list
