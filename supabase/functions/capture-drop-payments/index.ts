@@ -53,6 +53,35 @@ interface UserNotificationData {
   totalSavings: number;
 }
 
+/**
+ * Calculate the final discount percentage based on current value and supplier list settings
+ */
+function calculateFinalDiscount(
+  currentValue: number,
+  minReservationValue: number,
+  maxReservationValue: number,
+  minDiscount: number,
+  maxDiscount: number
+): number {
+  // If current value is below minimum, use minimum discount
+  if (currentValue <= minReservationValue) {
+    return minDiscount;
+  }
+  
+  // If current value is above maximum, use maximum discount
+  if (currentValue >= maxReservationValue) {
+    return maxDiscount;
+  }
+  
+  // Calculate proportional discount between min and max
+  const valueRange = maxReservationValue - minReservationValue;
+  const discountRange = maxDiscount - minDiscount;
+  const valueProgress = currentValue - minReservationValue;
+  const discountProgress = (valueProgress / valueRange) * discountRange;
+  
+  return minDiscount + discountProgress;
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -108,18 +137,21 @@ serve(async (req) => {
 
     console.log('📥 Processing drop:', dropId);
 
-    // Get drop details
+    // Get drop details with supplier list settings
     const { data: drop, error: dropError } = await supabase
       .from('drops')
       .select(`
         id,
         name,
         current_discount,
+        current_value,
         status,
         pickup_point_id,
         supplier_lists (
           min_discount,
           max_discount,
+          min_reservation_value,
+          max_reservation_value,
           supplier_id
         )
       `)
@@ -137,7 +169,33 @@ serve(async (req) => {
       );
     }
 
-    console.log(`📊 Drop "${drop.name}" - Final discount: ${drop.current_discount}%`);
+    const supplierList = drop.supplier_lists;
+    if (!supplierList) {
+      console.error('❌ Supplier list not found for drop');
+      return new Response(
+        JSON.stringify({ 
+          success: false,
+          error: 'Supplier list configuration not found' 
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Calculate the ACTUAL final discount based on current value
+    // This ensures all bookings get the same discount regardless of when they were made
+    const finalDiscount = calculateFinalDiscount(
+      Number(drop.current_value || 0),
+      Number(supplierList.min_reservation_value),
+      Number(supplierList.max_reservation_value),
+      Number(supplierList.min_discount),
+      Number(supplierList.max_discount)
+    );
+
+    console.log(`📊 Drop "${drop.name}"`);
+    console.log(`   Current Value: €${drop.current_value}`);
+    console.log(`   Value Range: €${supplierList.min_reservation_value} - €${supplierList.max_reservation_value}`);
+    console.log(`   Discount Range: ${supplierList.min_discount}% - ${supplierList.max_discount}%`);
+    console.log(`   🎯 FINAL DISCOUNT TO APPLY: ${finalDiscount.toFixed(2)}%`);
 
     // Get all active bookings for this drop using simple query
     const { data: rawBookings, error: bookingsError } = await supabase
@@ -192,6 +250,7 @@ serve(async (req) => {
         .from('drops')
         .update({
           status: 'completed',
+          current_discount: finalDiscount,
           completed_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         })
@@ -207,7 +266,7 @@ serve(async (req) => {
             totalBookings: 0,
             confirmedCount: 0,
             failedCount: 0,
-            finalDiscount: '0',
+            finalDiscount: finalDiscount.toFixed(1) + '%',
             totalAmount: '0',
             totalSavings: '0',
             ordersCreated: 0
@@ -218,9 +277,9 @@ serve(async (req) => {
     }
 
     console.log(`📦 Found ${enrichedBookings.length} bookings to confirm`);
+    console.log(`🔄 Applying uniform final discount of ${finalDiscount.toFixed(2)}% to ALL bookings...`);
 
-    // Calculate final prices and confirm bookings
-    const finalDiscount = drop.current_discount || 0;
+    // Calculate final prices and confirm bookings - ALL with the SAME final discount
     const confirmResults = [];
     let totalOriginal = 0;
     let totalFinal = 0;
@@ -231,10 +290,11 @@ serve(async (req) => {
 
     for (const booking of enrichedBookings as BookingData[]) {
       try {
-        // Calculate final price based on final discount
-        const finalPrice = Number(booking.original_price) * (1 - finalDiscount / 100);
+        // Calculate final price based on FINAL DISCOUNT (same for all bookings)
         const originalPrice = Number(booking.original_price);
+        const finalPrice = originalPrice * (1 - finalDiscount / 100);
         const savings = originalPrice - finalPrice;
+        const oldDiscount = Number(booking.discount_percentage);
 
         totalOriginal += originalPrice;
         totalFinal += finalPrice;
@@ -244,13 +304,14 @@ serve(async (req) => {
           product: booking.product_name,
           user: booking.user_full_name,
           originalPrice: originalPrice.toFixed(2),
+          oldDiscount: oldDiscount.toFixed(1) + '%',
+          newDiscount: finalDiscount.toFixed(1) + '%',
           finalPrice: finalPrice.toFixed(2),
-          finalDiscount: finalDiscount.toFixed(1),
           savings: savings.toFixed(2),
           savingsPercentage: ((savings / originalPrice) * 100).toFixed(1) + '%'
         });
         
-        // Update booking in database
+        // Update booking in database with FINAL DISCOUNT
         const { error: updateError } = await supabase
           .from('bookings')
           .update({
@@ -271,7 +332,7 @@ serve(async (req) => {
             error: updateError.message,
           });
         } else {
-          console.log(`✅ Successfully confirmed booking ${booking.id}`);
+          console.log(`✅ Successfully confirmed booking ${booking.id} with final discount ${finalDiscount.toFixed(1)}%`);
           
           // Aggregate booking data by user for notifications
           if (!userNotifications.has(booking.user_id)) {
@@ -303,6 +364,8 @@ serve(async (req) => {
             userName: booking.user_full_name,
             success: true,
             originalPrice: originalPrice.toFixed(2),
+            oldDiscount: oldDiscount.toFixed(1) + '%',
+            newDiscount: finalDiscount.toFixed(1) + '%',
             finalPrice: finalPrice.toFixed(2),
             savings: savings.toFixed(2),
             savingsPercentage: ((savings / originalPrice) * 100).toFixed(1) + '%',
@@ -329,7 +392,8 @@ serve(async (req) => {
         console.log(`📧 Preparing notification for user ${userId} (${userData.userName} - ${userData.userEmail})`);
         
         // Build notification message with all products
-        let message = `Il drop è terminato con uno sconto del ${Math.floor(finalDiscount)}%!\n\n`;
+        let message = `Il drop è terminato con uno sconto finale del ${Math.floor(finalDiscount)}%!\n\n`;
+        message += `🎉 Tutti i tuoi articoli prenotati beneficiano dello sconto finale raggiunto!\n\n`;
         message += `Hai prenotato ${userData.bookings.length} prodotto${userData.bookings.length > 1 ? 'i' : ''}:\n\n`;
         
         // List all products (limit to first 5 to avoid too long messages)
@@ -345,10 +409,13 @@ serve(async (req) => {
           message += `... e altri ${userData.bookings.length - 5} prodotti\n\n`;
         }
         
-        message += `TOTALE:\n`;
-        message += `Prezzo originale: €${userData.totalOriginal.toFixed(2)}\n`;
-        message += `Prezzo finale: €${userData.totalFinal.toFixed(2)}\n`;
-        message += `Risparmio totale: €${userData.totalSavings.toFixed(2)} (${Math.floor((userData.totalSavings / userData.totalOriginal) * 100)}%)\n\n`;
+        message += `💳 IMPORTO DA PAGARE AL RITIRO:\n`;
+        message += `━━━━━━━━━━━━━━━━━━━━━━\n`;
+        message += `Prezzo originale totale: €${userData.totalOriginal.toFixed(2)}\n`;
+        message += `Sconto finale applicato: ${Math.floor(finalDiscount)}%\n`;
+        message += `Risparmio totale: €${userData.totalSavings.toFixed(2)}\n\n`;
+        message += `💰 TOTALE DA PAGARE: €${userData.totalFinal.toFixed(2)}\n`;
+        message += `━━━━━━━━━━━━━━━━━━━━━━\n\n`;
         message += `Dovrai pagare €${userData.totalFinal.toFixed(2)} in contanti al momento del ritiro.\n\n`;
         message += `Ti notificheremo quando l'ordine sarà pronto per il ritiro!`;
 
@@ -464,7 +531,7 @@ serve(async (req) => {
 
         console.log(`✅ Order created: ${order.id}`);
 
-        // Create order items with user_id
+        // Create order items with user_id and FINAL DISCOUNT
         const orderItems = orderData.bookings.map(booking => {
           const finalPrice = Number(booking.original_price) * (1 - finalDiscount / 100);
           return {
@@ -472,7 +539,7 @@ serve(async (req) => {
             booking_id: booking.id,
             product_id: booking.product_id,
             product_name: booking.product_name,
-            user_id: booking.user_id, // Make sure user_id is included
+            user_id: booking.user_id,
             original_price: booking.original_price,
             final_price: finalPrice,
             discount_percentage: finalDiscount,
@@ -490,7 +557,7 @@ serve(async (req) => {
         if (itemsError) {
           console.error(`❌ Error creating order items:`, itemsError);
         } else {
-          console.log(`✅ Created ${orderItems.length} order items`);
+          console.log(`✅ Created ${orderItems.length} order items with final discount ${finalDiscount.toFixed(1)}%`);
         }
 
         ordersCreated.push({
@@ -506,11 +573,12 @@ serve(async (req) => {
       }
     }
 
-    // Update drop status to completed
+    // Update drop status to completed with final discount
     const { error: dropUpdateError } = await supabase
       .from('drops')
       .update({
         status: 'completed',
+        current_discount: finalDiscount,
         completed_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
@@ -519,13 +587,14 @@ serve(async (req) => {
     if (dropUpdateError) {
       console.error('❌ Error updating drop status:', dropUpdateError);
     } else {
-      console.log('✅ Drop status updated to completed');
+      console.log(`✅ Drop status updated to completed with final discount ${finalDiscount.toFixed(1)}%`);
     }
 
     const successCount = confirmResults.filter(r => r.success).length;
     const failureCount = confirmResults.filter(r => !r.success).length;
 
     console.log(`\n📊 COMPLETION SUMMARY:`);
+    console.log(`   🎯 Final Discount Applied: ${finalDiscount.toFixed(2)}%`);
     console.log(`   ✅ Confirmed: ${successCount}`);
     console.log(`   ❌ Failed: ${failureCount}`);
     console.log(`   💰 Total Original: €${totalOriginal.toFixed(2)}`);

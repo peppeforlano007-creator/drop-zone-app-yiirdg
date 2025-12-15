@@ -24,7 +24,7 @@ export default function CompleteDropScreen() {
     
     Alert.alert(
       'Completa Drop',
-      `Sei sicuro di voler completare il drop "${dropName}"?\n\nQuesto:\n- Confermerà tutte le prenotazioni\n- Notificherà gli utenti dell'importo da pagare alla consegna\n- Creerà gli ordini per i fornitori\n- Chiuderà il drop definitivamente`,
+      `Sei sicuro di voler completare il drop "${dropName}"?\n\nQuesto:\n- Calcolerà lo sconto finale raggiunto\n- Applicherà lo sconto finale a TUTTE le prenotazioni\n- Notificherà gli utenti dell'importo esatto da pagare\n- Creerà gli ordini per i fornitori\n- Chiuderà il drop definitivamente`,
       [
         { text: 'Annulla', style: 'cancel' },
         {
@@ -71,11 +71,13 @@ export default function CompleteDropScreen() {
                   `Il drop è stato completato con successo!\n\n` +
                   `📊 Riepilogo:\n` +
                   `• Prenotazioni confermate: ${summary.confirmedCount || 0}/${summary.totalBookings || 0}\n` +
-                  `• Sconto finale: ${summary.finalDiscount || '0%'}\n` +
+                  `• Sconto finale applicato: ${summary.finalDiscount || '0%'}\n` +
                   `• Totale da pagare: €${summary.totalAmount || '0'}\n` +
                   `• Risparmio totale: €${summary.totalSavings || '0'}\n` +
-                  `• Ordini creati: ${summary.ordersCreated || 0}\n\n` +
-                  `Gli utenti sono stati notificati dell'importo da pagare alla consegna.`,
+                  `• Ordini creati: ${summary.ordersCreated || 0}\n` +
+                  `• Notifiche inviate: ${summary.notificationsSent || 0}\n\n` +
+                  `⚠️ IMPORTANTE: Lo sconto finale è stato applicato uniformemente a TUTTE le prenotazioni, anche quelle effettuate con sconti diversi durante il drop.\n\n` +
+                  `Gli utenti sono stati notificati dell'importo esatto da pagare alla consegna.`,
                   [
                     {
                       text: 'OK',
@@ -140,7 +142,7 @@ export default function CompleteDropScreen() {
                   color="#4CAF50" 
                 />
                 <Text style={styles.infoText}>
-                  Tutte le prenotazioni attive verranno confermate
+                  Verrà calcolato lo sconto finale raggiunto in base al valore totale prenotato
                 </Text>
               </View>
               <View style={styles.infoItem}>
@@ -151,7 +153,7 @@ export default function CompleteDropScreen() {
                   color="#4CAF50" 
                 />
                 <Text style={styles.infoText}>
-                  Gli utenti riceveranno una notifica con lo sconto finale raggiunto
+                  Lo sconto finale sarà applicato uniformemente a TUTTE le prenotazioni
                 </Text>
               </View>
               <View style={styles.infoItem}>
@@ -162,7 +164,18 @@ export default function CompleteDropScreen() {
                   color="#4CAF50" 
                 />
                 <Text style={styles.infoText}>
-                  Verrà comunicato l&apos;importo esatto da pagare alla consegna
+                  Anche le prenotazioni fatte con sconti diversi beneficeranno dello sconto finale
+                </Text>
+              </View>
+              <View style={styles.infoItem}>
+                <IconSymbol 
+                  ios_icon_name="checkmark" 
+                  android_material_icon_name="check" 
+                  size={16} 
+                  color="#4CAF50" 
+                />
+                <Text style={styles.infoText}>
+                  Gli utenti riceveranno una notifica con l&apos;importo esatto da pagare
                 </Text>
               </View>
               <View style={styles.infoItem}>
@@ -187,18 +200,19 @@ export default function CompleteDropScreen() {
                   Il drop verrà chiuso definitivamente
                 </Text>
               </View>
-              <View style={styles.infoItem}>
-                <IconSymbol 
-                  ios_icon_name="checkmark" 
-                  android_material_icon_name="check" 
-                  size={16} 
-                  color="#4CAF50" 
-                />
-                <Text style={styles.infoText}>
-                  Gli ordini saranno visibili nei punti di ritiro
-                </Text>
-              </View>
             </View>
+          </View>
+
+          <View style={styles.highlightCard}>
+            <IconSymbol 
+              ios_icon_name="star.fill" 
+              android_material_icon_name="star" 
+              size={20} 
+              color="#FFD700" 
+            />
+            <Text style={styles.highlightText}>
+              <Text style={styles.highlightBold}>Equità garantita:</Text> Tutti gli utenti che hanno prenotato durante il drop riceveranno lo stesso sconto finale, indipendentemente da quando hanno effettuato la prenotazione.
+            </Text>
           </View>
 
           <View style={styles.warningCard}>
@@ -302,11 +316,30 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     lineHeight: 20,
   },
+  highlightCard: {
+    flexDirection: 'row',
+    backgroundColor: '#FFD70020',
+    borderWidth: 1,
+    borderColor: '#FFD70040',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    gap: 12,
+  },
+  highlightText: {
+    flex: 1,
+    fontSize: 13,
+    color: colors.text,
+    lineHeight: 18,
+  },
+  highlightBold: {
+    fontWeight: '700',
+  },
   warningCard: {
     flexDirection: 'row',
-    backgroundColor: '#FF980020',
+    backgroundColor: '#2196F320',
     borderWidth: 1,
-    borderColor: '#FF980040',
+    borderColor: '#2196F340',
     borderRadius: 12,
     padding: 16,
     marginBottom: 32,
