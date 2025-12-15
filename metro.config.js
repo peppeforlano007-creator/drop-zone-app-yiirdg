@@ -34,7 +34,6 @@ config.serializer = {
     // Load the polyfill file before any other code runs
     // This ensures URL is available when @supabase/supabase-js is imported
     const polyfillPath = path.resolve(__dirname, 'app/polyfills.ts');
-    console.log('📦 Metro: Loading polyfills from:', polyfillPath);
     return [polyfillPath];
   },
 };

@@ -1,4 +1,4 @@
 
-// Load polyfills first via Metro configuration
-// See metro.config.js for getModulesRunBeforeMainModule
+// Entry point for Expo Router
+// Polyfills are loaded automatically by Metro configuration (see metro.config.js)
 import 'expo-router/entry';
