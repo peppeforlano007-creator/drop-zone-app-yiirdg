@@ -461,27 +461,6 @@ export default function DropDetailsScreen() {
     return Math.round(newDiscount * 100) / 100;
   }, [drop]);
 
-  const isAtRiskOfUnderfunding = useCallback((): boolean => {
-    if (!drop || !drop.supplier_lists) return false;
-    
-    const now = new Date().getTime();
-    const endTime = new Date(drop.end_time).getTime();
-    const timeLeft = endTime - now;
-    const hoursLeft = timeLeft / (1000 * 60 * 60);
-    
-    const currentValue = drop.current_value ?? 0;
-    const minReservationValue = drop.supplier_lists.min_reservation_value ?? 0;
-    
-    return hoursLeft < 24 && currentValue < minReservationValue;
-  }, [drop]);
-
-  const getUnderfundingProgress = useCallback((): number => {
-    if (!drop || !drop.supplier_lists) return 0;
-    const currentValue = drop.current_value ?? 0;
-    const minValue = drop.supplier_lists.min_reservation_value ?? 1;
-    return (currentValue / minValue) * 100;
-  }, [drop]);
-
   const handleBook = useCallback(async (productId: string, variantId?: string) => {
     console.log('=== HANDLE BOOK CALLED (COD) ===');
     console.log('Product ID:', productId);
@@ -651,16 +630,9 @@ export default function DropDetailsScreen() {
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
-    const atRisk = isAtRiskOfUnderfunding();
     const currentDiscount = drop.current_discount ?? 0;
-    const currentValue = drop.current_value ?? 0;
-    const minReservationValue = drop.supplier_lists?.min_reservation_value ?? 0;
     
-    const urgencyMessage = atRisk 
-      ? `\n\n⚠️ URGENTE: Mancano meno di 24 ore e non abbiamo ancora raggiunto l'ordine minimo! Se non raggiungiamo l'obiettivo (€${minReservationValue.toFixed(0)}), il drop verrà annullato.`
-      : '';
-
-    const message = `🔥 Drop attivo: ${drop.name}!\n\n💰 Sconto attuale: ${Math.floor(currentDiscount)}%\n⏰ Tempo rimanente: ${timeRemaining}\n\n🎯 Più persone prenotano, più lo sconto aumenta!${urgencyMessage}\n\nUnisciti ora! 👇`;
+    const message = `🔥 Drop attivo: ${drop.name}!\n\n💰 Sconto attuale: ${Math.floor(currentDiscount)}%\n⏰ Tempo rimanente: ${timeRemaining}\n\n🎯 Più persone prenotano, più lo sconto aumenta!\n\nUnisciti ora! 👇`;
 
     const url = `whatsapp://send?text=${encodeURIComponent(message)}`;
 
@@ -790,9 +762,6 @@ export default function DropDetailsScreen() {
       </SafeAreaView>
     );
   }
-
-  const atRisk = isAtRiskOfUnderfunding();
-  const underfundingProgress = getUnderfundingProgress();
 
   const currentValue = Number(drop.current_value ?? 0);
   const targetValue = Number(drop.target_value ?? 0);
@@ -936,25 +905,6 @@ export default function DropDetailsScreen() {
           <Text style={styles.iconLabel}>Condividi</Text>
         </Pressable>
       </View>
-
-      {atRisk && (
-        <View style={styles.underfundingWarningBottom} pointerEvents="box-none">
-          <View style={styles.underfundingCard}>
-            <IconSymbol
-              ios_icon_name="exclamationmark.triangle.fill"
-              android_material_icon_name="warning"
-              size={20}
-              color="#FF6B35"
-            />
-            <View style={styles.underfundingContent}>
-              <Text style={styles.underfundingTitle}>⚠️ Drop a Rischio!</Text>
-              <Text style={styles.underfundingText}>
-                €{currentValue.toFixed(0)} / €{minReservationValue.toFixed(0)} ({Math.floor(underfundingProgress)}%)
-              </Text>
-            </View>
-          </View>
-        </View>
-      )}
 
       {isConnected && (
         <View style={styles.realtimeIndicator}>
@@ -1162,45 +1112,6 @@ const styles = StyleSheet.create({
     textShadowColor: 'rgba(0, 0, 0, 0.75)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,
-  },
-  underfundingWarningBottom: {
-    position: 'absolute',
-    bottom: 120,
-    left: 16,
-    right: 80,
-    zIndex: 10,
-  },
-  underfundingCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 107, 53, 0.95)',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 12,
-    gap: 10,
-    borderWidth: 2,
-    borderColor: '#FF6B35',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  underfundingContent: {
-    flex: 1,
-  },
-  underfundingTitle: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#FFF',
-    marginBottom: 4,
-    fontFamily: 'System',
-  },
-  underfundingText: {
-    fontSize: 11,
-    color: '#FFF',
-    fontFamily: 'System',
-    fontWeight: '600',
   },
   realtimeIndicator: {
     position: 'absolute',
