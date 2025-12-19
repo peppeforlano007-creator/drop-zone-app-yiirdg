@@ -2,13 +2,13 @@
 {
   "expo": {
     "name": "Drop Zone",
-    "slug": "drop-zone",
+    "slug": "dropzone",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/natively-dark.png",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
-    "scheme": "dropmarket",
+    "scheme": "dropzone",
     "splash": {
       "image": "./assets/images/natively-dark.png",
       "resizeMode": "contain",
@@ -70,15 +70,7 @@
     "experiments": {
       "typedRoutes": true
     },
-    "extra": {
-      "router": {},
-      "eas": {
-        "projectId": "YOUR_EAS_PROJECT_ID"
-      }
-    },
-    "owner": "your-expo-username",
-    "privacy": "public",
-    "description": "Drop Zone - Social e-commerce con sconti progressivi basati su prenotazioni collettive",
-    "githubUrl": "https://github.com/your-username/drop-zone"
+    "privacy": "unlisted",
+    "description": "Drop Zone - Social e-commerce con sconti progressivi basati su prenotazioni collettive"
   }
 }
