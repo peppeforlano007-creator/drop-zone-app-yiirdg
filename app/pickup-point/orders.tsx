@@ -294,11 +294,41 @@ export default function OrdersScreen() {
     }
   };
 
+  const sendNotificationToUser = async (userId: string, title: string, message: string, orderId: string) => {
+    try {
+      console.log(`Sending notification to user ${userId}: ${title}`);
+      
+      const { data, error } = await supabase
+        .from('notifications')
+        .insert({
+          user_id: userId,
+          title: title,
+          message: message,
+          type: 'order_ready',
+          related_id: orderId,
+          related_type: 'order',
+          read: false,
+        })
+        .select();
+
+      if (error) {
+        console.error('Error inserting notification:', error);
+        throw error;
+      }
+
+      console.log('Notification sent successfully:', data);
+      return true;
+    } catch (error: any) {
+      console.error('Failed to send notification:', error);
+      return false;
+    }
+  };
+
   const handleMarkAsReceived = async (order: Order) => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     Alert.alert(
       'Ordine Ricevuto in Store',
-      `Confermi che l'ordine ${order.order_number} è arrivato nel punto di ritiro?`,
+      `Confermi che l'ordine ${order.order_number} è arrivato nel punto di ritiro?\n\nI clienti riceveranno una notifica che l'ordine è pronto per il ritiro.`,
       [
         { text: 'Annulla', style: 'cancel' },
         {
@@ -340,22 +370,41 @@ export default function OrdersScreen() {
               if (order.order_items && order.order_items.length > 0) {
                 const userIds = [...new Set(order.order_items.map(item => item.user_id).filter(Boolean))];
                 
+                let notificationsSent = 0;
+                let notificationsFailed = 0;
+
                 for (const userId of userIds) {
-                  await supabase
-                    .from('notifications')
-                    .insert({
-                      user_id: userId,
-                      title: 'Ordine Pronto per il Ritiro',
-                      message: `Il tuo ordine ${order.order_number} è arrivato ed è pronto per il ritiro presso il punto di ritiro. Ricorda di portare un documento d'identità.`,
-                      type: 'order_ready',
-                      related_id: order.id,
-                      related_type: 'order',
-                      read: false,
-                    });
+                  const success = await sendNotificationToUser(
+                    userId,
+                    '🎉 Ordine Pronto per il Ritiro!',
+                    `Il tuo ordine ${order.order_number} è arrivato ed è pronto per il ritiro presso il punto di ritiro. Ricorda di portare un documento d'identità valido.`,
+                    order.id
+                  );
+
+                  if (success) {
+                    notificationsSent++;
+                  } else {
+                    notificationsFailed++;
+                  }
                 }
+
+                console.log(`Notifications sent: ${notificationsSent}, failed: ${notificationsFailed}`);
+                
+                if (notificationsFailed > 0) {
+                  Alert.alert(
+                    'Attenzione',
+                    `Ordine aggiornato con successo. ${notificationsSent} notifiche inviate, ${notificationsFailed} non riuscite.`
+                  );
+                } else {
+                  Alert.alert(
+                    'Successo',
+                    `I clienti (${notificationsSent}) sono stati notificati che l'ordine è pronto per il ritiro.`
+                  );
+                }
+              } else {
+                Alert.alert('Successo', 'Ordine aggiornato con successo.');
               }
               
-              Alert.alert('Successo', 'I clienti sono stati notificati che l\'ordine è pronto per il ritiro.');
               setModalVisible(false);
               loadOrders();
             } catch (error: any) {
@@ -373,7 +422,7 @@ export default function OrdersScreen() {
     
     Alert.alert(
       'Ordine Consegnato',
-      `Confermi che l'intero ordine ${order.order_number} è stato consegnato ai clienti?`,
+      `Confermi che l'intero ordine ${order.order_number} è stato consegnato ai clienti?\n\nI clienti riceveranno una notifica di conferma della consegna.`,
       [
         { text: 'Annulla', style: 'cancel' },
         {
@@ -420,20 +469,26 @@ export default function OrdersScreen() {
                 }
               }
 
-              // Send notification to each customer
+              // Send notification to each customer with detailed confirmation
+              let notificationsSent = 0;
+              let notificationsFailed = 0;
+
               for (const userId of uniqueUserIds) {
-                await supabase
-                  .from('notifications')
-                  .insert({
-                    user_id: userId,
-                    title: 'Ordine Consegnato',
-                    message: `L'ordine ${order.order_number} è stato consegnato con successo. Grazie per aver utilizzato il nostro servizio!`,
-                    type: 'general',
-                    related_id: order.id,
-                    related_type: 'order',
-                    read: false,
-                  });
+                const success = await sendNotificationToUser(
+                  userId,
+                  '✅ Ordine Consegnato con Successo',
+                  `L'ordine ${order.order_number} è stato consegnato con successo presso il punto di ritiro. Grazie per aver utilizzato il nostro servizio! Hai guadagnato 10 punti fedeltà.`,
+                  order.id
+                );
+
+                if (success) {
+                  notificationsSent++;
+                } else {
+                  notificationsFailed++;
+                }
               }
+
+              console.log(`Delivery notifications sent: ${notificationsSent}, failed: ${notificationsFailed}`);
 
               // Mark entire order as completed
               await supabase
@@ -445,7 +500,18 @@ export default function OrdersScreen() {
                 })
                 .eq('id', order.id);
               
-              Alert.alert('Successo', 'L\'ordine è stato segnato come consegnato e completato.');
+              if (notificationsFailed > 0) {
+                Alert.alert(
+                  'Attenzione',
+                  `L'ordine è stato segnato come consegnato. ${notificationsSent} notifiche inviate, ${notificationsFailed} non riuscite.`
+                );
+              } else {
+                Alert.alert(
+                  'Successo',
+                  `L'ordine è stato segnato come consegnato e completato. ${notificationsSent} clienti notificati.`
+                );
+              }
+              
               loadOrders();
               setModalVisible(false);
             } catch (error: any) {
@@ -463,7 +529,7 @@ export default function OrdersScreen() {
     
     Alert.alert(
       'Rispedisci Ordine al Fornitore',
-      `Vuoi segnare l'intero ordine ${order.order_number} come non ritirato e da rispedire al fornitore?\n\nQuesta azione ridurrà il rating di tutti i clienti coinvolti e dopo 5 ordini non ritirati gli account verranno bloccati.`,
+      `Vuoi segnare l'intero ordine ${order.order_number} come non ritirato e da rispedire al fornitore?\n\nQuesta azione ridurrà il rating di tutti i clienti coinvolti e dopo 5 ordini non ritirati gli account verranno bloccati.\n\nI clienti riceveranno una notifica.`,
       [
         { text: 'Annulla', style: 'cancel' },
         {
@@ -514,19 +580,25 @@ export default function OrdersScreen() {
               // Send notification to each unique customer
               const uniqueUserIds = [...new Set(itemsToUpdate.map(item => item.user_id).filter(Boolean))];
               
+              let notificationsSent = 0;
+              let notificationsFailed = 0;
+
               for (const userId of uniqueUserIds) {
-                await supabase
-                  .from('notifications')
-                  .insert({
-                    user_id: userId,
-                    title: 'Ordine Rispedito al Fornitore',
-                    message: `L'ordine ${order.order_number} non è stato ritirato entro i termini e verrà rispedito al fornitore. Il tuo rating è stato aggiornato.`,
-                    type: 'general',
-                    related_id: order.id,
-                    related_type: 'order',
-                    read: false,
-                  });
+                const success = await sendNotificationToUser(
+                  userId,
+                  '⚠️ Ordine Rispedito al Fornitore',
+                  `L'ordine ${order.order_number} non è stato ritirato entro i termini e verrà rispedito al fornitore. Il tuo rating è stato aggiornato. Dopo 5 ordini non ritirati, l'account verrà bloccato.`,
+                  order.id
+                );
+
+                if (success) {
+                  notificationsSent++;
+                } else {
+                  notificationsFailed++;
+                }
               }
+
+              console.log(`Return notifications sent: ${notificationsSent}, failed: ${notificationsFailed}`);
 
               // Mark entire order as completed
               await supabase
@@ -538,7 +610,11 @@ export default function OrdersScreen() {
                 })
                 .eq('id', order.id);
 
-              Alert.alert('Successo', 'L\'ordine è stato segnato come da rispedire al fornitore. I clienti sono stati notificati e i loro rating sono stati aggiornati.');
+              Alert.alert(
+                'Successo',
+                `L'ordine è stato segnato come da rispedire al fornitore. ${notificationsSent} clienti notificati e i loro rating sono stati aggiornati.`
+              );
+              
               loadOrders();
               setModalVisible(false);
             } catch (error: any) {
@@ -593,28 +669,42 @@ export default function OrdersScreen() {
     
     Alert.alert(
       'Notifica Clienti',
-      `Vuoi inviare una notifica a ${uniqueCustomers.length === 1 ? uniqueCustomers[0] : `${uniqueCustomers.length} clienti`} per ricordargli di ritirare l'ordine?`,
+      `Vuoi inviare una notifica promemoria a ${uniqueCustomers.length === 1 ? uniqueCustomers[0] : `${uniqueCustomers.length} clienti`} per ricordargli di ritirare l'ordine?`,
       [
         { text: 'Annulla', style: 'cancel' },
         {
           text: 'Invia',
           onPress: async () => {
             try {
+              let notificationsSent = 0;
+              let notificationsFailed = 0;
+
               for (const userId of uniqueUserIds) {
-                await supabase
-                  .from('notifications')
-                  .insert({
-                    user_id: userId,
-                    title: 'Promemoria Ritiro Ordine',
-                    message: `Ti ricordiamo che il tuo ordine ${order.order_number} è pronto per il ritiro. Passa a ritirarlo quando puoi!`,
-                    type: 'order_ready',
-                    related_id: order.id,
-                    related_type: 'order',
-                    read: false,
-                  });
+                const success = await sendNotificationToUser(
+                  userId,
+                  '🔔 Promemoria Ritiro Ordine',
+                  `Ti ricordiamo che il tuo ordine ${order.order_number} è pronto per il ritiro presso il punto di ritiro. Passa a ritirarlo quando puoi!`,
+                  order.id
+                );
+
+                if (success) {
+                  notificationsSent++;
+                } else {
+                  notificationsFailed++;
+                }
               }
               
-              Alert.alert('Successo', `Notifica inviata a ${uniqueUserIds.length} ${uniqueUserIds.length === 1 ? 'cliente' : 'clienti'}`);
+              if (notificationsFailed > 0) {
+                Alert.alert(
+                  'Attenzione',
+                  `${notificationsSent} notifiche inviate con successo, ${notificationsFailed} non riuscite.`
+                );
+              } else {
+                Alert.alert(
+                  'Successo',
+                  `Notifica inviata a ${notificationsSent} ${notificationsSent === 1 ? 'cliente' : 'clienti'}`
+                );
+              }
             } catch (error: any) {
               console.error('Error sending notifications:', error);
               Alert.alert('Errore', 'Impossibile inviare le notifiche');
@@ -1050,9 +1140,9 @@ export default function OrdersScreen() {
             />
             <Text style={styles.infoText}>
               {selectedTab === 'pending'
-                ? 'Ordini in transito verso il tuo punto di ritiro. Segna come "Ricevuto in Store" quando arrivano.'
+                ? 'Ordini in transito verso il tuo punto di ritiro. Segna come "Ricevuto in Store" quando arrivano per notificare i clienti.'
                 : selectedTab === 'ready'
-                ? 'Ordini pronti per il ritiro. Usa i pulsanti "Consegnato", "Notifica i Clienti" o "Rispedisci" per gestire l\'intero ordine.'
+                ? 'Ordini pronti per il ritiro. Usa i pulsanti "Consegnato", "Notifica i Clienti" o "Rispedisci" per gestire l\'intero ordine. I clienti riceveranno notifiche per ogni azione.'
                 : 'Storico degli ordini completati e ritirati dai clienti.'}
             </Text>
           </View>
