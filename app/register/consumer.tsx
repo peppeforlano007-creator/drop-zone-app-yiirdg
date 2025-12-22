@@ -288,6 +288,25 @@ export default function ConsumerRegisterScreen() {
 
       console.log('User password and metadata updated successfully');
 
+      // IMPORTANT: Update the profile directly with the full data
+      // This ensures the profile has all the necessary information
+      const { error: profileUpdateError } = await supabase
+        .from('profiles')
+        .update({
+          full_name: fullName.trim(),
+          phone: authData.user.phone, // Store phone without + prefix to match auth.users
+          pickup_point_id: pickupPointId,
+          role: 'consumer',
+        })
+        .eq('user_id', authData.user.id);
+
+      if (profileUpdateError) {
+        console.error('Error updating profile:', profileUpdateError);
+        // Non-blocking error, but log it
+      } else {
+        console.log('Profile updated successfully with full data');
+      }
+
       // Save user consents
       try {
         const { error: consentError } = await supabase

@@ -161,14 +161,16 @@ export default function LoginScreen() {
     try {
       console.log('Logging in with phone:', formattedPhone);
       
-      // Try to find user by phone number in profiles table
-      // We need to check both with and without the + prefix since Supabase stores it without +
+      // Supabase stores phone numbers WITHOUT the + prefix in auth.users
+      // So we need to remove it for authentication
       const phoneWithoutPlus = formattedPhone.replace('+', '');
-      console.log('Searching for phone with and without +:', formattedPhone, phoneWithoutPlus);
+      console.log('Phone without + for auth:', phoneWithoutPlus);
       
+      // Try to find user by phone number in profiles table first to verify they exist
+      // Check multiple formats to handle legacy data
       const { data: userData, error: userError } = await supabase
         .from('profiles')
-        .select('email, phone, user_id')
+        .select('email, phone, user_id, full_name, pickup_point_id')
         .or(`phone.eq.${formattedPhone},phone.eq.${phoneWithoutPlus}`)
         .maybeSingle();
 
@@ -194,10 +196,31 @@ export default function LoginScreen() {
         return;
       }
 
-      console.log('User found:', userData);
+      console.log('User found in profiles:', userData);
 
-      // For phone-only users, we need to use signInWithPassword with the phone
-      // Supabase stores phone without + prefix in auth.users
+      // Check if profile has required data
+      if (!userData.full_name || !userData.pickup_point_id) {
+        console.warn('User profile is incomplete:', userData);
+        Alert.alert(
+          'Profilo Incompleto',
+          'Il tuo profilo non è completo. Contatta il supporto per assistenza.',
+          [
+            {
+              text: 'Contatta Supporto',
+              onPress: handleSupport,
+            },
+            {
+              text: 'Annulla',
+              style: 'cancel',
+            }
+          ]
+        );
+        setLoading(false);
+        return;
+      }
+
+      // Now authenticate with Supabase Auth
+      // IMPORTANT: Use phone WITHOUT + prefix as that's how Supabase stores it
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         phone: phoneWithoutPlus,
         password: password.trim(),
@@ -210,6 +233,8 @@ export default function LoginScreen() {
         let errorMessage = authError.message;
         if (errorMessage.toLowerCase().includes('invalid') || errorMessage.toLowerCase().includes('credentials')) {
           errorMessage = 'Password non corretta. Riprova o reimposta la password.';
+        } else if (errorMessage.toLowerCase().includes('email not confirmed')) {
+          errorMessage = 'Verifica il tuo numero di cellulare prima di accedere.';
         }
         
         Alert.alert('Errore di Accesso', errorMessage);
