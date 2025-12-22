@@ -215,6 +215,7 @@ export default function ConsumerRegisterScreen() {
       console.log('Verifying OTP and registering consumer with phone:', phone, 'pickup_point:', pickupPointId);
       
       // Verify OTP - this creates the user account
+      // We need to pass the metadata here so the trigger can use it
       const { data: authData, error: authError } = await supabase.auth.verifyOtp({
         phone: phone.trim(),
         token: otp.trim(),
@@ -242,18 +243,37 @@ export default function ConsumerRegisterScreen() {
       console.log('OTP verified, user created:', authData.user.id);
 
       // Now update the user with password and metadata
+      // This will trigger the profile creation with the correct data
       const { error: updateError } = await supabase.auth.updateUser({
         password: password,
         data: {
           full_name: fullName.trim(),
           role: 'consumer',
           pickup_point_id: pickupPointId,
+          phone: phone.trim(), // Include phone in metadata for the trigger
         }
       });
 
       if (updateError) {
-        console.error('Error updating user with password:', updateError);
-        Alert.alert('Errore', 'Impossibile impostare la password. Riprova.');
+        console.error('Error updating user with password and metadata:', updateError);
+        
+        // Check if it's a profile creation error
+        if (updateError.message.includes('profile') || updateError.message.includes('email')) {
+          Alert.alert(
+            'Errore Configurazione Profilo',
+            'Il tuo account è stato creato ma c\'è stato un problema nella configurazione del profilo. Contatta il supporto per assistenza.',
+            [
+              {
+                text: 'OK',
+                onPress: () => {
+                  router.replace('/login');
+                }
+              }
+            ]
+          );
+        } else {
+          Alert.alert('Errore', 'Impossibile completare la registrazione. Riprova.');
+        }
         return;
       }
 
