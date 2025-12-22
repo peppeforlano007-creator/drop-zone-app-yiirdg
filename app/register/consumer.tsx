@@ -19,6 +19,7 @@ import React, { useState, useEffect } from 'react';
 import * as Haptics from 'expo-haptics';
 import { supabase } from '@/app/integrations/supabase/client';
 import { Picker } from '@react-native-picker/picker';
+import { validateAndFormatPhone } from '@/utils/phoneValidation';
 
 interface PickupPoint {
   id: string;
@@ -108,12 +109,15 @@ export default function ConsumerRegisterScreen() {
       return;
     }
 
-    // Basic phone validation
-    const phoneRegex = /^\+?[0-9\s\-()]+$/;
-    if (!phoneRegex.test(phone.trim())) {
-      Alert.alert('Errore', 'Inserisci un numero di cellulare valido (es. +39 123 456 7890)');
+    // Validate and format phone number
+    const phoneValidation = validateAndFormatPhone(phone);
+    if (!phoneValidation.valid) {
+      Alert.alert('Numero Non Valido', phoneValidation.message || 'Inserisci un numero di cellulare valido');
       return;
     }
+
+    const formattedPhone = phoneValidation.formatted!;
+    console.log('Phone validated and formatted:', formattedPhone);
 
     if (!password) {
       Alert.alert('Errore', 'Inserisci la password');
@@ -158,11 +162,11 @@ export default function ConsumerRegisterScreen() {
     setLoading(true);
 
     try {
-      console.log('Sending OTP to phone for registration:', phone);
+      console.log('Sending OTP to phone for registration:', formattedPhone);
       
       // First, send OTP to verify phone number
       const { data, error } = await supabase.auth.signInWithOtp({
-        phone: phone.trim(),
+        phone: formattedPhone,
         options: {
           channel: 'sms',
         }
@@ -175,16 +179,20 @@ export default function ConsumerRegisterScreen() {
         let errorMessage = error.message;
         if (errorMessage.toLowerCase().includes('rate limit')) {
           errorMessage = 'Hai richiesto troppi codici. Attendi qualche minuto e riprova.';
+        } else if (errorMessage.toLowerCase().includes('not a valid phone number')) {
+          errorMessage = 'Il numero di telefono non è valido. Verifica di aver inserito il numero corretto con il prefisso internazionale (es. +39 320 123 4567 per l\'Italia).';
         }
         
         Alert.alert('Errore', errorMessage);
       } else {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        // Update phone with formatted version
+        setPhone(formattedPhone);
         setOtpSent(true);
         console.log('OTP sent successfully for registration');
         Alert.alert(
           'Codice Inviato!',
-          'Abbiamo inviato un codice di 6 cifre al tuo numero di cellulare. Inseriscilo qui sotto per completare la registrazione.',
+          `Abbiamo inviato un codice di 6 cifre al numero ${formattedPhone}. Inseriscilo qui sotto per completare la registrazione.`,
           [{ text: 'OK' }]
         );
       }
@@ -373,7 +381,7 @@ export default function ConsumerRegisterScreen() {
               <Text style={styles.inputLabel}>Numero di Cellulare *</Text>
               <TextInput
                 style={styles.input}
-                placeholder="+39 123 456 7890"
+                placeholder="+39 320 123 4567"
                 placeholderTextColor={colors.textTertiary}
                 value={phone}
                 onChangeText={setPhone}
@@ -382,7 +390,7 @@ export default function ConsumerRegisterScreen() {
                 editable={!loading && !otpSent}
               />
               <Text style={styles.inputHint}>
-                Il numero di cellulare sarà usato per accedere all&apos;app
+                Inserisci il numero con il prefisso internazionale (es. +39 per l&apos;Italia)
               </Text>
 
               <Text style={styles.inputLabel}>Password *</Text>
@@ -736,8 +744,8 @@ export default function ConsumerRegisterScreen() {
                 color={colors.info}
               />
               <Text style={styles.infoText}>
-                Il numero di cellulare sarà verificato una sola volta durante la registrazione. 
-                Successivamente potrai accedere con il tuo numero e la password scelta.
+                <Text style={styles.infoTextBold}>Formato Numero:</Text> Assicurati di inserire il numero con il prefisso internazionale. 
+                Per l&apos;Italia usa +39 seguito da 10 cifre (es. +39 320 123 4567).
               </Text>
             </View>
 
@@ -1000,6 +1008,10 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.text,
     lineHeight: 20,
+  },
+  infoTextBold: {
+    fontWeight: '700',
+    color: colors.text,
   },
   backButton: {
     flexDirection: 'row',

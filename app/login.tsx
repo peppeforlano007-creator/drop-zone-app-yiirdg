@@ -20,6 +20,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import React, { useState, useEffect } from 'react';
 import * as Haptics from 'expo-haptics';
 import { supabase } from '@/app/integrations/supabase/client';
+import { validateAndFormatPhone } from '@/utils/phoneValidation';
 
 export default function LoginScreen() {
   const { user, loading: authLoading } = useAuth();
@@ -139,12 +140,15 @@ export default function LoginScreen() {
       return;
     }
 
-    // Basic phone validation
-    const phoneRegex = /^\+?[0-9\s\-()]+$/;
-    if (!phoneRegex.test(phone.trim())) {
-      Alert.alert('Errore', 'Inserisci un numero di cellulare valido (es. +39 123 456 7890)');
+    // Validate and format phone number
+    const phoneValidation = validateAndFormatPhone(phone);
+    if (!phoneValidation.valid) {
+      Alert.alert('Numero Non Valido', phoneValidation.message || 'Inserisci un numero di cellulare valido');
       return;
     }
+
+    const formattedPhone = phoneValidation.formatted!;
+    console.log('Phone validated and formatted:', formattedPhone);
 
     if (!password.trim()) {
       Alert.alert('Errore', 'Inserisci la password');
@@ -155,14 +159,14 @@ export default function LoginScreen() {
     setLoading(true);
 
     try {
-      console.log('Logging in with phone:', phone);
+      console.log('Logging in with phone:', formattedPhone);
       
       // First, get the user by phone number to find their email
       // Use maybeSingle() instead of single() to handle the case where no user is found
       const { data: userData, error: userError } = await supabase
         .from('profiles')
         .select('email')
-        .eq('phone', phone.trim())
+        .eq('phone', formattedPhone)
         .maybeSingle();
 
       if (userError) {
@@ -177,7 +181,7 @@ export default function LoginScreen() {
       }
 
       if (!userData) {
-        console.log('No user found with phone:', phone);
+        console.log('No user found with phone:', formattedPhone);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
         Alert.alert(
           'Errore di Accesso',
@@ -261,7 +265,7 @@ export default function LoginScreen() {
               <Text style={styles.inputLabel}>Numero di Cellulare</Text>
               <TextInput
                 style={styles.input}
-                placeholder="+39 123 456 7890"
+                placeholder="+39 320 123 4567"
                 placeholderTextColor={colors.textTertiary}
                 value={phone}
                 onChangeText={setPhone}
@@ -271,7 +275,7 @@ export default function LoginScreen() {
                 editable={!loading}
               />
               <Text style={styles.inputHint}>
-                Inserisci il tuo numero di cellulare con il prefisso internazionale (es. +39 per l&apos;Italia)
+                Inserisci il tuo numero con il prefisso internazionale (es. +39 per l&apos;Italia)
               </Text>
 
               <Text style={styles.inputLabel}>Password</Text>
@@ -373,8 +377,8 @@ export default function LoginScreen() {
                 color={colors.info}
               />
               <Text style={styles.infoText}>
-                <Text style={styles.infoTextBold}>Accesso Semplificato:</Text> Usa il tuo numero di cellulare e la password 
-                che hai scelto durante la registrazione. Non è più necessario ricevere un codice SMS ad ogni accesso.
+                <Text style={styles.infoTextBold}>Formato Numero:</Text> Assicurati di inserire il numero con il prefisso internazionale. 
+                Per l&apos;Italia usa +39 seguito da 10 cifre (es. +39 320 123 4567).
               </Text>
             </View>
 

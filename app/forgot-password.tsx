@@ -18,6 +18,7 @@ import { IconSymbol } from '@/components/IconSymbol';
 import React, { useState } from 'react';
 import * as Haptics from 'expo-haptics';
 import { supabase } from '@/app/integrations/supabase/client';
+import { validateAndFormatPhone } from '@/utils/phoneValidation';
 
 export default function ForgotPasswordScreen() {
   const [phone, setPhone] = useState('');
@@ -55,21 +56,24 @@ export default function ForgotPasswordScreen() {
       return;
     }
 
-    // Basic phone validation
-    const phoneRegex = /^\+?[0-9\s\-()]+$/;
-    if (!phoneRegex.test(phone.trim())) {
-      Alert.alert('Errore', 'Inserisci un numero di cellulare valido (es. +39 123 456 7890)');
+    // Validate and format phone number
+    const phoneValidation = validateAndFormatPhone(phone);
+    if (!phoneValidation.valid) {
+      Alert.alert('Numero Non Valido', phoneValidation.message || 'Inserisci un numero di cellulare valido');
       return;
     }
+
+    const formattedPhone = phoneValidation.formatted!;
+    console.log('Phone validated and formatted:', formattedPhone);
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setLoading(true);
 
     try {
-      console.log('Sending password reset OTP to phone:', phone);
+      console.log('Sending password reset OTP to phone:', formattedPhone);
       
       const { data, error } = await supabase.auth.signInWithOtp({
-        phone: phone.trim(),
+        phone: formattedPhone,
         options: {
           channel: 'sms',
         }
@@ -82,16 +86,20 @@ export default function ForgotPasswordScreen() {
         let errorMessage = error.message;
         if (errorMessage.toLowerCase().includes('rate limit')) {
           errorMessage = 'Hai richiesto troppi codici. Attendi qualche minuto e riprova.';
+        } else if (errorMessage.toLowerCase().includes('not a valid phone number')) {
+          errorMessage = 'Il numero di telefono non è valido. Verifica di aver inserito il numero corretto con il prefisso internazionale (es. +39 320 123 4567 per l\'Italia).';
         }
         
         Alert.alert('Errore', errorMessage);
       } else {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        // Update phone with formatted version
+        setPhone(formattedPhone);
         setOtpSent(true);
         console.log('Password reset OTP sent successfully');
         Alert.alert(
           'Codice Inviato!',
-          'Abbiamo inviato un codice di 6 cifre al tuo numero di cellulare. Inseriscilo qui sotto per reimpostare la password.',
+          `Abbiamo inviato un codice di 6 cifre al numero ${formattedPhone}. Inseriscilo qui sotto per reimpostare la password.`,
           [{ text: 'OK' }]
         );
       }
@@ -249,7 +257,7 @@ export default function ForgotPasswordScreen() {
                   <Text style={styles.inputLabel}>Numero di Cellulare</Text>
                   <TextInput
                     style={styles.input}
-                    placeholder="+39 123 456 7890"
+                    placeholder="+39 320 123 4567"
                     placeholderTextColor={colors.textTertiary}
                     value={phone}
                     onChangeText={setPhone}
@@ -259,7 +267,7 @@ export default function ForgotPasswordScreen() {
                     editable={!loading}
                   />
                   <Text style={styles.inputHint}>
-                    Inserisci il numero di cellulare associato al tuo account
+                    Inserisci il numero con il prefisso internazionale (es. +39 per l&apos;Italia)
                   </Text>
 
                   <Pressable
@@ -490,8 +498,8 @@ export default function ForgotPasswordScreen() {
                 color={colors.info}
               />
               <Text style={styles.infoText}>
-                Per motivi di sicurezza, riceverai un codice di verifica via SMS per confermare 
-                la tua identità prima di reimpostare la password.
+                <Text style={styles.infoTextBold}>Formato Numero:</Text> Assicurati di inserire il numero con il prefisso internazionale. 
+                Per l&apos;Italia usa +39 seguito da 10 cifre (es. +39 320 123 4567).
               </Text>
             </View>
 
@@ -713,6 +721,10 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.text,
     lineHeight: 20,
+  },
+  infoTextBold: {
+    fontWeight: '700',
+    color: colors.text,
   },
   backButton: {
     flexDirection: 'row',
