@@ -161,17 +161,18 @@ export default function LoginScreen() {
     try {
       console.log('Logging in with phone:', formattedPhone);
       
-      // Supabase stores phone numbers WITHOUT the + prefix in auth.users
-      // So we need to remove it for authentication
+      // IMPORTANT: Supabase stores phone numbers WITHOUT the + prefix in auth.users
+      // We need to normalize the phone number to match the database format
       const phoneWithoutPlus = formattedPhone.replace('+', '');
-      console.log('Phone without + for auth:', phoneWithoutPlus);
+      
+      console.log('Normalized phone for database lookup:', phoneWithoutPlus);
       
       // Try to find user by phone number in profiles table first to verify they exist
-      // Check multiple formats to handle legacy data
+      // We need to check multiple formats because of legacy data
       const { data: userData, error: userError } = await supabase
         .from('profiles')
         .select('email, phone, user_id, full_name, pickup_point_id')
-        .or(`phone.eq.${formattedPhone},phone.eq.${phoneWithoutPlus}`)
+        .or(`phone.eq.${phoneWithoutPlus},phone.eq.${formattedPhone}`)
         .maybeSingle();
 
       if (userError) {
@@ -186,17 +187,21 @@ export default function LoginScreen() {
       }
 
       if (!userData) {
-        console.log('No user found with phone:', formattedPhone, 'or', phoneWithoutPlus);
+        console.log('No user found with phone:', phoneWithoutPlus, 'or', formattedPhone);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
         Alert.alert(
           'Errore di Accesso',
-          'Numero di cellulare non trovato. Verifica di aver inserito il numero corretto o registrati.'
+          `Numero di cellulare non trovato.\n\nHai provato con: ${formattedPhone}\n\nVerifica di aver inserito il numero corretto o registrati.`
         );
         setLoading(false);
         return;
       }
 
-      console.log('User found in profiles:', userData);
+      console.log('User found in profiles:', {
+        user_id: userData.user_id,
+        phone: userData.phone,
+        full_name: userData.full_name
+      });
 
       // Check if profile has required data
       if (!userData.full_name || !userData.pickup_point_id) {
@@ -220,9 +225,13 @@ export default function LoginScreen() {
       }
 
       // Now authenticate with Supabase Auth
-      // IMPORTANT: Use phone WITHOUT + prefix as that's how Supabase stores it
+      // CRITICAL: Use the EXACT phone format stored in auth.users (without +)
+      // Supabase Auth stores phone numbers without the + prefix
+      const authPhone = userData.phone; // Use the exact format from the database
+      console.log('Authenticating with phone from database:', authPhone);
+
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-        phone: phoneWithoutPlus,
+        phone: authPhone,
         password: password.trim(),
       });
 
