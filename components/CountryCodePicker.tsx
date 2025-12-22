@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Platform } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { colors } from '@/styles/commonStyles';
 
@@ -55,21 +55,34 @@ export default function CountryCodePicker({
   onCodeChange, 
   disabled = false 
 }: CountryCodePickerProps) {
+  console.log('CountryCodePicker rendering with selectedCode:', selectedCode);
+  console.log('Total country codes available:', COUNTRY_CODES.length);
+  
   return (
     <View style={styles.container}>
       <Picker
         selectedValue={selectedCode}
-        onValueChange={onCodeChange}
+        onValueChange={(itemValue) => {
+          console.log('Country code changed to:', itemValue);
+          onCodeChange(itemValue);
+        }}
         style={styles.picker}
+        itemStyle={styles.pickerItem}
         enabled={!disabled}
+        mode="dropdown"
       >
-        {COUNTRY_CODES.map((country) => (
-          <Picker.Item
-            key={country.code}
-            label={`${country.flag} +${country.code}`}
-            value={country.code}
-          />
-        ))}
+        {COUNTRY_CODES.map((country) => {
+          const label = `${country.flag} +${country.code}`;
+          console.log('Rendering picker item:', label, 'value:', country.code);
+          return (
+            <Picker.Item
+              key={country.code}
+              label={label}
+              value={country.code}
+              color={colors.text}
+            />
+          );
+        })}
       </Picker>
     </View>
   );
@@ -83,9 +96,23 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     overflow: 'hidden',
     minWidth: 120,
+    justifyContent: 'center',
   },
   picker: {
     color: colors.text,
     height: 56,
+    ...Platform.select({
+      android: {
+        backgroundColor: colors.card,
+      },
+      ios: {
+        backgroundColor: 'transparent',
+      },
+    }),
+  },
+  pickerItem: {
+    fontSize: 16,
+    color: colors.text,
+    height: 120,
   },
 });
