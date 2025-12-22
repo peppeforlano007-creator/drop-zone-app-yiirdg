@@ -24,9 +24,9 @@ import { supabase } from '@/app/integrations/supabase/client';
 export default function LoginScreen() {
   const { user, loading: authLoading } = useAuth();
   const [phone, setPhone] = useState('');
-  const [otp, setOtp] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [otpSent, setOtpSent] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [whatsappNumber, setWhatsappNumber] = useState('');
   const [loadingWhatsapp, setLoadingWhatsapp] = useState(true);
 
@@ -133,7 +133,7 @@ export default function LoginScreen() {
     }
   };
 
-  const handleSendOTP = async () => {
+  const handleLogin = async () => {
     if (!phone.trim()) {
       Alert.alert('Errore', 'Inserisci il numero di cellulare');
       return;
@@ -146,98 +146,70 @@ export default function LoginScreen() {
       return;
     }
 
+    if (!password.trim()) {
+      Alert.alert('Errore', 'Inserisci la password');
+      return;
+    }
+
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setLoading(true);
 
     try {
-      console.log('Sending OTP to phone:', phone);
+      console.log('Logging in with phone:', phone);
       
-      const { data, error } = await supabase.auth.signInWithOtp({
-        phone: phone.trim(),
-        options: {
-          channel: 'sms',
-        }
-      });
+      // First, get the user by phone number to find their email
+      const { data: userData, error: userError } = await supabase
+        .from('profiles')
+        .select('email')
+        .eq('phone', phone.trim())
+        .single();
 
-      if (error) {
-        console.error('Error sending OTP:', error);
+      if (userError || !userData) {
+        console.error('Error finding user by phone:', userError);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-        
-        let errorMessage = error.message;
-        if (errorMessage.toLowerCase().includes('rate limit')) {
-          errorMessage = 'Hai richiesto troppi codici. Attendi qualche minuto e riprova.';
-        }
-        
-        Alert.alert('Errore', errorMessage);
-      } else {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        setOtpSent(true);
-        console.log('OTP sent successfully');
         Alert.alert(
-          'Codice Inviato!',
-          'Abbiamo inviato un codice di 6 cifre al tuo numero di cellulare. Inseriscilo qui sotto per accedere.',
-          [{ text: 'OK' }]
+          'Errore di Accesso',
+          'Numero di cellulare non trovato. Verifica di aver inserito il numero corretto o registrati.'
         );
+        setLoading(false);
+        return;
       }
-    } catch (error) {
-      console.error('Exception sending OTP:', error);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert('Errore', 'Si è verificato un errore durante l\'invio del codice. Riprova.');
-    } finally {
-      setLoading(false);
-    }
-  };
 
-  const handleVerifyOTP = async () => {
-    if (!otp.trim()) {
-      Alert.alert('Errore', 'Inserisci il codice ricevuto via SMS');
-      return;
-    }
+      console.log('User found, attempting login with email:', userData.email);
 
-    if (otp.trim().length !== 6) {
-      Alert.alert('Errore', 'Il codice deve essere di 6 cifre');
-      return;
-    }
-
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setLoading(true);
-
-    try {
-      console.log('Verifying OTP for phone:', phone);
-      
-      const { data, error } = await supabase.auth.verifyOtp({
-        phone: phone.trim(),
-        token: otp.trim(),
-        type: 'sms',
+      // Now sign in with email and password
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email: userData.email,
+        password: password.trim(),
       });
 
-      if (error) {
-        console.error('Error verifying OTP:', error);
+      if (authError) {
+        console.error('Error logging in:', authError);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
         
-        let errorMessage = error.message;
-        if (errorMessage.toLowerCase().includes('invalid') || errorMessage.toLowerCase().includes('expired')) {
-          errorMessage = 'Codice non valido o scaduto. Richiedi un nuovo codice.';
+        let errorMessage = authError.message;
+        if (errorMessage.toLowerCase().includes('invalid') || errorMessage.toLowerCase().includes('credentials')) {
+          errorMessage = 'Password non corretta. Riprova o reimposta la password.';
         }
         
-        Alert.alert('Errore', errorMessage);
+        Alert.alert('Errore di Accesso', errorMessage);
       } else {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        console.log('OTP verified successfully, user logged in');
+        console.log('Login successful');
         // Navigation will be handled by useEffect when user state updates
       }
     } catch (error) {
-      console.error('Exception verifying OTP:', error);
+      console.error('Exception during login:', error);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert('Errore', 'Si è verificato un errore durante la verifica del codice. Riprova.');
+      Alert.alert('Errore', 'Si è verificato un errore durante l\'accesso. Riprova.');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleResendOTP = () => {
-    setOtp('');
-    setOtpSent(false);
+  const handleForgotPassword = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push('/forgot-password');
   };
 
   const handleRegisterConsumer = () => {
@@ -269,120 +241,89 @@ export default function LoginScreen() {
             <View style={styles.header}>
               <Text style={styles.title}>Benvenuto</Text>
               <Text style={styles.subtitle}>
-                {otpSent ? 'Inserisci il codice ricevuto via SMS' : 'Accedi con il tuo numero di cellulare'}
+                Accedi con il tuo numero di cellulare e password
               </Text>
             </View>
 
             <View style={styles.formSection}>
-              {!otpSent ? (
-                <>
-                  <Text style={styles.inputLabel}>Numero di Cellulare</Text>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="+39 123 456 7890"
-                    placeholderTextColor={colors.textTertiary}
-                    value={phone}
-                    onChangeText={setPhone}
-                    keyboardType="phone-pad"
-                    autoCapitalize="none"
-                    autoComplete="tel"
-                    editable={!loading}
+              <Text style={styles.inputLabel}>Numero di Cellulare</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="+39 123 456 7890"
+                placeholderTextColor={colors.textTertiary}
+                value={phone}
+                onChangeText={setPhone}
+                keyboardType="phone-pad"
+                autoCapitalize="none"
+                autoComplete="tel"
+                editable={!loading}
+              />
+              <Text style={styles.inputHint}>
+                Inserisci il tuo numero di cellulare con il prefisso internazionale (es. +39 per l&apos;Italia)
+              </Text>
+
+              <Text style={styles.inputLabel}>Password</Text>
+              <View style={styles.passwordInputContainer}>
+                <TextInput
+                  style={styles.passwordInput}
+                  placeholder="Inserisci la tua password"
+                  placeholderTextColor={colors.textTertiary}
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry={!showPassword}
+                  autoCapitalize="none"
+                  autoComplete="password"
+                  editable={!loading}
+                />
+                <Pressable
+                  style={styles.eyeButton}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setShowPassword(!showPassword);
+                  }}
+                  disabled={loading}
+                >
+                  <IconSymbol
+                    ios_icon_name={showPassword ? 'eye.slash.fill' : 'eye.fill'}
+                    android_material_icon_name={showPassword ? 'visibility_off' : 'visibility'}
+                    size={22}
+                    color={colors.textSecondary}
                   />
-                  <Text style={styles.inputHint}>
-                    Inserisci il tuo numero di cellulare con il prefisso internazionale (es. +39 per l&apos;Italia)
-                  </Text>
+                </Pressable>
+              </View>
 
-                  <Pressable
-                    style={({ pressed }) => [
-                      styles.loginButton,
-                      (pressed || loading) && styles.loginButtonPressed,
-                    ]}
-                    onPress={handleSendOTP}
-                    disabled={loading}
-                  >
-                    {loading ? (
-                      <ActivityIndicator color="#fff" />
-                    ) : (
-                      <>
-                        <IconSymbol
-                          ios_icon_name="paperplane.fill"
-                          android_material_icon_name="send"
-                          size={20}
-                          color="#fff"
-                        />
-                        <Text style={styles.loginButtonText}>Invia Codice</Text>
-                      </>
-                    )}
-                  </Pressable>
-                </>
-              ) : (
-                <>
-                  <View style={styles.phoneDisplayContainer}>
-                    <Text style={styles.phoneDisplayLabel}>Numero di cellulare:</Text>
-                    <Text style={styles.phoneDisplayValue}>{phone}</Text>
-                    <Pressable
-                      style={styles.changePhoneButton}
-                      onPress={() => {
-                        setOtpSent(false);
-                        setOtp('');
-                      }}
-                      disabled={loading}
-                    >
-                      <Text style={styles.changePhoneText}>Cambia numero</Text>
-                    </Pressable>
-                  </View>
+              <Pressable
+                style={styles.forgotPasswordButton}
+                onPress={handleForgotPassword}
+                disabled={loading}
+              >
+                <Text style={styles.forgotPasswordText}>
+                  Password dimenticata?
+                </Text>
+              </Pressable>
 
-                  <Text style={styles.inputLabel}>Codice di Verifica</Text>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="123456"
-                    placeholderTextColor={colors.textTertiary}
-                    value={otp}
-                    onChangeText={setOtp}
-                    keyboardType="number-pad"
-                    maxLength={6}
-                    autoCapitalize="none"
-                    editable={!loading}
-                    autoFocus
-                  />
-                  <Text style={styles.inputHint}>
-                    Inserisci il codice di 6 cifre che hai ricevuto via SMS
-                  </Text>
-
-                  <Pressable
-                    style={({ pressed }) => [
-                      styles.loginButton,
-                      (pressed || loading) && styles.loginButtonPressed,
-                    ]}
-                    onPress={handleVerifyOTP}
-                    disabled={loading}
-                  >
-                    {loading ? (
-                      <ActivityIndicator color="#fff" />
-                    ) : (
-                      <>
-                        <IconSymbol
-                          ios_icon_name="checkmark.circle.fill"
-                          android_material_icon_name="check_circle"
-                          size={20}
-                          color="#fff"
-                        />
-                        <Text style={styles.loginButtonText}>Verifica e Accedi</Text>
-                      </>
-                    )}
-                  </Pressable>
-
-                  <Pressable
-                    style={styles.resendButton}
-                    onPress={handleResendOTP}
-                    disabled={loading}
-                  >
-                    <Text style={styles.resendButtonText}>
-                      Non hai ricevuto il codice? Invia nuovamente
-                    </Text>
-                  </Pressable>
-                </>
-              )}
+              <Pressable
+                style={({ pressed }) => [
+                  styles.loginButton,
+                  (pressed || loading) && styles.loginButtonPressed,
+                ]}
+                onPress={handleLogin}
+                disabled={loading}
+              >
+                {loading ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <>
+                    <IconSymbol
+                      ios_icon_name="arrow.right.circle.fill"
+                      android_material_icon_name="login"
+                      size={20}
+                      color="#fff"
+                    />
+                    <Text style={styles.loginButtonText}>Accedi</Text>
+                  </>
+                )}
+              </Pressable>
 
               {/* Support Button */}
               <Pressable
@@ -420,8 +361,8 @@ export default function LoginScreen() {
                 color={colors.info}
               />
               <Text style={styles.infoText}>
-                <Text style={styles.infoTextBold}>Accesso Sicuro:</Text> Riceverai un codice di verifica via SMS ogni volta che accedi. 
-                Il codice è valido per 60 secondi.
+                <Text style={styles.infoTextBold}>Accesso Semplificato:</Text> Usa il tuo numero di cellulare e la password 
+                che hai scelto durante la registrazione. Non è più necessario ricevere un codice SMS ad ogni accesso.
               </Text>
             </View>
 
@@ -546,30 +487,30 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     fontStyle: 'italic',
   },
-  phoneDisplayContainer: {
+  passwordInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: colors.card,
     borderRadius: 8,
-    padding: 16,
-    marginBottom: 16,
     borderWidth: 1,
     borderColor: colors.border,
-  },
-  phoneDisplayLabel: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    marginBottom: 4,
-  },
-  phoneDisplayValue: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: colors.text,
     marginBottom: 8,
   },
-  changePhoneButton: {
-    alignSelf: 'flex-start',
-    paddingVertical: 4,
+  passwordInput: {
+    flex: 1,
+    padding: 16,
+    fontSize: 16,
+    color: colors.text,
   },
-  changePhoneText: {
+  eyeButton: {
+    padding: 16,
+  },
+  forgotPasswordButton: {
+    alignSelf: 'flex-end',
+    paddingVertical: 8,
+    marginBottom: 16,
+  },
+  forgotPasswordText: {
     fontSize: 14,
     color: colors.primary,
     fontWeight: '600',
@@ -593,16 +534,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#fff',
-  },
-  resendButton: {
-    alignItems: 'center',
-    paddingVertical: 16,
-    marginTop: 8,
-  },
-  resendButtonText: {
-    fontSize: 14,
-    color: colors.primary,
-    fontWeight: '600',
   },
   supportButton: {
     flexDirection: 'row',

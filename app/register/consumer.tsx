@@ -214,7 +214,7 @@ export default function ConsumerRegisterScreen() {
     try {
       console.log('Verifying OTP and registering consumer with phone:', phone, 'pickup_point:', pickupPointId);
       
-      // Verify OTP and sign up with password
+      // Verify OTP - this creates the user account
       const { data: authData, error: authError } = await supabase.auth.verifyOtp({
         phone: phone.trim(),
         token: otp.trim(),
@@ -241,7 +241,7 @@ export default function ConsumerRegisterScreen() {
 
       console.log('OTP verified, user created:', authData.user.id);
 
-      // Update user with password and metadata
+      // Now update the user with password and metadata
       const { error: updateError } = await supabase.auth.updateUser({
         password: password,
         data: {
@@ -252,9 +252,12 @@ export default function ConsumerRegisterScreen() {
       });
 
       if (updateError) {
-        console.error('Error updating user:', updateError);
-        // Non-blocking error - user is already created
+        console.error('Error updating user with password:', updateError);
+        Alert.alert('Errore', 'Impossibile impostare la password. Riprova.');
+        return;
       }
+
+      console.log('User password and metadata updated successfully');
 
       // Save user consents
       try {
@@ -279,10 +282,13 @@ export default function ConsumerRegisterScreen() {
       
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       
+      // Sign out the user so they can log in with password
+      await supabase.auth.signOut();
+      
       // Show success message
       Alert.alert(
         'Registrazione Completata! 🎉',
-        `Account creato con successo!\n\nNumero: ${phone}\n\nPuoi ora accedere all'app con il tuo numero di cellulare.`,
+        `Account creato con successo!\n\nNumero: ${phone}\n\nPuoi ora accedere all'app con il tuo numero di cellulare e la password che hai scelto.`,
         [
           {
             text: 'OK',
@@ -710,8 +716,8 @@ export default function ConsumerRegisterScreen() {
                 color={colors.info}
               />
               <Text style={styles.infoText}>
-                Il numero di cellulare sarà usato come metodo principale di accesso. 
-                Riceverai un codice di verifica via SMS per confermare il tuo numero.
+                Il numero di cellulare sarà verificato una sola volta durante la registrazione. 
+                Successivamente potrai accedere con il tuo numero e la password scelta.
               </Text>
             </View>
 
