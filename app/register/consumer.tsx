@@ -27,17 +27,18 @@ interface PickupPoint {
 }
 
 export default function ConsumerRegisterScreen() {
-  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [otp, setOtp] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [fullName, setFullName] = useState('');
-  const [phone, setPhone] = useState('');
   const [pickupPointId, setPickupPointId] = useState('');
   const [pickupPoints, setPickupPoints] = useState<PickupPoint[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadingPickupPoints, setLoadingPickupPoints] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [otpSent, setOtpSent] = useState(false);
   
   // Legal consents
   const [acceptedTerms, setAcceptedTerms] = useState(false);
@@ -95,7 +96,7 @@ export default function ConsumerRegisterScreen() {
     return { valid: true };
   };
 
-  const handleRegister = async () => {
+  const handleSendOTP = async () => {
     // Validation
     if (!fullName.trim()) {
       Alert.alert('Errore', 'Inserisci il tuo nome completo');
@@ -103,26 +104,14 @@ export default function ConsumerRegisterScreen() {
     }
 
     if (!phone.trim()) {
-      Alert.alert('Errore', 'Inserisci il numero di cellulare (campo obbligatorio)');
+      Alert.alert('Errore', 'Inserisci il numero di cellulare');
       return;
     }
 
-    // Basic phone validation - should start with + and contain only digits
+    // Basic phone validation
     const phoneRegex = /^\+?[0-9\s\-()]+$/;
     if (!phoneRegex.test(phone.trim())) {
       Alert.alert('Errore', 'Inserisci un numero di cellulare valido (es. +39 123 456 7890)');
-      return;
-    }
-
-    if (!email.trim()) {
-      Alert.alert('Errore', 'Inserisci l\'email (opzionale ma consigliata per il recupero password)');
-      return;
-    }
-
-    // Basic email validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (email.trim() && !emailRegex.test(email.trim())) {
-      Alert.alert('Errore', 'Inserisci un indirizzo email valido');
       return;
     }
 
@@ -169,37 +158,79 @@ export default function ConsumerRegisterScreen() {
     setLoading(true);
 
     try {
-      console.log('Registering consumer with phone:', phone, 'email:', email, 'pickup_point:', pickupPointId);
+      console.log('Sending OTP to phone for registration:', phone);
       
-      // Register with Supabase Auth using phone as primary identifier
-      const { data: authData, error: authError } = await supabase.auth.signUp({
+      // First, send OTP to verify phone number
+      const { data, error } = await supabase.auth.signInWithOtp({
         phone: phone.trim(),
-        password,
         options: {
-          data: {
-            full_name: fullName.trim(),
-            email: email.trim().toLowerCase(),
-            role: 'consumer',
-            pickup_point_id: pickupPointId,
-          },
-          // If email is provided, we can use it for email confirmation
-          ...(email.trim() && {
-            emailRedirectTo: 'dropzone://email-confirmed'
-          })
+          channel: 'sms',
         }
       });
 
+      if (error) {
+        console.error('Error sending OTP:', error);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        
+        let errorMessage = error.message;
+        if (errorMessage.toLowerCase().includes('rate limit')) {
+          errorMessage = 'Hai richiesto troppi codici. Attendi qualche minuto e riprova.';
+        }
+        
+        Alert.alert('Errore', errorMessage);
+      } else {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        setOtpSent(true);
+        console.log('OTP sent successfully for registration');
+        Alert.alert(
+          'Codice Inviato!',
+          'Abbiamo inviato un codice di 6 cifre al tuo numero di cellulare. Inseriscilo qui sotto per completare la registrazione.',
+          [{ text: 'OK' }]
+        );
+      }
+    } catch (error) {
+      console.error('Exception sending OTP:', error);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert('Errore', 'Si è verificato un errore durante l\'invio del codice. Riprova.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRegister = async () => {
+    if (!otp.trim()) {
+      Alert.alert('Errore', 'Inserisci il codice ricevuto via SMS');
+      return;
+    }
+
+    if (otp.trim().length !== 6) {
+      Alert.alert('Errore', 'Il codice deve essere di 6 cifre');
+      return;
+    }
+
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setLoading(true);
+
+    try {
+      console.log('Verifying OTP and registering consumer with phone:', phone, 'pickup_point:', pickupPointId);
+      
+      // Verify OTP and sign up with password
+      const { data: authData, error: authError } = await supabase.auth.verifyOtp({
+        phone: phone.trim(),
+        token: otp.trim(),
+        type: 'sms',
+      });
+
       if (authError) {
-        console.error('Registration error:', authError);
+        console.error('OTP verification error:', authError);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
         
         let errorMessage = authError.message;
-        if (errorMessage.toLowerCase().includes('already registered') || 
-            errorMessage.toLowerCase().includes('already exists')) {
-          errorMessage = 'Questo numero di cellulare è già registrato. Prova ad accedere o usa un altro numero.';
+        if (errorMessage.toLowerCase().includes('invalid') || errorMessage.toLowerCase().includes('expired')) {
+          errorMessage = 'Codice non valido o scaduto. Richiedi un nuovo codice.';
         }
         
-        Alert.alert('Errore di Registrazione', errorMessage);
+        Alert.alert('Errore di Verifica', errorMessage);
         return;
       }
 
@@ -208,8 +239,23 @@ export default function ConsumerRegisterScreen() {
         return;
       }
 
-      console.log('User registered successfully:', authData.user.id);
-      
+      console.log('OTP verified, user created:', authData.user.id);
+
+      // Update user with password and metadata
+      const { error: updateError } = await supabase.auth.updateUser({
+        password: password,
+        data: {
+          full_name: fullName.trim(),
+          role: 'consumer',
+          pickup_point_id: pickupPointId,
+        }
+      });
+
+      if (updateError) {
+        console.error('Error updating user:', updateError);
+        // Non-blocking error - user is already created
+      }
+
       // Save user consents
       try {
         const { error: consentError } = await supabase
@@ -224,7 +270,7 @@ export default function ConsumerRegisterScreen() {
 
         if (consentError) {
           console.error('Error saving consents:', consentError);
-          // Non-blocking error - user is already registered
+          // Non-blocking error
         }
       } catch (consentException) {
         console.error('Exception saving consents:', consentException);
@@ -236,7 +282,7 @@ export default function ConsumerRegisterScreen() {
       // Show success message
       Alert.alert(
         'Registrazione Completata! 🎉',
-        `Account creato con successo!\n\nNumero: ${phone}\n${email ? `Email: ${email}\n` : ''}\nPuoi ora accedere all'app con il tuo numero di cellulare e password.`,
+        `Account creato con successo!\n\nNumero: ${phone}\n\nPuoi ora accedere all'app con il tuo numero di cellulare.`,
         [
           {
             text: 'OK',
@@ -295,10 +341,10 @@ export default function ConsumerRegisterScreen() {
                 onChangeText={setFullName}
                 autoCapitalize="words"
                 autoComplete="name"
-                editable={!loading}
+                editable={!loading && !otpSent}
               />
 
-              <Text style={styles.inputLabel}>Numero di Cellulare * (Obbligatorio)</Text>
+              <Text style={styles.inputLabel}>Numero di Cellulare *</Text>
               <TextInput
                 style={styles.input}
                 placeholder="+39 123 456 7890"
@@ -307,26 +353,10 @@ export default function ConsumerRegisterScreen() {
                 onChangeText={setPhone}
                 keyboardType="phone-pad"
                 autoComplete="tel"
-                editable={!loading}
+                editable={!loading && !otpSent}
               />
               <Text style={styles.inputHint}>
-                Il numero di cellulare è obbligatorio e sarà usato per accedere all&apos;app
-              </Text>
-
-              <Text style={styles.inputLabel}>Email (Opzionale)</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="email@esempio.com"
-                placeholderTextColor={colors.textTertiary}
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoComplete="email"
-                editable={!loading}
-              />
-              <Text style={styles.inputHint}>
-                L&apos;email è opzionale ma consigliata per il recupero password
+                Il numero di cellulare sarà usato per accedere all&apos;app
               </Text>
 
               <Text style={styles.inputLabel}>Password *</Text>
@@ -340,7 +370,7 @@ export default function ConsumerRegisterScreen() {
                   secureTextEntry={!showPassword}
                   autoCapitalize="none"
                   autoComplete="password-new"
-                  editable={!loading}
+                  editable={!loading && !otpSent}
                 />
                 <Pressable
                   style={styles.eyeButton}
@@ -348,7 +378,7 @@ export default function ConsumerRegisterScreen() {
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                     setShowPassword(!showPassword);
                   }}
-                  disabled={loading}
+                  disabled={loading || otpSent}
                 >
                   <IconSymbol
                     ios_icon_name={showPassword ? 'eye.slash.fill' : 'eye.fill'}
@@ -370,7 +400,7 @@ export default function ConsumerRegisterScreen() {
                   secureTextEntry={!showConfirmPassword}
                   autoCapitalize="none"
                   autoComplete="password-new"
-                  editable={!loading}
+                  editable={!loading && !otpSent}
                 />
                 <Pressable
                   style={styles.eyeButton}
@@ -378,7 +408,7 @@ export default function ConsumerRegisterScreen() {
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                     setShowConfirmPassword(!showConfirmPassword);
                   }}
-                  disabled={loading}
+                  disabled={loading || otpSent}
                 >
                   <IconSymbol
                     ios_icon_name={showConfirmPassword ? 'eye.slash.fill' : 'eye.fill'}
@@ -473,7 +503,7 @@ export default function ConsumerRegisterScreen() {
                     selectedValue={pickupPointId}
                     onValueChange={(itemValue) => setPickupPointId(itemValue)}
                     style={styles.picker}
-                    enabled={!loading}
+                    enabled={!loading && !otpSent}
                   >
                     <Picker.Item label="Seleziona un punto di ritiro" value="" />
                     {pickupPoints.map((point) => (
@@ -497,7 +527,7 @@ export default function ConsumerRegisterScreen() {
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                     setAcceptedTerms(!acceptedTerms);
                   }}
-                  disabled={loading}
+                  disabled={loading || otpSent}
                 >
                   <View style={styles.checkbox}>
                     {acceptedTerms && (
@@ -531,7 +561,7 @@ export default function ConsumerRegisterScreen() {
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                     setAcceptedPrivacy(!acceptedPrivacy);
                   }}
-                  disabled={loading}
+                  disabled={loading || otpSent}
                 >
                   <View style={styles.checkbox}>
                     {acceptedPrivacy && (
@@ -567,7 +597,7 @@ export default function ConsumerRegisterScreen() {
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                     setAcceptedMarketing(!acceptedMarketing);
                   }}
-                  disabled={loading}
+                  disabled={loading || otpSent}
                 >
                   <View style={styles.checkbox}>
                     {acceptedMarketing && (
@@ -587,30 +617,89 @@ export default function ConsumerRegisterScreen() {
                 <Text style={styles.requiredNote}>* Campi obbligatori</Text>
               </View>
 
-              <Pressable
-                style={({ pressed }) => [
-                  styles.registerButton,
-                  (pressed || loading || loadingPickupPoints) && styles.registerButtonPressed,
-                ]}
-                onPress={handleRegister}
-                disabled={loading || loadingPickupPoints}
-              >
-                {loading ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <>
-                    <IconSymbol
-                      ios_icon_name="person.badge.plus.fill"
-                      android_material_icon_name="person_add"
-                      size={20}
-                      color="#fff"
-                    />
-                    <Text style={styles.registerButtonText}>
-                      Registrati
+              {!otpSent ? (
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.registerButton,
+                    (pressed || loading || loadingPickupPoints) && styles.registerButtonPressed,
+                  ]}
+                  onPress={handleSendOTP}
+                  disabled={loading || loadingPickupPoints}
+                >
+                  {loading ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <>
+                      <IconSymbol
+                        ios_icon_name="paperplane.fill"
+                        android_material_icon_name="send"
+                        size={20}
+                        color="#fff"
+                      />
+                      <Text style={styles.registerButtonText}>
+                        Invia Codice di Verifica
+                      </Text>
+                    </>
+                  )}
+                </Pressable>
+              ) : (
+                <>
+                  <Text style={styles.inputLabel}>Codice di Verifica *</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="123456"
+                    placeholderTextColor={colors.textTertiary}
+                    value={otp}
+                    onChangeText={setOtp}
+                    keyboardType="number-pad"
+                    maxLength={6}
+                    autoCapitalize="none"
+                    editable={!loading}
+                    autoFocus
+                  />
+                  <Text style={styles.inputHint}>
+                    Inserisci il codice di 6 cifre che hai ricevuto via SMS
+                  </Text>
+
+                  <Pressable
+                    style={({ pressed }) => [
+                      styles.registerButton,
+                      (pressed || loading) && styles.registerButtonPressed,
+                    ]}
+                    onPress={handleRegister}
+                    disabled={loading}
+                  >
+                    {loading ? (
+                      <ActivityIndicator color="#fff" />
+                    ) : (
+                      <>
+                        <IconSymbol
+                          ios_icon_name="person.badge.plus.fill"
+                          android_material_icon_name="person_add"
+                          size={20}
+                          color="#fff"
+                        />
+                        <Text style={styles.registerButtonText}>
+                          Completa Registrazione
+                        </Text>
+                      </>
+                    )}
+                  </Pressable>
+
+                  <Pressable
+                    style={styles.resendButton}
+                    onPress={() => {
+                      setOtp('');
+                      setOtpSent(false);
+                    }}
+                    disabled={loading}
+                  >
+                    <Text style={styles.resendButtonText}>
+                      Non hai ricevuto il codice? Invia nuovamente
                     </Text>
-                  </>
-                )}
-              </Pressable>
+                  </Pressable>
+                </>
+              )}
             </View>
 
             <View style={styles.infoBox}>
@@ -621,8 +710,8 @@ export default function ConsumerRegisterScreen() {
                 color={colors.info}
               />
               <Text style={styles.infoText}>
-                Il numero di cellulare è obbligatorio e sarà usato come metodo principale di accesso. 
-                L&apos;email è opzionale ma consigliata per il recupero password.
+                Il numero di cellulare sarà usato come metodo principale di accesso. 
+                Riceverai un codice di verifica via SMS per confermare il tuo numero.
               </Text>
             </View>
 
@@ -858,6 +947,16 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#fff',
+  },
+  resendButton: {
+    alignItems: 'center',
+    paddingVertical: 16,
+    marginTop: 8,
+  },
+  resendButtonText: {
+    fontSize: 14,
+    color: colors.primary,
+    fontWeight: '600',
   },
   infoBox: {
     flexDirection: 'row',

@@ -22,12 +22,11 @@ import * as Haptics from 'expo-haptics';
 import { supabase } from '@/app/integrations/supabase/client';
 
 export default function LoginScreen() {
-  const { login, user, loading: authLoading } = useAuth();
-  const [phoneOrEmail, setPhoneOrEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const { user, loading: authLoading } = useAuth();
+  const [phone, setPhone] = useState('');
+  const [otp, setOtp] = useState('');
   const [loading, setLoading] = useState(false);
-  const [showResendEmail, setShowResendEmail] = useState(false);
-  const [resendingEmail, setResendingEmail] = useState(false);
+  const [otpSent, setOtpSent] = useState(false);
   const [whatsappNumber, setWhatsappNumber] = useState('');
   const [loadingWhatsapp, setLoadingWhatsapp] = useState(true);
 
@@ -112,11 +111,8 @@ export default function LoginScreen() {
     const whatsappWebUrl = `https://wa.me/${whatsappNumber}?text=${message}`;
     
     console.log('Opening WhatsApp with number:', whatsappNumber);
-    console.log('WhatsApp URL:', whatsappUrl);
-    console.log('WhatsApp Web URL:', whatsappWebUrl);
     
     try {
-      // Try to open WhatsApp app first
       const canOpen = await Linking.canOpenURL(whatsappUrl);
       console.log('Can open WhatsApp app:', canOpen);
       
@@ -124,7 +120,6 @@ export default function LoginScreen() {
         console.log('Opening WhatsApp app...');
         await Linking.openURL(whatsappUrl);
       } else {
-        // If WhatsApp app is not installed, open WhatsApp Web
         console.log('WhatsApp app not available, opening WhatsApp Web...');
         await Linking.openURL(whatsappWebUrl);
       }
@@ -132,170 +127,117 @@ export default function LoginScreen() {
       console.error('Error opening WhatsApp:', error);
       Alert.alert(
         'Errore',
-        'Impossibile aprire WhatsApp. Assicurati di avere WhatsApp installato sul tuo dispositivo o prova ad aprire WhatsApp Web manualmente.',
-        [
-          {
-            text: 'OK',
-          },
-        ]
+        'Impossibile aprire WhatsApp. Assicurati di avere WhatsApp installato sul tuo dispositivo.',
+        [{ text: 'OK' }]
       );
     }
   };
 
-  const handleResendConfirmationEmail = async () => {
-    if (!phoneOrEmail.trim()) {
-      Alert.alert('Errore', 'Inserisci l\'email per ricevere nuovamente l\'email di conferma');
+  const handleSendOTP = async () => {
+    if (!phone.trim()) {
+      Alert.alert('Errore', 'Inserisci il numero di cellulare');
       return;
     }
 
-    // Check if it's an email
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(phoneOrEmail.trim())) {
-      Alert.alert('Errore', 'Inserisci un indirizzo email valido per ricevere l\'email di conferma');
-      return;
-    }
-
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setResendingEmail(true);
-
-    try {
-      console.log('Resending confirmation email to:', phoneOrEmail);
-      const { error } = await supabase.auth.resend({
-        type: 'signup',
-        email: phoneOrEmail.trim().toLowerCase(),
-        options: {
-          emailRedirectTo: 'dropzone://email-confirmed'
-        }
-      });
-
-      if (error) {
-        console.error('Error resending confirmation email:', error);
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-        Alert.alert(
-          'Errore',
-          'Impossibile inviare l\'email di conferma. Verifica che l\'indirizzo email sia corretto.'
-        );
-      } else {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        Alert.alert(
-          'Email Inviata!',
-          'Abbiamo inviato nuovamente l\'email di conferma. Controlla la tua casella di posta (anche nello spam).',
-          [{ text: 'OK' }]
-        );
-        setShowResendEmail(false);
-      }
-    } catch (error) {
-      console.error('Exception resending confirmation email:', error);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert('Errore', 'Si è verificato un errore imprevisto. Riprova.');
-    } finally {
-      setResendingEmail(false);
-    }
-  };
-
-  const handleLogin = async () => {
-    if (!phoneOrEmail.trim()) {
-      Alert.alert('Errore', 'Inserisci il numero di cellulare o l\'email');
-      return;
-    }
-
-    if (!password) {
-      Alert.alert('Errore', 'Inserisci la password');
+    // Basic phone validation
+    const phoneRegex = /^\+?[0-9\s\-()]+$/;
+    if (!phoneRegex.test(phone.trim())) {
+      Alert.alert('Errore', 'Inserisci un numero di cellulare valido (es. +39 123 456 7890)');
       return;
     }
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setLoading(true);
-    setShowResendEmail(false);
 
     try {
-      console.log('Login: Attempting login for:', phoneOrEmail);
+      console.log('Sending OTP to phone:', phone);
       
-      // Determine if input is email or phone
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      const isEmail = emailRegex.test(phoneOrEmail.trim());
-      
-      let result;
-      if (isEmail) {
-        console.log('Login: Using email authentication');
-        result = await login(phoneOrEmail.trim().toLowerCase(), password);
-      } else {
-        console.log('Login: Using phone authentication');
-        // For phone login, we need to use signInWithPassword with phone
-        const { data, error } = await supabase.auth.signInWithPassword({
-          phone: phoneOrEmail.trim(),
-          password: password,
-        });
+      const { data, error } = await supabase.auth.signInWithOtp({
+        phone: phone.trim(),
+        options: {
+          channel: 'sms',
+        }
+      });
 
-        if (error) {
-          result = { success: false, message: error.message };
-        } else {
-          result = { success: true };
-        }
-      }
-      
-      console.log('Login: Result:', result);
-      
-      if (result.success) {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        console.log('Login: Success, waiting for profile to load...');
-        // Navigation will be handled by useEffect when user state updates
-      } else {
+      if (error) {
+        console.error('Error sending OTP:', error);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-        console.error('Login: Failed:', result.message);
         
-        // Show more user-friendly error messages
-        let errorMessage = result.message || 'Credenziali non valide';
-        let showResend = false;
-        
-        // Check for email not confirmed error
-        if (errorMessage.toLowerCase().includes('email not confirmed') || 
-            errorMessage.toLowerCase().includes('email confirmation')) {
-          errorMessage = 'La tua email non è stata ancora confermata.\n\nControlla la tua casella di posta e clicca sul link di conferma che ti abbiamo inviato.\n\nNon hai ricevuto l\'email?';
-          showResend = true;
-        } else if (errorMessage.toLowerCase().includes('invalid login credentials') ||
-                   errorMessage.toLowerCase().includes('invalid credentials')) {
-          errorMessage = 'Numero di cellulare/email o password non corretti.\n\nVerifica i tuoi dati e riprova.';
-        } else if (errorMessage.toLowerCase().includes('email not found') ||
-                   errorMessage.toLowerCase().includes('user not found') ||
-                   errorMessage.toLowerCase().includes('phone not found')) {
-          errorMessage = 'Account non trovato.\n\nRegistrati per creare un nuovo account.';
+        let errorMessage = error.message;
+        if (errorMessage.toLowerCase().includes('rate limit')) {
+          errorMessage = 'Hai richiesto troppi codici. Attendi qualche minuto e riprova.';
         }
         
-        if (showResend && isEmail) {
-          Alert.alert(
-            'Email Non Confermata',
-            errorMessage,
-            [
-              {
-                text: 'Annulla',
-                style: 'cancel',
-              },
-              {
-                text: 'Invia Nuovamente',
-                onPress: () => {
-                  setShowResendEmail(true);
-                  handleResendConfirmationEmail();
-                },
-              },
-            ]
-          );
-        } else {
-          Alert.alert('Errore di Login', errorMessage);
-        }
+        Alert.alert('Errore', errorMessage);
+      } else {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        setOtpSent(true);
+        console.log('OTP sent successfully');
+        Alert.alert(
+          'Codice Inviato!',
+          'Abbiamo inviato un codice di 6 cifre al tuo numero di cellulare. Inseriscilo qui sotto per accedere.',
+          [{ text: 'OK' }]
+        );
       }
     } catch (error) {
-      console.error('Login: Exception:', error);
+      console.error('Exception sending OTP:', error);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert('Errore', 'Si è verificato un errore durante il login. Riprova.');
+      Alert.alert('Errore', 'Si è verificato un errore durante l\'invio del codice. Riprova.');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleForgotPassword = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    router.push('/forgot-password');
+  const handleVerifyOTP = async () => {
+    if (!otp.trim()) {
+      Alert.alert('Errore', 'Inserisci il codice ricevuto via SMS');
+      return;
+    }
+
+    if (otp.trim().length !== 6) {
+      Alert.alert('Errore', 'Il codice deve essere di 6 cifre');
+      return;
+    }
+
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setLoading(true);
+
+    try {
+      console.log('Verifying OTP for phone:', phone);
+      
+      const { data, error } = await supabase.auth.verifyOtp({
+        phone: phone.trim(),
+        token: otp.trim(),
+        type: 'sms',
+      });
+
+      if (error) {
+        console.error('Error verifying OTP:', error);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        
+        let errorMessage = error.message;
+        if (errorMessage.toLowerCase().includes('invalid') || errorMessage.toLowerCase().includes('expired')) {
+          errorMessage = 'Codice non valido o scaduto. Richiedi un nuovo codice.';
+        }
+        
+        Alert.alert('Errore', errorMessage);
+      } else {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        console.log('OTP verified successfully, user logged in');
+        // Navigation will be handled by useEffect when user state updates
+      }
+    } catch (error) {
+      console.error('Exception verifying OTP:', error);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert('Errore', 'Si è verificato un errore durante la verifica del codice. Riprova.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResendOTP = () => {
+    setOtp('');
+    setOtpSent(false);
   };
 
   const handleRegisterConsumer = () => {
@@ -326,90 +268,121 @@ export default function LoginScreen() {
           >
             <View style={styles.header}>
               <Text style={styles.title}>Benvenuto</Text>
-              <Text style={styles.subtitle}>Accedi per continuare</Text>
+              <Text style={styles.subtitle}>
+                {otpSent ? 'Inserisci il codice ricevuto via SMS' : 'Accedi con il tuo numero di cellulare'}
+              </Text>
             </View>
 
             <View style={styles.formSection}>
-              <Text style={styles.inputLabel}>Numero di Cellulare o Email</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="+39 123 456 7890"
-                placeholderTextColor={colors.textTertiary}
-                value={phoneOrEmail}
-                onChangeText={setPhoneOrEmail}
-                keyboardType="default"
-                autoCapitalize="none"
-                autoComplete="tel"
-                editable={!loading && !resendingEmail}
-              />
-              <Text style={styles.inputHint}>
-                Puoi accedere con il tuo numero di cellulare o con la tua email
-              </Text>
+              {!otpSent ? (
+                <>
+                  <Text style={styles.inputLabel}>Numero di Cellulare</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="+39 123 456 7890"
+                    placeholderTextColor={colors.textTertiary}
+                    value={phone}
+                    onChangeText={setPhone}
+                    keyboardType="phone-pad"
+                    autoCapitalize="none"
+                    autoComplete="tel"
+                    editable={!loading}
+                  />
+                  <Text style={styles.inputHint}>
+                    Inserisci il tuo numero di cellulare con il prefisso internazionale (es. +39 per l&apos;Italia)
+                  </Text>
 
-              <Text style={styles.inputLabel}>Password</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="La tua password"
-                placeholderTextColor={colors.textTertiary}
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry
-                autoCapitalize="none"
-                autoComplete="password"
-                editable={!loading && !resendingEmail}
-              />
+                  <Pressable
+                    style={({ pressed }) => [
+                      styles.loginButton,
+                      (pressed || loading) && styles.loginButtonPressed,
+                    ]}
+                    onPress={handleSendOTP}
+                    disabled={loading}
+                  >
+                    {loading ? (
+                      <ActivityIndicator color="#fff" />
+                    ) : (
+                      <>
+                        <IconSymbol
+                          ios_icon_name="paperplane.fill"
+                          android_material_icon_name="send"
+                          size={20}
+                          color="#fff"
+                        />
+                        <Text style={styles.loginButtonText}>Invia Codice</Text>
+                      </>
+                    )}
+                  </Pressable>
+                </>
+              ) : (
+                <>
+                  <View style={styles.phoneDisplayContainer}>
+                    <Text style={styles.phoneDisplayLabel}>Numero di cellulare:</Text>
+                    <Text style={styles.phoneDisplayValue}>{phone}</Text>
+                    <Pressable
+                      style={styles.changePhoneButton}
+                      onPress={() => {
+                        setOtpSent(false);
+                        setOtp('');
+                      }}
+                      disabled={loading}
+                    >
+                      <Text style={styles.changePhoneText}>Cambia numero</Text>
+                    </Pressable>
+                  </View>
 
-              <Pressable
-                style={styles.forgotPasswordButton}
-                onPress={handleForgotPassword}
-                disabled={loading || resendingEmail}
-              >
-                <Text style={styles.forgotPasswordText}>
-                  Hai dimenticato la password?
-                </Text>
-              </Pressable>
+                  <Text style={styles.inputLabel}>Codice di Verifica</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="123456"
+                    placeholderTextColor={colors.textTertiary}
+                    value={otp}
+                    onChangeText={setOtp}
+                    keyboardType="number-pad"
+                    maxLength={6}
+                    autoCapitalize="none"
+                    editable={!loading}
+                    autoFocus
+                  />
+                  <Text style={styles.inputHint}>
+                    Inserisci il codice di 6 cifre che hai ricevuto via SMS
+                  </Text>
 
-              {showResendEmail && (
-                <Pressable
-                  style={({ pressed }) => [
-                    styles.resendButton,
-                    (pressed || resendingEmail) && styles.resendButtonPressed,
-                  ]}
-                  onPress={handleResendConfirmationEmail}
-                  disabled={resendingEmail}
-                >
-                  {resendingEmail ? (
-                    <ActivityIndicator color={colors.primary} size="small" />
-                  ) : (
-                    <>
-                      <IconSymbol
-                        ios_icon_name="envelope.fill"
-                        android_material_icon_name="email"
-                        size={20}
-                        color={colors.primary}
-                      />
-                      <Text style={styles.resendButtonText}>
-                        Invia Nuovamente Email di Conferma
-                      </Text>
-                    </>
-                  )}
-                </Pressable>
+                  <Pressable
+                    style={({ pressed }) => [
+                      styles.loginButton,
+                      (pressed || loading) && styles.loginButtonPressed,
+                    ]}
+                    onPress={handleVerifyOTP}
+                    disabled={loading}
+                  >
+                    {loading ? (
+                      <ActivityIndicator color="#fff" />
+                    ) : (
+                      <>
+                        <IconSymbol
+                          ios_icon_name="checkmark.circle.fill"
+                          android_material_icon_name="check_circle"
+                          size={20}
+                          color="#fff"
+                        />
+                        <Text style={styles.loginButtonText}>Verifica e Accedi</Text>
+                      </>
+                    )}
+                  </Pressable>
+
+                  <Pressable
+                    style={styles.resendButton}
+                    onPress={handleResendOTP}
+                    disabled={loading}
+                  >
+                    <Text style={styles.resendButtonText}>
+                      Non hai ricevuto il codice? Invia nuovamente
+                    </Text>
+                  </Pressable>
+                </>
               )}
-
-              <Pressable
-                style={({ pressed }) => [
-                  styles.loginButton,
-                  (pressed || loading || resendingEmail) && styles.loginButtonPressed,
-                ]}
-                onPress={handleLogin}
-                disabled={loading || resendingEmail}
-              >
-                {loading ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <Text style={styles.loginButtonText}>Accedi</Text>
-                )}
-              </Pressable>
 
               {/* Support Button */}
               <Pressable
@@ -439,6 +412,19 @@ export default function LoginScreen() {
               </Pressable>
             </View>
 
+            <View style={styles.infoBox}>
+              <IconSymbol
+                ios_icon_name="info.circle.fill"
+                android_material_icon_name="info"
+                size={18}
+                color={colors.info}
+              />
+              <Text style={styles.infoText}>
+                <Text style={styles.infoTextBold}>Accesso Sicuro:</Text> Riceverai un codice di verifica via SMS ogni volta che accedi. 
+                Il codice è valido per 60 secondi.
+              </Text>
+            </View>
+
             <View style={styles.divider}>
               <View style={styles.dividerLine} />
               <Text style={styles.dividerText}>Non hai un account?</Text>
@@ -454,7 +440,7 @@ export default function LoginScreen() {
                   pressed && styles.registerCardPressed,
                 ]}
                 onPress={handleRegisterConsumer}
-                disabled={loading || resendingEmail}
+                disabled={loading}
               >
                 <View style={styles.registerCardIcon}>
                   <IconSymbol
@@ -560,45 +546,44 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     fontStyle: 'italic',
   },
-  forgotPasswordButton: {
-    alignSelf: 'flex-end',
+  phoneDisplayContainer: {
+    backgroundColor: colors.card,
+    borderRadius: 8,
+    padding: 16,
     marginBottom: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  phoneDisplayLabel: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginBottom: 4,
+  },
+  phoneDisplayValue: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 8,
+  },
+  changePhoneButton: {
+    alignSelf: 'flex-start',
     paddingVertical: 4,
   },
-  forgotPasswordText: {
+  changePhoneText: {
     fontSize: 14,
     color: colors.primary,
     fontWeight: '600',
-  },
-  resendButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.primary + '15',
-    borderRadius: 8,
-    padding: 14,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: colors.primary + '30',
-    minHeight: 52,
-  },
-  resendButtonPressed: {
-    opacity: 0.7,
-  },
-  resendButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.primary,
-    marginLeft: 8,
   },
   loginButton: {
+    flexDirection: 'row',
     backgroundColor: colors.primary,
     borderRadius: 8,
     padding: 16,
     alignItems: 'center',
+    justifyContent: 'center',
     marginTop: 8,
     minHeight: 56,
-    justifyContent: 'center',
+    gap: 8,
   },
   loginButtonPressed: {
     opacity: 0.8,
@@ -608,6 +593,16 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#fff',
+  },
+  resendButton: {
+    alignItems: 'center',
+    paddingVertical: 16,
+    marginTop: 8,
+  },
+  resendButtonText: {
+    fontSize: 14,
+    color: colors.primary,
+    fontWeight: '600',
   },
   supportButton: {
     flexDirection: 'row',
@@ -632,6 +627,27 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: colors.primary,
+  },
+  infoBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: colors.info + '10',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: colors.info + '30',
+    gap: 12,
+    marginBottom: 24,
+  },
+  infoText: {
+    flex: 1,
+    fontSize: 13,
+    color: colors.text,
+    lineHeight: 20,
+  },
+  infoTextBold: {
+    fontWeight: '700',
+    color: colors.text,
   },
   divider: {
     flexDirection: 'row',
@@ -693,22 +709,6 @@ const styles = StyleSheet.create({
   registerCardDescription: {
     fontSize: 13,
     color: colors.textSecondary,
-    lineHeight: 18,
-  },
-  infoBox: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    backgroundColor: colors.info + '10',
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: colors.info + '30',
-    gap: 12,
-  },
-  infoText: {
-    flex: 1,
-    fontSize: 13,
-    color: colors.text,
     lineHeight: 18,
   },
 });

@@ -5,7 +5,6 @@ import {
   Text,
   StyleSheet,
   Pressable,
-  TextInput,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -17,104 +16,22 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { IconSymbol } from '@/components/IconSymbol';
 import React, { useState } from 'react';
 import * as Haptics from 'expo-haptics';
-import { supabase } from '@/app/integrations/supabase/client';
 
 export default function ForgotPasswordScreen() {
-  const [phoneOrEmail, setPhoneOrEmail] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [messageSent, setMessageSent] = useState(false);
-  const [isEmail, setIsEmail] = useState(false);
+  const [loading] = useState(false);
 
-  const handleResetPassword = async () => {
-    if (!phoneOrEmail.trim()) {
-      Alert.alert('Errore', 'Inserisci il tuo numero di cellulare o email');
-      return;
-    }
-
-    // Determine if input is email or phone
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    const inputIsEmail = emailRegex.test(phoneOrEmail.trim());
-    setIsEmail(inputIsEmail);
-
-    // Basic phone validation if not email
-    if (!inputIsEmail) {
-      const phoneRegex = /^\+?[0-9\s\-()]+$/;
-      if (!phoneRegex.test(phoneOrEmail.trim())) {
-        Alert.alert('Errore', 'Inserisci un numero di cellulare valido (es. +39 123 456 7890) o un indirizzo email valido');
-        return;
-      }
-    }
-
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setLoading(true);
-
-    try {
-      console.log('Sending password reset to:', phoneOrEmail, 'Type:', inputIsEmail ? 'email' : 'phone');
-      
-      if (inputIsEmail) {
-        // Use email password reset
-        const { error } = await supabase.auth.resetPasswordForEmail(
-          phoneOrEmail.trim().toLowerCase(),
-          {
-            redirectTo: 'dropzone://update-password',
-          }
-        );
-
-        if (error) {
-          console.error('Error sending password reset email:', error);
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-          
-          // Show user-friendly error message
-          let errorMessage = 'Si è verificato un errore durante l\'invio dell\'email di recupero password.';
-          
-          if (error.message.toLowerCase().includes('rate limit')) {
-            errorMessage = 'Hai richiesto troppi reset password. Attendi qualche minuto e riprova.';
-          } else if (error.message.toLowerCase().includes('user not found')) {
-            // For security reasons, we don't want to reveal if an email exists or not
-            // So we'll show success message anyway
-            setMessageSent(true);
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-            return;
-          }
-          
-          Alert.alert('Errore', errorMessage);
-        } else {
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          setMessageSent(true);
-          console.log('Password reset email sent successfully');
+  const handleContactSupport = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    Alert.alert(
+      'Reset Password',
+      'Per reimpostare la password, contatta il supporto clienti tramite WhatsApp dalla schermata di login.\n\nIl team di supporto ti aiuterà a recuperare l\'accesso al tuo account.',
+      [
+        {
+          text: 'Torna al Login',
+          onPress: () => router.back()
         }
-      } else {
-        // For phone-based password reset, we need to use OTP
-        // Note: Supabase doesn't have a direct "resetPasswordForPhone" method
-        // We need to send an OTP and then verify it
-        Alert.alert(
-          'Reset Password via SMS',
-          'Il reset password tramite SMS non è ancora configurato. Per favore:\n\n1. Contatta il supporto clienti\n2. Oppure usa l\'email se l\'hai fornita durante la registrazione',
-          [
-            {
-              text: 'Contatta Supporto',
-              onPress: () => {
-                // Navigate back and user can use support button
-                router.back();
-              }
-            },
-            {
-              text: 'Usa Email',
-              onPress: () => {
-                setPhoneOrEmail('');
-              }
-            }
-          ]
-        );
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-      }
-    } catch (error) {
-      console.error('Exception sending password reset:', error);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert('Errore', 'Si è verificato un errore imprevisto. Riprova.');
-    } finally {
-      setLoading(false);
-    }
+      ]
+    );
   };
 
   const handleBackToLogin = () => {
@@ -140,218 +57,99 @@ export default function ForgotPasswordScreen() {
             contentContainerStyle={styles.scrollContent}
             keyboardShouldPersistTaps="handled"
           >
-            {!messageSent ? (
-              <>
-                <View style={styles.iconContainer}>
-                  <View style={styles.iconCircle}>
-                    <IconSymbol
-                      ios_icon_name="lock.fill"
-                      android_material_icon_name="lock"
-                      size={40}
-                      color={colors.primary}
-                    />
-                  </View>
-                </View>
+            <View style={styles.iconContainer}>
+              <View style={styles.iconCircle}>
+                <IconSymbol
+                  ios_icon_name="lock.fill"
+                  android_material_icon_name="lock"
+                  size={40}
+                  color={colors.primary}
+                />
+              </View>
+            </View>
 
-                <View style={styles.header}>
-                  <Text style={styles.title}>Recupera Password</Text>
-                  <Text style={styles.subtitle}>
-                    Inserisci il tuo numero di cellulare o email e ti invieremo le istruzioni per reimpostare la tua password.
-                  </Text>
-                </View>
+            <View style={styles.header}>
+              <Text style={styles.title}>Recupera Password</Text>
+              <Text style={styles.subtitle}>
+                Per motivi di sicurezza, il reset della password tramite SMS richiede l&apos;assistenza del nostro team di supporto.
+              </Text>
+            </View>
 
-                <View style={styles.formSection}>
-                  <Text style={styles.inputLabel}>Numero di Cellulare o Email</Text>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="+39 123 456 7890 o email@esempio.com"
-                    placeholderTextColor={colors.textTertiary}
-                    value={phoneOrEmail}
-                    onChangeText={setPhoneOrEmail}
-                    keyboardType="default"
-                    autoCapitalize="none"
-                    autoComplete="tel"
-                    autoFocus
-                    editable={!loading}
-                  />
+            <View style={styles.instructionsBox}>
+              <Text style={styles.instructionsTitle}>Come recuperare la password:</Text>
+              <View style={styles.instructionItem}>
+                <Text style={styles.instructionNumber}>1.</Text>
+                <Text style={styles.instructionText}>
+                  Torna alla schermata di login
+                </Text>
+              </View>
+              <View style={styles.instructionItem}>
+                <Text style={styles.instructionNumber}>2.</Text>
+                <Text style={styles.instructionText}>
+                  Clicca sul pulsante &quot;Hai bisogno di aiuto?&quot;
+                </Text>
+              </View>
+              <View style={styles.instructionItem}>
+                <Text style={styles.instructionNumber}>3.</Text>
+                <Text style={styles.instructionText}>
+                  Contatta il supporto clienti tramite WhatsApp
+                </Text>
+              </View>
+              <View style={styles.instructionItem}>
+                <Text style={styles.instructionNumber}>4.</Text>
+                <Text style={styles.instructionText}>
+                  Il team ti aiuterà a reimpostare la password
+                </Text>
+              </View>
+            </View>
 
-                  <Pressable
-                    style={({ pressed }) => [
-                      styles.resetButton,
-                      (pressed || loading) && styles.resetButtonPressed,
-                    ]}
-                    onPress={handleResetPassword}
-                    disabled={loading}
-                  >
-                    {loading ? (
-                      <ActivityIndicator color="#fff" />
-                    ) : (
-                      <>
-                        <IconSymbol
-                          ios_icon_name="paperplane.fill"
-                          android_material_icon_name="send"
-                          size={20}
-                          color="#fff"
-                        />
-                        <Text style={styles.resetButtonText}>
-                          Invia Istruzioni
-                        </Text>
-                      </>
-                    )}
-                  </Pressable>
-                </View>
+            <View style={styles.infoBox}>
+              <IconSymbol
+                ios_icon_name="shield.fill"
+                android_material_icon_name="security"
+                size={24}
+                color={colors.primary}
+              />
+              <Text style={styles.infoText}>
+                <Text style={styles.infoTextBold}>Sicurezza:</Text> Questo processo garantisce che solo tu possa accedere al tuo account. 
+                Il nostro team verificherà la tua identità prima di aiutarti a reimpostare la password.
+              </Text>
+            </View>
 
-                <View style={styles.infoBox}>
-                  <IconSymbol
-                    ios_icon_name="info.circle.fill"
-                    android_material_icon_name="info"
-                    size={18}
-                    color={colors.info}
-                  />
-                  <Text style={styles.infoText}>
-                    <Text style={styles.infoTextBold}>Con Email:</Text> Riceverai un&apos;email con un link per reimpostare la password. Il link scadrà dopo 1 ora.
-                    {'\n\n'}
-                    <Text style={styles.infoTextBold}>Con Numero di Cellulare:</Text> Contatta il supporto clienti per assistenza nel reset della password.
-                  </Text>
-                </View>
+            <Pressable
+              style={({ pressed }) => [
+                styles.supportButton,
+                pressed && styles.supportButtonPressed,
+              ]}
+              onPress={handleContactSupport}
+              disabled={loading}
+            >
+              <IconSymbol
+                ios_icon_name="message.fill"
+                android_material_icon_name="chat"
+                size={20}
+                color="#fff"
+              />
+              <Text style={styles.supportButtonText}>
+                Contatta il Supporto
+              </Text>
+            </Pressable>
 
-                <Pressable
-                  style={styles.backButton}
-                  onPress={handleBackToLogin}
-                  disabled={loading}
-                >
-                  <IconSymbol
-                    ios_icon_name="chevron.left"
-                    android_material_icon_name="chevron_left"
-                    size={20}
-                    color={colors.primary}
-                  />
-                  <Text style={styles.backButtonText}>
-                    Torna al Login
-                  </Text>
-                </Pressable>
-              </>
-            ) : (
-              <>
-                <View style={styles.iconContainer}>
-                  <View style={[styles.iconCircle, styles.successIconCircle]}>
-                    <IconSymbol
-                      ios_icon_name="checkmark.circle.fill"
-                      android_material_icon_name="check_circle"
-                      size={48}
-                      color={colors.success}
-                    />
-                  </View>
-                </View>
-
-                <View style={styles.header}>
-                  <Text style={styles.title}>
-                    {isEmail ? 'Email Inviata!' : 'Richiesta Ricevuta!'}
-                  </Text>
-                  <Text style={styles.subtitle}>
-                    {isEmail 
-                      ? `Abbiamo inviato un link per il recupero della password all'indirizzo:`
-                      : 'La tua richiesta è stata ricevuta. Contatta il supporto clienti per completare il reset della password.'
-                    }
-                  </Text>
-                  <Text style={styles.emailText}>{phoneOrEmail}</Text>
-                </View>
-
-                {isEmail ? (
-                  <>
-                    <View style={styles.successBox}>
-                      <IconSymbol
-                        ios_icon_name="envelope.fill"
-                        android_material_icon_name="email"
-                        size={24}
-                        color={colors.primary}
-                      />
-                      <Text style={styles.successText}>
-                        Controlla la tua casella di posta e clicca sul link per reimpostare la password.
-                      </Text>
-                    </View>
-
-                    <View style={styles.warningBox}>
-                      <IconSymbol
-                        ios_icon_name="exclamationmark.triangle.fill"
-                        android_material_icon_name="warning"
-                        size={20}
-                        color={colors.warning}
-                      />
-                      <Text style={styles.warningText}>
-                        <Text style={styles.warningTextBold}>Attenzione:</Text> Il link scadrà dopo 1 ora. 
-                        Clicca sul link nell&apos;email il prima possibile per reimpostare la password.
-                      </Text>
-                    </View>
-
-                    <View style={styles.instructionsBox}>
-                      <Text style={styles.instructionsTitle}>Cosa fare ora:</Text>
-                      <View style={styles.instructionItem}>
-                        <Text style={styles.instructionNumber}>1.</Text>
-                        <Text style={styles.instructionText}>
-                          Apri la tua casella email
-                        </Text>
-                      </View>
-                      <View style={styles.instructionItem}>
-                        <Text style={styles.instructionNumber}>2.</Text>
-                        <Text style={styles.instructionText}>
-                          Cerca l&apos;email di recupero password (controlla anche lo spam)
-                        </Text>
-                      </View>
-                      <View style={styles.instructionItem}>
-                        <Text style={styles.instructionNumber}>3.</Text>
-                        <Text style={styles.instructionText}>
-                          Clicca sul link <Text style={styles.instructionTextBold}>entro 1 ora</Text>
-                        </Text>
-                      </View>
-                      <View style={styles.instructionItem}>
-                        <Text style={styles.instructionNumber}>4.</Text>
-                        <Text style={styles.instructionText}>
-                          L&apos;app si aprirà automaticamente per reimpostare la password
-                        </Text>
-                      </View>
-                    </View>
-                  </>
-                ) : (
-                  <View style={styles.supportBox}>
-                    <IconSymbol
-                      ios_icon_name="phone.fill"
-                      android_material_icon_name="phone"
-                      size={24}
-                      color={colors.primary}
-                    />
-                    <Text style={styles.supportText}>
-                      Per completare il reset della password tramite numero di cellulare, 
-                      contatta il nostro supporto clienti tramite WhatsApp.
-                    </Text>
-                  </View>
-                )}
-
-                <Pressable
-                  style={({ pressed }) => [
-                    styles.doneButton,
-                    pressed && styles.doneButtonPressed,
-                  ]}
-                  onPress={handleBackToLogin}
-                >
-                  <Text style={styles.doneButtonText}>
-                    Torna al Login
-                  </Text>
-                </Pressable>
-
-                <Pressable
-                  style={styles.resendLinkButton}
-                  onPress={() => {
-                    setMessageSent(false);
-                    setPhoneOrEmail('');
-                  }}
-                >
-                  <Text style={styles.resendLinkText}>
-                    Non hai ricevuto il messaggio? Riprova
-                  </Text>
-                </Pressable>
-              </>
-            )}
+            <Pressable
+              style={styles.backButton}
+              onPress={handleBackToLogin}
+              disabled={loading}
+            >
+              <IconSymbol
+                ios_icon_name="chevron.left"
+                android_material_icon_name="chevron_left"
+                size={20}
+                color={colors.primary}
+              />
+              <Text style={styles.backButtonText}>
+                Torna al Login
+              </Text>
+            </Pressable>
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
@@ -384,9 +182,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  successIconCircle: {
-    backgroundColor: colors.success + '15',
-  },
   header: {
     marginBottom: 32,
     alignItems: 'center',
@@ -405,142 +200,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 24,
     paddingHorizontal: 16,
-  },
-  emailText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.primary,
-    marginTop: 8,
-    textAlign: 'center',
-  },
-  formSection: {
-    marginBottom: 24,
-  },
-  inputLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.text,
-    marginBottom: 8,
-  },
-  input: {
-    backgroundColor: colors.card,
-    borderRadius: 8,
-    padding: 16,
-    fontSize: 16,
-    color: colors.text,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  resetButton: {
-    flexDirection: 'row',
-    backgroundColor: colors.primary,
-    borderRadius: 8,
-    padding: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 8,
-    minHeight: 56,
-    gap: 8,
-  },
-  resetButtonPressed: {
-    opacity: 0.8,
-    transform: [{ scale: 0.98 }],
-  },
-  resetButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#fff',
-  },
-  infoBox: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    backgroundColor: colors.info + '10',
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: colors.info + '30',
-    gap: 12,
-    marginBottom: 24,
-  },
-  infoText: {
-    flex: 1,
-    fontSize: 13,
-    color: colors.text,
-    lineHeight: 20,
-  },
-  infoTextBold: {
-    fontWeight: '700',
-    color: colors.text,
-  },
-  backButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    gap: 4,
-  },
-  backButtonText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: colors.primary,
-  },
-  successBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.primary + '10',
-    borderRadius: 12,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: colors.primary + '30',
-    gap: 16,
-    marginBottom: 16,
-  },
-  successText: {
-    flex: 1,
-    fontSize: 15,
-    color: colors.text,
-    lineHeight: 22,
-    fontWeight: '500',
-  },
-  supportBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.primary + '10',
-    borderRadius: 12,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: colors.primary + '30',
-    gap: 16,
-    marginBottom: 16,
-  },
-  supportText: {
-    flex: 1,
-    fontSize: 15,
-    color: colors.text,
-    lineHeight: 22,
-    fontWeight: '500',
-  },
-  warningBox: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    backgroundColor: colors.warning + '10',
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: colors.warning + '30',
-    gap: 12,
-    marginBottom: 24,
-  },
-  warningText: {
-    flex: 1,
-    fontSize: 14,
-    color: colors.text,
-    lineHeight: 20,
-  },
-  warningTextBold: {
-    fontWeight: '700',
-    color: colors.warning,
   },
   instructionsBox: {
     backgroundColor: colors.card,
@@ -574,35 +233,57 @@ const styles = StyleSheet.create({
     color: colors.text,
     lineHeight: 22,
   },
-  instructionTextBold: {
-    fontWeight: '700',
-    color: colors.warning,
+  infoBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: colors.primary + '10',
+    borderRadius: 12,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: colors.primary + '30',
+    gap: 16,
+    marginBottom: 24,
   },
-  doneButton: {
+  infoText: {
+    flex: 1,
+    fontSize: 14,
+    color: colors.text,
+    lineHeight: 20,
+  },
+  infoTextBold: {
+    fontWeight: '700',
+    color: colors.text,
+  },
+  supportButton: {
+    flexDirection: 'row',
     backgroundColor: colors.primary,
     borderRadius: 8,
     padding: 16,
     alignItems: 'center',
+    justifyContent: 'center',
     marginBottom: 16,
     minHeight: 56,
-    justifyContent: 'center',
+    gap: 8,
   },
-  doneButtonPressed: {
+  supportButtonPressed: {
     opacity: 0.8,
     transform: [{ scale: 0.98 }],
   },
-  doneButtonText: {
+  supportButtonText: {
     fontSize: 16,
     fontWeight: '600',
     color: '#fff',
   },
-  resendLinkButton: {
+  backButton: {
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     paddingVertical: 12,
+    gap: 4,
   },
-  resendLinkText: {
-    fontSize: 14,
-    color: colors.primary,
+  backButtonText: {
+    fontSize: 15,
     fontWeight: '600',
+    color: colors.primary,
   },
 });
