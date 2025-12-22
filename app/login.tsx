@@ -158,14 +158,26 @@ export default function LoginScreen() {
       console.log('Logging in with phone:', phone);
       
       // First, get the user by phone number to find their email
+      // Use maybeSingle() instead of single() to handle the case where no user is found
       const { data: userData, error: userError } = await supabase
         .from('profiles')
         .select('email')
         .eq('phone', phone.trim())
-        .single();
+        .maybeSingle();
 
-      if (userError || !userData) {
+      if (userError) {
         console.error('Error finding user by phone:', userError);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        Alert.alert(
+          'Errore di Accesso',
+          'Si è verificato un errore durante la ricerca dell\'utente. Riprova.'
+        );
+        setLoading(false);
+        return;
+      }
+
+      if (!userData) {
+        console.log('No user found with phone:', phone);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
         Alert.alert(
           'Errore di Accesso',
