@@ -18,9 +18,11 @@ import { IconSymbol } from '@/components/IconSymbol';
 import React, { useState } from 'react';
 import * as Haptics from 'expo-haptics';
 import { supabase } from '@/app/integrations/supabase/client';
-import { validateAndFormatPhone } from '@/utils/phoneValidation';
+import { validateAndFormatPhone, formatPhoneForDisplay } from '@/utils/phoneValidation';
+import CountryCodePicker from '@/components/CountryCodePicker';
 
 export default function ForgotPasswordScreen() {
+  const [countryCode, setCountryCode] = useState('39'); // Default to Italy
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -29,6 +31,7 @@ export default function ForgotPasswordScreen() {
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [otpSent, setOtpSent] = useState(false);
+  const [formattedPhoneForAuth, setFormattedPhoneForAuth] = useState('');
 
   const validatePassword = (password: string): { valid: boolean; message?: string } => {
     if (password.length < 8) {
@@ -57,14 +60,15 @@ export default function ForgotPasswordScreen() {
     }
 
     // Validate and format phone number
-    const phoneValidation = validateAndFormatPhone(phone);
+    const phoneValidation = validateAndFormatPhone(phone, countryCode);
     if (!phoneValidation.valid) {
       Alert.alert('Numero Non Valido', phoneValidation.message || 'Inserisci un numero di cellulare valido');
       return;
     }
 
     const formattedPhone = phoneValidation.formatted!;
-    console.log('Phone validated and formatted:', formattedPhone);
+    const displayPhone = phoneValidation.display!;
+    console.log('Phone validated and formatted:', formattedPhone, 'Display:', displayPhone);
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setLoading(true);
@@ -87,19 +91,18 @@ export default function ForgotPasswordScreen() {
         if (errorMessage.toLowerCase().includes('rate limit')) {
           errorMessage = 'Hai richiesto troppi codici. Attendi qualche minuto e riprova.';
         } else if (errorMessage.toLowerCase().includes('not a valid phone number')) {
-          errorMessage = 'Il numero di telefono non è valido. Verifica di aver inserito il numero corretto con il prefisso internazionale (es. +39 320 123 4567 per l\'Italia).';
+          errorMessage = `Il numero di telefono non è valido. Verifica di aver inserito il numero corretto.\n\nHai inserito: ${displayPhone}`;
         }
         
         Alert.alert('Errore', errorMessage);
       } else {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        // Update phone with formatted version
-        setPhone(formattedPhone);
+        setFormattedPhoneForAuth(formattedPhone);
         setOtpSent(true);
         console.log('Password reset OTP sent successfully');
         Alert.alert(
-          'Codice Inviato!',
-          `Abbiamo inviato un codice di 6 cifre al numero ${formattedPhone}. Inseriscilo qui sotto per reimpostare la password.`,
+          'Codice Inviato! 📱',
+          `Abbiamo inviato un codice di 6 cifre al numero ${displayPhone}. Inseriscilo qui sotto per reimpostare la password.`,
           [{ text: 'OK' }]
         );
       }
@@ -144,11 +147,11 @@ export default function ForgotPasswordScreen() {
     setLoading(true);
 
     try {
-      console.log('Verifying OTP and resetting password for phone:', phone);
+      console.log('Verifying OTP and resetting password for phone:', formattedPhoneForAuth);
       
       // Verify OTP
       const { data: authData, error: authError } = await supabase.auth.verifyOtp({
-        phone: phone.trim(),
+        phone: formattedPhoneForAuth,
         token: otp.trim(),
         type: 'sms',
       });
@@ -255,19 +258,26 @@ export default function ForgotPasswordScreen() {
               {!otpSent ? (
                 <>
                   <Text style={styles.inputLabel}>Numero di Cellulare</Text>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="+39 320 123 4567"
-                    placeholderTextColor={colors.textTertiary}
-                    value={phone}
-                    onChangeText={setPhone}
-                    keyboardType="phone-pad"
-                    autoCapitalize="none"
-                    autoComplete="tel"
-                    editable={!loading}
-                  />
+                  <View style={styles.phoneInputRow}>
+                    <CountryCodePicker
+                      selectedCode={countryCode}
+                      onCodeChange={setCountryCode}
+                      disabled={loading}
+                    />
+                    <TextInput
+                      style={styles.phoneInput}
+                      placeholder="320 123 4567"
+                      placeholderTextColor={colors.textTertiary}
+                      value={phone}
+                      onChangeText={setPhone}
+                      keyboardType="phone-pad"
+                      autoCapitalize="none"
+                      autoComplete="tel"
+                      editable={!loading}
+                    />
+                  </View>
                   <Text style={styles.inputHint}>
-                    Inserisci il numero con il prefisso internazionale (es. +39 per l&apos;Italia)
+                    Seleziona il prefisso internazionale e inserisci il numero senza il prefisso
                   </Text>
 
                   <Pressable
@@ -297,7 +307,9 @@ export default function ForgotPasswordScreen() {
                 <>
                   <View style={styles.phoneDisplayContainer}>
                     <Text style={styles.phoneDisplayLabel}>Numero di cellulare:</Text>
-                    <Text style={styles.phoneDisplayValue}>{phone}</Text>
+                    <Text style={styles.phoneDisplayValue}>
+                      {formatPhoneForDisplay(formattedPhoneForAuth)}
+                    </Text>
                     <Pressable
                       style={styles.changePhoneButton}
                       onPress={() => {
@@ -305,6 +317,7 @@ export default function ForgotPasswordScreen() {
                         setOtp('');
                         setNewPassword('');
                         setConfirmPassword('');
+                        setFormattedPhoneForAuth('');
                       }}
                       disabled={loading}
                     >
@@ -479,6 +492,7 @@ export default function ForgotPasswordScreen() {
                     onPress={() => {
                       setOtp('');
                       setOtpSent(false);
+                      setFormattedPhoneForAuth('');
                     }}
                     disabled={loading}
                   >
@@ -498,8 +512,8 @@ export default function ForgotPasswordScreen() {
                 color={colors.info}
               />
               <Text style={styles.infoText}>
-                <Text style={styles.infoTextBold}>Formato Numero:</Text> Assicurati di inserire il numero con il prefisso internazionale. 
-                Per l&apos;Italia usa +39 seguito da 10 cifre (es. +39 320 123 4567).
+                <Text style={styles.infoTextBold}>Formato Numero:</Text> Seleziona il prefisso del tuo paese e inserisci il numero senza il prefisso. 
+                Per l&apos;Italia (+39) inserisci 10 cifre (es. 320 123 4567).
               </Text>
             </View>
 
@@ -572,6 +586,21 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: colors.text,
     marginBottom: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  phoneInputRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 8,
+  },
+  phoneInput: {
+    flex: 1,
+    backgroundColor: colors.card,
+    borderRadius: 8,
+    padding: 16,
+    fontSize: 16,
+    color: colors.text,
     borderWidth: 1,
     borderColor: colors.border,
   },

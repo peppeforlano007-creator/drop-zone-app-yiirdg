@@ -20,10 +20,12 @@ import { useAuth } from '@/contexts/AuthContext';
 import React, { useState, useEffect } from 'react';
 import * as Haptics from 'expo-haptics';
 import { supabase } from '@/app/integrations/supabase/client';
-import { validateAndFormatPhone } from '@/utils/phoneValidation';
+import { validateAndFormatPhone, parsePhoneNumber, formatPhoneForDisplay } from '@/utils/phoneValidation';
+import CountryCodePicker from '@/components/CountryCodePicker';
 
 export default function LoginScreen() {
   const { user, loading: authLoading } = useAuth();
+  const [countryCode, setCountryCode] = useState('39'); // Default to Italy
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -141,14 +143,15 @@ export default function LoginScreen() {
     }
 
     // Validate and format phone number
-    const phoneValidation = validateAndFormatPhone(phone);
+    const phoneValidation = validateAndFormatPhone(phone, countryCode);
     if (!phoneValidation.valid) {
       Alert.alert('Numero Non Valido', phoneValidation.message || 'Inserisci un numero di cellulare valido');
       return;
     }
 
     const formattedPhone = phoneValidation.formatted!;
-    console.log('Phone validated and formatted:', formattedPhone);
+    const displayPhone = phoneValidation.display!;
+    console.log('Phone validated and formatted:', formattedPhone, 'Display:', displayPhone);
 
     if (!password.trim()) {
       Alert.alert('Errore', 'Inserisci la password');
@@ -161,18 +164,20 @@ export default function LoginScreen() {
     try {
       console.log('Logging in with phone:', formattedPhone);
       
-      // IMPORTANT: Supabase stores phone numbers WITHOUT the + prefix in auth.users
-      // We need to normalize the phone number to match the database format
-      const phoneWithoutPlus = formattedPhone.replace('+', '');
+      // Try to find user by phone number in profiles table first
+      // Check multiple formats for backward compatibility
+      const possibleFormats = [
+        formattedPhone, // e.g., "393201234567"
+        `+${formattedPhone}`, // e.g., "+393201234567"
+        formattedPhone.substring(countryCode.length), // e.g., "3201234567" (without country code)
+      ];
       
-      console.log('Normalized phone for database lookup:', phoneWithoutPlus);
+      console.log('Checking phone formats:', possibleFormats);
       
-      // Try to find user by phone number in profiles table first to verify they exist
-      // We need to check multiple formats because of legacy data
       const { data: userData, error: userError } = await supabase
         .from('profiles')
-        .select('email, phone, user_id, full_name, pickup_point_id')
-        .or(`phone.eq.${phoneWithoutPlus},phone.eq.${formattedPhone}`)
+        .select('email, phone, user_id, full_name, pickup_point_id, role')
+        .or(possibleFormats.map(format => `phone.eq.${format}`).join(','))
         .maybeSingle();
 
       if (userError) {
@@ -187,11 +192,11 @@ export default function LoginScreen() {
       }
 
       if (!userData) {
-        console.log('No user found with phone:', phoneWithoutPlus, 'or', formattedPhone);
+        console.log('No user found with phone formats:', possibleFormats);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
         Alert.alert(
           'Errore di Accesso',
-          `Numero di cellulare non trovato.\n\nHai provato con: ${formattedPhone}\n\nVerifica di aver inserito il numero corretto o registrati.`
+          `Numero di cellulare non trovato.\n\nHai provato con: ${displayPhone}\n\nVerifica di aver inserito il numero corretto o registrati.`
         );
         setLoading(false);
         return;
@@ -200,12 +205,34 @@ export default function LoginScreen() {
       console.log('User found in profiles:', {
         user_id: userData.user_id,
         phone: userData.phone,
-        full_name: userData.full_name
+        full_name: userData.full_name,
+        role: userData.role,
       });
 
-      // Check if profile has required data
-      if (!userData.full_name || !userData.pickup_point_id) {
-        console.warn('User profile is incomplete:', userData);
+      // Check if this is an email-based account (admin, pickup_point, or old consumer)
+      if (userData.email && userData.role !== 'consumer') {
+        console.log('User has email-based account, role:', userData.role);
+        Alert.alert(
+          'Account Email',
+          `Questo account utilizza l'email per l'accesso.\n\nEmail: ${userData.email}\n\nSe sei un amministratore o un punto di ritiro, usa l'email per accedere. Se hai dimenticato la password, contatta il supporto.`,
+          [
+            {
+              text: 'Contatta Supporto',
+              onPress: handleSupport,
+            },
+            {
+              text: 'OK',
+              style: 'cancel',
+            }
+          ]
+        );
+        setLoading(false);
+        return;
+      }
+
+      // Check if profile has required data for consumers
+      if (userData.role === 'consumer' && (!userData.full_name || !userData.pickup_point_id)) {
+        console.warn('Consumer profile is incomplete:', userData);
         Alert.alert(
           'Profilo Incompleto',
           'Il tuo profilo non è completo. Contatta il supporto per assistenza.',
@@ -225,9 +252,8 @@ export default function LoginScreen() {
       }
 
       // Now authenticate with Supabase Auth
-      // CRITICAL: Use the EXACT phone format stored in auth.users (without +)
-      // Supabase Auth stores phone numbers without the + prefix
-      const authPhone = userData.phone; // Use the exact format from the database
+      // Use the exact phone format from the database
+      const authPhone = userData.phone;
       console.log('Authenticating with phone from database:', authPhone);
 
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
@@ -301,19 +327,26 @@ export default function LoginScreen() {
 
             <View style={styles.formSection}>
               <Text style={styles.inputLabel}>Numero di Cellulare</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="+39 320 123 4567"
-                placeholderTextColor={colors.textTertiary}
-                value={phone}
-                onChangeText={setPhone}
-                keyboardType="phone-pad"
-                autoCapitalize="none"
-                autoComplete="tel"
-                editable={!loading}
-              />
+              <View style={styles.phoneInputRow}>
+                <CountryCodePicker
+                  selectedCode={countryCode}
+                  onCodeChange={setCountryCode}
+                  disabled={loading}
+                />
+                <TextInput
+                  style={styles.phoneInput}
+                  placeholder="320 123 4567"
+                  placeholderTextColor={colors.textTertiary}
+                  value={phone}
+                  onChangeText={setPhone}
+                  keyboardType="phone-pad"
+                  autoCapitalize="none"
+                  autoComplete="tel"
+                  editable={!loading}
+                />
+              </View>
               <Text style={styles.inputHint}>
-                Inserisci il tuo numero con il prefisso internazionale (es. +39 per l&apos;Italia)
+                Seleziona il prefisso internazionale e inserisci il numero senza il prefisso
               </Text>
 
               <Text style={styles.inputLabel}>Password</Text>
@@ -415,8 +448,8 @@ export default function LoginScreen() {
                 color={colors.info}
               />
               <Text style={styles.infoText}>
-                <Text style={styles.infoTextBold}>Formato Numero:</Text> Assicurati di inserire il numero con il prefisso internazionale. 
-                Per l&apos;Italia usa +39 seguito da 10 cifre (es. +39 320 123 4567).
+                <Text style={styles.infoTextBold}>Formato Numero:</Text> Seleziona il prefisso del tuo paese e inserisci il numero senza il prefisso. 
+                Per l&apos;Italia (+39) inserisci 10 cifre (es. 320 123 4567).
               </Text>
             </View>
 
@@ -467,7 +500,8 @@ export default function LoginScreen() {
                   color={colors.info}
                 />
                 <Text style={styles.infoText}>
-                  Sei un punto di ritiro? Le credenziali di accesso ti verranno fornite dall&apos;amministratore.
+                  Sei un punto di ritiro o un amministratore? Le credenziali di accesso ti verranno fornite dall&apos;amministratore. 
+                  Gli account amministratore e punto di ritiro utilizzano l&apos;email per l&apos;accesso.
                 </Text>
               </View>
             </View>
@@ -525,13 +559,18 @@ const styles = StyleSheet.create({
     color: colors.text,
     marginBottom: 8,
   },
-  input: {
+  phoneInputRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 8,
+  },
+  phoneInput: {
+    flex: 1,
     backgroundColor: colors.card,
     borderRadius: 8,
     padding: 16,
     fontSize: 16,
     color: colors.text,
-    marginBottom: 8,
     borderWidth: 1,
     borderColor: colors.border,
   },

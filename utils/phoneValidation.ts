@@ -1,15 +1,24 @@
 
 /**
  * Phone number validation and formatting utilities
- * Ensures phone numbers are in E.164 format for Twilio/Supabase
+ * Ensures phone numbers are in the correct format for Supabase Auth
+ * 
+ * IMPORTANT: Supabase Auth stores phone numbers WITHOUT the + prefix
+ * Format: country_code + phone_number (e.g., "393201234567" for Italy)
  */
 
+import { COUNTRY_CODES } from '@/components/CountryCodePicker';
+
 /**
- * Validates if a phone number is in a valid format
- * @param phone - The phone number to validate
+ * Validates if a phone number is in a valid format for a specific country code
+ * @param phone - The phone number to validate (without country code)
+ * @param countryCode - The country code (e.g., "39" for Italy)
  * @returns Object with validation result and error message if invalid
  */
-export function validatePhoneNumber(phone: string): { valid: boolean; message?: string } {
+export function validatePhoneNumber(
+  phone: string, 
+  countryCode: string
+): { valid: boolean; message?: string } {
   const trimmedPhone = phone.trim();
   
   // Check if phone is empty
@@ -20,55 +29,43 @@ export function validatePhoneNumber(phone: string): { valid: boolean; message?: 
   // Remove all spaces, dashes, and parentheses for validation
   const cleanPhone = trimmedPhone.replace(/[\s\-()]/g, '');
   
-  // Check if it starts with +
-  if (!cleanPhone.startsWith('+')) {
+  // Check if it contains only digits
+  if (!/^[0-9]+$/.test(cleanPhone)) {
     return { 
       valid: false, 
-      message: 'Il numero deve iniziare con il prefisso internazionale (es. +39 per l\'Italia)' 
+      message: 'Il numero contiene caratteri non validi. Usa solo numeri' 
     };
   }
   
-  // Check if it contains only valid characters (+ and digits)
-  if (!/^\+[0-9]+$/.test(cleanPhone)) {
+  // Find country info
+  const country = COUNTRY_CODES.find(c => c.code === countryCode);
+  if (!country) {
     return { 
       valid: false, 
-      message: 'Il numero contiene caratteri non validi. Usa solo numeri e il prefisso +' 
+      message: 'Prefisso internazionale non valido' 
     };
   }
   
-  // Check minimum length (country code + at least 7 digits)
-  if (cleanPhone.length < 10) {
+  // Remove leading zero if present (common in local formats)
+  const phoneWithoutLeadingZero = cleanPhone.startsWith('0') 
+    ? cleanPhone.substring(1) 
+    : cleanPhone;
+  
+  // Check if phone number has the correct length for the country
+  if (phoneWithoutLeadingZero.length !== country.digits) {
     return { 
       valid: false, 
-      message: 'Il numero è troppo corto. Verifica di aver inserito il numero completo' 
+      message: `Il numero deve contenere ${country.digits} cifre per ${country.country}` 
     };
   }
   
-  // Check maximum length (E.164 allows max 15 digits including country code)
-  if (cleanPhone.length > 16) {
-    return { 
-      valid: false, 
-      message: 'Il numero è troppo lungo. Verifica di aver inserito il numero corretto' 
-    };
-  }
-  
-  // Specific validation for Italian numbers (+39)
-  if (cleanPhone.startsWith('+39')) {
-    // Italian mobile numbers should be +39 followed by 10 digits
-    // (3 for mobile prefix like 320, 333, etc. + 7 more digits)
-    if (cleanPhone.length !== 13) {
+  // Specific validation for Italian numbers
+  if (countryCode === '39') {
+    // Italian mobile numbers should start with 3
+    if (!phoneWithoutLeadingZero.startsWith('3')) {
       return { 
         valid: false, 
-        message: 'Il numero italiano deve essere +39 seguito da 10 cifre (es. +39 320 123 4567)' 
-      };
-    }
-    
-    // Check if it's a valid Italian mobile prefix (starts with 3)
-    const mobilePrefix = cleanPhone.substring(3, 4);
-    if (mobilePrefix !== '3') {
-      return { 
-        valid: false, 
-        message: 'Il numero deve essere un cellulare italiano (inizia con +39 3...)' 
+        message: 'Il numero deve essere un cellulare italiano (inizia con 3)' 
       };
     }
   }
@@ -77,63 +74,162 @@ export function validatePhoneNumber(phone: string): { valid: boolean; message?: 
 }
 
 /**
- * Formats a phone number to E.164 format
- * Removes all spaces, dashes, and parentheses
- * @param phone - The phone number to format
- * @returns The formatted phone number in E.164 format
+ * Formats a phone number to the format used by Supabase Auth
+ * Format: country_code + phone_number (NO + prefix)
+ * Example: "393201234567" for Italian number
+ * 
+ * @param phone - The phone number (without country code)
+ * @param countryCode - The country code (e.g., "39" for Italy)
+ * @returns The formatted phone number for Supabase Auth
  */
-export function formatPhoneToE164(phone: string): string {
-  // Remove all spaces, dashes, and parentheses
-  const cleanPhone = phone.trim().replace(/[\s\-()]/g, '');
+export function formatPhoneForAuth(phone: string, countryCode: string): string {
+  // Remove all spaces, dashes, parentheses, and + signs
+  const cleanPhone = phone.trim().replace(/[\s\-()+ ]/g, '');
   
-  // If it doesn't start with +, assume it's an Italian number and add +39
-  if (!cleanPhone.startsWith('+')) {
-    // Remove leading 0 if present (Italian numbers often start with 0 when written locally)
-    const withoutLeadingZero = cleanPhone.startsWith('0') ? cleanPhone.substring(1) : cleanPhone;
-    return `+39${withoutLeadingZero}`;
-  }
+  // Remove leading zero if present
+  const phoneWithoutLeadingZero = cleanPhone.startsWith('0') 
+    ? cleanPhone.substring(1) 
+    : cleanPhone;
   
-  return cleanPhone;
+  // Return country code + phone number (no + prefix)
+  return `${countryCode}${phoneWithoutLeadingZero}`;
 }
 
 /**
  * Formats a phone number for display (adds spaces for readability)
- * @param phone - The phone number in E.164 format
- * @returns The formatted phone number for display
+ * @param phone - The phone number in auth format (e.g., "393201234567")
+ * @returns The formatted phone number for display (e.g., "+39 320 123 4567")
  */
 export function formatPhoneForDisplay(phone: string): string {
   const cleanPhone = phone.trim().replace(/[\s\-()]/g, '');
   
+  // Add + prefix if not present
+  const withPlus = cleanPhone.startsWith('+') ? cleanPhone : `+${cleanPhone}`;
+  
   // Format Italian numbers: +39 320 123 4567
-  if (cleanPhone.startsWith('+39') && cleanPhone.length === 13) {
-    return `${cleanPhone.substring(0, 3)} ${cleanPhone.substring(3, 6)} ${cleanPhone.substring(6, 9)} ${cleanPhone.substring(9)}`;
+  if (withPlus.startsWith('+39') && withPlus.length === 13) {
+    return `${withPlus.substring(0, 3)} ${withPlus.substring(3, 6)} ${withPlus.substring(6, 9)} ${withPlus.substring(9)}`;
   }
   
   // For other numbers, just add space after country code
-  const countryCodeEnd = cleanPhone.indexOf(' ') > 0 ? cleanPhone.indexOf(' ') : 3;
-  return `${cleanPhone.substring(0, countryCodeEnd)} ${cleanPhone.substring(countryCodeEnd)}`;
+  // Find where country code ends (usually 1-3 digits after +)
+  let countryCodeEnd = 3; // Default to +XX
+  for (const country of COUNTRY_CODES) {
+    if (withPlus.startsWith(`+${country.code}`)) {
+      countryCodeEnd = country.code.length + 1;
+      break;
+    }
+  }
+  
+  return `${withPlus.substring(0, countryCodeEnd)} ${withPlus.substring(countryCodeEnd)}`;
+}
+
+/**
+ * Parses a phone number to extract country code and local number
+ * Handles multiple formats: +393201234567, 393201234567, +39 320 1234567, etc.
+ * 
+ * @param phone - The phone number in any format
+ * @returns Object with country code and local number, or null if invalid
+ */
+export function parsePhoneNumber(phone: string): { 
+  countryCode: string; 
+  localNumber: string;
+  fullNumber: string;
+} | null {
+  // Remove all spaces, dashes, parentheses
+  const cleanPhone = phone.trim().replace(/[\s\-()]/g, '');
+  
+  // Remove + if present
+  const withoutPlus = cleanPhone.startsWith('+') 
+    ? cleanPhone.substring(1) 
+    : cleanPhone;
+  
+  // Try to match against known country codes
+  for (const country of COUNTRY_CODES) {
+    if (withoutPlus.startsWith(country.code)) {
+      const localNumber = withoutPlus.substring(country.code.length);
+      
+      // Remove leading zero from local number if present
+      const localWithoutZero = localNumber.startsWith('0') 
+        ? localNumber.substring(1) 
+        : localNumber;
+      
+      return {
+        countryCode: country.code,
+        localNumber: localWithoutZero,
+        fullNumber: `${country.code}${localWithoutZero}`,
+      };
+    }
+  }
+  
+  return null;
 }
 
 /**
  * Validates and formats a phone number in one step
- * @param phone - The phone number to validate and format
+ * @param phone - The phone number (without country code)
+ * @param countryCode - The country code (e.g., "39" for Italy)
  * @returns Object with validation result, formatted phone, and error message if invalid
  */
-export function validateAndFormatPhone(phone: string): { 
+export function validateAndFormatPhone(
+  phone: string, 
+  countryCode: string
+): { 
   valid: boolean; 
   formatted?: string; 
-  message?: string 
+  display?: string;
+  message?: string;
 } {
-  const validation = validatePhoneNumber(phone);
+  const validation = validatePhoneNumber(phone, countryCode);
   
   if (!validation.valid) {
     return validation;
   }
   
-  const formatted = formatPhoneToE164(phone);
+  const formatted = formatPhoneForAuth(phone, countryCode);
+  const display = formatPhoneForDisplay(formatted);
   
   return {
     valid: true,
     formatted,
+    display,
+  };
+}
+
+/**
+ * Legacy function for backward compatibility
+ * Tries to auto-detect country code from phone number
+ */
+export function validateAndFormatPhoneLegacy(phone: string): { 
+  valid: boolean; 
+  formatted?: string; 
+  message?: string 
+} {
+  const trimmedPhone = phone.trim();
+  
+  if (!trimmedPhone) {
+    return { valid: false, message: 'Il numero di cellulare è obbligatorio' };
+  }
+  
+  // Try to parse the phone number
+  const parsed = parsePhoneNumber(trimmedPhone);
+  
+  if (!parsed) {
+    return { 
+      valid: false, 
+      message: 'Formato numero non valido. Usa il prefisso internazionale (es. +39 per l\'Italia)' 
+    };
+  }
+  
+  // Validate the parsed number
+  const validation = validatePhoneNumber(parsed.localNumber, parsed.countryCode);
+  
+  if (!validation.valid) {
+    return validation;
+  }
+  
+  return {
+    valid: true,
+    formatted: parsed.fullNumber,
   };
 }

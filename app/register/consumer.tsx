@@ -19,7 +19,8 @@ import React, { useState, useEffect } from 'react';
 import * as Haptics from 'expo-haptics';
 import { supabase } from '@/app/integrations/supabase/client';
 import { Picker } from '@react-native-picker/picker';
-import { validateAndFormatPhone } from '@/utils/phoneValidation';
+import { validateAndFormatPhone, formatPhoneForDisplay } from '@/utils/phoneValidation';
+import CountryCodePicker from '@/components/CountryCodePicker';
 
 interface PickupPoint {
   id: string;
@@ -28,6 +29,7 @@ interface PickupPoint {
 }
 
 export default function ConsumerRegisterScreen() {
+  const [countryCode, setCountryCode] = useState('39'); // Default to Italy
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
   const [password, setPassword] = useState('');
@@ -110,14 +112,15 @@ export default function ConsumerRegisterScreen() {
     }
 
     // Validate and format phone number
-    const phoneValidation = validateAndFormatPhone(phone);
+    const phoneValidation = validateAndFormatPhone(phone, countryCode);
     if (!phoneValidation.valid) {
       Alert.alert('Numero Non Valido', phoneValidation.message || 'Inserisci un numero di cellulare valido');
       return;
     }
 
     const formattedPhone = phoneValidation.formatted!;
-    console.log('Phone validated and formatted:', formattedPhone);
+    const displayPhone = phoneValidation.display!;
+    console.log('Phone validated and formatted:', formattedPhone, 'Display:', displayPhone);
 
     if (!password) {
       Alert.alert('Errore', 'Inserisci la password');
@@ -180,19 +183,17 @@ export default function ConsumerRegisterScreen() {
         if (errorMessage.toLowerCase().includes('rate limit')) {
           errorMessage = 'Hai richiesto troppi codici. Attendi qualche minuto e riprova.';
         } else if (errorMessage.toLowerCase().includes('not a valid phone number')) {
-          errorMessage = 'Il numero di telefono non è valido. Verifica di aver inserito il numero corretto con il prefisso internazionale (es. +39 320 123 4567 per l\'Italia).';
+          errorMessage = `Il numero di telefono non è valido. Verifica di aver inserito il numero corretto.\n\nHai inserito: ${displayPhone}`;
         }
         
         Alert.alert('Errore', errorMessage);
       } else {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        // Update phone with formatted version
-        setPhone(formattedPhone);
         setOtpSent(true);
         console.log('OTP sent successfully for registration');
         Alert.alert(
-          'Codice Inviato!',
-          `Abbiamo inviato un codice di 6 cifre al numero ${formattedPhone}. Inseriscilo qui sotto per completare la registrazione.`,
+          'Codice Inviato! 📱',
+          `Abbiamo inviato un codice di 6 cifre al numero ${displayPhone}. Inseriscilo qui sotto per completare la registrazione.`,
           [{ text: 'OK' }]
         );
       }
@@ -220,12 +221,14 @@ export default function ConsumerRegisterScreen() {
     setLoading(true);
 
     try {
-      console.log('Verifying OTP and registering consumer with phone:', phone, 'pickup_point:', pickupPointId);
+      const formattedPhone = validateAndFormatPhone(phone, countryCode).formatted!;
+      const displayPhone = formatPhoneForDisplay(formattedPhone);
+      
+      console.log('Verifying OTP and registering consumer with phone:', formattedPhone, 'pickup_point:', pickupPointId);
       
       // Verify OTP - this creates the user account
-      // Note: Supabase stores phone without + prefix in auth.users
       const { data: authData, error: authError } = await supabase.auth.verifyOtp({
-        phone: phone.trim(),
+        phone: formattedPhone,
         token: otp.trim(),
         type: 'sms',
       });
@@ -252,21 +255,19 @@ export default function ConsumerRegisterScreen() {
       console.log('User phone in auth.users:', authData.user.phone);
 
       // Now update the user with password and metadata
-      // This will trigger the profile creation with the correct data
       const { error: updateError } = await supabase.auth.updateUser({
         password: password,
         data: {
           full_name: fullName.trim(),
           role: 'consumer',
           pickup_point_id: pickupPointId,
-          phone: authData.user.phone, // Use the phone from auth.users (without +)
+          phone: authData.user.phone, // Use the phone from auth.users
         }
       });
 
       if (updateError) {
         console.error('Error updating user with password and metadata:', updateError);
         
-        // Check if it's a profile creation error
         if (updateError.message.includes('profile') || updateError.message.includes('email')) {
           Alert.alert(
             'Errore Configurazione Profilo',
@@ -288,13 +289,12 @@ export default function ConsumerRegisterScreen() {
 
       console.log('User password and metadata updated successfully');
 
-      // IMPORTANT: Update the profile directly with the full data
-      // This ensures the profile has all the necessary information
+      // Update the profile directly with the full data
       const { error: profileUpdateError } = await supabase
         .from('profiles')
         .update({
           full_name: fullName.trim(),
-          phone: authData.user.phone, // Store phone without + prefix to match auth.users
+          phone: authData.user.phone, // Store phone in same format as auth.users
           pickup_point_id: pickupPointId,
           role: 'consumer',
         })
@@ -302,7 +302,6 @@ export default function ConsumerRegisterScreen() {
 
       if (profileUpdateError) {
         console.error('Error updating profile:', profileUpdateError);
-        // Non-blocking error, but log it
       } else {
         console.log('Profile updated successfully with full data');
       }
@@ -321,20 +320,15 @@ export default function ConsumerRegisterScreen() {
 
         if (consentError) {
           console.error('Error saving consents:', consentError);
-          // Non-blocking error
         }
       } catch (consentException) {
         console.error('Exception saving consents:', consentException);
-        // Non-blocking error
       }
       
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       
       // Sign out the user so they can log in with password
       await supabase.auth.signOut();
-      
-      // Show success message with the phone number format they should use for login
-      const displayPhone = phone.startsWith('+') ? phone : `+${phone}`;
       
       Alert.alert(
         'Registrazione Completata! 🎉',
@@ -401,18 +395,25 @@ export default function ConsumerRegisterScreen() {
               />
 
               <Text style={styles.inputLabel}>Numero di Cellulare *</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="+39 320 123 4567"
-                placeholderTextColor={colors.textTertiary}
-                value={phone}
-                onChangeText={setPhone}
-                keyboardType="phone-pad"
-                autoComplete="tel"
-                editable={!loading && !otpSent}
-              />
+              <View style={styles.phoneInputRow}>
+                <CountryCodePicker
+                  selectedCode={countryCode}
+                  onCodeChange={setCountryCode}
+                  disabled={loading || otpSent}
+                />
+                <TextInput
+                  style={styles.phoneInput}
+                  placeholder="320 123 4567"
+                  placeholderTextColor={colors.textTertiary}
+                  value={phone}
+                  onChangeText={setPhone}
+                  keyboardType="phone-pad"
+                  autoComplete="tel"
+                  editable={!loading && !otpSent}
+                />
+              </View>
               <Text style={styles.inputHint}>
-                Inserisci il numero con il prefisso internazionale (es. +39 per l&apos;Italia)
+                Seleziona il prefisso internazionale e inserisci il numero senza il prefisso
               </Text>
 
               <Text style={styles.inputLabel}>Password *</Text>
@@ -766,8 +767,8 @@ export default function ConsumerRegisterScreen() {
                 color={colors.info}
               />
               <Text style={styles.infoText}>
-                <Text style={styles.infoTextBold}>Formato Numero:</Text> Assicurati di inserire il numero con il prefisso internazionale. 
-                Per l&apos;Italia usa +39 seguito da 10 cifre (es. +39 320 123 4567).
+                <Text style={styles.infoTextBold}>Formato Numero:</Text> Seleziona il prefisso del tuo paese e inserisci il numero senza il prefisso. 
+                Per l&apos;Italia (+39) inserisci 10 cifre (es. 320 123 4567).
               </Text>
             </View>
 
@@ -837,6 +838,21 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: colors.text,
     marginBottom: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  phoneInputRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 8,
+  },
+  phoneInput: {
+    flex: 1,
+    backgroundColor: colors.card,
+    borderRadius: 8,
+    padding: 16,
+    fontSize: 16,
+    color: colors.text,
     borderWidth: 1,
     borderColor: colors.border,
   },
