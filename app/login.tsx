@@ -161,12 +161,15 @@ export default function LoginScreen() {
     try {
       console.log('Logging in with phone:', formattedPhone);
       
-      // First, get the user by phone number to find their email
-      // Use maybeSingle() instead of single() to handle the case where no user is found
+      // Try to find user by phone number in profiles table
+      // We need to check both with and without the + prefix since Supabase stores it without +
+      const phoneWithoutPlus = formattedPhone.replace('+', '');
+      console.log('Searching for phone with and without +:', formattedPhone, phoneWithoutPlus);
+      
       const { data: userData, error: userError } = await supabase
         .from('profiles')
-        .select('email')
-        .eq('phone', formattedPhone)
+        .select('email, phone, user_id')
+        .or(`phone.eq.${formattedPhone},phone.eq.${phoneWithoutPlus}`)
         .maybeSingle();
 
       if (userError) {
@@ -181,7 +184,7 @@ export default function LoginScreen() {
       }
 
       if (!userData) {
-        console.log('No user found with phone:', formattedPhone);
+        console.log('No user found with phone:', formattedPhone, 'or', phoneWithoutPlus);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
         Alert.alert(
           'Errore di Accesso',
@@ -191,11 +194,12 @@ export default function LoginScreen() {
         return;
       }
 
-      console.log('User found, attempting login with email:', userData.email);
+      console.log('User found:', userData);
 
-      // Now sign in with email and password
+      // For phone-only users, we need to use signInWithPassword with the phone
+      // Supabase stores phone without + prefix in auth.users
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-        email: userData.email,
+        phone: phoneWithoutPlus,
         password: password.trim(),
       });
 

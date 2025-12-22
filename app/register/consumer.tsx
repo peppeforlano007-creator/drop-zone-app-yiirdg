@@ -223,7 +223,7 @@ export default function ConsumerRegisterScreen() {
       console.log('Verifying OTP and registering consumer with phone:', phone, 'pickup_point:', pickupPointId);
       
       // Verify OTP - this creates the user account
-      // We need to pass the metadata here so the trigger can use it
+      // Note: Supabase stores phone without + prefix in auth.users
       const { data: authData, error: authError } = await supabase.auth.verifyOtp({
         phone: phone.trim(),
         token: otp.trim(),
@@ -249,6 +249,7 @@ export default function ConsumerRegisterScreen() {
       }
 
       console.log('OTP verified, user created:', authData.user.id);
+      console.log('User phone in auth.users:', authData.user.phone);
 
       // Now update the user with password and metadata
       // This will trigger the profile creation with the correct data
@@ -258,7 +259,7 @@ export default function ConsumerRegisterScreen() {
           full_name: fullName.trim(),
           role: 'consumer',
           pickup_point_id: pickupPointId,
-          phone: phone.trim(), // Include phone in metadata for the trigger
+          phone: authData.user.phone, // Use the phone from auth.users (without +)
         }
       });
 
@@ -313,10 +314,12 @@ export default function ConsumerRegisterScreen() {
       // Sign out the user so they can log in with password
       await supabase.auth.signOut();
       
-      // Show success message
+      // Show success message with the phone number format they should use for login
+      const displayPhone = phone.startsWith('+') ? phone : `+${phone}`;
+      
       Alert.alert(
         'Registrazione Completata! 🎉',
-        `Account creato con successo!\n\nNumero: ${phone}\n\nPuoi ora accedere all'app con il tuo numero di cellulare e la password che hai scelto.`,
+        `Account creato con successo!\n\nNumero: ${displayPhone}\n\nPuoi ora accedere all'app con il tuo numero di cellulare e la password che hai scelto.`,
         [
           {
             text: 'OK',
