@@ -1,6 +1,6 @@
 
-import React, { useState, useMemo } from 'react';
-import { View, Text, StyleSheet, Platform, Pressable, Modal, FlatList, TextInput } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, Platform, Pressable, Modal, FlatList } from 'react-native';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 import * as Haptics from 'expo-haptics';
@@ -57,62 +57,28 @@ export default function CountryCodePicker({
   disabled = false 
 }: CountryCodePickerProps) {
   const [modalVisible, setModalVisible] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
   
   console.log('CountryCodePicker rendering with selectedCode:', selectedCode);
   
   const selectedCountry = COUNTRY_CODES.find(c => c.code === selectedCode) || COUNTRY_CODES[0];
-  
-  // Use useMemo to optimize filtering and ensure it updates correctly
-  const filteredCountries = useMemo(() => {
-    const trimmedQuery = searchQuery.trim();
-    
-    if (trimmedQuery === '') {
-      console.log('No search query, showing all countries');
-      return COUNTRY_CODES;
-    }
-    
-    const lowerQuery = trimmedQuery.toLowerCase();
-    console.log('Filtering countries with query:', lowerQuery);
-    
-    const filtered = COUNTRY_CODES.filter(country => {
-      const countryNameLower = country.country.toLowerCase();
-      const matchesName = countryNameLower.includes(lowerQuery);
-      const matchesCode = country.code.includes(lowerQuery);
-      const matchesCodeWithPlus = `+${country.code}`.includes(lowerQuery);
-      
-      return matchesName || matchesCode || matchesCodeWithPlus;
-    });
-    
-    console.log('Filtered countries count:', filtered.length);
-    return filtered;
-  }, [searchQuery]);
 
   const handleSelectCountry = (code: string) => {
     console.log('Country code selected:', code);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     onCodeChange(code);
     setModalVisible(false);
-    setSearchQuery('');
   };
 
   const openModal = () => {
     if (!disabled) {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       setModalVisible(true);
-      setSearchQuery(''); // Reset search when opening
     }
   };
 
   const closeModal = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setModalVisible(false);
-    setSearchQuery('');
-  };
-
-  const clearSearch = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setSearchQuery('');
   };
 
   const renderCountryItem = ({ item }: { item: CountryCode }) => {
@@ -191,77 +157,17 @@ export default function CountryCodePicker({
               </Pressable>
             </View>
 
-            <View style={styles.searchContainer}>
-              <IconSymbol
-                ios_icon_name="magnifyingglass"
-                android_material_icon_name="search"
-                size={20}
-                color={colors.textSecondary}
-              />
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Cerca paese o prefisso..."
-                placeholderTextColor={colors.textTertiary}
-                value={searchQuery}
-                onChangeText={(text) => {
-                  console.log('Search text changed to:', text);
-                  setSearchQuery(text);
-                }}
-                autoCapitalize="none"
-                autoCorrect={false}
-                autoFocus={true}
-                returnKeyType="search"
-              />
-              {searchQuery.length > 0 && (
-                <Pressable
-                  onPress={clearSearch}
-                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                >
-                  <IconSymbol
-                    ios_icon_name="xmark.circle.fill"
-                    android_material_icon_name="cancel"
-                    size={20}
-                    color={colors.textSecondary}
-                  />
-                </Pressable>
-              )}
-            </View>
-
-            {filteredCountries.length === 0 ? (
-              <View style={styles.emptyState}>
-                <IconSymbol
-                  ios_icon_name="magnifyingglass"
-                  android_material_icon_name="search_off"
-                  size={48}
-                  color={colors.textTertiary}
-                />
-                <Text style={styles.emptyStateTitle}>Nessun risultato</Text>
-                <Text style={styles.emptyStateText}>
-                  Nessun paese trovato per &quot;{searchQuery}&quot;
-                </Text>
-                <Pressable
-                  style={styles.clearSearchButton}
-                  onPress={clearSearch}
-                >
-                  <Text style={styles.clearSearchButtonText}>
-                    Cancella ricerca
-                  </Text>
-                </Pressable>
-              </View>
-            ) : (
-              <FlatList
-                data={filteredCountries}
-                renderItem={renderCountryItem}
-                keyExtractor={(item) => item.code}
-                style={styles.countriesList}
-                contentContainerStyle={styles.countriesListContent}
-                keyboardShouldPersistTaps="handled"
-                showsVerticalScrollIndicator={true}
-                initialNumToRender={15}
-                maxToRenderPerBatch={10}
-                windowSize={10}
-              />
-            )}
+            <FlatList
+              data={COUNTRY_CODES}
+              renderItem={renderCountryItem}
+              keyExtractor={(item) => item.code}
+              style={styles.countriesList}
+              contentContainerStyle={styles.countriesListContent}
+              showsVerticalScrollIndicator={true}
+              initialNumToRender={15}
+              maxToRenderPerBatch={10}
+              windowSize={10}
+            />
           </View>
         </View>
       </Modal>
@@ -337,25 +243,6 @@ const styles = StyleSheet.create({
   closeButton: {
     padding: 4,
   },
-  searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.backgroundSecondary,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    marginHorizontal: 20,
-    marginTop: 16,
-    marginBottom: 12,
-    gap: 8,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 16,
-    color: colors.text,
-    padding: 0,
-    minHeight: 24,
-  },
   countriesList: {
     flex: 1,
   },
@@ -389,37 +276,5 @@ const styles = StyleSheet.create({
   countryCode: {
     fontSize: 14,
     color: colors.textSecondary,
-  },
-  emptyState: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 60,
-    paddingHorizontal: 40,
-  },
-  emptyStateTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: colors.text,
-    marginTop: 16,
-    marginBottom: 8,
-  },
-  emptyStateText: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    lineHeight: 20,
-  },
-  clearSearchButton: {
-    marginTop: 20,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    backgroundColor: colors.primary,
-    borderRadius: 8,
-  },
-  clearSearchButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#fff',
   },
 });
