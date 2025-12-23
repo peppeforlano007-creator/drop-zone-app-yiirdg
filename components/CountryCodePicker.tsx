@@ -1,7 +1,6 @@
 
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Platform, Pressable, Modal, ScrollView, TextInput } from 'react-native';
-import { Picker } from '@react-native-picker/picker';
+import { View, Text, StyleSheet, Platform, Pressable, Modal, FlatList, TextInput } from 'react-native';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 import * as Haptics from 'expo-haptics';
@@ -64,10 +63,19 @@ export default function CountryCodePicker({
   
   const selectedCountry = COUNTRY_CODES.find(c => c.code === selectedCode) || COUNTRY_CODES[0];
   
-  const filteredCountries = COUNTRY_CODES.filter(country => 
-    country.country.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    country.code.includes(searchQuery)
-  );
+  // Filter countries based on search query
+  const filteredCountries = searchQuery.trim() === '' 
+    ? COUNTRY_CODES 
+    : COUNTRY_CODES.filter(country => {
+        const query = searchQuery.toLowerCase().trim();
+        return (
+          country.country.toLowerCase().includes(query) ||
+          country.code.includes(query) ||
+          `+${country.code}`.includes(query)
+        );
+      });
+
+  console.log('Search query:', searchQuery, 'Filtered countries:', filteredCountries.length);
 
   const handleSelectCountry = (code: string) => {
     console.log('Country code selected:', code);
@@ -81,7 +89,46 @@ export default function CountryCodePicker({
     if (!disabled) {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       setModalVisible(true);
+      setSearchQuery(''); // Reset search when opening
     }
+  };
+
+  const closeModal = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setModalVisible(false);
+    setSearchQuery('');
+  };
+
+  const clearSearch = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setSearchQuery('');
+  };
+
+  const renderCountryItem = ({ item }: { item: CountryCode }) => {
+    const isSelected = item.code === selectedCode;
+    return (
+      <Pressable
+        style={[
+          styles.countryItem,
+          isSelected && styles.countryItemSelected
+        ]}
+        onPress={() => handleSelectCountry(item.code)}
+      >
+        <Text style={styles.countryFlag}>{item.flag}</Text>
+        <View style={styles.countryInfo}>
+          <Text style={styles.countryName}>{item.country}</Text>
+          <Text style={styles.countryCode}>+{item.code}</Text>
+        </View>
+        {isSelected && (
+          <IconSymbol
+            ios_icon_name="checkmark.circle.fill"
+            android_material_icon_name="check_circle"
+            size={24}
+            color={colors.primary}
+          />
+        )}
+      </Pressable>
+    );
   };
 
   return (
@@ -110,19 +157,19 @@ export default function CountryCodePicker({
         visible={modalVisible}
         animationType="slide"
         transparent={true}
-        onRequestClose={() => setModalVisible(false)}
+        onRequestClose={closeModal}
       >
         <View style={styles.modalOverlay}>
+          <Pressable 
+            style={styles.modalBackdrop} 
+            onPress={closeModal}
+          />
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Seleziona Prefisso</Text>
               <Pressable
                 style={styles.closeButton}
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  setModalVisible(false);
-                  setSearchQuery('');
-                }}
+                onPress={closeModal}
               >
                 <IconSymbol
                   ios_icon_name="xmark.circle.fill"
@@ -145,16 +192,19 @@ export default function CountryCodePicker({
                 placeholder="Cerca paese o prefisso..."
                 placeholderTextColor={colors.textTertiary}
                 value={searchQuery}
-                onChangeText={setSearchQuery}
+                onChangeText={(text) => {
+                  console.log('Search text changed:', text);
+                  setSearchQuery(text);
+                }}
                 autoCapitalize="none"
                 autoCorrect={false}
+                autoFocus={false}
+                returnKeyType="search"
               />
               {searchQuery.length > 0 && (
                 <Pressable
-                  onPress={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    setSearchQuery('');
-                  }}
+                  onPress={clearSearch}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 >
                   <IconSymbol
                     ios_icon_name="xmark.circle.fill"
@@ -166,35 +216,41 @@ export default function CountryCodePicker({
               )}
             </View>
 
-            <ScrollView style={styles.countriesList}>
-              {filteredCountries.map((country) => {
-                const isSelected = country.code === selectedCode;
-                return (
-                  <Pressable
-                    key={country.code}
-                    style={[
-                      styles.countryItem,
-                      isSelected && styles.countryItemSelected
-                    ]}
-                    onPress={() => handleSelectCountry(country.code)}
-                  >
-                    <Text style={styles.countryFlag}>{country.flag}</Text>
-                    <View style={styles.countryInfo}>
-                      <Text style={styles.countryName}>{country.country}</Text>
-                      <Text style={styles.countryCode}>+{country.code}</Text>
-                    </View>
-                    {isSelected && (
-                      <IconSymbol
-                        ios_icon_name="checkmark.circle.fill"
-                        android_material_icon_name="check_circle"
-                        size={24}
-                        color={colors.primary}
-                      />
-                    )}
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
+            {filteredCountries.length === 0 ? (
+              <View style={styles.emptyState}>
+                <IconSymbol
+                  ios_icon_name="magnifyingglass"
+                  android_material_icon_name="search_off"
+                  size={48}
+                  color={colors.textTertiary}
+                />
+                <Text style={styles.emptyStateTitle}>Nessun risultato</Text>
+                <Text style={styles.emptyStateText}>
+                  Nessun paese trovato per &quot;{searchQuery}&quot;
+                </Text>
+                <Pressable
+                  style={styles.clearSearchButton}
+                  onPress={clearSearch}
+                >
+                  <Text style={styles.clearSearchButtonText}>
+                    Cancella ricerca
+                  </Text>
+                </Pressable>
+              </View>
+            ) : (
+              <FlatList
+                data={filteredCountries}
+                renderItem={renderCountryItem}
+                keyExtractor={(item) => item.code}
+                style={styles.countriesList}
+                contentContainerStyle={styles.countriesListContent}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={true}
+                initialNumToRender={15}
+                maxToRenderPerBatch={10}
+                windowSize={10}
+              />
+            )}
           </View>
         </View>
       </Modal>
@@ -235,14 +291,21 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'flex-end',
+  },
+  modalBackdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
   modalContent: {
     backgroundColor: colors.background,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    maxHeight: '80%',
+    maxHeight: '85%',
     paddingBottom: Platform.OS === 'ios' ? 34 : 20,
   },
   modalHeader: {
@@ -280,9 +343,13 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: colors.text,
     padding: 0,
+    minHeight: 24,
   },
   countriesList: {
     flex: 1,
+  },
+  countriesListContent: {
+    paddingBottom: 20,
   },
   countryItem: {
     flexDirection: 'row',
@@ -311,5 +378,37 @@ const styles = StyleSheet.create({
   countryCode: {
     fontSize: 14,
     color: colors.textSecondary,
+  },
+  emptyState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+    paddingHorizontal: 40,
+  },
+  emptyStateTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.text,
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  emptyStateText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  clearSearchButton: {
+    marginTop: 20,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    backgroundColor: colors.primary,
+    borderRadius: 8,
+  },
+  clearSearchButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#fff',
   },
 });
