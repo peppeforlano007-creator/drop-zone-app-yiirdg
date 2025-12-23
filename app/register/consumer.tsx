@@ -254,47 +254,13 @@ export default function ConsumerRegisterScreen() {
       console.log('OTP verified, user created:', authData.user.id);
       console.log('User phone in auth.users:', authData.user.phone);
 
-      // Now update the user with password and metadata
-      const { error: updateError } = await supabase.auth.updateUser({
-        password: password,
-        data: {
-          full_name: fullName.trim(),
-          role: 'consumer',
-          pickup_point_id: pickupPointId,
-          phone: authData.user.phone, // Use the phone from auth.users
-        }
-      });
-
-      if (updateError) {
-        console.error('Error updating user with password and metadata:', updateError);
-        
-        if (updateError.message.includes('profile') || updateError.message.includes('email')) {
-          Alert.alert(
-            'Errore Configurazione Profilo',
-            'Il tuo account è stato creato ma c\'è stato un problema nella configurazione del profilo. Contatta il supporto per assistenza.',
-            [
-              {
-                text: 'OK',
-                onPress: () => {
-                  router.replace('/login');
-                }
-              }
-            ]
-          );
-        } else {
-          Alert.alert('Errore', 'Impossibile completare la registrazione. Riprova.');
-        }
-        return;
-      }
-
-      console.log('User password and metadata updated successfully');
-
-      // Update the profile directly with the full data
+      // Update the profile with user data
+      console.log('Updating user profile with metadata...');
       const { error: profileUpdateError } = await supabase
         .from('profiles')
         .update({
           full_name: fullName.trim(),
-          phone: authData.user.phone, // Store phone in same format as auth.users
+          phone: authData.user.phone,
           pickup_point_id: pickupPointId,
           role: 'consumer',
         })
@@ -302,9 +268,26 @@ export default function ConsumerRegisterScreen() {
 
       if (profileUpdateError) {
         console.error('Error updating profile:', profileUpdateError);
-      } else {
-        console.log('Profile updated successfully with full data');
+        
+        // Sign out the user
+        await supabase.auth.signOut();
+        
+        Alert.alert(
+          'Errore Configurazione Profilo',
+          'Il tuo account è stato creato ma c\'è stato un problema nella configurazione del profilo. Contatta il supporto per assistenza.',
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                router.replace('/login');
+              }
+            }
+          ]
+        );
+        return;
       }
+
+      console.log('Profile updated successfully');
 
       // Save user consents
       try {
@@ -324,11 +307,44 @@ export default function ConsumerRegisterScreen() {
       } catch (consentException) {
         console.error('Exception saving consents:', consentException);
       }
+
+      // Now set the password using the Edge Function
+      console.log('Setting password using Edge Function...');
       
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      const { data: functionData, error: functionError } = await supabase.functions.invoke('set-user-password', {
+        body: {
+          userId: authData.user.id,
+          password: password,
+        },
+      });
+
+      if (functionError) {
+        console.error('Error setting password:', functionError);
+        
+        // Sign out the user
+        await supabase.auth.signOut();
+        
+        Alert.alert(
+          'Errore Impostazione Password',
+          'Il tuo account è stato creato ma c\'è stato un problema nell\'impostazione della password. Usa "Password dimenticata?" per impostarla.',
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                router.replace('/login');
+              }
+            }
+          ]
+        );
+        return;
+      }
+
+      console.log('Password set successfully');
       
       // Sign out the user so they can log in with password
       await supabase.auth.signOut();
+      
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       
       Alert.alert(
         'Registrazione Completata! 🎉',
@@ -345,6 +361,14 @@ export default function ConsumerRegisterScreen() {
     } catch (error) {
       console.error('Registration exception:', error);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      
+      // Make sure to sign out in case of any error
+      try {
+        await supabase.auth.signOut();
+      } catch (signOutError) {
+        console.error('Error signing out after exception:', signOutError);
+      }
+      
       Alert.alert('Errore', 'Si è verificato un errore imprevisto durante la registrazione. Riprova.');
     } finally {
       setLoading(false);
