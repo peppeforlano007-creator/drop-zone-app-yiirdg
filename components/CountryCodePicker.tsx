@@ -74,7 +74,7 @@ export default function CountryCodePicker({
         />
       </View>
       
-      {/* Picker with visual feedback */}
+      {/* Picker wrapper with visual styling */}
       <View style={styles.pickerWrapper}>
         <Picker
           selectedValue={selectedCode}
@@ -89,7 +89,7 @@ export default function CountryCodePicker({
           dropdownIconColor={colors.primary}
         >
           {COUNTRY_CODES.map((country) => {
-            const label = `${country.flag} +${country.code}`;
+            const label = `${country.flag} +${country.code} ${country.country}`;
             console.log('Rendering picker item:', label, 'value:', country.code);
             return (
               <Picker.Item
@@ -101,18 +101,12 @@ export default function CountryCodePicker({
             );
           })}
         </Picker>
-        
-        {/* Display selected value prominently */}
-        <View style={styles.selectedDisplay} pointerEvents="none">
-          <Text style={styles.selectedFlag}>{selectedCountry?.flag}</Text>
-          <Text style={styles.selectedCode}>+{selectedCode}</Text>
-          <IconSymbol
-            ios_icon_name="chevron.down.circle.fill"
-            android_material_icon_name="arrow_drop_down_circle"
-            size={20}
-            color={colors.primary}
-          />
-        </View>
+      </View>
+      
+      {/* Display current selection below picker for clarity */}
+      <View style={styles.selectedIndicator}>
+        <Text style={styles.selectedFlag}>{selectedCountry?.flag}</Text>
+        <Text style={styles.selectedCode}>+{selectedCode}</Text>
       </View>
     </View>
   );
@@ -137,7 +131,6 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   pickerWrapper: {
-    position: 'relative',
     backgroundColor: colors.card,
     borderRadius: 8,
     borderWidth: 2,
@@ -149,7 +142,6 @@ const styles = StyleSheet.create({
   picker: {
     color: colors.text,
     height: 56,
-    opacity: 0, // Hide the native picker UI, we'll show our custom display
     ...Platform.select({
       android: {
         backgroundColor: 'transparent',
@@ -162,27 +154,22 @@ const styles = StyleSheet.create({
   pickerItem: {
     fontSize: 16,
     color: colors.text,
-    height: 44,
+    height: 120,
   },
-  selectedDisplay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
+  selectedIndicator: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 12,
+    marginTop: 4,
     gap: 6,
+    paddingVertical: 4,
   },
   selectedFlag: {
-    fontSize: 24,
+    fontSize: 20,
   },
   selectedCode: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '700',
-    color: colors.text,
-    flex: 1,
+    color: colors.primary,
   },
 });
