@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { View, Text, StyleSheet, Platform, Pressable, Modal, FlatList, TextInput } from 'react-native';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
@@ -63,19 +63,30 @@ export default function CountryCodePicker({
   
   const selectedCountry = COUNTRY_CODES.find(c => c.code === selectedCode) || COUNTRY_CODES[0];
   
-  // Filter countries based on search query
-  const filteredCountries = searchQuery.trim() === '' 
-    ? COUNTRY_CODES 
-    : COUNTRY_CODES.filter(country => {
-        const query = searchQuery.toLowerCase().trim();
-        return (
-          country.country.toLowerCase().includes(query) ||
-          country.code.includes(query) ||
-          `+${country.code}`.includes(query)
-        );
-      });
-
-  console.log('Search query:', searchQuery, 'Filtered countries:', filteredCountries.length);
+  // Use useMemo to optimize filtering and ensure it updates correctly
+  const filteredCountries = useMemo(() => {
+    const trimmedQuery = searchQuery.trim();
+    
+    if (trimmedQuery === '') {
+      console.log('No search query, showing all countries');
+      return COUNTRY_CODES;
+    }
+    
+    const lowerQuery = trimmedQuery.toLowerCase();
+    console.log('Filtering countries with query:', lowerQuery);
+    
+    const filtered = COUNTRY_CODES.filter(country => {
+      const countryNameLower = country.country.toLowerCase();
+      const matchesName = countryNameLower.includes(lowerQuery);
+      const matchesCode = country.code.includes(lowerQuery);
+      const matchesCodeWithPlus = `+${country.code}`.includes(lowerQuery);
+      
+      return matchesName || matchesCode || matchesCodeWithPlus;
+    });
+    
+    console.log('Filtered countries count:', filtered.length);
+    return filtered;
+  }, [searchQuery]);
 
   const handleSelectCountry = (code: string) => {
     console.log('Country code selected:', code);
@@ -193,12 +204,12 @@ export default function CountryCodePicker({
                 placeholderTextColor={colors.textTertiary}
                 value={searchQuery}
                 onChangeText={(text) => {
-                  console.log('Search text changed:', text);
+                  console.log('Search text changed to:', text);
                   setSearchQuery(text);
                 }}
                 autoCapitalize="none"
                 autoCorrect={false}
-                autoFocus={false}
+                autoFocus={true}
                 returnKeyType="search"
               />
               {searchQuery.length > 0 && (
