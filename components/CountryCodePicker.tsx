@@ -3,6 +3,7 @@ import React from 'react';
 import { View, Text, StyleSheet, Platform } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { colors } from '@/styles/commonStyles';
+import { IconSymbol } from '@/components/IconSymbol';
 
 export interface CountryCode {
   code: string;
@@ -58,53 +59,100 @@ export default function CountryCodePicker({
   console.log('CountryCodePicker rendering with selectedCode:', selectedCode);
   console.log('Total country codes available:', COUNTRY_CODES.length);
   
+  const selectedCountry = COUNTRY_CODES.find(c => c.code === selectedCode);
+  
   return (
     <View style={styles.container}>
-      <Picker
-        selectedValue={selectedCode}
-        onValueChange={(itemValue) => {
-          console.log('Country code changed to:', itemValue);
-          onCodeChange(itemValue);
-        }}
-        style={styles.picker}
-        itemStyle={styles.pickerItem}
-        enabled={!disabled}
-        mode="dropdown"
-        dropdownIconColor={colors.text}
-      >
-        {COUNTRY_CODES.map((country) => {
-          const label = `${country.flag} +${country.code}`;
-          console.log('Rendering picker item:', label, 'value:', country.code);
-          return (
-            <Picker.Item
-              key={country.code}
-              label={label}
-              value={country.code}
-              color={colors.text}
-            />
-          );
-        })}
-      </Picker>
+      {/* Visual indicator label */}
+      <View style={styles.labelContainer}>
+        <Text style={styles.label}>Prefisso</Text>
+        <IconSymbol
+          ios_icon_name="chevron.down"
+          android_material_icon_name="arrow_drop_down"
+          size={14}
+          color={colors.textSecondary}
+        />
+      </View>
+      
+      {/* Picker with visual feedback */}
+      <View style={styles.pickerWrapper}>
+        <Picker
+          selectedValue={selectedCode}
+          onValueChange={(itemValue) => {
+            console.log('Country code changed to:', itemValue);
+            onCodeChange(itemValue);
+          }}
+          style={styles.picker}
+          itemStyle={styles.pickerItem}
+          enabled={!disabled}
+          mode="dropdown"
+          dropdownIconColor={colors.primary}
+        >
+          {COUNTRY_CODES.map((country) => {
+            const label = `${country.flag} +${country.code}`;
+            console.log('Rendering picker item:', label, 'value:', country.code);
+            return (
+              <Picker.Item
+                key={country.code}
+                label={label}
+                value={country.code}
+                color={colors.text}
+              />
+            );
+          })}
+        </Picker>
+        
+        {/* Display selected value prominently */}
+        <View style={styles.selectedDisplay} pointerEvents="none">
+          <Text style={styles.selectedFlag}>{selectedCountry?.flag}</Text>
+          <Text style={styles.selectedCode}>+{selectedCode}</Text>
+          <IconSymbol
+            ios_icon_name="chevron.down.circle.fill"
+            android_material_icon_name="arrow_drop_down_circle"
+            size={20}
+            color={colors.primary}
+          />
+        </View>
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
+    minWidth: 130,
+  },
+  labelContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+    gap: 4,
+  },
+  label: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  pickerWrapper: {
+    position: 'relative',
     backgroundColor: colors.card,
     borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colors.border,
+    borderWidth: 2,
+    borderColor: colors.primary + '40',
     overflow: 'hidden',
-    minWidth: 120,
+    minHeight: 56,
     justifyContent: 'center',
   },
   picker: {
     color: colors.text,
     height: 56,
+    opacity: 0, // Hide the native picker UI, we'll show our custom display
     ...Platform.select({
       android: {
-        backgroundColor: colors.card,
+        backgroundColor: 'transparent',
       },
       ios: {
         backgroundColor: 'transparent',
@@ -114,6 +162,27 @@ const styles = StyleSheet.create({
   pickerItem: {
     fontSize: 16,
     color: colors.text,
-    height: 44, // Reduced from 120 to 44 for better item visibility
+    height: 44,
+  },
+  selectedDisplay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+    gap: 6,
+  },
+  selectedFlag: {
+    fontSize: 24,
+  },
+  selectedCode: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.text,
+    flex: 1,
   },
 });

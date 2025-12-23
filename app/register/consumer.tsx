@@ -436,9 +436,17 @@ export default function ConsumerRegisterScreen() {
                   editable={!loading && !otpSent}
                 />
               </View>
-              <Text style={styles.inputHint}>
-                Seleziona il prefisso internazionale e inserisci il numero senza il prefisso
-              </Text>
+              <View style={styles.phoneHintBox}>
+                <IconSymbol
+                  ios_icon_name="info.circle.fill"
+                  android_material_icon_name="info"
+                  size={16}
+                  color={colors.primary}
+                />
+                <Text style={styles.phoneHint}>
+                  <Text style={styles.phoneHintBold}>Tocca il prefisso</Text> per cambiare paese. Inserisci il numero senza il prefisso.
+                </Text>
+              </View>
 
               <Text style={styles.inputLabel}>Password *</Text>
               <View style={styles.passwordInputContainer}>
@@ -783,19 +791,6 @@ export default function ConsumerRegisterScreen() {
               )}
             </View>
 
-            <View style={styles.infoBox}>
-              <IconSymbol
-                ios_icon_name="info.circle.fill"
-                android_material_icon_name="info"
-                size={18}
-                color={colors.info}
-              />
-              <Text style={styles.infoText}>
-                <Text style={styles.infoTextBold}>Formato Numero:</Text> Seleziona il prefisso del tuo paese e inserisci il numero senza il prefisso. 
-                Per l&apos;Italia (+39) inserisci 10 cifre (es. 320 123 4567).
-              </Text>
-            </View>
-
             <Pressable
               style={styles.backButton}
               onPress={handleBackToLogin}
@@ -879,6 +874,27 @@ const styles = StyleSheet.create({
     color: colors.text,
     borderWidth: 1,
     borderColor: colors.border,
+  },
+  phoneHintBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.primary + '10',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: colors.primary + '30',
+  },
+  phoneHint: {
+    flex: 1,
+    fontSize: 13,
+    color: colors.text,
+    lineHeight: 18,
+  },
+  phoneHintBold: {
+    fontWeight: '700',
+    color: colors.primary,
   },
   inputHint: {
     fontSize: 12,
@@ -1053,27 +1069,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.primary,
     fontWeight: '600',
-  },
-  infoBox: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    backgroundColor: colors.info + '10',
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: colors.info + '30',
-    gap: 12,
-    marginBottom: 24,
-  },
-  infoText: {
-    flex: 1,
-    fontSize: 13,
-    color: colors.text,
-    lineHeight: 20,
-  },
-  infoTextBold: {
-    fontWeight: '700',
-    color: colors.text,
   },
   backButton: {
     flexDirection: 'row',

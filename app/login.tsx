@@ -350,9 +350,17 @@ export default function LoginScreen() {
                   editable={!loading}
                 />
               </View>
-              <Text style={styles.inputHint}>
-                Seleziona il prefisso internazionale e inserisci il numero senza il prefisso
-              </Text>
+              <View style={styles.phoneHintBox}>
+                <IconSymbol
+                  ios_icon_name="info.circle.fill"
+                  android_material_icon_name="info"
+                  size={16}
+                  color={colors.primary}
+                />
+                <Text style={styles.phoneHint}>
+                  <Text style={styles.phoneHintBold}>Tocca il prefisso</Text> per cambiare paese. Inserisci il numero senza il prefisso.
+                </Text>
+              </View>
 
               <Text style={styles.inputLabel}>Password</Text>
               <View style={styles.passwordInputContainer}>
@@ -443,19 +451,6 @@ export default function LoginScreen() {
                   </>
                 )}
               </Pressable>
-            </View>
-
-            <View style={styles.infoBox}>
-              <IconSymbol
-                ios_icon_name="info.circle.fill"
-                android_material_icon_name="info"
-                size={18}
-                color={colors.info}
-              />
-              <Text style={styles.infoText}>
-                <Text style={styles.infoTextBold}>Formato Numero:</Text> Seleziona il prefisso del tuo paese e inserisci il numero senza il prefisso. 
-                Per l&apos;Italia (+39) inserisci 10 cifre (es. 320 123 4567).
-              </Text>
             </View>
 
             <View style={styles.divider}>
@@ -597,11 +592,26 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
-  inputHint: {
-    fontSize: 12,
-    color: colors.textSecondary,
+  phoneHintBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.primary + '10',
+    borderRadius: 8,
+    padding: 12,
     marginBottom: 16,
-    fontStyle: 'italic',
+    gap: 8,
+    borderWidth: 1,
+    borderColor: colors.primary + '30',
+  },
+  phoneHint: {
+    flex: 1,
+    fontSize: 13,
+    color: colors.text,
+    lineHeight: 18,
+  },
+  phoneHintBold: {
+    fontWeight: '700',
+    color: colors.primary,
   },
   passwordInputContainer: {
     flexDirection: 'row',
@@ -691,10 +701,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.text,
     lineHeight: 20,
-  },
-  infoTextBold: {
-    fontWeight: '700',
-    color: colors.text,
   },
   divider: {
     flexDirection: 'row',
