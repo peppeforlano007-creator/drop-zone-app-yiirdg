@@ -297,6 +297,11 @@ export default function LoginScreen() {
     router.push('/register/consumer');
   };
 
+  const handleAdminLogin = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push('/admin-login');
+  };
+
   if (authLoading) {
     return (
       <View style={styles.loadingContainer}>
@@ -453,18 +458,6 @@ export default function LoginScreen() {
               </Text>
             </View>
 
-            {/* Discreet admin login link */}
-            <Pressable
-              style={styles.adminLinkContainer}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                router.push('/admin-login');
-              }}
-              disabled={loading}
-            >
-              <Text style={styles.adminLinkText}>·</Text>
-            </Pressable>
-
             <View style={styles.divider}>
               <View style={styles.dividerLine} />
               <Text style={styles.dividerText}>Non hai un account?</Text>
@@ -517,6 +510,24 @@ export default function LoginScreen() {
                 </Text>
               </View>
             </View>
+
+            {/* Admin/Pickup Point Login Link - More visible but still discreet */}
+            <Pressable
+              style={({ pressed }) => [
+                styles.adminLinkContainer,
+                pressed && styles.adminLinkPressed,
+              ]}
+              onPress={handleAdminLogin}
+              disabled={loading}
+            >
+              <IconSymbol
+                ios_icon_name="lock.shield"
+                android_material_icon_name="admin_panel_settings"
+                size={14}
+                color={colors.textTertiary}
+              />
+              <Text style={styles.adminLinkText}>Accesso Amministratori</Text>
+            </Pressable>
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
@@ -685,17 +696,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.text,
   },
-  adminLinkContainer: {
-    alignItems: 'center',
-    paddingVertical: 8,
-    marginVertical: 8,
-  },
-  adminLinkText: {
-    fontSize: 10,
-    color: colors.textTertiary,
-    opacity: 0.3,
-    letterSpacing: 2,
-  },
   divider: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -757,5 +757,26 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.textSecondary,
     lineHeight: 18,
+  },
+  adminLinkContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    marginTop: 8,
+    marginBottom: 24,
+    gap: 8,
+    borderRadius: 8,
+    backgroundColor: colors.background,
+  },
+  adminLinkPressed: {
+    opacity: 0.6,
+  },
+  adminLinkText: {
+    fontSize: 12,
+    color: colors.textTertiary,
+    fontWeight: '500',
+    letterSpacing: 0.5,
   },
 });
