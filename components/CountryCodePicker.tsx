@@ -70,6 +70,7 @@ export default function CountryCodePicker({
         itemStyle={styles.pickerItem}
         enabled={!disabled}
         mode="dropdown"
+        dropdownIconColor={colors.text}
       >
         {COUNTRY_CODES.map((country) => {
           const label = `${country.flag} +${country.code}`;
@@ -113,6 +114,6 @@ const styles = StyleSheet.create({
   pickerItem: {
     fontSize: 16,
     color: colors.text,
-    height: 120,
+    height: 44, // Reduced from 120 to 44 for better item visibility
   },
 });
