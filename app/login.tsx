@@ -453,6 +453,18 @@ export default function LoginScreen() {
               </Text>
             </View>
 
+            {/* Discreet admin login link */}
+            <Pressable
+              style={styles.adminLinkContainer}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.push('/admin-login');
+              }}
+              disabled={loading}
+            >
+              <Text style={styles.adminLinkText}>·</Text>
+            </Pressable>
+
             <View style={styles.divider}>
               <View style={styles.dividerLine} />
               <Text style={styles.dividerText}>Non hai un account?</Text>
@@ -672,6 +684,17 @@ const styles = StyleSheet.create({
   infoTextBold: {
     fontWeight: '700',
     color: colors.text,
+  },
+  adminLinkContainer: {
+    alignItems: 'center',
+    paddingVertical: 8,
+    marginVertical: 8,
+  },
+  adminLinkText: {
+    fontSize: 10,
+    color: colors.textTertiary,
+    opacity: 0.3,
+    letterSpacing: 2,
   },
   divider: {
     flexDirection: 'row',
