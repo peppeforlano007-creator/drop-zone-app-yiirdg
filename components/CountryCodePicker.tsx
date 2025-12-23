@@ -1,9 +1,10 @@
 
-import React from 'react';
-import { View, Text, StyleSheet, Platform } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, Platform, Pressable, Modal, ScrollView, TextInput } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
+import * as Haptics from 'expo-haptics';
 
 export interface CountryCode {
   code: string;
@@ -56,120 +57,259 @@ export default function CountryCodePicker({
   onCodeChange, 
   disabled = false 
 }: CountryCodePickerProps) {
+  const [modalVisible, setModalVisible] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  
   console.log('CountryCodePicker rendering with selectedCode:', selectedCode);
-  console.log('Total country codes available:', COUNTRY_CODES.length);
   
-  const selectedCountry = COUNTRY_CODES.find(c => c.code === selectedCode);
+  const selectedCountry = COUNTRY_CODES.find(c => c.code === selectedCode) || COUNTRY_CODES[0];
   
+  const filteredCountries = COUNTRY_CODES.filter(country => 
+    country.country.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    country.code.includes(searchQuery)
+  );
+
+  const handleSelectCountry = (code: string) => {
+    console.log('Country code selected:', code);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    onCodeChange(code);
+    setModalVisible(false);
+    setSearchQuery('');
+  };
+
+  const openModal = () => {
+    if (!disabled) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      setModalVisible(true);
+    }
+  };
+
   return (
-    <View style={styles.container}>
-      {/* Visual indicator label */}
-      <View style={styles.labelContainer}>
-        <Text style={styles.label}>Prefisso</Text>
-        <IconSymbol
-          ios_icon_name="chevron.down"
-          android_material_icon_name="arrow_drop_down"
-          size={14}
-          color={colors.textSecondary}
-        />
-      </View>
-      
-      {/* Picker wrapper with visual styling */}
-      <View style={styles.pickerWrapper}>
-        <Picker
-          selectedValue={selectedCode}
-          onValueChange={(itemValue) => {
-            console.log('Country code changed to:', itemValue);
-            onCodeChange(itemValue);
-          }}
-          style={styles.picker}
-          itemStyle={styles.pickerItem}
-          enabled={!disabled}
-          mode="dropdown"
-          dropdownIconColor={colors.primary}
-        >
-          {COUNTRY_CODES.map((country) => {
-            const label = `${country.flag} +${country.code} ${country.country}`;
-            console.log('Rendering picker item:', label, 'value:', country.code);
-            return (
-              <Picker.Item
-                key={country.code}
-                label={label}
-                value={country.code}
-                color={colors.text}
+    <>
+      <Pressable
+        style={[
+          styles.container,
+          disabled && styles.containerDisabled
+        ]}
+        onPress={openModal}
+        disabled={disabled}
+      >
+        <View style={styles.content}>
+          <Text style={styles.flag}>{selectedCountry.flag}</Text>
+          <Text style={styles.code}>+{selectedCountry.code}</Text>
+          <IconSymbol
+            ios_icon_name="chevron.down"
+            android_material_icon_name="arrow_drop_down"
+            size={18}
+            color={disabled ? colors.textTertiary : colors.text}
+          />
+        </View>
+      </Pressable>
+
+      <Modal
+        visible={modalVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Seleziona Prefisso</Text>
+              <Pressable
+                style={styles.closeButton}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setModalVisible(false);
+                  setSearchQuery('');
+                }}
+              >
+                <IconSymbol
+                  ios_icon_name="xmark.circle.fill"
+                  android_material_icon_name="cancel"
+                  size={28}
+                  color={colors.textSecondary}
+                />
+              </Pressable>
+            </View>
+
+            <View style={styles.searchContainer}>
+              <IconSymbol
+                ios_icon_name="magnifyingglass"
+                android_material_icon_name="search"
+                size={20}
+                color={colors.textSecondary}
               />
-            );
-          })}
-        </Picker>
-      </View>
-      
-      {/* Display current selection below picker for clarity */}
-      <View style={styles.selectedIndicator}>
-        <Text style={styles.selectedFlag}>{selectedCountry?.flag}</Text>
-        <Text style={styles.selectedCode}>+{selectedCode}</Text>
-      </View>
-    </View>
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Cerca paese o prefisso..."
+                placeholderTextColor={colors.textTertiary}
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              {searchQuery.length > 0 && (
+                <Pressable
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setSearchQuery('');
+                  }}
+                >
+                  <IconSymbol
+                    ios_icon_name="xmark.circle.fill"
+                    android_material_icon_name="cancel"
+                    size={20}
+                    color={colors.textSecondary}
+                  />
+                </Pressable>
+              )}
+            </View>
+
+            <ScrollView style={styles.countriesList}>
+              {filteredCountries.map((country) => {
+                const isSelected = country.code === selectedCode;
+                return (
+                  <Pressable
+                    key={country.code}
+                    style={[
+                      styles.countryItem,
+                      isSelected && styles.countryItemSelected
+                    ]}
+                    onPress={() => handleSelectCountry(country.code)}
+                  >
+                    <Text style={styles.countryFlag}>{country.flag}</Text>
+                    <View style={styles.countryInfo}>
+                      <Text style={styles.countryName}>{country.country}</Text>
+                      <Text style={styles.countryCode}>+{country.code}</Text>
+                    </View>
+                    {isSelected && (
+                      <IconSymbol
+                        ios_icon_name="checkmark.circle.fill"
+                        android_material_icon_name="check_circle"
+                        size={24}
+                        color={colors.primary}
+                      />
+                    )}
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+    </>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    minWidth: 130,
-  },
-  labelContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 4,
-    gap: 4,
-  },
-  label: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: colors.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  pickerWrapper: {
     backgroundColor: colors.card,
     borderRadius: 8,
-    borderWidth: 2,
-    borderColor: colors.primary + '40',
-    overflow: 'hidden',
-    minHeight: 56,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: 12,
+    paddingVertical: 16,
+    minWidth: 110,
+    height: 56,
     justifyContent: 'center',
   },
-  picker: {
-    color: colors.text,
-    height: 56,
-    ...Platform.select({
-      android: {
-        backgroundColor: 'transparent',
-      },
-      ios: {
-        backgroundColor: 'transparent',
-      },
-    }),
+  containerDisabled: {
+    opacity: 0.5,
+    backgroundColor: colors.backgroundSecondary,
   },
-  pickerItem: {
-    fontSize: 16,
-    color: colors.text,
-    height: 120,
-  },
-  selectedIndicator: {
+  content: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 4,
+    justifyContent: 'space-between',
     gap: 6,
-    paddingVertical: 4,
   },
-  selectedFlag: {
+  flag: {
+    fontSize: 24,
+  },
+  code: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
+    flex: 1,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: colors.background,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '80%',
+    paddingBottom: Platform.OS === 'ios' ? 34 : 20,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  modalTitle: {
     fontSize: 20,
-  },
-  selectedCode: {
-    fontSize: 14,
     fontWeight: '700',
-    color: colors.primary,
+    color: colors.text,
+  },
+  closeButton: {
+    padding: 4,
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.backgroundSecondary,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginHorizontal: 20,
+    marginTop: 16,
+    marginBottom: 12,
+    gap: 8,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
+    color: colors.text,
+    padding: 0,
+  },
+  countriesList: {
+    flex: 1,
+  },
+  countryItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    gap: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  countryItemSelected: {
+    backgroundColor: colors.primary + '08',
+  },
+  countryFlag: {
+    fontSize: 28,
+  },
+  countryInfo: {
+    flex: 1,
+  },
+  countryName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 2,
+  },
+  countryCode: {
+    fontSize: 14,
+    color: colors.textSecondary,
   },
 });

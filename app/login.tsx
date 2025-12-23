@@ -358,7 +358,7 @@ export default function LoginScreen() {
                   color={colors.primary}
                 />
                 <Text style={styles.phoneHint}>
-                  <Text style={styles.phoneHintBold}>Tocca il prefisso</Text> per cambiare paese. Inserisci il numero senza il prefisso.
+                  Tocca il prefisso per cambiare paese. Inserisci il numero senza il prefisso.
                 </Text>
               </View>
 
@@ -581,16 +581,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 12,
     marginBottom: 8,
+    alignItems: 'stretch',
   },
   phoneInput: {
     flex: 1,
     backgroundColor: colors.card,
     borderRadius: 8,
-    padding: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
     fontSize: 16,
     color: colors.text,
     borderWidth: 1,
     borderColor: colors.border,
+    height: 56,
   },
   phoneHintBox: {
     flexDirection: 'row',
@@ -608,10 +611,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.text,
     lineHeight: 18,
-  },
-  phoneHintBold: {
-    fontWeight: '700',
-    color: colors.primary,
   },
   passwordInputContainer: {
     flexDirection: 'row',
