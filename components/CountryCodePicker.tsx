@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Platform, Pressable, Modal, FlatList } from 'react-native';
+import { View, Text, StyleSheet, Platform, Pressable, Modal, FlatList, Dimensions } from 'react-native';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 import * as Haptics from 'expo-haptics';
@@ -45,6 +45,8 @@ export const COUNTRY_CODES: CountryCode[] = [
   { code: '357', country: 'Cipro', flag: '🇨🇾', digits: 8 },
 ];
 
+const { height: SCREEN_HEIGHT } = Dimensions.get('window');
+
 interface CountryCodePickerProps {
   selectedCode: string;
   onCodeChange: (code: string) => void;
@@ -59,6 +61,7 @@ export default function CountryCodePicker({
   const [modalVisible, setModalVisible] = useState(false);
   
   console.log('CountryCodePicker rendering with selectedCode:', selectedCode);
+  console.log('COUNTRY_CODES length:', COUNTRY_CODES.length);
   
   const selectedCountry = COUNTRY_CODES.find(c => c.code === selectedCode) || COUNTRY_CODES[0];
 
@@ -71,12 +74,14 @@ export default function CountryCodePicker({
 
   const openModal = () => {
     if (!disabled) {
+      console.log('Opening country code picker modal');
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       setModalVisible(true);
     }
   };
 
   const closeModal = () => {
+    console.log('Closing country code picker modal');
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setModalVisible(false);
   };
@@ -157,17 +162,19 @@ export default function CountryCodePicker({
               </Pressable>
             </View>
 
-            <FlatList
-              data={COUNTRY_CODES}
-              renderItem={renderCountryItem}
-              keyExtractor={(item) => item.code}
-              style={styles.countriesList}
-              contentContainerStyle={styles.countriesListContent}
-              showsVerticalScrollIndicator={true}
-              initialNumToRender={15}
-              maxToRenderPerBatch={10}
-              windowSize={10}
-            />
+            <View style={styles.listContainer}>
+              <FlatList
+                data={COUNTRY_CODES}
+                renderItem={renderCountryItem}
+                keyExtractor={(item) => item.code}
+                showsVerticalScrollIndicator={true}
+                initialNumToRender={15}
+                maxToRenderPerBatch={10}
+                windowSize={10}
+                removeClippedSubviews={false}
+                contentContainerStyle={styles.countriesListContent}
+              />
+            </View>
           </View>
         </View>
       </Modal>
@@ -209,6 +216,7 @@ const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
     justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
   modalBackdrop: {
     position: 'absolute',
@@ -216,13 +224,12 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
   modalContent: {
     backgroundColor: colors.background,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    maxHeight: '85%',
+    maxHeight: SCREEN_HEIGHT * 0.85,
     paddingBottom: Platform.OS === 'ios' ? 34 : 20,
   },
   modalHeader: {
@@ -243,8 +250,9 @@ const styles = StyleSheet.create({
   closeButton: {
     padding: 4,
   },
-  countriesList: {
+  listContainer: {
     flex: 1,
+    minHeight: 300,
   },
   countriesListContent: {
     paddingBottom: 20,
