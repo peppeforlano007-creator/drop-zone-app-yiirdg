@@ -162,19 +162,18 @@ export default function CountryCodePicker({
               </Pressable>
             </View>
 
-            <View style={styles.listContainer}>
-              <FlatList
-                data={COUNTRY_CODES}
-                renderItem={renderCountryItem}
-                keyExtractor={(item) => item.code}
-                showsVerticalScrollIndicator={true}
-                initialNumToRender={15}
-                maxToRenderPerBatch={10}
-                windowSize={10}
-                removeClippedSubviews={false}
-                contentContainerStyle={styles.countriesListContent}
-              />
-            </View>
+            <FlatList
+              data={COUNTRY_CODES}
+              renderItem={renderCountryItem}
+              keyExtractor={(item) => item.code}
+              showsVerticalScrollIndicator={true}
+              initialNumToRender={15}
+              maxToRenderPerBatch={10}
+              windowSize={10}
+              removeClippedSubviews={false}
+              contentContainerStyle={styles.countriesListContent}
+              style={styles.flatListStyle}
+            />
           </View>
         </View>
       </Modal>
@@ -229,7 +228,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    maxHeight: SCREEN_HEIGHT * 0.85,
+    height: SCREEN_HEIGHT * 0.75,
     paddingBottom: Platform.OS === 'ios' ? 34 : 20,
   },
   modalHeader: {
@@ -250,9 +249,8 @@ const styles = StyleSheet.create({
   closeButton: {
     padding: 4,
   },
-  listContainer: {
+  flatListStyle: {
     flex: 1,
-    minHeight: 300,
   },
   countriesListContent: {
     paddingBottom: 20,
