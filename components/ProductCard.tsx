@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { View, Text, Image, StyleSheet, Pressable, Dimensions, Alert, ActivityIndicator, Animated } from 'react-native';
+import { View, Text, Image, StyleSheet, Pressable, Dimensions, Alert, ActivityIndicator, Animated, Platform } from 'react-native';
 import { IconSymbol } from './IconSymbol';
 import { colors } from '@/styles/commonStyles';
 import { Product, ProductVariant } from '@/types/Product';
@@ -683,7 +683,8 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 14,
-    paddingBottom: 110,
+    // CRITICAL FIX: Add more bottom padding to prevent button from being hidden by FloatingTabBar
+    paddingBottom: Platform.OS === 'android' ? 140 : 130,
   },
   productName: {
     fontSize: 17,

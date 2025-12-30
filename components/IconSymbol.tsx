@@ -18,7 +18,7 @@ const MAPPING = {
 
   // Navigation & Home
   "house.fill": "home",
-  "house": "home-outlined",
+  "house": "home",
   "arrow.left": "arrow-back",
   "arrow.right": "arrow-forward",
   "arrow.up": "arrow-upward",
@@ -32,13 +32,13 @@ const MAPPING = {
 
   // Communication & Social
   "paperplane.fill": "send",
-  "paperplane": "send-outlined",
+  "paperplane": "send",
   "envelope.fill": "mail",
-  "envelope": "mail-outline",
+  "envelope": "mail",
   "phone.fill": "phone",
-  "phone": "phone-outlined",
+  "phone": "phone",
   "message.fill": "chat",
-  "message": "chat-bubble-outline",
+  "message": "chat-bubble",
   "bell.fill": "notifications",
   "bell": "notifications-none",
   "heart.fill": "favorite",
@@ -75,7 +75,7 @@ const MAPPING = {
   "camera.fill": "camera-alt",
   "camera": "camera-alt",
   "video.fill": "videocam",
-  "video": "videocam-off",
+  "video": "videocam",
   "music.note": "music-note",
   "speaker.wave.2.fill": "volume-up",
   "speaker.slash.fill": "volume-off",
@@ -88,14 +88,14 @@ const MAPPING = {
   "gearshape.fill": "settings",
   "slider.horizontal.3": "tune",
   "info.circle.fill": "info",
-  "info.circle": "info-outlined",
+  "info.circle": "info",
   "exclamationmark.triangle.fill": "warning",
-  "exclamationmark.triangle": "warning-amber",
+  "exclamationmark.triangle": "warning",
   "questionmark.circle.fill": "help",
-  "questionmark.circle": "help-outline",
+  "questionmark.circle": "help",
 
   // Shapes & Symbols
-  "square": "square",
+  "square": "crop-square",
   "square.grid.3x3": "apps",
   "circle": "circle",
   "triangle.fill": "change-history",
@@ -103,8 +103,10 @@ const MAPPING = {
   "star": "star-border",
   "bookmark.fill": "bookmark",
   "bookmark": "bookmark-border",
-  "sparkles": "star",
+  "sparkles": "auto-awesome",
   "tray": "inbox",
+  "flame.fill": "local-fire-department",
+  "flame": "local-fire-department",
 
   // Technology & Code
   "chevron.left.forwardslash.chevron.right": "code",
@@ -118,20 +120,21 @@ const MAPPING = {
 
   // Shopping & Commerce
   "cart.fill": "shopping-cart",
-  "cart": "shopping-cart-outlined",
+  "cart": "shopping-cart",
   "creditcard.fill": "credit-card",
   "creditcard": "credit-card",
   "dollarsign.circle.fill": "monetization-on",
   "bag.fill": "shopping-bag",
   "bag": "shopping-bag",
   "cube.box": "inventory-2",
+  "cube.box.fill": "inventory",
 
   // Location & Maps
   "location.fill": "location-on",
   "location": "location-on",
-  "mappin": "location-on",
-  "mappin.circle": "location-on",
-  "mappin.circle.fill": "location-on",
+  "mappin": "place",
+  "mappin.circle": "place",
+  "mappin.circle.fill": "place",
   "map.fill": "map",
   "map": "map",
   "compass.drawing": "explore",
@@ -180,6 +183,10 @@ const MAPPING = {
   "tag": "label",
   "building.2": "store",
   "wrench.and.screwdriver.fill": "build",
+  
+  // Additional mappings for missing icons
+  "list.bullet": "list",
+  "list.bullet.rectangle": "view-list",
 } as Partial<
   Record<
     import("expo-symbols").SymbolViewProps["name"],
@@ -219,8 +226,16 @@ export function IconSymbol({
   const materialIconName = android_material_icon_name || (iconName ? MAPPING[iconName as IconSymbolName] : undefined);
 
   if (!materialIconName) {
-    console.warn(`IconSymbol: No mapping found for icon "${iconName}"`);
-    return null;
+    console.warn(`IconSymbol: No mapping found for icon "${iconName}". Using default icon.`);
+    // Return a default icon instead of null to avoid blank spaces
+    return (
+      <MaterialIcons
+        color={color}
+        size={size}
+        name="help-outline"
+        style={style as StyleProp<TextStyle>}
+      />
+    );
   }
 
   return (
