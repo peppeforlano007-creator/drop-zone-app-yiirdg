@@ -269,7 +269,7 @@ export default function ProductCard({
       case 'nuovo':
         return { ios: 'sparkles', android: 'star' };
       case 'reso da cliente':
-        return { ios: 'arrow.uturn.backward', android: 'keyboard_return' };
+        return { ios: 'arrow.uturn.backward', android: 'undo' };
       case 'packaging rovinato':
         return { ios: 'exclamationmark.triangle', android: 'warning' };
       default:
@@ -583,7 +583,7 @@ const styles = StyleSheet.create({
   },
   imageWrapper: {
     width: '100%',
-    height: '60%',
+    height: '55%',
     position: 'absolute',
     top: 0,
     backgroundColor: colors.backgroundSecondary,
@@ -676,15 +676,14 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    height: '42%',
+    height: '47%',
     backgroundColor: 'rgba(255, 255, 255, 0.97)',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
   },
   content: {
     padding: 14,
-    // CRITICAL FIX: Add more bottom padding to prevent button from being hidden by FloatingTabBar
-    paddingBottom: Platform.OS === 'android' ? 140 : 130,
+    paddingBottom: Platform.OS === 'android' ? 160 : 140,
   },
   productName: {
     fontSize: 17,

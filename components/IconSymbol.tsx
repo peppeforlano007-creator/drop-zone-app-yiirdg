@@ -56,6 +56,8 @@ const MAPPING = {
   "multiply": "clear",
   "trash.fill": "delete",
   "trash": "delete-outline",
+  "xmark.circle.fill": "cancel",
+  "xmark.circle": "cancel",
 
   // Editing & Creation
   "pencil": "edit",
@@ -70,7 +72,7 @@ const MAPPING = {
 
   // Media & Content
   "photo.fill": "image",
-  "photo": "image",
+  "photo": "broken-image",
   "photo.stack": "collections",
   "camera.fill": "camera-alt",
   "camera": "camera-alt",
@@ -86,6 +88,7 @@ const MAPPING = {
   // System & Settings
   "gear": "settings",
   "gearshape.fill": "settings",
+  "gear.circle.fill": "settings",
   "slider.horizontal.3": "tune",
   "info.circle.fill": "info",
   "info.circle": "info",
@@ -93,6 +96,8 @@ const MAPPING = {
   "exclamationmark.triangle": "warning",
   "questionmark.circle.fill": "help",
   "questionmark.circle": "help",
+  "shield.fill": "shield",
+  "shield": "shield",
 
   // Shapes & Symbols
   "square": "crop-square",
@@ -101,6 +106,7 @@ const MAPPING = {
   "triangle.fill": "change-history",
   "star.fill": "star",
   "star": "star-border",
+  "star.circle.fill": "stars",
   "bookmark.fill": "bookmark",
   "bookmark": "bookmark-border",
   "sparkles": "auto-awesome",
@@ -128,6 +134,8 @@ const MAPPING = {
   "bag": "shopping-bag",
   "cube.box": "inventory-2",
   "cube.box.fill": "inventory",
+  "ticket.fill": "local-offer",
+  "ticket": "local-offer",
 
   // Location & Maps
   "location.fill": "location-on",
@@ -140,7 +148,7 @@ const MAPPING = {
   "compass.drawing": "explore",
 
   // Time & Calendar
-  "clock.fill": "access-time",
+  "clock.fill": "schedule",
   "clock": "access-time",
   "calendar": "event",
   "timer": "timer",
@@ -179,7 +187,8 @@ const MAPPING = {
   // Product & Inventory
   "ruler": "straighten",
   "paintpalette": "palette",
-  "arrow.uturn.backward": "keyboard-return",
+  "arrow.uturn.backward": "undo",
+  "arrow.uturn.backward.circle.fill": "undo",
   "tag": "label",
   "building.2": "store",
   "wrench.and.screwdriver.fill": "build",
@@ -226,7 +235,7 @@ export function IconSymbol({
   const materialIconName = android_material_icon_name || (iconName ? MAPPING[iconName as IconSymbolName] : undefined);
 
   if (!materialIconName) {
-    console.warn(`IconSymbol: No mapping found for icon "${iconName}". Using default icon.`);
+    console.warn(`IconSymbol: No mapping found for icon "${iconName}". Using default icon. Please add mapping to IconSymbol.tsx`);
     // Return a default icon instead of null to avoid blank spaces
     return (
       <MaterialIcons
