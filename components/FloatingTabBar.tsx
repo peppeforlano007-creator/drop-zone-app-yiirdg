@@ -18,6 +18,7 @@ import {
   Dimensions,
 } from 'react-native';
 import { colors } from '@/styles/commonStyles';
+import { getTabBarHeight, getFontSize, getIconSize } from '@/utils/responsiveHelpers';
 
 export interface TabBarItem {
   route: string;
@@ -33,12 +34,13 @@ interface FloatingTabBarProps {
 }
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const TAB_BAR_HEIGHT = getTabBarHeight();
 
 export default function FloatingTabBar({
   tabs,
   containerWidth = SCREEN_WIDTH - 40,
   borderRadius = 8,
-  bottomMargin = 20,
+  bottomMargin = Platform.OS === 'android' ? 16 : 20,
 }: FloatingTabBarProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -89,7 +91,7 @@ export default function FloatingTabBar({
       edges={['bottom']}
       style={[styles.safeArea, { marginBottom: bottomMargin }]}
     >
-      <View style={[styles.container, { width: containerWidth, borderRadius }]}>
+      <View style={[styles.container, { width: containerWidth, borderRadius, height: TAB_BAR_HEIGHT }]}>
         <Animated.View style={[styles.indicator, indicatorStyle]} />
         <View style={styles.tabsContainer}>
           {tabs.map((tab, index) => {
@@ -103,13 +105,16 @@ export default function FloatingTabBar({
               >
                 <IconSymbol
                   name={tab.icon as any}
-                  size={22}
+                  size={getIconSize(22)}
                   color={isActive ? colors.text : colors.textSecondary}
                 />
                 <Text
                   style={[
                     styles.label,
-                    { color: isActive ? colors.text : colors.textSecondary },
+                    { 
+                      color: isActive ? colors.text : colors.textSecondary,
+                      fontSize: getFontSize(10),
+                    },
                   ]}
                 >
                   {tab.label}
@@ -131,22 +136,22 @@ const styles = StyleSheet.create({
     right: 0,
     alignItems: 'center',
     pointerEvents: 'box-none',
+    zIndex: 1000,
   },
   container: {
     overflow: 'hidden',
     backgroundColor: colors.card,
     borderWidth: 1,
     borderColor: colors.border,
-    // CRITICAL FIX: Add shadow for better visibility on Android
     ...Platform.select({
       android: {
-        elevation: 8,
+        elevation: 12,
       },
       ios: {
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: -2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 8,
+        shadowOffset: { width: 0, height: -4 },
+        shadowOpacity: 0.15,
+        shadowRadius: 12,
       },
     }),
   },
@@ -162,7 +167,6 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   label: {
-    fontSize: 10,
     fontWeight: '600',
     letterSpacing: 0.5,
   },

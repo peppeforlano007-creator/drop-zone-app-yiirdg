@@ -14,8 +14,21 @@ import {
   STANDARD_IMAGE_TEMPLATE,
   IMAGE_LOADING_CONFIG 
 } from '@/utils/imageHelpers';
+import {
+  getScreenDimensions,
+  getProductImageHeight,
+  getProductOverlayHeight,
+  getContentPaddingBottom,
+  getFontSize,
+  getButtonPadding,
+  getIconSize,
+  isSmallDevice,
+} from '@/utils/responsiveHelpers';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+const IMAGE_HEIGHT = getProductImageHeight();
+const OVERLAY_HEIGHT = getProductOverlayHeight();
+const CONTENT_PADDING_BOTTOM = getContentPaddingBottom();
 
 interface ProductCardProps {
   product: Product;
@@ -80,15 +93,6 @@ export default function ProductCard({
   const hasColorOptions = availableColors.length > 0;
   const hasAnyVariantOptions = hasSizeOptions || hasColorOptions;
 
-  console.log('=== PRODUCT CARD VARIANT CHECK ===');
-  console.log('Product:', product.name);
-  console.log('Has Variants:', hasVariants);
-  console.log('Available Sizes (filtered):', availableSizes);
-  console.log('Available Colors (filtered):', availableColors);
-  console.log('Has Size Options:', hasSizeOptions);
-  console.log('Has Color Options:', hasColorOptions);
-  console.log('Has Any Variant Options:', hasAnyVariantOptions);
-
   // Update selected variant when size or color changes
   useEffect(() => {
     if (!hasVariants) return;
@@ -100,7 +104,6 @@ export default function ProductCard({
     });
 
     setSelectedVariant(variant || null);
-    console.log('Selected variant updated:', variant);
   }, [selectedSize, selectedColor, hasVariants, product.variants]);
 
   // Update image when color is selected - check for color-specific image
@@ -110,7 +113,6 @@ export default function ProductCard({
       if (colorImageIndex >= 0 && colorImageIndex < product.imageUrls.length) {
         const colorSpecificImage = product.imageUrls[colorImageIndex];
         if (colorSpecificImage && isValidImageUrl(colorSpecificImage)) {
-          console.log(`Using color-specific image for ${selectedColor}:`, colorSpecificImage);
           setCurrentImageUrl(colorSpecificImage);
           return;
         }
@@ -158,13 +160,11 @@ export default function ProductCard({
 
   const handleImagePress = () => {
     if (!hasValidImage) {
-      console.log('No valid images available for product:', product.id);
       return;
     }
     
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setGalleryVisible(true);
-    console.log('Opening image gallery for product:', product.id, 'with', imageUrls.length, 'images');
   };
 
   const handlePressIn = () => {
@@ -235,13 +235,11 @@ export default function ProductCard({
   const handleSizeSelect = (size: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setSelectedSize(size === selectedSize ? null : size);
-    console.log('Selected size:', size);
   };
 
   const handleColorSelect = (color: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setSelectedColor(color === selectedColor ? null : color);
-    console.log('Selected color:', color);
   };
 
   const handleDescriptionPress = () => {
@@ -294,12 +292,11 @@ export default function ProductCard({
             style={styles.image}
             resizeMode={IMAGE_LOADING_CONFIG.resizeMode}
             onLoad={() => {
-              console.log('Image loaded successfully for product:', product.id, 'URL:', mainImageUrl);
               setImageLoaded(true);
               setImageError(false);
             }}
             onError={(error) => {
-              console.error('Image load error for product:', product.id, 'URL:', mainImageUrl, 'Error:', error.nativeEvent.error);
+              console.error('Image load error for product:', product.id);
               setImageError(true);
               setImageLoaded(false);
             }}
@@ -309,13 +306,10 @@ export default function ProductCard({
             <IconSymbol 
               ios_icon_name="photo" 
               android_material_icon_name="broken_image" 
-              size={100} 
+              size={getIconSize(100)} 
               color={colors.textTertiary} 
             />
             <Text style={styles.imageErrorText}>Immagine non disponibile</Text>
-            {product.imageUrl && !isValidImageUrl(product.imageUrl) && (
-              <Text style={styles.imageDebugText}>URL non valido: {product.imageUrl}</Text>
-            )}
           </View>
         )}
 
@@ -324,7 +318,7 @@ export default function ProductCard({
             <IconSymbol 
               ios_icon_name="photo.stack" 
               android_material_icon_name="collections" 
-              size={18} 
+              size={getIconSize(18)} 
               color={colors.background} 
             />
             <Text style={styles.imageCount}>{imageUrls.length}</Text>
@@ -343,7 +337,7 @@ export default function ProductCard({
               <IconSymbol 
                 ios_icon_name="xmark.circle.fill" 
                 android_material_icon_name="cancel" 
-                size={32} 
+                size={getIconSize(32)} 
                 color="#FFF" 
               />
               <Text style={styles.outOfStockText}>ESAURITO</Text>
@@ -378,7 +372,7 @@ export default function ProductCard({
               <IconSymbol 
                 ios_icon_name="cube.box.fill" 
                 android_material_icon_name="inventory" 
-                size={10} 
+                size={getIconSize(10)} 
                 color={displayStock > 0 ? colors.success : colors.error} 
               />
               <Text style={[styles.stockBadgeText, { color: displayStock > 0 ? colors.success : colors.error }]}>
@@ -501,7 +495,7 @@ export default function ProductCard({
                       <IconSymbol 
                         ios_icon_name="xmark.circle.fill" 
                         android_material_icon_name="cancel" 
-                        size={20} 
+                        size={getIconSize(20)} 
                         color="#999" 
                       />
                     </View>
@@ -517,7 +511,7 @@ export default function ProductCard({
                       <IconSymbol 
                         ios_icon_name="cube.box.fill" 
                         android_material_icon_name="inventory" 
-                        size={20} 
+                        size={getIconSize(20)} 
                         color="#333" 
                       />
                     </View>
@@ -531,7 +525,7 @@ export default function ProductCard({
                       <IconSymbol 
                         ios_icon_name="chevron.right" 
                         android_material_icon_name="chevron_right" 
-                        size={18} 
+                        size={getIconSize(18)} 
                         color="#333" 
                       />
                     </View>
@@ -583,7 +577,7 @@ const styles = StyleSheet.create({
   },
   imageWrapper: {
     width: '100%',
-    height: '55%',
+    height: IMAGE_HEIGHT,
     position: 'absolute',
     top: 0,
     backgroundColor: colors.backgroundSecondary,
@@ -603,21 +597,13 @@ const styles = StyleSheet.create({
   },
   imageErrorText: {
     marginTop: 12,
-    fontSize: 14,
+    fontSize: getFontSize(14),
     color: colors.textSecondary,
     fontWeight: '500',
   },
-  imageDebugText: {
-    marginTop: 8,
-    fontSize: 10,
-    color: colors.textTertiary,
-    fontStyle: 'italic',
-    textAlign: 'center',
-    paddingHorizontal: 20,
-  },
   imageIndicator: {
     position: 'absolute',
-    top: 60,
+    top: Platform.OS === 'android' ? 60 : 70,
     right: 20,
     backgroundColor: 'rgba(0, 0, 0, 0.75)',
     paddingHorizontal: 8,
@@ -629,7 +615,7 @@ const styles = StyleSheet.create({
   },
   imageCount: {
     color: colors.background,
-    fontSize: 12,
+    fontSize: getFontSize(12),
     fontWeight: '700',
   },
   dropBadge: {
@@ -643,7 +629,7 @@ const styles = StyleSheet.create({
   },
   dropBadgeText: {
     color: '#FFF',
-    fontSize: 10,
+    fontSize: getFontSize(10),
     fontWeight: '700',
     letterSpacing: 0.6,
   },
@@ -664,7 +650,7 @@ const styles = StyleSheet.create({
   },
   outOfStockText: {
     color: '#FFF',
-    fontSize: 24,
+    fontSize: getFontSize(24),
     fontWeight: '900',
     letterSpacing: 2,
     textShadowColor: 'rgba(0, 0, 0, 0.75)',
@@ -676,22 +662,22 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    height: '47%',
+    height: OVERLAY_HEIGHT,
     backgroundColor: 'rgba(255, 255, 255, 0.97)',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
   },
   content: {
-    padding: 14,
-    paddingBottom: Platform.OS === 'android' ? 160 : 140,
+    padding: isSmallDevice() ? 12 : 14,
+    paddingBottom: CONTENT_PADDING_BOTTOM,
   },
   productName: {
-    fontSize: 17,
+    fontSize: getFontSize(17),
     fontWeight: '800',
     color: colors.text,
     marginBottom: 5,
     letterSpacing: -0.3,
-    lineHeight: 20,
+    lineHeight: getFontSize(20),
   },
   compactInfoRow: {
     flexDirection: 'row',
@@ -707,7 +693,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   infoBadgeText: {
-    fontSize: 9,
+    fontSize: getFontSize(9),
     color: colors.textSecondary,
     fontWeight: '600',
     textTransform: 'uppercase',
@@ -723,16 +709,16 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   stockBadgeText: {
-    fontSize: 9,
+    fontSize: getFontSize(9),
     fontWeight: '700',
   },
   descriptionContainer: {
     marginBottom: 5,
   },
   descriptionText: {
-    fontSize: 10,
+    fontSize: getFontSize(10),
     color: colors.textSecondary,
-    lineHeight: 14,
+    lineHeight: getFontSize(14),
   },
   priceRow: {
     flexDirection: 'row',
@@ -741,7 +727,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   discountedPrice: {
-    fontSize: 22,
+    fontSize: getFontSize(22),
     fontWeight: '900',
     color: colors.text,
     letterSpacing: -0.6,
@@ -753,13 +739,13 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   discountText: {
-    fontSize: 10,
+    fontSize: getFontSize(10),
     fontWeight: '700',
     color: colors.background,
     letterSpacing: 0.3,
   },
   originalPrice: {
-    fontSize: 12,
+    fontSize: getFontSize(12),
     color: colors.textSecondary,
     textDecorationLine: 'line-through',
   },
@@ -779,7 +765,7 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   selectionLabel: {
-    fontSize: 10,
+    fontSize: getFontSize(10),
     fontWeight: '700',
     color: colors.text,
     textTransform: 'uppercase',
@@ -809,7 +795,7 @@ const styles = StyleSheet.create({
     borderColor: colors.text,
   },
   sizeOptionText: {
-    fontSize: 10,
+    fontSize: getFontSize(10),
     fontWeight: '700',
     color: colors.text,
   },
@@ -831,7 +817,7 @@ const styles = StyleSheet.create({
     borderColor: colors.text,
   },
   colorOptionText: {
-    fontSize: 10,
+    fontSize: getFontSize(10),
     fontWeight: '700',
     color: colors.text,
   },
@@ -850,8 +836,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 13,
-    paddingHorizontal: 16,
+    paddingVertical: getButtonPadding().vertical,
+    paddingHorizontal: getButtonPadding().horizontal,
     gap: 10,
     backgroundColor: '#FFF',
     borderRadius: 12,
@@ -879,7 +865,7 @@ const styles = StyleSheet.create({
   },
   bookButtonTitle: {
     color: '#000',
-    fontSize: 12,
+    fontSize: getFontSize(12),
     fontWeight: '800',
     letterSpacing: 0.3,
   },
@@ -888,7 +874,7 @@ const styles = StyleSheet.create({
   },
   bookButtonSubtitle: {
     color: '#666',
-    fontSize: 9,
+    fontSize: getFontSize(9),
     fontWeight: '500',
     letterSpacing: 0.1,
   },
@@ -896,7 +882,7 @@ const styles = StyleSheet.create({
     opacity: 0.8,
   },
   actionButton: {
-    paddingVertical: 13,
+    paddingVertical: getButtonPadding().vertical,
     borderRadius: 6,
     backgroundColor: colors.text,
     alignItems: 'center',
@@ -910,7 +896,7 @@ const styles = StyleSheet.create({
   },
   actionButtonText: {
     color: colors.background,
-    fontSize: 11,
+    fontSize: getFontSize(11),
     fontWeight: '700',
     letterSpacing: 1,
   },
