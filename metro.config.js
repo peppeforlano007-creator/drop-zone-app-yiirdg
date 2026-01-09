@@ -5,10 +5,18 @@ const path = require('path');
 
 const config = getDefaultConfig(__dirname);
 
-// Use turborepo to restore the cache when possible
+// Clear cache directory path
+const cacheDir = path.join(__dirname, 'node_modules', '.cache', 'metro');
+
+// Use file-based cache with proper configuration
 config.cacheStores = [
-  new FileStore({ root: path.join(__dirname, 'node_modules', '.cache', 'metro') }),
+  new FileStore({ 
+    root: cacheDir,
+  }),
 ];
+
+// Increase cache version to force rebuild if needed
+config.cacheVersion = '1.0.1';
 
 // Configure resolver to handle platform-specific modules
 config.resolver = {
@@ -24,6 +32,32 @@ config.resolver = {
     // Use default resolution for everything else
     return context.resolveRequest(context, moduleName, platform);
   },
+  // Add source extensions to help Metro resolve files faster
+  sourceExts: [...(config.resolver?.sourceExts || []), 'jsx', 'js', 'ts', 'tsx', 'json'],
 };
+
+// Configure transformer for better performance
+config.transformer = {
+  ...config.transformer,
+  // Reduce memory usage
+  minifierConfig: {
+    keep_classnames: true,
+    keep_fnames: true,
+    mangle: {
+      keep_classnames: true,
+      keep_fnames: true,
+    },
+  },
+  // Enable faster transforms
+  getTransformOptions: async () => ({
+    transform: {
+      experimentalImportSupport: false,
+      inlineRequires: true,
+    },
+  }),
+};
+
+// Add watchman configuration to prevent file watching issues
+config.watchFolders = [__dirname];
 
 module.exports = config;

@@ -1,3 +1,4 @@
+
 {
   "expo": {
     "name": "Drop Zone",
@@ -48,6 +49,5 @@
         "projectId": "your-project-id"
       }
     }
-  },
-  "scheme": "Drop Zone"
+  }
 }

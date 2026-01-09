@@ -8,13 +8,15 @@
     "dev": "expo start --clear",
     "dev:tunnel": "expo start --clear --tunnel",
     "dev:debug": "expo start --clear --dev-client",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
-    "web": "expo start --web",
+    "android": "expo start --android --clear",
+    "ios": "expo start --ios --clear",
+    "web": "expo start --web --clear",
     "devtools": "react-devtools",
     "build:web": "expo export -p web && npx workbox generateSW workbox-config.js",
     "build:android": "expo prebuild -p android",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "clean": "rm -rf node_modules .expo android/build ios/build && npm install",
+    "reset-cache": "rm -rf node_modules/.cache/metro && expo start --clear"
   },
   "dependencies": {
     "@babel/plugin-proposal-export-namespace-from": "^7.18.9",
