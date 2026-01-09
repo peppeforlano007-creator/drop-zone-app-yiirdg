@@ -107,7 +107,7 @@ export default function FeedWelcomeModal({ visible, onClose }: FeedWelcomeModalP
                 <View style={styles.iconCircle}>
                   <IconSymbol
                     ios_icon_name="sparkles"
-                    android_material_icon_name="auto_awesome"
+                    android_material_icon_name="star"
                     size={64}
                     color="#FFF"
                   />
@@ -123,7 +123,7 @@ export default function FeedWelcomeModal({ visible, onClose }: FeedWelcomeModalP
                   <View style={styles.featureBullet}>
                     <IconSymbol
                       ios_icon_name="hand.tap.fill"
-                      android_material_icon_name="touch_app"
+                      android_material_icon_name="touch-app"
                       size={24}
                       color="#3B82F6"
                     />
@@ -137,7 +137,7 @@ export default function FeedWelcomeModal({ visible, onClose }: FeedWelcomeModalP
                   <View style={styles.featureBullet}>
                     <IconSymbol
                       ios_icon_name="person.3.fill"
-                      android_material_icon_name="groups"
+                      android_material_icon_name="group"
                       size={24}
                       color="#FF9500"
                     />
@@ -151,7 +151,7 @@ export default function FeedWelcomeModal({ visible, onClose }: FeedWelcomeModalP
                   <View style={styles.featureBullet}>
                     <IconSymbol
                       ios_icon_name="bolt.fill"
-                      android_material_icon_name="flash_on"
+                      android_material_icon_name="flash-on"
                       size={24}
                       color="#EC4899"
                     />
@@ -165,7 +165,7 @@ export default function FeedWelcomeModal({ visible, onClose }: FeedWelcomeModalP
                   <View style={styles.featureBullet}>
                     <IconSymbol
                       ios_icon_name="tag.fill"
-                      android_material_icon_name="local_offer"
+                      android_material_icon_name="local-offer"
                       size={24}
                       color="#000000"
                     />
