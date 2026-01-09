@@ -23,7 +23,8 @@ import { getTabBarHeight, getFontSize, getIconSize } from '@/utils/responsiveHel
 export interface TabBarItem {
   route: string;
   label: string;
-  icon: string;
+  iosIcon: string;
+  androidIcon: string;
 }
 
 interface FloatingTabBarProps {
@@ -104,7 +105,8 @@ export default function FloatingTabBar({
                 activeOpacity={0.7}
               >
                 <IconSymbol
-                  name={tab.icon as any}
+                  ios_icon_name={tab.iosIcon}
+                  android_material_icon_name={tab.androidIcon as any}
                   size={getIconSize(22)}
                   color={isActive ? colors.text : colors.textSecondary}
                 />

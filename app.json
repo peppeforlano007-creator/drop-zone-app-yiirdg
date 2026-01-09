@@ -1,8 +1,7 @@
-
 {
   "expo": {
-    "name": "Natively",
-    "slug": "Natively",
+    "name": "Drop Zone",
+    "slug": "Drop Zone",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/natively-dark.png",
@@ -50,5 +49,6 @@
     "extra": {
       "router": {}
     }
-  }
+  },
+  "scheme": "Drop Zone"
 }
