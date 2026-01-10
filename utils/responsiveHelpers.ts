@@ -80,18 +80,19 @@ export const getProductCardHeight = (): number => {
   return SCREEN_HEIGHT - tabBarHeight - safeAreaBottom;
 };
 
-// Get responsive image height for product images
+// BLUE CIRCLE FIX: Reduced image height from 55% to 50% to give more space for content
 export const getProductImageHeight = (): number => {
-  // Image should take 55% of screen height
-  return SCREEN_HEIGHT * 0.55;
+  // Image should take 50% of screen height (reduced from 55%)
+  return SCREEN_HEIGHT * 0.50;
 };
 
-// Get responsive overlay height for product details
+// BLUE CIRCLE FIX: Increased overlay height to accommodate all content
 export const getProductOverlayHeight = (): number => {
-  // Overlay should take remaining space
+  // Overlay should take remaining space with extra padding for tab bar
   const imageHeight = getProductImageHeight();
   const tabBarHeight = 80;
-  return SCREEN_HEIGHT - imageHeight - tabBarHeight;
+  const extraPadding = 20; // Extra padding to ensure button is visible
+  return SCREEN_HEIGHT - imageHeight - tabBarHeight - extraPadding;
 };
 
 // Get responsive button padding
@@ -123,10 +124,10 @@ export const getTabBarHeight = (): number => {
   });
 };
 
-// Get responsive content padding bottom to avoid tab bar overlap
+// BLUE CIRCLE FIX: Increased padding to ensure content is not covered by tab bar
 export const getContentPaddingBottom = (): number => {
   const tabBarHeight = getTabBarHeight();
-  const extraPadding = Platform.OS === 'android' ? 20 : 10;
+  const extraPadding = Platform.OS === 'android' ? 30 : 20; // Increased from 20/10
   return tabBarHeight + extraPadding;
 };
 

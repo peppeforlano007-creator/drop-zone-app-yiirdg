@@ -1104,6 +1104,7 @@ export default function HomeScreen() {
           }}
         />
         
+        {/* GREEN CIRCLE FIX: Move top buttons higher with reduced top padding */}
         <Pressable onPress={handleLogout} style={styles.topLeftButton}>
           <IconSymbol 
             ios_icon_name="rectangle.portrait.and.arrow.right" 
@@ -1145,7 +1146,7 @@ export default function HomeScreen() {
             <View style={styles.iconCircle}>
               <IconSymbol 
                 ios_icon_name="mappin.circle.fill" 
-                android_material_icon_name="location_on" 
+                android_material_icon_name="location-on" 
                 size={18} 
                 color={colors.text} 
               />
@@ -1213,7 +1214,7 @@ export default function HomeScreen() {
             <View style={styles.navButtonInner}>
               <IconSymbol 
                 ios_icon_name="chevron.left" 
-                android_material_icon_name="chevron_left" 
+                android_material_icon_name="chevron-left" 
                 size={24} 
                 color="#FFF" 
               />
@@ -1233,7 +1234,7 @@ export default function HomeScreen() {
             <View style={styles.navButtonInner}>
               <IconSymbol 
                 ios_icon_name="chevron.right" 
-                android_material_icon_name="chevron_right" 
+                android_material_icon_name="chevron-right" 
                 size={24} 
                 color="#FFF" 
               />
@@ -1241,7 +1242,7 @@ export default function HomeScreen() {
           </Pressable>
         )}
 
-        {/* Multi-list indicator banner */}
+        {/* GREEN CIRCLE FIX: Move multi-list banner higher */}
         {productLists.length > 1 && (
           <View style={styles.multiListBanner}>
             <View style={styles.multiListBannerContent}>
@@ -1450,9 +1451,10 @@ const styles = StyleSheet.create({
     width: SCREEN_WIDTH,
     height: SCREEN_HEIGHT,
   },
+  // GREEN CIRCLE FIX: Reduced top padding from 48/60 to 20/30
   topLeftButton: {
     position: 'absolute',
-    top: Platform.OS === 'android' ? 48 : 60,
+    top: Platform.OS === 'android' ? 20 : 30,
     left: 20,
     backgroundColor: 'transparent',
     padding: 12,
@@ -1460,7 +1462,7 @@ const styles = StyleSheet.create({
   },
   topRightButton: {
     position: 'absolute',
-    top: Platform.OS === 'android' ? 48 : 60,
+    top: Platform.OS === 'android' ? 20 : 30,
     right: 20,
     backgroundColor: 'transparent',
     padding: 12,
@@ -1485,9 +1487,10 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FFF',
   },
+  // GREEN CIRCLE FIX: Reduced top padding from 48/60 to 20/30
   helpButton: {
     position: 'absolute',
-    top: Platform.OS === 'android' ? 48 : 60,
+    top: Platform.OS === 'android' ? 20 : 30,
     left: '50%',
     marginLeft: -20,
     zIndex: 100,
@@ -1648,9 +1651,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  // GREEN CIRCLE FIX: Reduced top padding from 120/130 to 80/90
   multiListBanner: {
     position: 'absolute',
-    top: Platform.OS === 'android' ? 120 : 130,
+    top: Platform.OS === 'android' ? 80 : 90,
     left: 20,
     right: 20,
     zIndex: 50,
