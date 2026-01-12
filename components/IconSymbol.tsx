@@ -11,30 +11,247 @@ import {
 } from "react-native";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 
+// Add your SFSymbol to MaterialIcons mappings here.
+const MAPPING = {
+  // See MaterialIcons here: https://icons.expo.fyi
+  // See SF Symbols in the SF Symbols app on Mac.
+
+  // Navigation & Home
+  "house.fill": "home",
+  "house": "home",
+  "arrow.left": "arrow-back",
+  "arrow.right": "arrow-forward",
+  "arrow.up": "arrow-upward",
+  "arrow.down": "arrow-downward",
+  "chevron.left": "chevron-left",
+  "chevron.right": "chevron-right",
+  "chevron.up": "keyboard-arrow-up",
+  "chevron.down": "keyboard-arrow-down",
+  "arrow.clockwise": "refresh",
+  "arrow.counterclockwise": "refresh",
+
+  // Communication & Social
+  "paperplane.fill": "send",
+  "paperplane": "send",
+  "envelope.fill": "mail",
+  "envelope": "mail",
+  "phone.fill": "phone",
+  "phone": "phone",
+  "message.fill": "chat",
+  "message": "chat-bubble",
+  "bell.fill": "notifications",
+  "bell": "notifications-none",
+  "heart.fill": "favorite",
+  "heart": "favorite-border",
+
+  // Actions & Controls
+  "plus": "add",
+  "minus": "remove",
+  "xmark": "close",
+  "checkmark": "check",
+  "checkmark.circle.fill": "check-circle",
+  "checkmark.circle": "check-circle-outline",
+  "checkmark.square.fill": "check-box",
+  "checkmark.square": "check-box-outline-blank",
+  "multiply": "clear",
+  "trash.fill": "delete",
+  "trash": "delete-outline",
+  "xmark.circle.fill": "cancel",
+  "xmark.circle": "cancel",
+
+  // Editing & Creation
+  "pencil": "edit",
+  "pencil.and.list.clipboard": "edit-note",
+  "square.and.pencil": "edit",
+  "doc.text.fill": "description",
+  "doc.text": "description",
+  "folder.fill": "folder",
+  "folder": "folder-open",
+  "doc.fill": "insert-drive-file",
+  "doc": "insert-drive-file",
+
+  // Media & Content
+  "photo.fill": "image",
+  "photo": "broken-image",
+  "photo.stack": "collections",
+  "camera.fill": "camera-alt",
+  "camera": "camera-alt",
+  "video.fill": "videocam",
+  "video": "videocam",
+  "music.note": "music-note",
+  "speaker.wave.2.fill": "volume-up",
+  "speaker.slash.fill": "volume-off",
+  "play.fill": "play-arrow",
+  "pause.fill": "pause",
+  "stop.fill": "stop",
+
+  // System & Settings
+  "gear": "settings",
+  "gearshape.fill": "settings",
+  "gear.circle.fill": "settings",
+  "slider.horizontal.3": "tune",
+  "info.circle.fill": "info",
+  "info.circle": "info",
+  "exclamationmark.triangle.fill": "warning",
+  "exclamationmark.triangle": "warning",
+  "questionmark.circle.fill": "help",
+  "questionmark.circle": "help",
+  "shield.fill": "shield",
+  "shield": "shield",
+
+  // Shapes & Symbols
+  "square": "crop-square",
+  "square.grid.3x3": "apps",
+  "circle": "circle",
+  "triangle.fill": "change-history",
+  "star.fill": "star",
+  "star": "star-border",
+  "star.circle.fill": "stars",
+  "bookmark.fill": "bookmark",
+  "bookmark": "bookmark-border",
+  "sparkles": "auto-awesome",
+  "tray": "inbox",
+  "flame.fill": "local-fire-department",
+  "flame": "local-fire-department",
+
+  // Technology & Code
+  "chevron.left.forwardslash.chevron.right": "code",
+  "qrcode.viewfinder": "qr-code",
+  "wifi": "wifi",
+  "antenna.radiowaves.left.and.right": "signal-cellular-alt",
+  "battery.100": "battery-full",
+  "battery.25": "battery-2-bar",
+  "lock.fill": "lock",
+  "lock.open.fill": "lock-open",
+
+  // Shopping & Commerce
+  "cart.fill": "shopping-cart",
+  "cart": "shopping-cart",
+  "creditcard.fill": "credit-card",
+  "creditcard": "credit-card",
+  "dollarsign.circle.fill": "monetization-on",
+  "bag.fill": "shopping-bag",
+  "bag": "shopping-bag",
+  "cube.box": "inventory-2",
+  "cube.box.fill": "inventory",
+  "ticket.fill": "local-offer",
+  "ticket": "local-offer",
+
+  // Location & Maps
+  "location.fill": "location-on",
+  "location": "location-on",
+  "mappin": "place",
+  "mappin.circle": "place",
+  "mappin.circle.fill": "place",
+  "map.fill": "map",
+  "map": "map",
+  "compass.drawing": "explore",
+
+  // Time & Calendar
+  "clock.fill": "schedule",
+  "clock": "access-time",
+  "calendar": "event",
+  "timer": "timer",
+
+  // User & Profile
+  "person": "person",
+  "person.fill": "person",
+  "person.2.fill": "group",
+  "person.2": "group",
+  "person.circle.fill": "account-circle",
+  "person.circle": "account-circle",
+  "person.crop.circle.fill": "account-circle",
+  "person.crop.circle": "account-circle",
+  "rectangle.portrait.and.arrow.right": "logout",
+
+  // Sharing & Export
+  "square.and.arrow.up": "share",
+  "square.and.arrow.up.fill": "share",
+  "square.and.arrow.down": "download",
+  "arrow.up.doc.fill": "upload-file",
+  "link": "link",
+
+  // Search & Discovery
+  "magnifyingglass": "search",
+  "line.3.horizontal.decrease": "filter-list",
+  "arrow.up.arrow.down": "sort",
+
+  // Visibility & Display
+  "eye.fill": "visibility",
+  "eye.slash.fill": "visibility-off",
+  "lightbulb.fill": "lightbulb",
+  "lightbulb": "lightbulb",
+  "moon.fill": "dark-mode",
+  "sun.max.fill": "light-mode",
+
+  // Product & Inventory
+  "ruler": "straighten",
+  "paintpalette": "palette",
+  "arrow.uturn.backward": "undo",
+  "arrow.uturn.backward.circle.fill": "undo",
+  "tag": "label",
+  "building.2": "store",
+  "wrench.and.screwdriver.fill": "build",
+  
+  // Additional mappings for missing icons
+  "list.bullet": "list",
+  "list.bullet.rectangle": "view-list",
+} as Partial<
+  Record<
+    import("expo-symbols").SymbolViewProps["name"],
+    React.ComponentProps<typeof MaterialIcons>["name"]
+  >
+>;
+
+export type IconSymbolName = keyof typeof MAPPING;
+
 /**
  * An icon component that uses native SFSymbols on iOS, and MaterialIcons on Android and web. This ensures a consistent look across platforms, and optimal resource usage.
  *
  * Icon `name`s are based on SFSymbols and require manual mapping to MaterialIcons.
+ * 
+ * Usage:
+ * - For iOS-specific code: <IconSymbol name="house.fill" size={24} color="#000" />
+ * - For cross-platform code: <IconSymbol ios_icon_name="house.fill" android_material_icon_name="home" size={24} color="#000" />
  */
 export function IconSymbol({
-  ios_icon_name = undefined,
+  name,
+  ios_icon_name,
   android_material_icon_name,
   size = 24,
   color,
   style,
 }: {
-  ios_icon_name?: string | undefined;
-  android_material_icon_name: keyof typeof MaterialIcons.glyphMap;
+  name?: IconSymbolName;
+  ios_icon_name?: string;
+  android_material_icon_name?: string;
   size?: number;
   color: string | OpaqueColorValue;
   style?: StyleProp<ViewStyle>;
   weight?: SymbolWeight;
 }) {
+  // Support both naming conventions for cross-platform compatibility
+  const iconName = name || ios_icon_name;
+  const materialIconName = android_material_icon_name || (iconName ? MAPPING[iconName as IconSymbolName] : undefined);
+
+  if (!materialIconName) {
+    console.warn(`IconSymbol: No mapping found for icon "${iconName}". Using default icon. Please add mapping to IconSymbol.tsx`);
+    // Return a default icon instead of null to avoid blank spaces
+    return (
+      <MaterialIcons
+        color={color}
+        size={size}
+        name="help-outline"
+        style={style as StyleProp<TextStyle>}
+      />
+    );
+  }
+
   return (
     <MaterialIcons
       color={color}
       size={size}
-      name={android_material_icon_name}
+      name={materialIconName}
       style={style as StyleProp<TextStyle>}
     />
   );

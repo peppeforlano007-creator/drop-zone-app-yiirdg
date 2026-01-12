@@ -20,26 +20,22 @@ export default function TabLayout() {
     {
       route: '/(tabs)/(home)',
       label: 'Feed',
-      iosIcon: 'house.fill',
-      androidIcon: 'home',
+      icon: 'house.fill',
     },
     {
       route: '/(tabs)/drops',
       label: 'Drop',
-      iosIcon: 'flame.fill',
-      androidIcon: 'local-fire-department',
+      icon: 'flame.fill',
     },
     {
       route: '/(tabs)/payment-methods',
       label: 'Pagamenti',
-      iosIcon: 'creditcard.fill',
-      androidIcon: 'payment',
+      icon: 'creditcard.fill',
     },
     {
       route: '/(tabs)/profile',
       label: 'Profilo',
-      iosIcon: 'person.fill',
-      androidIcon: 'person',
+      icon: 'person.fill',
     },
   ];
 
