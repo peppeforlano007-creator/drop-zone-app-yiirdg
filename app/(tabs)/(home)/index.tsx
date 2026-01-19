@@ -125,36 +125,45 @@ export default function GameFeedScreen() {
         .gt('products.stock', 0)
         .eq('products.status', 'active');
 
-      if (listsError) throw listsError;
+      if (listsError) {
+        console.error('Error loading supplier lists:', listsError);
+        throw listsError;
+      }
 
       // Get supplier names
-      const supplierIds = [...new Set(lists?.map(l => l.supplier_id) || [])];
+      const supplierIds = [...new Set((lists || []).map(l => l.supplier_id).filter(Boolean))];
       const { data: profiles } = await supabase
         .from('profiles')
         .select('user_id, full_name')
         .in('user_id', supplierIds);
 
-      const profilesMap = new Map(profiles?.map(p => [p.user_id, p.full_name]) || []);
+      const profilesMap = new Map((profiles || []).map(p => [p.user_id, p.full_name]));
 
-      // Count products per list
-      const listsWithCounts = lists?.reduce((acc: SupplierList[], list: any) => {
-        const productCount = list.products?.length || 0;
+      // Count products per list with null safety
+      const listsWithCounts = (lists || []).reduce((acc: SupplierList[], list: any) => {
+        if (!list || !list.id || !list.name) {
+          console.warn('Skipping invalid list:', list);
+          return acc;
+        }
+        
+        const productCount = Array.isArray(list.products) ? list.products.length : 0;
         if (productCount > 0) {
           acc.push({
             id: list.id,
-            name: list.name,
-            supplier_id: list.supplier_id,
+            name: list.name || 'Lista Senza Nome',
+            supplier_id: list.supplier_id || '',
             supplier_name: profilesMap.get(list.supplier_id) || 'Fornitore',
-            min_discount: list.min_discount,
-            max_discount: list.max_discount,
-            min_reservation_value: list.min_reservation_value,
-            max_reservation_value: list.max_reservation_value,
+            min_discount: list.min_discount || 0,
+            max_discount: list.max_discount || 0,
+            min_reservation_value: list.min_reservation_value || 0,
+            max_reservation_value: list.max_reservation_value || 0,
             product_count: productCount,
           });
         }
         return acc;
-      }, []) || [];
+      }, []);
 
+      console.log(`Loaded ${listsWithCounts.length} supplier lists with products`);
       setSupplierLists(listsWithCounts);
 
       // Load game stats
@@ -221,10 +230,20 @@ export default function GameFeedScreen() {
       // Load existing challenges
       const savedChallenges = await AsyncStorage.getItem(`challenges_${today}`);
       if (savedChallenges) {
-        setDailyChallenges(JSON.parse(savedChallenges));
-        return;
+        try {
+          const parsedChallenges = JSON.parse(savedChallenges);
+          if (Array.isArray(parsedChallenges)) {
+            setDailyChallenges(parsedChallenges);
+            return;
+          }
+        } catch (error) {
+          console.error('Error parsing saved challenges:', error);
+        }
       }
     }
+
+    // Ensure listCount is valid
+    const validListCount = Math.max(1, listCount || 3);
 
     // Generate new challenges
     const challenges: Challenge[] = [
@@ -251,10 +270,10 @@ export default function GameFeedScreen() {
       {
         id: '3',
         title: 'Collezionista',
-        description: `Esplora i prodotti di tutte le ${listCount} liste disponibili`,
+        description: `Esplora i prodotti di tutte le ${validListCount} liste disponibili`,
         icon: 'stars',
         progress: 0,
-        target: listCount,
+        target: validListCount,
         reward: 200,
         completed: false,
       },
@@ -292,7 +311,13 @@ export default function GameFeedScreen() {
   };
 
   const handleListExplore = async (list: SupplierList) => {
-    console.log('User tapped Explore button for list:', list.name);
+    console.log('User tapped Explore button for list:', list?.name || 'unknown');
+    
+    if (!list || !list.id) {
+      console.error('Invalid list object:', list);
+      Alert.alert('Errore', 'Lista non valida');
+      return;
+    }
     
     if (!user || !user.pickupPointId) {
       Alert.alert('Errore', 'Devi essere registrato con un punto di ritiro');
@@ -302,13 +327,18 @@ export default function GameFeedScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     // Check if this list was already explored today
-    const alreadyExplored = gameStats.explored_list_ids.includes(list.id);
+    const alreadyExplored = Array.isArray(gameStats.explored_list_ids) && gameStats.explored_list_ids.includes(list.id);
 
     if (!alreadyExplored) {
       // Update stats
       const newStats = { ...gameStats };
-      newStats.lists_explored += 1;
-      newStats.lists_explored_today += 1;
+      newStats.lists_explored = (newStats.lists_explored || 0) + 1;
+      newStats.lists_explored_today = (newStats.lists_explored_today || 0) + 1;
+      
+      // Ensure explored_list_ids is an array
+      if (!Array.isArray(newStats.explored_list_ids)) {
+        newStats.explored_list_ids = [];
+      }
       newStats.explored_list_ids.push(list.id);
       
       setGameStats(newStats);
@@ -325,12 +355,18 @@ export default function GameFeedScreen() {
     // Navigate to list details (we'll create a simple product list view)
     router.push({
       pathname: '/list-products',
-      params: { listId: list.id, listName: list.name }
+      params: { listId: list.id, listName: list.name || 'Prodotti' }
     });
   };
 
   const handleListInterest = async (list: SupplierList) => {
-    console.log('User tapped Interest button (heart) for list:', list.name);
+    console.log('User tapped Interest button (heart) for list:', list?.name || 'unknown');
+    
+    if (!list || !list.id) {
+      console.error('Invalid list object:', list);
+      Alert.alert('Errore', 'Lista non valida');
+      return;
+    }
     
     if (!user || !user.pickupPointId) {
       Alert.alert('Errore', 'Devi essere registrato con un punto di ritiro');
@@ -346,22 +382,26 @@ export default function GameFeedScreen() {
       newSelected.delete(list.id);
       
       // Remove interest
-      await supabase
+      const { error } = await supabase
         .from('user_interests')
         .delete()
         .eq('user_id', user.id)
         .eq('supplier_list_id', list.id);
 
+      if (error) {
+        console.error('Error removing interest:', error);
+      }
+
       // Update stats
       const newStats = { ...gameStats };
-      newStats.lists_interested_today = Math.max(0, newStats.lists_interested_today - 1);
+      newStats.lists_interested_today = Math.max(0, (newStats.lists_interested_today || 0) - 1);
       setGameStats(newStats);
       await AsyncStorage.setItem(GAME_STATS_KEY, JSON.stringify(newStats));
     } else {
       newSelected.add(list.id);
       
       // Add interest for all products in the list
-      const { data: products } = await supabase
+      const { data: products, error: productsError } = await supabase
         .from('products')
         .select('id')
         .eq('supplier_list_id', list.id)
@@ -369,8 +409,12 @@ export default function GameFeedScreen() {
         .gt('stock', 0)
         .limit(1);
 
+      if (productsError) {
+        console.error('Error fetching products:', productsError);
+      }
+
       if (products && products.length > 0) {
-        await supabase
+        const { error: insertError } = await supabase
           .from('user_interests')
           .insert({
             user_id: user.id,
@@ -378,6 +422,10 @@ export default function GameFeedScreen() {
             supplier_list_id: list.id,
             pickup_point_id: user.pickupPointId,
           });
+
+        if (insertError) {
+          console.error('Error inserting interest:', insertError);
+        }
       }
 
       // Award points
@@ -385,7 +433,7 @@ export default function GameFeedScreen() {
       
       // Update stats
       const newStats = { ...gameStats };
-      newStats.lists_interested_today += 1;
+      newStats.lists_interested_today = (newStats.lists_interested_today || 0) + 1;
       setGameStats(newStats);
       await AsyncStorage.setItem(GAME_STATS_KEY, JSON.stringify(newStats));
 
@@ -407,15 +455,18 @@ export default function GameFeedScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     try {
+      // Safely get pickup point name with fallback
+      const pickupPointName = user.pickupPoint || 'il tuo punto di ritiro';
+      
       // Check if sharing is available
       const isAvailable = await Sharing.isAvailableAsync();
       
       if (!isAvailable) {
         // Fallback: Show a message with shareable text
-        const shareText = `🎁 Scopri ${list.name} su DropShop!\n\n` +
-          `${list.product_count} prodotti disponibili con sconti dal ${list.min_discount}% al ${list.max_discount}%!\n\n` +
+        const shareText = `🎁 Scopri ${list.name || 'questa lista'} su DropShop!\n\n` +
+          `${list.product_count || 0} prodotti disponibili con sconti dal ${list.min_discount || 0}% al ${list.max_discount || 0}%!\n\n` +
           `Più persone della tua città mostrano interesse, più è probabile che si attivi un drop con sconti incredibili! 🔥\n\n` +
-          `Punto di ritiro: ${user.pickupPoint}\n\n` +
+          `Punto di ritiro: ${pickupPointName}\n\n` +
           `Unisciti a noi e approfitta delle migliori offerte!`;
         
         Alert.alert(
@@ -433,16 +484,16 @@ export default function GameFeedScreen() {
       }
 
       // Create shareable content
-      const shareMessage = `🎁 Scopri ${list.name} su DropShop!\n\n` +
-        `${list.product_count} prodotti disponibili con sconti dal ${list.min_discount}% al ${list.max_discount}%!\n\n` +
+      const shareMessage = `🎁 Scopri ${list.name || 'questa lista'} su DropShop!\n\n` +
+        `${list.product_count || 0} prodotti disponibili con sconti dal ${list.min_discount || 0}% al ${list.max_discount || 0}%!\n\n` +
         `Più persone della tua città mostrano interesse, più è probabile che si attivi un drop con sconti incredibili! 🔥\n\n` +
-        `Punto di ritiro: ${user.pickupPoint}\n\n` +
+        `Punto di ritiro: ${pickupPointName}\n\n` +
         `Unisciti a noi e approfitta delle migliori offerte!`;
 
       // Share using native share dialog
       await Sharing.shareAsync('data:text/plain;base64,' + btoa(shareMessage), {
         mimeType: 'text/plain',
-        dialogTitle: `Condividi ${list.name}`,
+        dialogTitle: `Condividi ${list.name || 'lista'}`,
         UTI: 'public.plain-text',
       });
 
@@ -537,18 +588,30 @@ export default function GameFeedScreen() {
   };
 
   const updateChallengeProgress = async (challengeId: string, increment: number) => {
+    if (!Array.isArray(dailyChallenges) || dailyChallenges.length === 0) {
+      console.warn('No challenges to update');
+      return;
+    }
+    
     const newChallenges = dailyChallenges.map(challenge => {
+      if (!challenge || !challenge.id) {
+        console.warn('Invalid challenge object:', challenge);
+        return challenge;
+      }
+      
       if (challenge.id === challengeId && !challenge.completed) {
-        const newProgress = Math.min(challenge.progress + increment, challenge.target);
-        const completed = newProgress >= challenge.target;
+        const currentProgress = challenge.progress || 0;
+        const target = challenge.target || 1;
+        const newProgress = Math.min(currentProgress + increment, target);
+        const completed = newProgress >= target;
         
         if (completed && !challenge.completed) {
           // Award challenge reward
-          awardPoints(challenge.reward, 'challenge_completed');
+          awardPoints(challenge.reward || 0, 'challenge_completed');
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           Alert.alert(
             '🎉 Sfida Completata!',
-            `Hai completato "${challenge.title}" e guadagnato ${challenge.reward} punti!`,
+            `Hai completato "${challenge.title || 'Sfida'}" e guadagnato ${challenge.reward || 0} punti!`,
             [{ text: 'Fantastico!', style: 'default' }]
           );
         }
@@ -560,8 +623,12 @@ export default function GameFeedScreen() {
 
     setDailyChallenges(newChallenges);
     
-    const today = new Date().toISOString().split('T')[0];
-    await AsyncStorage.setItem(`challenges_${today}`, JSON.stringify(newChallenges));
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      await AsyncStorage.setItem(`challenges_${today}`, JSON.stringify(newChallenges));
+    } catch (error) {
+      console.error('Error saving challenges:', error);
+    }
   };
 
   const handleLogout = () => {
@@ -863,8 +930,13 @@ export default function GameFeedScreen() {
             </Text>
 
             {supplierLists.map((list) => {
+              if (!list || !list.id) {
+                console.warn('Skipping invalid list in render:', list);
+                return null;
+              }
+              
               const isInterested = selectedLists.has(list.id);
-              const isExplored = gameStats.explored_list_ids.includes(list.id);
+              const isExplored = Array.isArray(gameStats.explored_list_ids) && gameStats.explored_list_ids.includes(list.id);
               
               return (
                 <View key={list.id} style={styles.listCard}>
