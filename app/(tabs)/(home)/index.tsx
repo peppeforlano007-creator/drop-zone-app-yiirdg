@@ -27,8 +27,11 @@ interface GameStats {
   daily_streak: number;
   total_discoveries: number;
   lists_explored: number;
+  lists_explored_today: number;
+  lists_interested_today: number;
   points_earned_today: number;
   last_played: string;
+  explored_list_ids: string[];
 }
 
 interface Challenge {
@@ -54,8 +57,11 @@ export default function GameFeedScreen() {
     daily_streak: 0,
     total_discoveries: 0,
     lists_explored: 0,
+    lists_explored_today: 0,
+    lists_interested_today: 0,
     points_earned_today: 0,
     last_played: new Date().toISOString().split('T')[0],
+    explored_list_ids: [],
   });
   const [dailyChallenges, setDailyChallenges] = useState<Challenge[]>([]);
   const [selectedLists, setSelectedLists] = useState<Set<string>>(new Set());
@@ -167,14 +173,29 @@ export default function GameFeedScreen() {
           stats.daily_streak = 1;
         }
         
-        // Reset daily points if new day
+        // Reset daily counters if new day
         if (stats.last_played !== today) {
           stats.points_earned_today = 0;
+          stats.lists_explored_today = 0;
+          stats.lists_interested_today = 0;
           stats.last_played = today;
         }
         
         setGameStats(stats);
         await AsyncStorage.setItem(GAME_STATS_KEY, JSON.stringify(stats));
+      }
+
+      // Load user interests to mark selected lists
+      if (user) {
+        const { data: interests } = await supabase
+          .from('user_interests')
+          .select('supplier_list_id')
+          .eq('user_id', user.id);
+
+        if (interests) {
+          const interestedListIds = new Set(interests.map(i => i.supplier_list_id));
+          setSelectedLists(interestedListIds);
+        }
       }
 
       // Generate daily challenges
@@ -206,7 +227,7 @@ export default function GameFeedScreen() {
       {
         id: '1',
         title: 'Esploratore Mattutino',
-        description: 'Scopri 3 liste diverse oggi',
+        description: 'Esplora i prodotti di 3 liste diverse oggi',
         icon: 'explore',
         progress: 0,
         target: 3,
@@ -216,7 +237,7 @@ export default function GameFeedScreen() {
       {
         id: '2',
         title: 'Cacciatore di Offerte',
-        description: 'Mostra interesse per 5 liste',
+        description: 'Mostra interesse per 5 liste (tocca il cuore)',
         icon: 'favorite',
         progress: 0,
         target: 5,
@@ -226,7 +247,7 @@ export default function GameFeedScreen() {
       {
         id: '3',
         title: 'Collezionista',
-        description: `Esplora tutte le ${listCount} liste disponibili`,
+        description: `Esplora i prodotti di tutte le ${listCount} liste disponibili`,
         icon: 'stars',
         progress: 0,
         target: listCount,
@@ -256,7 +277,47 @@ export default function GameFeedScreen() {
     }
   };
 
-  const handleListTap = async (list: SupplierList) => {
+  const handleListExplore = async (list: SupplierList) => {
+    console.log('User tapped Explore button for list:', list.name);
+    
+    if (!user || !user.pickupPointId) {
+      Alert.alert('Errore', 'Devi essere registrato con un punto di ritiro');
+      return;
+    }
+
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    // Check if this list was already explored today
+    const alreadyExplored = gameStats.explored_list_ids.includes(list.id);
+
+    if (!alreadyExplored) {
+      // Update stats
+      const newStats = { ...gameStats };
+      newStats.lists_explored += 1;
+      newStats.lists_explored_today += 1;
+      newStats.explored_list_ids.push(list.id);
+      
+      setGameStats(newStats);
+      await AsyncStorage.setItem(GAME_STATS_KEY, JSON.stringify(newStats));
+
+      // Award points for exploring
+      await awardPoints(10, 'list_explored');
+
+      // Update challenges
+      await updateChallengeProgress('1', 1); // Esploratore Mattutino
+      await updateChallengeProgress('3', 1); // Collezionista
+    }
+
+    // Navigate to list details (we'll create a simple product list view)
+    router.push({
+      pathname: '/list-products',
+      params: { listId: list.id, listName: list.name }
+    });
+  };
+
+  const handleListInterest = async (list: SupplierList) => {
+    console.log('User tapped Interest button (heart) for list:', list.name);
+    
     if (!user || !user.pickupPointId) {
       Alert.alert('Errore', 'Devi essere registrato con un punto di ritiro');
       return;
@@ -276,6 +337,12 @@ export default function GameFeedScreen() {
         .delete()
         .eq('user_id', user.id)
         .eq('supplier_list_id', list.id);
+
+      // Update stats
+      const newStats = { ...gameStats };
+      newStats.lists_interested_today = Math.max(0, newStats.lists_interested_today - 1);
+      setGameStats(newStats);
+      await AsyncStorage.setItem(GAME_STATS_KEY, JSON.stringify(newStats));
     } else {
       newSelected.add(list.id);
       
@@ -300,31 +367,24 @@ export default function GameFeedScreen() {
       }
 
       // Award points
-      const pointsEarned = 10;
-      await awardPoints(pointsEarned, 'list_interest');
+      await awardPoints(5, 'list_interest');
       
-      // Update challenges
-      updateChallengeProgress('2', 1);
+      // Update stats
+      const newStats = { ...gameStats };
+      newStats.lists_interested_today += 1;
+      setGameStats(newStats);
+      await AsyncStorage.setItem(GAME_STATS_KEY, JSON.stringify(newStats));
+
+      // Update challenge
+      await updateChallengeProgress('2', 1); // Cacciatore di Offerte
     }
 
     setSelectedLists(newSelected);
-    
-    // Update stats
-    const newStats = { ...gameStats };
-    if (!isSelected) {
-      newStats.total_discoveries += 1;
-      if (!selectedLists.has(list.id)) {
-        newStats.lists_explored += 1;
-        updateChallengeProgress('1', 1);
-        updateChallengeProgress('3', 1);
-      }
-    }
-    setGameStats(newStats);
-    await AsyncStorage.setItem(GAME_STATS_KEY, JSON.stringify(newStats));
   };
 
   const awardPoints = async (points: number, activityType: string) => {
     if (!user || user.rating_stars < 5) {
+      console.log('User not eligible for points (rating < 5 stars)');
       return;
     }
 
@@ -393,6 +453,11 @@ export default function GameFeedScreen() {
           // Award challenge reward
           awardPoints(challenge.reward, 'challenge_completed');
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          Alert.alert(
+            '🎉 Sfida Completata!',
+            `Hai completato "${challenge.title}" e guadagnato ${challenge.reward} punti!`,
+            [{ text: 'Fantastico!', style: 'default' }]
+          );
         }
         
         return { ...challenge, progress: newProgress, completed };
@@ -490,7 +555,7 @@ export default function GameFeedScreen() {
                 />
                 <Text style={styles.welcomeFeatureTitle}>Guadagna Punti</Text>
                 <Text style={styles.welcomeFeatureText}>
-                  Ogni lista che esplori ti fa guadagnare punti fedeltà
+                  Esplora le liste e mostra interesse per guadagnare punti fedeltà
                 </Text>
               </View>
 
@@ -701,45 +766,28 @@ export default function GameFeedScreen() {
             </View>
 
             <Text style={styles.sectionSubtitle}>
-              Tocca le liste che ti interessano per guadagnare punti!
+              Esplora le liste per vedere i prodotti e mostra interesse con il cuore!
             </Text>
 
             {supplierLists.map((list) => {
-              const isSelected = selectedLists.has(list.id);
+              const isInterested = selectedLists.has(list.id);
+              const isExplored = gameStats.explored_list_ids.includes(list.id);
+              
               return (
-                <Pressable
-                  key={list.id}
-                  style={({ pressed }) => [
-                    styles.listCard,
-                    isSelected && styles.listCardSelected,
-                    pressed && styles.listCardPressed,
-                  ]}
-                  onPress={() => handleListTap(list)}
-                >
+                <View key={list.id} style={styles.listCard}>
                   <View style={styles.listHeader}>
-                    <View style={[styles.listIcon, isSelected && styles.listIconSelected]}>
+                    <View style={[styles.listIcon, isExplored && styles.listIconExplored]}>
                       <IconSymbol
-                        ios_icon_name={isSelected ? 'checkmark' : 'bag.fill'}
-                        android_material_icon_name={isSelected ? 'check' : 'shopping_bag'}
+                        ios_icon_name={isExplored ? 'checkmark' : 'bag.fill'}
+                        android_material_icon_name={isExplored ? 'check' : 'shopping_bag'}
                         size={24}
-                        color={isSelected ? '#FFF' : colors.text}
+                        color={isExplored ? '#4CAF50' : colors.text}
                       />
                     </View>
                     <View style={styles.listInfo}>
                       <Text style={styles.listName}>{list.name}</Text>
                       <Text style={styles.listSupplier}>di {list.supplier_name}</Text>
                     </View>
-                    {isSelected && (
-                      <View style={styles.selectedBadge}>
-                        <IconSymbol
-                          ios_icon_name="star.fill"
-                          android_material_icon_name="star"
-                          size={16}
-                          color="#FFD700"
-                        />
-                        <Text style={styles.selectedBadgeText}>+10</Text>
-                      </View>
-                    )}
                   </View>
 
                   <View style={styles.listDetails}>
@@ -766,7 +814,49 @@ export default function GameFeedScreen() {
                       </Text>
                     </View>
                   </View>
-                </Pressable>
+
+                  <View style={styles.listActions}>
+                    <Pressable
+                      style={({ pressed }) => [
+                        styles.exploreButton,
+                        pressed && styles.buttonPressed,
+                      ]}
+                      onPress={() => handleListExplore(list)}
+                    >
+                      <IconSymbol
+                        ios_icon_name="eye.fill"
+                        android_material_icon_name="visibility"
+                        size={20}
+                        color="#FFF"
+                      />
+                      <Text style={styles.exploreButtonText}>
+                        {isExplored ? 'Esplora Ancora' : 'Esplora Prodotti'}
+                      </Text>
+                    </Pressable>
+
+                    <Pressable
+                      style={({ pressed }) => [
+                        styles.interestButton,
+                        isInterested && styles.interestButtonActive,
+                        pressed && styles.buttonPressed,
+                      ]}
+                      onPress={() => handleListInterest(list)}
+                    >
+                      <IconSymbol
+                        ios_icon_name={isInterested ? 'heart.fill' : 'heart'}
+                        android_material_icon_name={isInterested ? 'favorite' : 'favorite_border'}
+                        size={20}
+                        color={isInterested ? '#FFF' : colors.primary}
+                      />
+                      <Text style={[
+                        styles.interestButtonText,
+                        isInterested && styles.interestButtonTextActive
+                      ]}>
+                        {isInterested ? 'Interessato' : 'Mi Interessa'}
+                      </Text>
+                    </Pressable>
+                  </View>
+                </View>
               );
             })}
           </View>
@@ -782,8 +872,10 @@ export default function GameFeedScreen() {
             <View style={styles.infoContent}>
               <Text style={styles.infoTitle}>Come Funziona</Text>
               <Text style={styles.infoText}>
-                Le tue scelte aiutano l&apos;amministratore a capire quali liste attivare per la tua città. 
-                Quando abbastanza utenti mostrano interesse, un drop verrà attivato!
+                • Tocca "Esplora Prodotti" per vedere i prodotti di una lista (+10 punti){'\n'}
+                • Tocca il cuore per mostrare interesse (+5 punti){'\n'}
+                • Completa le sfide giornaliere per punti bonus{'\n'}
+                • Le tue scelte aiutano a decidere quali drop attivare!
               </Text>
             </View>
           </View>
@@ -1013,16 +1105,8 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
-    borderWidth: 2,
+    borderWidth: 1,
     borderColor: colors.border,
-  },
-  listCardSelected: {
-    borderColor: colors.primary,
-    backgroundColor: colors.primary + '10',
-  },
-  listCardPressed: {
-    opacity: 0.7,
-    transform: [{ scale: 0.98 }],
   },
   listHeader: {
     flexDirection: 'row',
@@ -1038,8 +1122,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  listIconSelected: {
-    backgroundColor: colors.primary,
+  listIconExplored: {
+    backgroundColor: '#E8F5E9',
   },
   listInfo: {
     flex: 1,
@@ -1054,23 +1138,10 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.textSecondary,
   },
-  selectedBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#FFF9E6',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 12,
-  },
-  selectedBadgeText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#8B6914',
-  },
   listDetails: {
     flexDirection: 'row',
     gap: 16,
+    marginBottom: 12,
   },
   listDetailItem: {
     flexDirection: 'row',
@@ -1080,6 +1151,54 @@ const styles = StyleSheet.create({
   listDetailText: {
     fontSize: 12,
     color: colors.textSecondary,
+  },
+  listActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  exploreButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: colors.primary,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+  },
+  exploreButtonText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#FFF',
+  },
+  interestButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: colors.background,
+    borderWidth: 2,
+    borderColor: colors.primary,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+  },
+  interestButtonActive: {
+    backgroundColor: colors.primary,
+  },
+  interestButtonText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.primary,
+  },
+  interestButtonTextActive: {
+    color: '#FFF',
+  },
+  buttonPressed: {
+    opacity: 0.7,
+    transform: [{ scale: 0.98 }],
   },
   infoCard: {
     flexDirection: 'row',
