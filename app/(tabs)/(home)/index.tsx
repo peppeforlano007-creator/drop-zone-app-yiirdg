@@ -785,6 +785,8 @@ export default function GameFeedScreen() {
   };
 
   const updateChallengeProgress = async (challengeId: string, increment: number) => {
+    console.log(`🎯 updateChallengeProgress called for challenge ${challengeId} with increment ${increment}`);
+    
     if (!Array.isArray(weeklyChallenges) || weeklyChallenges.length === 0) {
       console.warn('No challenges to update');
       return;
@@ -800,8 +802,13 @@ export default function GameFeedScreen() {
     const challenge = weeklyChallenges[challengeIndex];
     
     // Check if challenge is locked or already completed
-    if (!challenge || challenge.locked || challenge.completed) {
-      console.log(`Challenge ${challengeId} is locked (${challenge.locked}) or already completed (${challenge.completed})`);
+    if (!challenge || challenge.locked) {
+      console.log(`❌ Challenge ${challengeId} (${challenge?.title}) is LOCKED. Cannot update progress.`);
+      return;
+    }
+    
+    if (challenge.completed) {
+      console.log(`✅ Challenge ${challengeId} (${challenge.title}) is already COMPLETED. No update needed.`);
       return;
     }
 
@@ -811,36 +818,41 @@ export default function GameFeedScreen() {
     const newProgress = Math.min(currentProgress + increment, target);
     const completed = newProgress >= target;
     
-    console.log(`Updated challenge ${challengeId} (${challenge.title}): ${currentProgress} -> ${newProgress} (target: ${target}), completed: ${completed}`);
+    console.log(`📊 Challenge ${challengeId} (${challenge.title}): progress ${currentProgress} -> ${newProgress} (target: ${target}), completed: ${completed}`);
     
     // Create updated challenges array
     const updatedChallenges = [...weeklyChallenges];
     updatedChallenges[challengeIndex] = { ...challenge, progress: newProgress, completed };
 
-    // If challenge is completed, unlock ONLY the next one
+    // CRITICAL FIX: If challenge is completed, unlock ONLY the immediate next challenge
     if (completed && !challenge.completed) {
-      console.log(`🎉 Challenge ${challengeId} (${challenge.title}) completed! Unlocking next challenge...`);
+      console.log(`🎉 Challenge ${challengeId} (${challenge.title}) COMPLETED! Unlocking next challenge...`);
       
-      // Find the IMMEDIATE next challenge and unlock it
+      // Find the IMMEDIATE next challenge (challengeIndex + 1)
       const nextIndex = challengeIndex + 1;
+      
       if (nextIndex < updatedChallenges.length) {
         const nextChallenge = updatedChallenges[nextIndex];
         
-        // CRITICAL FIX: Only unlock the immediate next challenge
-        // Make sure all other challenges after it remain locked
+        console.log(`🔓 Unlocking challenge at index ${nextIndex}: ${nextChallenge.title}`);
+        
+        // Unlock ONLY the immediate next challenge
         updatedChallenges[nextIndex] = { ...nextChallenge, locked: false };
         
-        // Ensure all challenges after the next one are still locked
+        // CRITICAL: Ensure ALL challenges after the next one remain LOCKED
         for (let i = nextIndex + 1; i < updatedChallenges.length; i++) {
-          if (!updatedChallenges[i].completed) {
-            updatedChallenges[i] = { ...updatedChallenges[i], locked: true };
+          const laterChallenge = updatedChallenges[i];
+          
+          // Only lock if not already completed
+          if (!laterChallenge.completed) {
+            console.log(`🔒 Keeping challenge at index ${i} (${laterChallenge.title}) LOCKED`);
+            updatedChallenges[i] = { ...laterChallenge, locked: true };
           }
         }
         
         // Update current challenge index to the next unlocked challenge
         setCurrentChallengeIndex(nextIndex);
         await AsyncStorage.setItem(CURRENT_CHALLENGE_INDEX_KEY, nextIndex.toString());
-        console.log(`✅ Unlocked challenge ${nextChallenge.id} (${nextChallenge.title})`);
         console.log(`✅ Updated current challenge index to: ${nextIndex}`);
         
         // Award challenge reward
@@ -872,7 +884,7 @@ export default function GameFeedScreen() {
     try {
       await AsyncStorage.setItem(WEEKLY_CHALLENGES_KEY, JSON.stringify(updatedChallenges));
       console.log('✅ Challenge progress and unlock status saved successfully');
-      console.log('📊 Updated challenges state:', updatedChallenges.map(c => ({
+      console.log('📊 Final challenges state:', updatedChallenges.map(c => ({
         id: c.id,
         title: c.title,
         locked: c.locked,
