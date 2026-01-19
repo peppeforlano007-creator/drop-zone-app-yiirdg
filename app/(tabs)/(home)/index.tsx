@@ -125,16 +125,31 @@ export default function GameFeedScreen() {
   const reloadChallenges = async () => {
     try {
       const savedChallenges = await AsyncStorage.getItem(WEEKLY_CHALLENGES_KEY);
-      const savedIndex = await AsyncStorage.getItem(CURRENT_CHALLENGE_INDEX_KEY);
       
       if (savedChallenges) {
         const parsedChallenges = JSON.parse(savedChallenges);
-        const parsedIndex = savedIndex ? parseInt(savedIndex, 10) : 0;
+        
+        // Find the first unlocked, incomplete challenge
+        let newCurrentIndex = 0;
+        for (let i = 0; i < parsedChallenges.length; i++) {
+          if (!parsedChallenges[i].locked && !parsedChallenges[i].completed) {
+            newCurrentIndex = i;
+            break;
+          }
+          // If all challenges are completed, set to last challenge
+          if (i === parsedChallenges.length - 1) {
+            newCurrentIndex = i;
+          }
+        }
         
         console.log('📊 Reloaded challenges:', parsedChallenges);
-        console.log('📊 Current challenge index:', parsedIndex);
+        console.log('📊 Current challenge index (first unlocked incomplete):', newCurrentIndex);
+        
         setWeeklyChallenges(parsedChallenges);
-        setCurrentChallengeIndex(parsedIndex);
+        setCurrentChallengeIndex(newCurrentIndex);
+        
+        // Update the saved index to match
+        await AsyncStorage.setItem(CURRENT_CHALLENGE_INDEX_KEY, newCurrentIndex.toString());
       }
     } catch (error) {
       console.error('Error reloading challenges:', error);
@@ -366,16 +381,28 @@ export default function GameFeedScreen() {
     
     // Try to load existing challenges for this week
     const savedChallenges = await AsyncStorage.getItem(WEEKLY_CHALLENGES_KEY);
-    const savedIndex = await AsyncStorage.getItem(CURRENT_CHALLENGE_INDEX_KEY);
     
     if (savedChallenges) {
       try {
         const parsedChallenges = JSON.parse(savedChallenges);
-        const parsedIndex = savedIndex ? parseInt(savedIndex, 10) : 0;
         
         if (Array.isArray(parsedChallenges)) {
+          // Find the first unlocked, incomplete challenge
+          let newCurrentIndex = 0;
+          for (let i = 0; i < parsedChallenges.length; i++) {
+            if (!parsedChallenges[i].locked && !parsedChallenges[i].completed) {
+              newCurrentIndex = i;
+              break;
+            }
+            // If all challenges are completed, set to last challenge
+            if (i === parsedChallenges.length - 1) {
+              newCurrentIndex = i;
+            }
+          }
+          
           setWeeklyChallenges(parsedChallenges);
-          setCurrentChallengeIndex(parsedIndex);
+          setCurrentChallengeIndex(newCurrentIndex);
+          await AsyncStorage.setItem(CURRENT_CHALLENGE_INDEX_KEY, newCurrentIndex.toString());
           return;
         }
       } catch (error) {
@@ -770,7 +797,7 @@ export default function GameFeedScreen() {
         const nextChallenge = updatedChallenges[challengeIndex + 1];
         updatedChallenges[challengeIndex + 1] = { ...nextChallenge, locked: false };
         
-        // Update current challenge index
+        // Update current challenge index to the next unlocked challenge
         const newIndex = challengeIndex + 1;
         setCurrentChallengeIndex(newIndex);
         await AsyncStorage.setItem(CURRENT_CHALLENGE_INDEX_KEY, newIndex.toString());
