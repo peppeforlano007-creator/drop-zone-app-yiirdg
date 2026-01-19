@@ -8,6 +8,7 @@ import { IconSymbol } from '@/components/IconSymbol';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/app/integrations/supabase/client';
 import * as Haptics from 'expo-haptics';
+import * as Sharing from 'expo-sharing';
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -29,6 +30,7 @@ interface GameStats {
   lists_explored: number;
   lists_explored_today: number;
   lists_interested_today: number;
+  lists_shared_today: number;
   points_earned_today: number;
   last_played: string;
   explored_list_ids: string[];
@@ -59,6 +61,7 @@ export default function GameFeedScreen() {
     lists_explored: 0,
     lists_explored_today: 0,
     lists_interested_today: 0,
+    lists_shared_today: 0,
     points_earned_today: 0,
     last_played: new Date().toISOString().split('T')[0],
     explored_list_ids: [],
@@ -178,6 +181,7 @@ export default function GameFeedScreen() {
           stats.points_earned_today = 0;
           stats.lists_explored_today = 0;
           stats.lists_interested_today = 0;
+          stats.lists_shared_today = 0;
           stats.last_played = today;
         }
         
@@ -252,6 +256,16 @@ export default function GameFeedScreen() {
         progress: 0,
         target: listCount,
         reward: 200,
+        completed: false,
+      },
+      {
+        id: '4',
+        title: 'Ambasciatore',
+        description: 'Condividi 3 liste con amici e parenti',
+        icon: 'share',
+        progress: 0,
+        target: 3,
+        reward: 150,
         completed: false,
       },
     ];
@@ -380,6 +394,85 @@ export default function GameFeedScreen() {
     }
 
     setSelectedLists(newSelected);
+  };
+
+  const handleListShare = async (list: SupplierList) => {
+    console.log('User tapped Share button for list:', list.name);
+    
+    if (!user || !user.pickupPointId) {
+      Alert.alert('Errore', 'Devi essere registrato con un punto di ritiro');
+      return;
+    }
+
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    try {
+      // Check if sharing is available
+      const isAvailable = await Sharing.isAvailableAsync();
+      
+      if (!isAvailable) {
+        // Fallback: Show a message with shareable text
+        const shareText = `🎁 Scopri ${list.name} su DropShop!\n\n` +
+          `${list.product_count} prodotti disponibili con sconti dal ${list.min_discount}% al ${list.max_discount}%!\n\n` +
+          `Più persone della tua città mostrano interesse, più è probabile che si attivi un drop con sconti incredibili! 🔥\n\n` +
+          `Punto di ritiro: ${user.pickupPoint}\n\n` +
+          `Unisciti a noi e approfitta delle migliori offerte!`;
+        
+        Alert.alert(
+          'Condividi questa lista',
+          shareText,
+          [
+            { text: 'Copia Testo', onPress: () => {
+              // In a real app, you'd use Clipboard API here
+              Alert.alert('Successo', 'Testo copiato! Condividilo con i tuoi amici.');
+            }},
+            { text: 'Chiudi', style: 'cancel' }
+          ]
+        );
+        return;
+      }
+
+      // Create shareable content
+      const shareMessage = `🎁 Scopri ${list.name} su DropShop!\n\n` +
+        `${list.product_count} prodotti disponibili con sconti dal ${list.min_discount}% al ${list.max_discount}%!\n\n` +
+        `Più persone della tua città mostrano interesse, più è probabile che si attivi un drop con sconti incredibili! 🔥\n\n` +
+        `Punto di ritiro: ${user.pickupPoint}\n\n` +
+        `Unisciti a noi e approfitta delle migliori offerte!`;
+
+      // Share using native share dialog
+      await Sharing.shareAsync('data:text/plain;base64,' + btoa(shareMessage), {
+        mimeType: 'text/plain',
+        dialogTitle: `Condividi ${list.name}`,
+        UTI: 'public.plain-text',
+      });
+
+      // Track the share
+      await supabase
+        .from('list_shares')
+        .insert({
+          user_id: user.id,
+          supplier_list_id: list.id,
+          pickup_point_id: user.pickupPointId,
+        });
+
+      // Update stats
+      const newStats = { ...gameStats };
+      newStats.lists_shared_today += 1;
+      setGameStats(newStats);
+      await AsyncStorage.setItem(GAME_STATS_KEY, JSON.stringify(newStats));
+
+      // Award points
+      await awardPoints(20, 'list_shared');
+
+      // Update challenge
+      await updateChallengeProgress('4', 1); // Ambasciatore
+
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      
+    } catch (error) {
+      console.error('Error sharing list:', error);
+      Alert.alert('Errore', 'Impossibile condividere la lista. Riprova più tardi.');
+    }
   };
 
   const awardPoints = async (points: number, activityType: string) => {
@@ -592,9 +685,9 @@ export default function GameFeedScreen() {
                   size={32}
                   color="#4CAF50"
                 />
-                <Text style={styles.welcomeFeatureTitle}>Sblocca Coupon</Text>
+                <Text style={styles.welcomeFeatureTitle}>Condividi e Guadagna</Text>
                 <Text style={styles.welcomeFeatureText}>
-                  Usa i punti per riscattare coupon sconto
+                  Condividi le liste con amici per aumentare le possibilità di attivare drop nella tua città
                 </Text>
               </View>
             </View>
@@ -704,7 +797,7 @@ export default function GameFeedScreen() {
               <View key={challenge.id} style={styles.challengeCard}>
                 <View style={styles.challengeHeader}>
                   <IconSymbol
-                    ios_icon_name={challenge.icon === 'explore' ? 'map.fill' : challenge.icon === 'favorite' ? 'heart.fill' : 'star.fill'}
+                    ios_icon_name={challenge.icon === 'explore' ? 'map.fill' : challenge.icon === 'favorite' ? 'heart.fill' : challenge.icon === 'share' ? 'square.and.arrow.up.fill' : 'star.fill'}
                     android_material_icon_name={challenge.icon}
                     size={24}
                     color={challenge.completed ? '#4CAF50' : colors.text}
@@ -766,7 +859,7 @@ export default function GameFeedScreen() {
             </View>
 
             <Text style={styles.sectionSubtitle}>
-              Esplora le liste per vedere i prodotti e mostra interesse con il cuore!
+              Esplora le liste, mostra interesse e condividile con amici per attivare drop nella tua città!
             </Text>
 
             {supplierLists.map((list) => {
@@ -856,6 +949,25 @@ export default function GameFeedScreen() {
                       </Text>
                     </Pressable>
                   </View>
+
+                  {/* Share Button */}
+                  <Pressable
+                    style={({ pressed }) => [
+                      styles.shareButton,
+                      pressed && styles.buttonPressed,
+                    ]}
+                    onPress={() => handleListShare(list)}
+                  >
+                    <IconSymbol
+                      ios_icon_name="square.and.arrow.up"
+                      android_material_icon_name="share"
+                      size={20}
+                      color={colors.primary}
+                    />
+                    <Text style={styles.shareButtonText}>
+                      Condividi con Amici (+20 punti)
+                    </Text>
+                  </Pressable>
                 </View>
               );
             })}
@@ -874,8 +986,9 @@ export default function GameFeedScreen() {
               <Text style={styles.infoText}>
                 • Tocca "Esplora Prodotti" per vedere i prodotti di una lista (+10 punti){'\n'}
                 • Tocca il cuore per mostrare interesse (+5 punti){'\n'}
+                • Condividi le liste con amici e parenti (+20 punti){'\n'}
                 • Completa le sfide giornaliere per punti bonus{'\n'}
-                • Le tue scelte aiutano a decidere quali drop attivare!
+                • Più persone coinvolgi, più è probabile attivare un drop nella tua città!
               </Text>
             </View>
           </View>
@@ -1155,6 +1268,7 @@ const styles = StyleSheet.create({
   listActions: {
     flexDirection: 'row',
     gap: 8,
+    marginBottom: 8,
   },
   exploreButton: {
     flex: 1,
@@ -1195,6 +1309,23 @@ const styles = StyleSheet.create({
   },
   interestButtonTextActive: {
     color: '#FFF',
+  },
+  shareButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: colors.background,
+    borderWidth: 2,
+    borderColor: colors.primary,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+  },
+  shareButtonText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.primary,
   },
   buttonPressed: {
     opacity: 0.7,
