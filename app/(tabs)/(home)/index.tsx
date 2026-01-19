@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { View, StyleSheet, Dimensions, Platform, Text, Pressable, Alert, Animated, ActivityIndicator, ScrollView } from 'react-native';
+import { View, StyleSheet, Dimensions, Platform, Text, Pressable, Alert, Animated, ActivityIndicator, ScrollView, Modal } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Stack, router } from 'expo-router';
 import { colors } from '@/styles/commonStyles';
@@ -36,6 +36,7 @@ interface GameStats {
   points_earned_this_month: number;
   last_played: string;
   last_week_start: string;
+  last_month_start?: string;
   explored_list_ids: string[];
 }
 
@@ -99,6 +100,9 @@ export default function GameFeedScreen() {
   const [showRewardAnimation, setShowRewardAnimation] = useState(false);
   const [rewardAmount, setRewardAmount] = useState(0);
   const [showWelcome, setShowWelcome] = useState(false);
+  const [showMissedWeekModal, setShowMissedWeekModal] = useState(false);
+  const [missedWeeksCount, setMissedWeeksCount] = useState(0);
+  const [previousStreak, setPreviousStreak] = useState(0);
   
   const rewardAnim = useRef(new Animated.Value(0)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -203,19 +207,46 @@ export default function GameFeedScreen() {
         
         // Check if we're in a new week
         if (stats.last_week_start !== currentWeekStart) {
-          console.log('New week detected, resetting weekly stats');
+          console.log('New week detected, checking streak status');
           
-          // Check if streak should continue (last played was last week)
+          // Calculate how many weeks have passed
           const lastWeekStart = new Date(stats.last_week_start);
           const thisWeekStart = new Date(currentWeekStart);
           const weeksDiff = Math.floor((thisWeekStart.getTime() - lastWeekStart.getTime()) / (1000 * 60 * 60 * 24 * 7));
           
-          if (weeksDiff === 1 && stats.points_earned_this_week > 0) {
-            // Continue streak if they played last week
+          console.log(`Weeks difference: ${weeksDiff}`);
+          
+          // Check if user participated last week (earned any points)
+          const participatedLastWeek = stats.points_earned_this_week > 0;
+          
+          if (weeksDiff === 1 && participatedLastWeek) {
+            // User played last week, continue streak
+            console.log('User played last week, continuing streak');
             stats.weekly_streak += 1;
           } else if (weeksDiff > 1) {
-            // Reset streak if more than a week has passed
-            stats.weekly_streak = 1;
+            // User missed one or more weeks, reset streak
+            console.log(`User missed ${weeksDiff - 1} week(s), resetting streak`);
+            
+            // Show missed week modal if they had a streak
+            if (stats.weekly_streak > 0) {
+              setPreviousStreak(stats.weekly_streak);
+              setMissedWeeksCount(weeksDiff - 1);
+              setShowMissedWeekModal(true);
+            }
+            
+            // Reset streak to 0 (will become 1 when they play this week)
+            stats.weekly_streak = 0;
+          } else if (weeksDiff === 1 && !participatedLastWeek) {
+            // User didn't participate last week, reset streak
+            console.log('User did not participate last week, resetting streak');
+            
+            if (stats.weekly_streak > 0) {
+              setPreviousStreak(stats.weekly_streak);
+              setMissedWeeksCount(1);
+              setShowMissedWeekModal(true);
+            }
+            
+            stats.weekly_streak = 0;
           }
           
           // Reset weekly counters
@@ -628,6 +659,12 @@ export default function GameFeedScreen() {
       const newStats = { ...gameStats };
       newStats.points_earned_this_week = (newStats.points_earned_this_week || 0) + points;
       newStats.points_earned_this_month = (newStats.points_earned_this_month || 0) + points;
+      
+      // If this is the first activity this week, start the streak
+      if (newStats.points_earned_this_week === points && newStats.weekly_streak === 0) {
+        newStats.weekly_streak = 1;
+      }
+      
       setGameStats(newStats);
       await AsyncStorage.setItem(GAME_STATS_KEY, JSON.stringify(newStats));
 
@@ -752,6 +789,10 @@ export default function GameFeedScreen() {
   const handleNotifications = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push('/(tabs)/notifications');
+  };
+
+  const closeMissedWeekModal = () => {
+    setShowMissedWeekModal(false);
   };
 
   // Pulse animation for streak
@@ -1250,6 +1291,8 @@ export default function GameFeedScreen() {
               <Text style={styles.infoText}>
                 • Completa le sfide una alla volta per sbloccare la successiva{'\n'}
                 • Ogni settimana puoi partecipare una volta{'\n'}
+                • Se salti una settimana, la tua striscia si azzera{'\n'}
+                • I punti mensili vengono sempre preservati{'\n'}
                 • A fine mese i punti vengono trasferiti al programma fedeltà{'\n'}
                 • Condividi le liste per aumentare le possibilità di attivare drop!
               </Text>
@@ -1289,6 +1332,84 @@ export default function GameFeedScreen() {
             </View>
           </Animated.View>
         )}
+
+        {/* Missed Week Modal */}
+        <Modal
+          visible={showMissedWeekModal}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={closeMissedWeekModal}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalIcon}>
+                <IconSymbol
+                  ios_icon_name="exclamationmark.triangle.fill"
+                  android_material_icon_name="warning"
+                  size={64}
+                  color="#FF9800"
+                />
+              </View>
+
+              <Text style={styles.modalTitle}>Striscia Persa</Text>
+              
+              <Text style={styles.modalMessage}>
+                {missedWeeksCount === 1 
+                  ? 'Non hai partecipato al gioco la settimana scorsa.'
+                  : `Non hai partecipato al gioco per ${missedWeeksCount} settimane.`}
+              </Text>
+
+              <View style={styles.modalStats}>
+                <View style={styles.modalStatItem}>
+                  <Text style={styles.modalStatLabel}>Striscia Precedente</Text>
+                  <View style={styles.modalStatValue}>
+                    <IconSymbol
+                      ios_icon_name="flame.fill"
+                      android_material_icon_name="local_fire_department"
+                      size={24}
+                      color="#FF6B35"
+                    />
+                    <Text style={styles.modalStatNumber}>{previousStreak}</Text>
+                  </View>
+                </View>
+
+                <View style={styles.modalStatDivider} />
+
+                <View style={styles.modalStatItem}>
+                  <Text style={styles.modalStatLabel}>Striscia Attuale</Text>
+                  <View style={styles.modalStatValue}>
+                    <IconSymbol
+                      ios_icon_name="flame.fill"
+                      android_material_icon_name="local_fire_department"
+                      size={24}
+                      color={colors.textSecondary}
+                    />
+                    <Text style={styles.modalStatNumber}>0</Text>
+                  </View>
+                </View>
+              </View>
+
+              <View style={styles.modalInfoBox}>
+                <IconSymbol
+                  ios_icon_name="info.circle.fill"
+                  android_material_icon_name="info"
+                  size={20}
+                  color={colors.info}
+                />
+                <Text style={styles.modalInfoText}>
+                  Non preoccuparti! I tuoi punti mensili sono stati preservati. Ricomincia a giocare questa settimana per ricostruire la tua striscia!
+                </Text>
+              </View>
+
+              <Pressable
+                style={styles.modalButton}
+                onPress={closeMissedWeekModal}
+              >
+                <Text style={styles.modalButtonText}>Ricomincia a Giocare!</Text>
+              </Pressable>
+            </View>
+          </View>
+        </Modal>
       </View>
     </>
   );
@@ -1735,6 +1856,110 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   welcomeButtonText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#FFF',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  modalContent: {
+    backgroundColor: colors.card,
+    borderRadius: 24,
+    padding: 32,
+    width: '100%',
+    maxWidth: 400,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 10,
+  },
+  modalIcon: {
+    marginBottom: 24,
+  },
+  modalTitle: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: colors.text,
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  modalMessage: {
+    fontSize: 16,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 24,
+    marginBottom: 32,
+  },
+  modalStats: {
+    flexDirection: 'row',
+    width: '100%',
+    marginBottom: 24,
+    backgroundColor: colors.background,
+    borderRadius: 16,
+    padding: 20,
+  },
+  modalStatItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  modalStatLabel: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  modalStatValue: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  modalStatNumber: {
+    fontSize: 32,
+    fontWeight: '800',
+    color: colors.text,
+  },
+  modalStatDivider: {
+    width: 1,
+    backgroundColor: colors.border,
+    marginHorizontal: 16,
+  },
+  modalInfoBox: {
+    flexDirection: 'row',
+    backgroundColor: colors.info + '10',
+    borderWidth: 1,
+    borderColor: colors.info + '30',
+    borderRadius: 12,
+    padding: 16,
+    gap: 12,
+    marginBottom: 24,
+  },
+  modalInfoText: {
+    flex: 1,
+    fontSize: 14,
+    color: colors.textSecondary,
+    lineHeight: 20,
+  },
+  modalButton: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: 32,
+    paddingVertical: 16,
+    borderRadius: 16,
+    width: '100%',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  modalButtonText: {
     fontSize: 18,
     fontWeight: '700',
     color: '#FFF',
