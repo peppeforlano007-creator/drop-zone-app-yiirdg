@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { View, Text, Image, StyleSheet, Pressable, Dimensions, Alert, ActivityIndicator, Animated, Platform } from 'react-native';
+import { View, Text, Image, StyleSheet, Pressable, Dimensions, Alert, ActivityIndicator, Animated } from 'react-native';
 import { IconSymbol } from './IconSymbol';
 import { colors } from '@/styles/commonStyles';
 import { Product, ProductVariant } from '@/types/Product';
@@ -269,7 +269,7 @@ export default function ProductCard({
       case 'nuovo':
         return { ios: 'sparkles', android: 'star' };
       case 'reso da cliente':
-        return { ios: 'arrow.uturn.backward', android: 'undo' };
+        return { ios: 'arrow.uturn.backward', android: 'keyboard_return' };
       case 'packaging rovinato':
         return { ios: 'exclamationmark.triangle', android: 'warning' };
       default:
@@ -583,7 +583,7 @@ const styles = StyleSheet.create({
   },
   imageWrapper: {
     width: '100%',
-    height: '55%',
+    height: '60%',
     position: 'absolute',
     top: 0,
     backgroundColor: colors.backgroundSecondary,
@@ -676,14 +676,14 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    height: '47%',
+    height: '42%',
     backgroundColor: 'rgba(255, 255, 255, 0.97)',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
   },
   content: {
     padding: 14,
-    paddingBottom: Platform.OS === 'android' ? 160 : 140,
+    paddingBottom: 110,
   },
   productName: {
     fontSize: 17,

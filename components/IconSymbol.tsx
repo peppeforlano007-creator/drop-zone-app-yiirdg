@@ -18,7 +18,7 @@ const MAPPING = {
 
   // Navigation & Home
   "house.fill": "home",
-  "house": "home",
+  "house": "home-outlined",
   "arrow.left": "arrow-back",
   "arrow.right": "arrow-forward",
   "arrow.up": "arrow-upward",
@@ -32,13 +32,13 @@ const MAPPING = {
 
   // Communication & Social
   "paperplane.fill": "send",
-  "paperplane": "send",
+  "paperplane": "send-outlined",
   "envelope.fill": "mail",
-  "envelope": "mail",
+  "envelope": "mail-outline",
   "phone.fill": "phone",
-  "phone": "phone",
+  "phone": "phone-outlined",
   "message.fill": "chat",
-  "message": "chat-bubble",
+  "message": "chat-bubble-outline",
   "bell.fill": "notifications",
   "bell": "notifications-none",
   "heart.fill": "favorite",
@@ -56,8 +56,6 @@ const MAPPING = {
   "multiply": "clear",
   "trash.fill": "delete",
   "trash": "delete-outline",
-  "xmark.circle.fill": "cancel",
-  "xmark.circle": "cancel",
 
   // Editing & Creation
   "pencil": "edit",
@@ -72,12 +70,12 @@ const MAPPING = {
 
   // Media & Content
   "photo.fill": "image",
-  "photo": "broken-image",
+  "photo": "image",
   "photo.stack": "collections",
   "camera.fill": "camera-alt",
   "camera": "camera-alt",
   "video.fill": "videocam",
-  "video": "videocam",
+  "video": "videocam-off",
   "music.note": "music-note",
   "speaker.wave.2.fill": "volume-up",
   "speaker.slash.fill": "volume-off",
@@ -88,31 +86,25 @@ const MAPPING = {
   // System & Settings
   "gear": "settings",
   "gearshape.fill": "settings",
-  "gear.circle.fill": "settings",
   "slider.horizontal.3": "tune",
   "info.circle.fill": "info",
-  "info.circle": "info",
+  "info.circle": "info-outlined",
   "exclamationmark.triangle.fill": "warning",
-  "exclamationmark.triangle": "warning",
+  "exclamationmark.triangle": "warning-amber",
   "questionmark.circle.fill": "help",
-  "questionmark.circle": "help",
-  "shield.fill": "shield",
-  "shield": "shield",
+  "questionmark.circle": "help-outline",
 
   // Shapes & Symbols
-  "square": "crop-square",
+  "square": "square",
   "square.grid.3x3": "apps",
   "circle": "circle",
   "triangle.fill": "change-history",
   "star.fill": "star",
   "star": "star-border",
-  "star.circle.fill": "stars",
   "bookmark.fill": "bookmark",
   "bookmark": "bookmark-border",
-  "sparkles": "auto-awesome",
+  "sparkles": "star",
   "tray": "inbox",
-  "flame.fill": "local-fire-department",
-  "flame": "local-fire-department",
 
   // Technology & Code
   "chevron.left.forwardslash.chevron.right": "code",
@@ -126,29 +118,26 @@ const MAPPING = {
 
   // Shopping & Commerce
   "cart.fill": "shopping-cart",
-  "cart": "shopping-cart",
+  "cart": "shopping-cart-outlined",
   "creditcard.fill": "credit-card",
   "creditcard": "credit-card",
   "dollarsign.circle.fill": "monetization-on",
   "bag.fill": "shopping-bag",
   "bag": "shopping-bag",
   "cube.box": "inventory-2",
-  "cube.box.fill": "inventory",
-  "ticket.fill": "local-offer",
-  "ticket": "local-offer",
 
   // Location & Maps
   "location.fill": "location-on",
   "location": "location-on",
-  "mappin": "place",
-  "mappin.circle": "place",
-  "mappin.circle.fill": "place",
+  "mappin": "location-on",
+  "mappin.circle": "location-on",
+  "mappin.circle.fill": "location-on",
   "map.fill": "map",
   "map": "map",
   "compass.drawing": "explore",
 
   // Time & Calendar
-  "clock.fill": "schedule",
+  "clock.fill": "access-time",
   "clock": "access-time",
   "calendar": "event",
   "timer": "timer",
@@ -187,15 +176,10 @@ const MAPPING = {
   // Product & Inventory
   "ruler": "straighten",
   "paintpalette": "palette",
-  "arrow.uturn.backward": "undo",
-  "arrow.uturn.backward.circle.fill": "undo",
+  "arrow.uturn.backward": "keyboard-return",
   "tag": "label",
   "building.2": "store",
   "wrench.and.screwdriver.fill": "build",
-  
-  // Additional mappings for missing icons
-  "list.bullet": "list",
-  "list.bullet.rectangle": "view-list",
 } as Partial<
   Record<
     import("expo-symbols").SymbolViewProps["name"],
@@ -235,16 +219,8 @@ export function IconSymbol({
   const materialIconName = android_material_icon_name || (iconName ? MAPPING[iconName as IconSymbolName] : undefined);
 
   if (!materialIconName) {
-    console.warn(`IconSymbol: No mapping found for icon "${iconName}". Using default icon. Please add mapping to IconSymbol.tsx`);
-    // Return a default icon instead of null to avoid blank spaces
-    return (
-      <MaterialIcons
-        color={color}
-        size={size}
-        name="help-outline"
-        style={style as StyleProp<TextStyle>}
-      />
-    );
+    console.warn(`IconSymbol: No mapping found for icon "${iconName}"`);
+    return null;
   }
 
   return (
