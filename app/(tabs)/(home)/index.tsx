@@ -1,21 +1,15 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { View, StyleSheet, FlatList, Dimensions, Platform, Text, Pressable, Alert, Animated, ActivityIndicator } from 'react-native';
+import { View, StyleSheet, Dimensions, Platform, Text, Pressable, Alert, Animated, ActivityIndicator, ScrollView } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Stack, router } from 'expo-router';
 import { colors } from '@/styles/commonStyles';
-import ProductCard from '@/components/ProductCard';
-import { Product, ProductVariant } from '@/types/Product';
 import { IconSymbol } from '@/components/IconSymbol';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/app/integrations/supabase/client';
 import * as Haptics from 'expo-haptics';
-import FeedWelcomeModal from '@/components/FeedWelcomeModal';
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
-
-// PERFORMANCE OPTIMIZATION: Batch size for loading variants
-const VARIANT_BATCH_SIZE = 50;
 
 interface SupplierList {
   id: string;
@@ -26,735 +20,390 @@ interface SupplierList {
   max_discount: number;
   min_reservation_value: number;
   max_reservation_value: number;
+  product_count: number;
 }
 
-interface ProductList {
-  listId: string;
-  listName: string;
-  supplierName: string;
-  products: Product[];
-  minDiscount: number;
-  maxDiscount: number;
-  minReservationValue: number;
-  maxReservationValue: number;
+interface GameStats {
+  daily_streak: number;
+  total_discoveries: number;
+  lists_explored: number;
+  points_earned_today: number;
+  last_played: string;
 }
 
-const WELCOME_MODAL_KEY = 'feed_welcome_modal_shown';
+interface Challenge {
+  id: string;
+  title: string;
+  description: string;
+  icon: string;
+  progress: number;
+  target: number;
+  reward: number;
+  completed: boolean;
+}
 
-export default function HomeScreen() {
+const WELCOME_MODAL_KEY = 'game_welcome_shown';
+const GAME_STATS_KEY = 'game_stats';
+const LAST_CHALLENGE_DATE_KEY = 'last_challenge_date';
+
+export default function GameFeedScreen() {
   const { logout, user } = useAuth();
-  const [interestedProducts, setInterestedProducts] = useState<Set<string>>(new Set());
-  const [wishlistProducts, setWishlistProducts] = useState<Set<string>>(new Set());
-  const [currentListIndex, setCurrentListIndex] = useState(0);
-  const [currentProductIndex, setCurrentProductIndex] = useState(0);
-  const [productLists, setProductLists] = useState<ProductList[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [bannerDismissed, setBannerDismissed] = useState<Record<string, boolean>>({});
-  const [processingInterests, setProcessingInterests] = useState<Set<string>>(new Set());
+  const [supplierLists, setSupplierLists] = useState<SupplierList[]>([]);
+  const [gameStats, setGameStats] = useState<GameStats>({
+    daily_streak: 0,
+    total_discoveries: 0,
+    lists_explored: 0,
+    points_earned_today: 0,
+    last_played: new Date().toISOString().split('T')[0],
+  });
+  const [dailyChallenges, setDailyChallenges] = useState<Challenge[]>([]);
+  const [selectedLists, setSelectedLists] = useState<Set<string>>(new Set());
   const [unreadNotifications, setUnreadNotifications] = useState(0);
-  const [showWelcomeModal, setShowWelcomeModal] = useState(false);
-  const [showWishlistTip, setShowWishlistTip] = useState(false);
-  const [loadingProgress, setLoadingProgress] = useState('');
-  const listFlatListRef = useRef<FlatList>(null);
-  const productFlatListRef = useRef<FlatList>(null);
-  const progressAnim = useRef(new Animated.Value(0)).current;
-  const bannerOpacity = useRef(new Animated.Value(0)).current;
+  const [showRewardAnimation, setShowRewardAnimation] = useState(false);
+  const [rewardAmount, setRewardAmount] = useState(0);
+  const [showWelcome, setShowWelcome] = useState(false);
+  
+  const rewardAnim = useRef(new Animated.Value(0)).current;
+  const pulseAnim = useRef(new Animated.Value(1)).current;
 
-  // Check if welcome modal should be shown
+  // Load game data
   useEffect(() => {
-    const checkWelcomeModal = async () => {
-      try {
-        const hasShown = await AsyncStorage.getItem(WELCOME_MODAL_KEY);
-        if (!hasShown) {
-          setTimeout(() => {
-            setShowWelcomeModal(true);
-          }, 1000);
-        }
-      } catch (error) {
-        console.error('Error checking welcome modal state:', error);
-      }
-    };
-
-    checkWelcomeModal();
+    loadGameData();
+    loadUnreadNotifications();
+    checkWelcomeScreen();
   }, []);
 
-  const handleCloseWelcomeModal = async () => {
+  const checkWelcomeScreen = async () => {
+    try {
+      const hasShown = await AsyncStorage.getItem(WELCOME_MODAL_KEY);
+      if (!hasShown) {
+        setShowWelcome(true);
+      }
+    } catch (error) {
+      console.error('Error checking welcome screen:', error);
+    }
+  };
+
+  const closeWelcome = async () => {
     try {
       await AsyncStorage.setItem(WELCOME_MODAL_KEY, 'true');
-      setShowWelcomeModal(false);
+      setShowWelcome(false);
     } catch (error) {
-      console.error('Error saving welcome modal state:', error);
-      setShowWelcomeModal(false);
+      console.error('Error saving welcome state:', error);
     }
   };
 
-  const handleOpenWelcomeModal = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setShowWelcomeModal(true);
-  };
-
-  // PERFORMANCE OPTIMIZATION: Load variants in batches to avoid URL length limits
-  const loadVariantsInBatches = async (productIds: string[]) => {
-    console.log(`📦 Loading variants for ${productIds.length} products in batches of ${VARIANT_BATCH_SIZE}`);
-    
-    const allVariants: any[] = [];
-    const batches = Math.ceil(productIds.length / VARIANT_BATCH_SIZE);
-    
-    for (let i = 0; i < batches; i++) {
-      const start = i * VARIANT_BATCH_SIZE;
-      const end = Math.min(start + VARIANT_BATCH_SIZE, productIds.length);
-      const batchIds = productIds.slice(start, end);
-      
-      console.log(`   Batch ${i + 1}/${batches}: Loading variants for ${batchIds.length} products`);
-      setLoadingProgress(`Caricamento varianti ${i + 1}/${batches}...`);
-      
-      try {
-        const { data, error } = await supabase
-          .from('product_variants')
-          .select('*')
-          .in('product_id', batchIds)
-          .gt('stock', 0);
-
-        if (error) {
-          console.warn(`⚠️  Error loading variant batch ${i + 1} (non-fatal):`, error.message);
-          continue;
-        }
-
-        if (data && data.length > 0) {
-          allVariants.push(...data);
-          console.log(`   ✅ Batch ${i + 1}: Loaded ${data.length} variants`);
-        }
-      } catch (error) {
-        console.error(`❌ Exception loading variant batch ${i + 1}:`, error);
-      }
-    }
-    
-    console.log(`✅ Total variants loaded: ${allVariants.length}`);
-    return allVariants;
-  };
-
-  const loadProducts = useCallback(async () => {
+  const loadGameData = async () => {
     try {
-      console.log('\n╔════════════════════════════════════════════════════════════════╗');
-      console.log('║  🚀 FEED LOADING - MULTI-LIST NAVIGATION FIX                  ║');
-      console.log('╚════════════════════════════════════════════════════════════════╝');
-      console.log('⏰ Timestamp:', new Date().toISOString());
-      console.log('👤 User:', user?.email || 'Not logged in');
-      
-      setError(null);
+      console.log('🎮 Loading game data...');
       setLoading(true);
-      setLoadingProgress('Caricamento liste fornitori...');
-      
-      // ═══════════════════════════════════════════════════════════════════
-      // STEP 1: FETCH ACTIVE SUPPLIER LISTS
-      // ═══════════════════════════════════════════════════════════════════
-      console.log('\n┌─ STEP 1: Fetching Active Supplier Lists ─────────────────────┐');
-      
-      const { data: supplierLists, error: listsError } = await supabase
+
+      // Load supplier lists with product counts
+      const { data: lists, error: listsError } = await supabase
         .from('supplier_lists')
-        .select('*')
+        .select(`
+          id,
+          name,
+          supplier_id,
+          min_discount,
+          max_discount,
+          min_reservation_value,
+          max_reservation_value,
+          products!inner(id)
+        `)
         .eq('status', 'active')
-        .order('created_at', { ascending: false });
+        .gt('products.stock', 0)
+        .eq('products.status', 'active');
 
-      if (listsError) {
-        throw new Error(`Failed to fetch supplier lists: ${listsError.message}`);
-      }
+      if (listsError) throw listsError;
 
-      if (!supplierLists || supplierLists.length === 0) {
-        console.log('⚠️  No active supplier lists found');
-        console.log('└───────────────────────────────────────────────────────────────┘\n');
-        setProductLists([]);
-        setLoading(false);
-        setLoadingProgress('');
-        return;
-      }
-
-      console.log(`✅ Found ${supplierLists.length} active supplier lists:`);
-      supplierLists.forEach((list, idx) => {
-        console.log(`   ${idx + 1}. "${list.name}" (ID: ${list.id.substring(0, 8)}...)`);
-      });
-      console.log('└───────────────────────────────────────────────────────────────┘\n');
-
-      // ═══════════════════════════════════════════════════════════════════
-      // STEP 2: FETCH SUPPLIER PROFILES
-      // ═══════════════════════════════════════════════════════════════════
-      console.log('┌─ STEP 2: Fetching Supplier Profiles ─────────────────────────┐');
-      setLoadingProgress('Caricamento profili fornitori...');
-      
-      const supplierIds = supplierLists.map(list => list.supplier_id);
-      const { data: profiles, error: profilesError } = await supabase
+      // Get supplier names
+      const supplierIds = [...new Set(lists?.map(l => l.supplier_id) || [])];
+      const { data: profiles } = await supabase
         .from('profiles')
         .select('user_id, full_name')
         .in('user_id', supplierIds);
 
-      if (profilesError) {
-        console.warn('⚠️  Error loading profiles (non-fatal):', profilesError.message);
-      }
-
       const profilesMap = new Map(profiles?.map(p => [p.user_id, p.full_name]) || []);
-      console.log(`✅ Loaded ${profiles?.length || 0} supplier profiles`);
-      console.log('└───────────────────────────────────────────────────────────────┘\n');
 
-      // ═══════════════════════════════════════════════════════════════════
-      // STEP 3: FETCH PRODUCTS WITH STOCK (OPTIMIZED)
-      // ═══════════════════════════════════════════════════════════════════
-      console.log('┌─ STEP 3: Fetching Products with Stock (OPTIMIZED) ───────────┐');
-      setLoadingProgress('Caricamento prodotti...');
-      
-      const listIds = supplierLists.map(list => list.id);
-      
-      // PERFORMANCE: Select only essential fields to reduce data transfer
-      const { data: products, error: productsError } = await supabase
-        .from('products')
-        .select('id, name, description, brand, sku, image_url, additional_images, original_price, available_sizes, available_colors, condition, category, stock, supplier_list_id, supplier_id, status, created_at')
-        .in('supplier_list_id', listIds)
-        .gt('stock', 0)
-        .eq('status', 'active')
-        .order('created_at', { ascending: false });
-
-      if (productsError) {
-        throw new Error(`Failed to fetch products: ${productsError.message}`);
-      }
-
-      console.log(`✅ Loaded ${products?.length || 0} products with stock > 0`);
-      
-      if (!products || products.length === 0) {
-        console.log('⚠️  No products with stock found');
-        console.log('└───────────────────────────────────────────────────────────────┘\n');
-        setProductLists([]);
-        setLoading(false);
-        setLoadingProgress('');
-        return;
-      }
-
-      // Log products per list
-      const productsPerList = new Map<string, number>();
-      products.forEach(p => {
-        const count = productsPerList.get(p.supplier_list_id) || 0;
-        productsPerList.set(p.supplier_list_id, count + 1);
-      });
-
-      console.log('\n📊 Products per List:');
-      supplierLists.forEach((list, idx) => {
-        const count = productsPerList.get(list.id) || 0;
-        console.log(`   ${idx + 1}. "${list.name}": ${count} products`);
-      });
-      console.log('└───────────────────────────────────────────────────────────────┘\n');
-
-      // ═══════════════════════════════════════════════════════════════════
-      // STEP 4: LOAD PRODUCT VARIANTS IN BATCHES (OPTIMIZED)
-      // ═══════════════════════════════════════════════════════════════════
-      console.log('┌─ STEP 4: Loading Product Variants (BATCHED) ─────────────────┐');
-      
-      const productIds = products.map(p => p.id);
-      const variants = await loadVariantsInBatches(productIds);
-      
-      console.log('└───────────────────────────────────────────────────────────────┘\n');
-
-      // Create variants map
-      const variantsMap = new Map<string, ProductVariant[]>();
-      if (variants && variants.length > 0) {
-        variants.forEach(v => {
-          if (!variantsMap.has(v.product_id)) {
-            variantsMap.set(v.product_id, []);
-          }
-          variantsMap.get(v.product_id)!.push({
-            id: v.id,
-            productId: v.product_id,
-            size: v.size || undefined,
-            color: v.color || undefined,
-            stock: v.stock || 0,
-            status: v.status || 'active',
+      // Count products per list
+      const listsWithCounts = lists?.reduce((acc: SupplierList[], list: any) => {
+        const productCount = list.products?.length || 0;
+        if (productCount > 0) {
+          acc.push({
+            id: list.id,
+            name: list.name,
+            supplier_id: list.supplier_id,
+            supplier_name: profilesMap.get(list.supplier_id) || 'Fornitore',
+            min_discount: list.min_discount,
+            max_discount: list.max_discount,
+            min_reservation_value: list.min_reservation_value,
+            max_reservation_value: list.max_reservation_value,
+            product_count: productCount,
           });
-        });
-      }
+        }
+        return acc;
+      }, []) || [];
 
-      // ═══════════════════════════════════════════════════════════════════
-      // STEP 5: BUILD PRODUCT LISTS (OPTIMIZED - LAZY LOADING)
-      // ═══════════════════════════════════════════════════════════════════
-      console.log('┌─ STEP 5: Building Product Lists (OPTIMIZED) ─────────────────┐');
-      setLoadingProgress('Preparazione feed...');
-      
-      const finalLists: ProductList[] = [];
+      setSupplierLists(listsWithCounts);
 
-      // Process each supplier list
-      for (const supplierList of supplierLists) {
-        const listProducts = products.filter(p => p.supplier_list_id === supplierList.id);
+      // Load game stats
+      const savedStats = await AsyncStorage.getItem(GAME_STATS_KEY);
+      if (savedStats) {
+        const stats = JSON.parse(savedStats);
+        const today = new Date().toISOString().split('T')[0];
         
-        console.log(`\n📦 Processing "${supplierList.name}":`);
-        console.log(`   • Raw products: ${listProducts.length}`);
-
-        // Skip empty lists
-        if (listProducts.length === 0) {
-          console.log(`   ⚠️  Skipping - no products`);
-          continue;
+        // Check if streak should continue
+        const lastPlayed = new Date(stats.last_played);
+        const todayDate = new Date(today);
+        const daysDiff = Math.floor((todayDate.getTime() - lastPlayed.getTime()) / (1000 * 60 * 60 * 24));
+        
+        if (daysDiff === 1) {
+          // Continue streak
+          stats.daily_streak += 1;
+        } else if (daysDiff > 1) {
+          // Reset streak
+          stats.daily_streak = 1;
         }
-
-        // PERFORMANCE: Transform products with minimal processing
-        const transformedProducts: Product[] = listProducts.map(p => {
-          const productVariants = variantsMap.get(p.id) || [];
-          
-          // PERFORMANCE: Simplified image handling
-          let additionalImages: string[] = [];
-          if (p.additional_images) {
-            if (Array.isArray(p.additional_images)) {
-              additionalImages = p.additional_images.filter(Boolean);
-            }
-          }
-          
-          const imageUrls = [p.image_url, ...additionalImages].filter(Boolean);
-          
-          return {
-            id: p.id,
-            name: p.name,
-            description: p.description || undefined,
-            brand: p.brand || undefined,
-            sku: p.sku || undefined,
-            imageUrl: p.image_url || '',
-            imageUrls: imageUrls,
-            originalPrice: parseFloat(p.original_price),
-            availableSizes: p.available_sizes || [],
-            availableColors: p.available_colors || [],
-            sizes: p.available_sizes || [],
-            colors: p.available_colors || [],
-            condition: p.condition as any,
-            category: p.category || undefined,
-            stock: p.stock,
-            listId: supplierList.id,
-            supplierId: p.supplier_id,
-            supplierName: profilesMap.get(supplierList.supplier_id) || 'Fornitore',
-            minDiscount: supplierList.min_discount || 30,
-            maxDiscount: supplierList.max_discount || 80,
-            minReservationValue: supplierList.min_reservation_value || 5000,
-            maxReservationValue: supplierList.max_reservation_value || 30000,
-            hasVariants: productVariants.length > 0,
-            variants: productVariants,
-          };
-        });
-
-        console.log(`   ✅ Transformed: ${transformedProducts.length} products`);
-
-        // Add to final lists
-        finalLists.push({
-          listId: supplierList.id,
-          listName: supplierList.name,
-          supplierName: profilesMap.get(supplierList.supplier_id) || 'Fornitore',
-          products: transformedProducts,
-          minDiscount: supplierList.min_discount || 30,
-          maxDiscount: supplierList.max_discount || 80,
-          minReservationValue: supplierList.min_reservation_value || 5000,
-          maxReservationValue: supplierList.max_reservation_value || 30000,
-        });
+        
+        // Reset daily points if new day
+        if (stats.last_played !== today) {
+          stats.points_earned_today = 0;
+          stats.last_played = today;
+        }
+        
+        setGameStats(stats);
+        await AsyncStorage.setItem(GAME_STATS_KEY, JSON.stringify(stats));
       }
 
-      console.log('\n└───────────────────────────────────────────────────────────────┘\n');
+      // Generate daily challenges
+      await generateDailyChallenges(listsWithCounts.length);
 
-      // ═══════════════════════════════════════════════════════════════════
-      // FINAL VALIDATION & STATE UPDATE
-      // ═══════════════════════════════════════════════════════════════════
-      console.log('╔════════════════════════════════════════════════════════════════╗');
-      console.log('║  📊 FINAL RESULT & STATE UPDATE                                ║');
-      console.log('╚════════════════════════════════════════════════════════════════╝');
-      console.log(`✅ Active Supplier Lists in DB: ${supplierLists.length}`);
-      console.log(`✅ Lists Being Added to State: ${finalLists.length}`);
-      console.log(`✅ Total Products in Feed: ${finalLists.reduce((sum, l) => sum + l.products.length, 0)}`);
-      
-      console.log('\n📋 Final Lists Being Set:');
-      finalLists.forEach((list, idx) => {
-        console.log(`   ${idx + 1}. "${list.listName}" by ${list.supplierName}`);
-        console.log(`      • Products: ${list.products.length}`);
-        console.log(`      • Discount: ${list.minDiscount}% - ${list.maxDiscount}%`);
-      });
-
-      if (finalLists.length !== supplierLists.length) {
-        console.log('\n⚠️  Some lists were filtered out (no products)');
-      } else {
-        console.log('\n✅ SUCCESS: All active lists with products are included!');
-      }
-      
-      console.log('\n🎯 SETTING STATE NOW...');
-      
-      // CRITICAL: Set the state
-      setProductLists(finalLists);
-      
-      console.log('✅ STATE SET COMPLETE');
-      console.log(`🔢 Total lists in state: ${finalLists.length}`);
-      console.log('\n╚════════════════════════════════════════════════════════════════╝\n');
-      
       setLoading(false);
-      setLoadingProgress('');
-
     } catch (error) {
-      console.error('\n╔════════════════════════════════════════════════════════════════╗');
-      console.error('║  ❌ CRITICAL ERROR                                             ║');
-      console.error('╚════════════════════════════════════════════════════════════════╝');
-      console.error('Error:', error);
-      console.error('Stack:', error instanceof Error ? error.stack : 'No stack trace');
-      setError(`Errore: ${error instanceof Error ? error.message : 'Errore sconosciuto'}`);
+      console.error('Error loading game data:', error);
+      Alert.alert('Errore', 'Impossibile caricare i dati del gioco');
       setLoading(false);
-      setLoadingProgress('');
     }
-  }, [user]);
+  };
 
-  // Log state changes
-  useEffect(() => {
-    console.log('🔄 STATE CHANGE DETECTED:');
-    console.log(`   productLists.length = ${productLists.length}`);
-    console.log(`   currentListIndex = ${currentListIndex}`);
-    if (productLists.length > 0) {
-      console.log('   Lists in state:');
-      productLists.forEach((list, idx) => {
-        console.log(`     ${idx + 1}. "${list.listName}" (${list.products.length} products)`);
-      });
-    }
-  }, [productLists, currentListIndex]);
-
-  // Subscribe to real-time product updates
-  useEffect(() => {
-    console.log('Setting up real-time subscription for product stock updates');
+  const generateDailyChallenges = async (listCount: number) => {
+    const today = new Date().toISOString().split('T')[0];
+    const lastChallengeDate = await AsyncStorage.getItem(LAST_CHALLENGE_DATE_KEY);
     
-    const channel = supabase
-      .channel('home_product_stock_updates')
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'products',
-        },
-        (payload) => {
-          console.log('📡 Product stock update received:', payload);
-          const updatedProduct = payload.new as any;
-          
-          if (updatedProduct.stock <= 0) {
-            console.log('🗑️ Product stock is 0, removing from feed:', updatedProduct.id);
-            
-            setProductLists(prevLists => {
-              const updatedLists = prevLists.map(list => {
-                const filteredProducts = list.products.filter(p => p.id !== updatedProduct.id);
-                return {
-                  ...list,
-                  products: filteredProducts,
-                };
-              }).filter(list => list.products.length > 0);
-              
-              console.log(`✓ Updated lists count: ${updatedLists.length}`);
-              return updatedLists;
-            });
-          } else {
-            console.log('✅ Product stock updated:', updatedProduct.id, 'new stock:', updatedProduct.stock);
-            setProductLists(prevLists => {
-              return prevLists.map(list => {
-                if (list.listId === updatedProduct.supplier_list_id) {
-                  return {
-                    ...list,
-                    products: list.products.map(p => 
-                      p.id === updatedProduct.id 
-                        ? { ...p, stock: updatedProduct.stock }
-                        : p
-                    ),
-                  };
-                }
-                return list;
-              });
-            });
-          }
-        }
-      )
-      .subscribe();
-
-    return () => {
-      console.log('Cleaning up real-time subscription');
-      supabase.removeChannel(channel);
-    };
-  }, []);
-
-  const loadUserInterests = useCallback(async () => {
-    if (!user) return;
-    
-    try {
-      const { data: interests, error } = await supabase
-        .from('user_interests')
-        .select('product_id')
-        .eq('user_id', user.id);
-
-      if (error) {
-        console.error('Error loading user interests:', error);
+    if (lastChallengeDate === today) {
+      // Load existing challenges
+      const savedChallenges = await AsyncStorage.getItem(`challenges_${today}`);
+      if (savedChallenges) {
+        setDailyChallenges(JSON.parse(savedChallenges));
         return;
       }
-
-      if (interests) {
-        const productIds = new Set(interests.map(i => i.product_id));
-        setInterestedProducts(productIds);
-        console.log(`Loaded ${productIds.size} user interests`);
-      }
-    } catch (error) {
-      console.error('Exception loading user interests:', error);
     }
-  }, [user]);
 
-  const loadUserWishlist = useCallback(async () => {
+    // Generate new challenges
+    const challenges: Challenge[] = [
+      {
+        id: '1',
+        title: 'Esploratore Mattutino',
+        description: 'Scopri 3 liste diverse oggi',
+        icon: 'explore',
+        progress: 0,
+        target: 3,
+        reward: 50,
+        completed: false,
+      },
+      {
+        id: '2',
+        title: 'Cacciatore di Offerte',
+        description: 'Mostra interesse per 5 liste',
+        icon: 'favorite',
+        progress: 0,
+        target: 5,
+        reward: 100,
+        completed: false,
+      },
+      {
+        id: '3',
+        title: 'Collezionista',
+        description: `Esplora tutte le ${listCount} liste disponibili`,
+        icon: 'stars',
+        progress: 0,
+        target: listCount,
+        reward: 200,
+        completed: false,
+      },
+    ];
+
+    setDailyChallenges(challenges);
+    await AsyncStorage.setItem(`challenges_${today}`, JSON.stringify(challenges));
+    await AsyncStorage.setItem(LAST_CHALLENGE_DATE_KEY, today);
+  };
+
+  const loadUnreadNotifications = async () => {
     if (!user) return;
     
     try {
-      const { data: wishlist, error } = await supabase
-        .from('wishlists')
-        .select('product_id')
-        .eq('user_id', user.id);
-
-      if (error) {
-        console.error('Error loading user wishlist:', error);
-        return;
-      }
-
-      if (wishlist) {
-        const productIds = new Set(wishlist.map(w => w.product_id));
-        setWishlistProducts(productIds);
-        console.log(`Loaded ${productIds.size} wishlist items`);
-      }
-    } catch (error) {
-      console.error('Exception loading user wishlist:', error);
-    }
-  }, [user]);
-
-  const loadUnreadNotifications = useCallback(async () => {
-    if (!user) return;
-    
-    try {
-      const { count, error } = await supabase
+      const { count } = await supabase
         .from('notifications')
         .select('*', { count: 'exact', head: true })
         .eq('user_id', user.id)
         .eq('read', false);
 
-      if (error) {
-        console.error('Error loading unread notifications count:', error);
-        return;
-      }
-
       setUnreadNotifications(count || 0);
     } catch (error) {
-      console.error('Exception loading unread notifications:', error);
+      console.error('Error loading notifications:', error);
     }
-  }, [user]);
+  };
 
-  useEffect(() => {
-    loadProducts();
-    loadUserInterests();
-    loadUserWishlist();
-    loadUnreadNotifications();
-  }, [loadProducts, loadUserInterests, loadUserWishlist, loadUnreadNotifications]);
-
-  // Subscribe to real-time notification updates
-  useEffect(() => {
-    if (!user) return;
-
-    const channel = supabase
-      .channel('notifications_badge')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'notifications',
-          filter: `user_id=eq.${user.id}`,
-        },
-        () => {
-          loadUnreadNotifications();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [user, loadUnreadNotifications]);
-
-  const currentList = productLists[currentListIndex];
-  const totalProductsInList = currentList?.products.length || 0;
-  const interestedInCurrentList = currentList?.products.filter(p => interestedProducts.has(p.id)).length || 0;
-
-  // Load banner state from AsyncStorage when list changes
-  useEffect(() => {
-    const loadBannerState = async () => {
-      if (!currentList) return;
-      
-      const sessionKey = `banner_dismissed_${currentList.listId}`;
-      
-      try {
-        const dismissed = await AsyncStorage.getItem(sessionKey);
-        setBannerDismissed(prev => ({
-          ...prev,
-          [currentList.listId]: dismissed === 'true'
-        }));
-      } catch (error) {
-        console.error('Error loading banner state:', error);
-      }
-    };
-    
-    loadBannerState();
-  }, [currentList]);
-
-  // Animate banner visibility
-  useEffect(() => {
-    const shouldShowBanner = 
-      currentList && 
-      interestedInCurrentList > 1 && 
-      !bannerDismissed[currentList.listId];
-
-    if (shouldShowBanner) {
-      Animated.timing(bannerOpacity, {
-        toValue: 1,
-        duration: 300,
-        useNativeDriver: true,
-      }).start();
-    } else {
-      Animated.timing(bannerOpacity, {
-        toValue: 0,
-        duration: 200,
-        useNativeDriver: true,
-      }).start();
-    }
-  }, [interestedInCurrentList, currentList, bannerDismissed, bannerOpacity]);
-
-  useEffect(() => {
-    // Animate progress bar
-    Animated.timing(progressAnim, {
-      toValue: totalProductsInList > 0 ? (currentProductIndex + 1) / totalProductsInList : 0,
-      duration: 300,
-      useNativeDriver: false,
-    }).start();
-  }, [currentProductIndex, totalProductsInList, progressAnim]);
-
-  const handleWishlistToggle = async (productId: string) => {
-    if (!user) {
-      Alert.alert('Errore', 'Devi essere registrato per usare la wishlist');
+  const handleListTap = async (list: SupplierList) => {
+    if (!user || !user.pickupPointId) {
+      Alert.alert('Errore', 'Devi essere registrato con un punto di ritiro');
       return;
     }
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    
-    const isCurrentlyInWishlist = wishlistProducts.has(productId);
 
-    try {
-      if (isCurrentlyInWishlist) {
-        const { error } = await supabase
-          .from('wishlists')
-          .delete()
-          .eq('user_id', user.id)
-          .eq('product_id', productId);
+    const isSelected = selectedLists.has(list.id);
+    const newSelected = new Set(selectedLists);
 
-        if (error) {
-          console.error('Error removing from wishlist:', error);
-          Alert.alert('Errore', 'Impossibile rimuovere dalla wishlist');
-          return;
-        }
+    if (isSelected) {
+      newSelected.delete(list.id);
+      
+      // Remove interest
+      await supabase
+        .from('user_interests')
+        .delete()
+        .eq('user_id', user.id)
+        .eq('supplier_list_id', list.id);
+    } else {
+      newSelected.add(list.id);
+      
+      // Add interest for all products in the list
+      const { data: products } = await supabase
+        .from('products')
+        .select('id')
+        .eq('supplier_list_id', list.id)
+        .eq('status', 'active')
+        .gt('stock', 0)
+        .limit(1);
 
-        setWishlistProducts(prev => {
-          const newSet = new Set(prev);
-          newSet.delete(productId);
-          return newSet;
-        });
-      } else {
-        const { error } = await supabase
-          .from('wishlists')
+      if (products && products.length > 0) {
+        await supabase
+          .from('user_interests')
           .insert({
             user_id: user.id,
-            product_id: productId,
-            drop_id: null,
+            product_id: products[0].id,
+            supplier_list_id: list.id,
+            pickup_point_id: user.pickupPointId,
           });
-
-        if (error) {
-          console.error('Error adding to wishlist:', error);
-          Alert.alert('Errore', 'Impossibile aggiungere alla wishlist');
-          return;
-        }
-
-        setWishlistProducts(prev => {
-          const newSet = new Set(prev);
-          newSet.add(productId);
-          return newSet;
-        });
-        
-        if (wishlistProducts.size === 0) {
-          setShowWishlistTip(true);
-        }
       }
-    } catch (error: any) {
-      console.error('Exception handling wishlist:', error);
-      Alert.alert('Errore', 'Si è verificato un errore');
+
+      // Award points
+      const pointsEarned = 10;
+      await awardPoints(pointsEarned, 'list_interest');
+      
+      // Update challenges
+      updateChallengeProgress('2', 1);
+    }
+
+    setSelectedLists(newSelected);
+    
+    // Update stats
+    const newStats = { ...gameStats };
+    if (!isSelected) {
+      newStats.total_discoveries += 1;
+      if (!selectedLists.has(list.id)) {
+        newStats.lists_explored += 1;
+        updateChallengeProgress('1', 1);
+        updateChallengeProgress('3', 1);
+      }
+    }
+    setGameStats(newStats);
+    await AsyncStorage.setItem(GAME_STATS_KEY, JSON.stringify(newStats));
+  };
+
+  const awardPoints = async (points: number, activityType: string) => {
+    if (!user || user.rating_stars < 5) {
+      return;
+    }
+
+    try {
+      // Update user loyalty points
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('loyalty_points')
+        .eq('user_id', user.id)
+        .single();
+
+      const currentPoints = profile?.loyalty_points || 0;
+      const newPoints = currentPoints + points;
+
+      await supabase
+        .from('profiles')
+        .update({ loyalty_points: newPoints })
+        .eq('user_id', user.id);
+
+      // Log activity
+      await supabase
+        .from('user_activity_log')
+        .insert({
+          user_id: user.id,
+          activity_type: activityType,
+          points_earned: points,
+        });
+
+      // Update game stats
+      const newStats = { ...gameStats };
+      newStats.points_earned_today += points;
+      setGameStats(newStats);
+      await AsyncStorage.setItem(GAME_STATS_KEY, JSON.stringify(newStats));
+
+      // Show reward animation
+      setRewardAmount(points);
+      setShowRewardAnimation(true);
+      
+      Animated.sequence([
+        Animated.timing(rewardAnim, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.delay(1500),
+        Animated.timing(rewardAnim, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+      ]).start(() => setShowRewardAnimation(false));
+
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (error) {
+      console.error('Error awarding points:', error);
     }
   };
 
-  const handleInterest = async (productId: string) => {
-    if (!user || !user.pickupPointId) {
-      Alert.alert('Errore', 'Devi essere registrato con un punto di ritiro per mostrare interesse');
-      return;
-    }
-
-    if (processingInterests.has(productId)) {
-      return;
-    }
-
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    
-    const isCurrentlyInterested = interestedProducts.has(productId);
-    const product = currentList?.products.find(p => p.id === productId);
-    
-    if (!product) return;
-
-    setProcessingInterests(prev => new Set(prev).add(productId));
-
-    try {
-      if (isCurrentlyInterested) {
-        const { error } = await supabase
-          .from('user_interests')
-          .delete()
-          .eq('user_id', user.id)
-          .eq('product_id', productId);
-
-        if (error) {
-          console.error('Error removing interest:', error);
-          Alert.alert('Errore', `Impossibile rimuovere l'interesse: ${error.message}`);
-          return;
+  const updateChallengeProgress = async (challengeId: string, increment: number) => {
+    const newChallenges = dailyChallenges.map(challenge => {
+      if (challenge.id === challengeId && !challenge.completed) {
+        const newProgress = Math.min(challenge.progress + increment, challenge.target);
+        const completed = newProgress >= challenge.target;
+        
+        if (completed && !challenge.completed) {
+          // Award challenge reward
+          awardPoints(challenge.reward, 'challenge_completed');
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         }
-
-        setInterestedProducts(prev => {
-          const newSet = new Set(prev);
-          newSet.delete(productId);
-          return newSet;
-        });
-      } else {
-        const { error } = await supabase
-          .from('user_interests')
-          .insert({
-            user_id: user.id,
-            product_id: productId,
-            supplier_list_id: product.listId,
-            pickup_point_id: user.pickupPointId,
-          });
-
-        if (error) {
-          throw error;
-        }
-
-        setInterestedProducts(prev => {
-          const newSet = new Set(prev);
-          newSet.add(productId);
-          return newSet;
-        });
+        
+        return { ...challenge, progress: newProgress, completed };
       }
-    } catch (error: any) {
-      console.error('Exception handling interest:', error);
-      Alert.alert('Errore', `Impossibile gestire l'interesse: ${error.message}`);
-    } finally {
-      setProcessingInterests(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(productId);
-        return newSet;
-      });
-    }
+      return challenge;
+    });
+
+    setDailyChallenges(newChallenges);
+    
+    const today = new Date().toISOString().split('T')[0];
+    await AsyncStorage.setItem(`challenges_${today}`, JSON.stringify(newChallenges));
   };
 
   const handleLogout = () => {
@@ -781,224 +430,145 @@ export default function HomeScreen() {
     router.push('/(tabs)/notifications');
   };
 
-  const handleNextList = () => {
-    if (currentListIndex < productLists.length - 1) {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      const nextIndex = currentListIndex + 1;
-      console.log(`→ Switching to list ${nextIndex + 1}/${productLists.length}: "${productLists[nextIndex].listName}"`);
-      
-      setCurrentListIndex(nextIndex);
-      setCurrentProductIndex(0);
-      
-      setTimeout(() => {
-        try {
-          if (listFlatListRef.current) {
-            listFlatListRef.current.scrollToOffset({
-              offset: SCREEN_WIDTH * nextIndex,
-              animated: true,
-            });
-          }
-        } catch (error) {
-          console.error('Error scrolling to next list:', error);
-        }
-      }, 100);
-    }
-  };
-
-  const handlePreviousList = () => {
-    if (currentListIndex > 0) {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      const prevIndex = currentListIndex - 1;
-      console.log(`← Switching to list ${prevIndex + 1}/${productLists.length}: "${productLists[prevIndex].listName}"`);
-      
-      setCurrentListIndex(prevIndex);
-      setCurrentProductIndex(0);
-      
-      setTimeout(() => {
-        try {
-          if (listFlatListRef.current) {
-            listFlatListRef.current.scrollToOffset({
-              offset: SCREEN_WIDTH * prevIndex,
-              animated: true,
-            });
-          }
-        } catch (error) {
-          console.error('Error scrolling to previous list:', error);
-        }
-      }, 100);
-    }
-  };
-
-  const handleProductScroll = (event: any) => {
-    const offsetY = event.nativeEvent.contentOffset.y;
-    const index = Math.round(offsetY / SCREEN_HEIGHT);
-    if (index !== currentProductIndex && index >= 0 && index < totalProductsInList) {
-      setCurrentProductIndex(index);
-    }
-  };
-
-  const handleRetry = () => {
-    console.log('Retrying product load...');
-    setError(null);
-    loadProducts();
-  };
-
-  const handleGoToAdmin = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    router.push('/admin/testing');
-  };
-
-  const handleDismissBanner = async () => {
-    if (!currentList) return;
-    
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    
-    setBannerDismissed(prev => ({
-      ...prev,
-      [currentList.listId]: true
-    }));
-    
-    const sessionKey = `banner_dismissed_${currentList.listId}`;
-    try {
-      await AsyncStorage.setItem(sessionKey, 'true');
-    } catch (error) {
-      console.error('Error saving banner state:', error);
-    }
-  };
-
-  const renderList = ({ item, index }: { item: ProductList; index: number }) => {
-    const isCurrentList = index === currentListIndex;
-    
-    // Handle empty lists
-    if (item.products.length === 0) {
-      return (
-        <View style={styles.listContainer}>
-          <View style={[styles.container, styles.centerContent]}>
-            <IconSymbol 
-              ios_icon_name="tray" 
-              android_material_icon_name="inbox" 
-              size={80} 
-              color={colors.textTertiary} 
-            />
-            <Text style={styles.emptyTitle}>Lista Vuota</Text>
-            <Text style={styles.emptyText}>
-              La lista &quot;{item.listName}&quot; non ha prodotti disponibili al momento.
-            </Text>
-          </View>
-        </View>
-      );
-    }
-    
-    return (
-      <View style={styles.listContainer}>
-        <FlatList
-          ref={isCurrentList ? productFlatListRef : null}
-          data={item.products}
-          renderItem={({ item: product }) => (
-            <ProductCard
-              product={product}
-              onInterest={handleInterest}
-              isInterested={interestedProducts.has(product.id)}
-            />
-          )}
-          keyExtractor={(product) => product.id}
-          pagingEnabled
-          showsVerticalScrollIndicator={false}
-          snapToInterval={SCREEN_HEIGHT}
-          snapToAlignment="start"
-          decelerationRate="fast"
-          getItemLayout={(_, productIndex) => ({
-            length: SCREEN_HEIGHT,
-            offset: SCREEN_HEIGHT * productIndex,
-            index: productIndex,
-          })}
-          removeClippedSubviews={true}
-          maxToRenderPerBatch={2}
-          windowSize={3}
-          initialNumToRender={1}
-          onScroll={isCurrentList ? handleProductScroll : undefined}
-          scrollEventThrottle={16}
-          scrollEnabled={isCurrentList}
-        />
-      </View>
-    );
-  };
-
-  const getItemLayout = (_: any, index: number) => ({
-    length: SCREEN_WIDTH,
-    offset: SCREEN_WIDTH * index,
-    index,
-  });
+  // Pulse animation for streak
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1.1,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+  }, []);
 
   if (loading) {
     return (
       <>
         <Stack.Screen options={{ headerShown: false }} />
         <View style={[styles.container, styles.centerContent]}>
-          <ActivityIndicator size="large" color={colors.text} />
-          <Text style={styles.loadingText}>
-            {loadingProgress || 'Caricamento prodotti...'}
-          </Text>
-          <Text style={styles.loadingHint}>
-            Ottimizzazione in corso per prestazioni migliori
-          </Text>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={styles.loadingText}>Caricamento gioco...</Text>
         </View>
       </>
     );
   }
 
-  if (error) {
+  if (showWelcome) {
     return (
       <>
         <Stack.Screen options={{ headerShown: false }} />
-        <View style={[styles.container, styles.centerContent]}>
-          <IconSymbol 
-            ios_icon_name="exclamationmark.triangle" 
-            android_material_icon_name="error" 
-            size={64} 
-            color="#FF3B30" 
-          />
-          <Text style={styles.errorTitle}>Errore di Caricamento</Text>
-          <Text style={styles.errorText}>{error}</Text>
-          <Text style={styles.errorHint}>
-            Verifica la tua connessione internet e riprova.
-          </Text>
-          <Pressable style={styles.retryButton} onPress={handleRetry}>
-            <IconSymbol 
-              ios_icon_name="arrow.clockwise" 
-              android_material_icon_name="refresh" 
-              size={20} 
-              color="#FFF" 
-            />
-            <Text style={styles.retryButtonText}>Riprova</Text>
-          </Pressable>
+        <View style={styles.container}>
+          <ScrollView contentContainerStyle={styles.welcomeContainer}>
+            <View style={styles.welcomeIcon}>
+              <IconSymbol
+                ios_icon_name="gamecontroller.fill"
+                android_material_icon_name="sports_esports"
+                size={80}
+                color={colors.primary}
+              />
+            </View>
+            
+            <Text style={styles.welcomeTitle}>Benvenuto al Gioco delle Liste!</Text>
+            <Text style={styles.welcomeSubtitle}>
+              Scopri le liste dei fornitori, guadagna punti e sblocca ricompense
+            </Text>
+
+            <View style={styles.welcomeSection}>
+              <View style={styles.welcomeFeature}>
+                <IconSymbol
+                  ios_icon_name="star.fill"
+                  android_material_icon_name="star"
+                  size={32}
+                  color="#FFD700"
+                />
+                <Text style={styles.welcomeFeatureTitle}>Guadagna Punti</Text>
+                <Text style={styles.welcomeFeatureText}>
+                  Ogni lista che esplori ti fa guadagnare punti fedeltà
+                </Text>
+              </View>
+
+              <View style={styles.welcomeFeature}>
+                <IconSymbol
+                  ios_icon_name="flame.fill"
+                  android_material_icon_name="local_fire_department"
+                  size={32}
+                  color="#FF6B35"
+                />
+                <Text style={styles.welcomeFeatureTitle}>Mantieni la Striscia</Text>
+                <Text style={styles.welcomeFeatureText}>
+                  Gioca ogni giorno per mantenere la tua striscia attiva
+                </Text>
+              </View>
+
+              <View style={styles.welcomeFeature}>
+                <IconSymbol
+                  ios_icon_name="trophy.fill"
+                  android_material_icon_name="emoji_events"
+                  size={32}
+                  color={colors.primary}
+                />
+                <Text style={styles.welcomeFeatureTitle}>Sfide Giornaliere</Text>
+                <Text style={styles.welcomeFeatureText}>
+                  Completa le sfide per guadagnare punti bonus
+                </Text>
+              </View>
+
+              <View style={styles.welcomeFeature}>
+                <IconSymbol
+                  ios_icon_name="gift.fill"
+                  android_material_icon_name="card_giftcard"
+                  size={32}
+                  color="#4CAF50"
+                />
+                <Text style={styles.welcomeFeatureTitle}>Sblocca Coupon</Text>
+                <Text style={styles.welcomeFeatureText}>
+                  Usa i punti per riscattare coupon sconto
+                </Text>
+              </View>
+            </View>
+
+            <Pressable style={styles.welcomeButton} onPress={closeWelcome}>
+              <Text style={styles.welcomeButtonText}>Inizia a Giocare!</Text>
+            </Pressable>
+          </ScrollView>
         </View>
       </>
     );
   }
 
-  if (productLists.length === 0) {
-    const isAdmin = user?.role === 'admin';
-    
-    return (
-      <>
-        <Stack.Screen options={{ headerShown: false }} />
-        <View style={[styles.container, styles.centerContent]}>
-          <Pressable onPress={handleLogout} style={styles.topLeftButton}>
-            <IconSymbol 
-              ios_icon_name="rectangle.portrait.and.arrow.right" 
-              android_material_icon_name="logout" 
-              size={24} 
-              color={colors.text} 
+  return (
+    <>
+      <Stack.Screen options={{ headerShown: false }} />
+      <View style={styles.container}>
+        {/* Header */}
+        <View style={styles.header}>
+          <Pressable onPress={handleLogout} style={styles.headerButton}>
+            <IconSymbol
+              ios_icon_name="rectangle.portrait.and.arrow.right"
+              android_material_icon_name="logout"
+              size={24}
+              color={colors.text}
             />
           </Pressable>
 
-          <Pressable onPress={handleNotifications} style={styles.topRightButton}>
-            <IconSymbol 
-              ios_icon_name="bell.fill" 
-              android_material_icon_name="notifications" 
-              size={24} 
-              color={colors.text} 
+          <View style={styles.headerCenter}>
+            <Text style={styles.headerTitle}>Gioco delle Liste</Text>
+            <Text style={styles.headerSubtitle}>{user?.pickupPoint || 'N/A'}</Text>
+          </View>
+
+          <Pressable onPress={handleNotifications} style={styles.headerButton}>
+            <IconSymbol
+              ios_icon_name="bell.fill"
+              android_material_icon_name="notifications"
+              size={24}
+              color={colors.text}
             />
             {unreadNotifications > 0 && (
               <View style={styles.notificationBadge}>
@@ -1008,320 +578,248 @@ export default function HomeScreen() {
               </View>
             )}
           </Pressable>
-
-          <IconSymbol 
-            ios_icon_name="tray" 
-            android_material_icon_name="inbox" 
-            size={80} 
-            color={colors.textTertiary} 
-          />
-          <Text style={styles.emptyTitle}>Nessun Prodotto Disponibile</Text>
-          <Text style={styles.emptyText}>
-            Al momento non ci sono prodotti disponibili.{'\n'}
-            Tutti gli articoli potrebbero essere esauriti o i fornitori non hanno ancora caricato articoli.
-          </Text>
-          
-          {isAdmin && (
-            <>
-              <Text style={styles.adminHint}>
-                👨‍💼 Sei un amministratore
-              </Text>
-              <Text style={styles.emptySubtext}>
-                Puoi creare dati di test per provare l&apos;app
-              </Text>
-              
-              <Pressable style={styles.adminButton} onPress={handleGoToAdmin}>
-                <IconSymbol 
-                  ios_icon_name="wrench.and.screwdriver.fill" 
-                  android_material_icon_name="build" 
-                  size={20} 
-                  color="#FFF" 
-                />
-                <Text style={styles.adminButtonText}>Vai a Testing & Crea Dati</Text>
-              </Pressable>
-            </>
-          )}
-          
-          {!isAdmin && (
-            <Text style={styles.emptySubtext}>
-              Torna più tardi per scoprire le offerte!
-            </Text>
-          )}
-          
-          <Pressable style={styles.refreshButton} onPress={handleRetry}>
-            <IconSymbol 
-              ios_icon_name="arrow.clockwise" 
-              android_material_icon_name="refresh" 
-              size={20} 
-              color={colors.text} 
-            />
-            <Text style={styles.refreshButtonText}>Aggiorna</Text>
-          </Pressable>
-        </View>
-      </>
-    );
-  }
-
-  const shouldShowBanner = 
-    currentList && 
-    interestedInCurrentList > 1 && 
-    !bannerDismissed[currentList.listId];
-
-  // CRITICAL FIX: Always show navigation buttons when there are multiple lists
-  const showLeftNav = productLists.length > 1 && currentListIndex > 0;
-  const showRightNav = productLists.length > 1 && currentListIndex < productLists.length - 1;
-
-  return (
-    <>
-      <Stack.Screen options={{ headerShown: false }} />
-      <View style={styles.container}>
-        <FlatList
-          ref={listFlatListRef}
-          data={productLists}
-          renderItem={renderList}
-          keyExtractor={(item) => item.listId}
-          horizontal
-          pagingEnabled
-          showsHorizontalScrollIndicator={false}
-          scrollEnabled={false}
-          getItemLayout={getItemLayout}
-          removeClippedSubviews={true}
-          initialNumToRender={1}
-          maxToRenderPerBatch={1}
-          windowSize={3}
-          onScrollToIndexFailed={(info) => {
-            console.warn('Scroll to index failed:', info);
-            setTimeout(() => {
-              try {
-                listFlatListRef.current?.scrollToOffset({ 
-                  offset: SCREEN_WIDTH * info.index,
-                  animated: false,
-                });
-              } catch (error) {
-                console.error('Retry scroll failed:', error);
-              }
-            }, 100);
-          }}
-        />
-        
-        <Pressable onPress={handleLogout} style={styles.topLeftButton}>
-          <IconSymbol 
-            ios_icon_name="rectangle.portrait.and.arrow.right" 
-            android_material_icon_name="logout" 
-            size={24} 
-            color={colors.text} 
-          />
-        </Pressable>
-
-        <Pressable onPress={handleNotifications} style={styles.topRightButton}>
-          <IconSymbol 
-            ios_icon_name="bell.fill" 
-            android_material_icon_name="notifications" 
-            size={24} 
-            color={colors.text} 
-          />
-          {unreadNotifications > 0 && (
-            <View style={styles.notificationBadge}>
-              <Text style={styles.notificationBadgeText}>
-                {unreadNotifications > 99 ? '99+' : unreadNotifications}
-              </Text>
-            </View>
-          )}
-        </Pressable>
-
-        <Pressable onPress={handleOpenWelcomeModal} style={styles.helpButton}>
-          <View style={styles.helpButtonCircle}>
-            <IconSymbol 
-              ios_icon_name="questionmark.circle.fill" 
-              android_material_icon_name="help" 
-              size={28} 
-              color="#3B82F6" 
-            />
-          </View>
-        </Pressable>
-        
-        <View style={styles.rightSideIcons}>
-          <View style={styles.iconButton}>
-            <View style={styles.iconCircle}>
-              <IconSymbol 
-                ios_icon_name="mappin.circle.fill" 
-                android_material_icon_name="location_on" 
-                size={18} 
-                color={colors.text} 
-              />
-            </View>
-            <Text style={styles.iconLabel} numberOfLines={1}>
-              {user?.pickupPoint || 'N/A'}
-            </Text>
-          </View>
-
-          <View style={styles.iconButton}>
-            <View style={styles.iconCircle}>
-              <IconSymbol 
-                ios_icon_name="list.bullet.rectangle" 
-                android_material_icon_name="list" 
-                size={18} 
-                color={colors.text} 
-              />
-            </View>
-            <Text style={styles.iconLabel} numberOfLines={2}>
-              {currentList?.listName}
-            </Text>
-          </View>
-
-          <View style={styles.iconButton}>
-            <View style={styles.progressCircle}>
-              <View style={styles.progressCircleBackground}>
-                <Animated.View 
-                  style={[
-                    styles.progressCircleFill,
-                    {
-                      height: progressAnim.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: ['0%', '100%'],
-                      }),
-                    },
-                  ]} 
-                />
-              </View>
-              <View style={styles.progressCircleContent}>
-                <Text style={styles.progressNumber}>{currentProductIndex + 1}</Text>
-                <Text style={styles.progressTotal}>/{totalProductsInList}</Text>
-              </View>
-            </View>
-          </View>
-
-          <View style={styles.iconButton}>
-            <View style={styles.iconCircle}>
-              <Text style={styles.listCounterIcon}>
-                {currentListIndex + 1}/{productLists.length}
-              </Text>
-            </View>
-          </View>
         </View>
 
-        {/* CRITICAL FIX: Enhanced navigation buttons - always visible when multiple lists exist */}
-        {showLeftNav && (
-          <Pressable 
-            style={({ pressed }) => [
-              styles.navButtonLeft,
-              pressed && styles.navButtonPressed,
-            ]}
-            onPress={handlePreviousList}
-            hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
-          >
-            <View style={styles.navButtonInner}>
-              <IconSymbol 
-                ios_icon_name="chevron.left" 
-                android_material_icon_name="chevron_left" 
-                size={24} 
-                color="#FFF" 
-              />
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Stats Card */}
+          <View style={styles.statsCard}>
+            <View style={styles.statItem}>
+              <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
+                <IconSymbol
+                  ios_icon_name="flame.fill"
+                  android_material_icon_name="local_fire_department"
+                  size={32}
+                  color="#FF6B35"
+                />
+              </Animated.View>
+              <Text style={styles.statValue}>{gameStats.daily_streak}</Text>
+              <Text style={styles.statLabel}>Giorni di Fila</Text>
             </View>
-          </Pressable>
-        )}
 
-        {showRightNav && (
-          <Pressable 
-            style={({ pressed }) => [
-              styles.navButtonRight,
-              pressed && styles.navButtonPressed,
-            ]}
-            onPress={handleNextList}
-            hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
-          >
-            <View style={styles.navButtonInner}>
-              <IconSymbol 
-                ios_icon_name="chevron.right" 
-                android_material_icon_name="chevron_right" 
-                size={24} 
-                color="#FFF" 
+            <View style={styles.statItem}>
+              <IconSymbol
+                ios_icon_name="star.fill"
+                android_material_icon_name="star"
+                size={32}
+                color="#FFD700"
               />
+              <Text style={styles.statValue}>{gameStats.points_earned_today}</Text>
+              <Text style={styles.statLabel}>Punti Oggi</Text>
             </View>
-          </Pressable>
-        )}
 
-        {/* Multi-list indicator banner */}
-        {productLists.length > 1 && (
-          <View style={styles.multiListBanner}>
-            <View style={styles.multiListBannerContent}>
-              <IconSymbol 
-                ios_icon_name="list.bullet" 
-                android_material_icon_name="list" 
-                size={16} 
-                color="#FFF" 
+            <View style={styles.statItem}>
+              <IconSymbol
+                ios_icon_name="list.bullet"
+                android_material_icon_name="list"
+                size={32}
+                color={colors.primary}
               />
-              <Text style={styles.multiListBannerText}>
-                {productLists.length} liste disponibili • Scorri con le frecce
+              <Text style={styles.statValue}>{gameStats.lists_explored}</Text>
+              <Text style={styles.statLabel}>Liste Esplorate</Text>
+            </View>
+          </View>
+
+          {/* Daily Challenges */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <IconSymbol
+                ios_icon_name="trophy.fill"
+                android_material_icon_name="emoji_events"
+                size={24}
+                color={colors.primary}
+              />
+              <Text style={styles.sectionTitle}>Sfide Giornaliere</Text>
+            </View>
+
+            {dailyChallenges.map((challenge) => (
+              <View key={challenge.id} style={styles.challengeCard}>
+                <View style={styles.challengeHeader}>
+                  <IconSymbol
+                    ios_icon_name={challenge.icon === 'explore' ? 'map.fill' : challenge.icon === 'favorite' ? 'heart.fill' : 'star.fill'}
+                    android_material_icon_name={challenge.icon}
+                    size={24}
+                    color={challenge.completed ? '#4CAF50' : colors.text}
+                  />
+                  <View style={styles.challengeInfo}>
+                    <Text style={styles.challengeTitle}>{challenge.title}</Text>
+                    <Text style={styles.challengeDescription}>{challenge.description}</Text>
+                  </View>
+                  {challenge.completed && (
+                    <IconSymbol
+                      ios_icon_name="checkmark.circle.fill"
+                      android_material_icon_name="check_circle"
+                      size={28}
+                      color="#4CAF50"
+                    />
+                  )}
+                </View>
+
+                <View style={styles.progressContainer}>
+                  <View style={styles.progressBar}>
+                    <View
+                      style={[
+                        styles.progressFill,
+                        {
+                          width: `${(challenge.progress / challenge.target) * 100}%`,
+                          backgroundColor: challenge.completed ? '#4CAF50' : colors.primary,
+                        },
+                      ]}
+                    />
+                  </View>
+                  <Text style={styles.progressText}>
+                    {challenge.progress}/{challenge.target}
+                  </Text>
+                </View>
+
+                <View style={styles.rewardBadge}>
+                  <IconSymbol
+                    ios_icon_name="star.fill"
+                    android_material_icon_name="star"
+                    size={16}
+                    color="#FFD700"
+                  />
+                  <Text style={styles.rewardText}>+{challenge.reward} punti</Text>
+                </View>
+              </View>
+            ))}
+          </View>
+
+          {/* Supplier Lists */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <IconSymbol
+                ios_icon_name="list.bullet.rectangle"
+                android_material_icon_name="list"
+                size={24}
+                color={colors.primary}
+              />
+              <Text style={styles.sectionTitle}>Liste Disponibili</Text>
+            </View>
+
+            <Text style={styles.sectionSubtitle}>
+              Tocca le liste che ti interessano per guadagnare punti!
+            </Text>
+
+            {supplierLists.map((list) => {
+              const isSelected = selectedLists.has(list.id);
+              return (
+                <Pressable
+                  key={list.id}
+                  style={({ pressed }) => [
+                    styles.listCard,
+                    isSelected && styles.listCardSelected,
+                    pressed && styles.listCardPressed,
+                  ]}
+                  onPress={() => handleListTap(list)}
+                >
+                  <View style={styles.listHeader}>
+                    <View style={[styles.listIcon, isSelected && styles.listIconSelected]}>
+                      <IconSymbol
+                        ios_icon_name={isSelected ? 'checkmark' : 'bag.fill'}
+                        android_material_icon_name={isSelected ? 'check' : 'shopping_bag'}
+                        size={24}
+                        color={isSelected ? '#FFF' : colors.text}
+                      />
+                    </View>
+                    <View style={styles.listInfo}>
+                      <Text style={styles.listName}>{list.name}</Text>
+                      <Text style={styles.listSupplier}>di {list.supplier_name}</Text>
+                    </View>
+                    {isSelected && (
+                      <View style={styles.selectedBadge}>
+                        <IconSymbol
+                          ios_icon_name="star.fill"
+                          android_material_icon_name="star"
+                          size={16}
+                          color="#FFD700"
+                        />
+                        <Text style={styles.selectedBadgeText}>+10</Text>
+                      </View>
+                    )}
+                  </View>
+
+                  <View style={styles.listDetails}>
+                    <View style={styles.listDetailItem}>
+                      <IconSymbol
+                        ios_icon_name="tag.fill"
+                        android_material_icon_name="local_offer"
+                        size={16}
+                        color={colors.textSecondary}
+                      />
+                      <Text style={styles.listDetailText}>
+                        {list.min_discount}% - {list.max_discount}% sconto
+                      </Text>
+                    </View>
+                    <View style={styles.listDetailItem}>
+                      <IconSymbol
+                        ios_icon_name="cube.box.fill"
+                        android_material_icon_name="inventory"
+                        size={16}
+                        color={colors.textSecondary}
+                      />
+                      <Text style={styles.listDetailText}>
+                        {list.product_count} prodotti
+                      </Text>
+                    </View>
+                  </View>
+                </Pressable>
+              );
+            })}
+          </View>
+
+          {/* Info Card */}
+          <View style={styles.infoCard}>
+            <IconSymbol
+              ios_icon_name="info.circle.fill"
+              android_material_icon_name="info"
+              size={24}
+              color={colors.info}
+            />
+            <View style={styles.infoContent}>
+              <Text style={styles.infoTitle}>Come Funziona</Text>
+              <Text style={styles.infoText}>
+                Le tue scelte aiutano l&apos;amministratore a capire quali liste attivare per la tua città. 
+                Quando abbastanza utenti mostrano interesse, un drop verrà attivato!
               </Text>
             </View>
           </View>
-        )}
+        </ScrollView>
 
-        {shouldShowBanner && (
-          <Animated.View 
+        {/* Reward Animation */}
+        {showRewardAnimation && (
+          <Animated.View
             style={[
-              styles.hintContainer,
+              styles.rewardAnimation,
               {
-                opacity: bannerOpacity,
-                pointerEvents: shouldShowBanner ? 'auto' : 'none',
-              }
+                opacity: rewardAnim,
+                transform: [
+                  {
+                    translateY: rewardAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0, -50],
+                    }),
+                  },
+                  {
+                    scale: rewardAnim,
+                  },
+                ],
+              },
             ]}
           >
-            <View style={styles.hintCard}>
-              <IconSymbol ios_icon_name="lightbulb.fill" android_material_icon_name="lightbulb" size={18} color="#FFB800" />
-              <Text style={styles.hintText}>
-                Ottimo! Più articoli della stessa lista aumentano le probabilità di attivare un drop!
-              </Text>
-              <Pressable onPress={handleDismissBanner} style={styles.closeBannerButton}>
-                <IconSymbol ios_icon_name="xmark" android_material_icon_name="close" size={16} color="#8B6914" />
-              </Pressable>
+            <View style={styles.rewardAnimationContent}>
+              <IconSymbol
+                ios_icon_name="star.fill"
+                android_material_icon_name="star"
+                size={32}
+                color="#FFD700"
+              />
+              <Text style={styles.rewardAnimationText}>+{rewardAmount} punti!</Text>
             </View>
           </Animated.View>
-        )}
-
-        <FeedWelcomeModal
-          visible={showWelcomeModal}
-          onClose={handleCloseWelcomeModal}
-        />
-
-        {showWishlistTip && (
-          <View style={styles.modalOverlay}>
-            <View style={styles.wishlistTipModal}>
-              <Pressable 
-                style={styles.wishlistTipClose}
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  setShowWishlistTip(false);
-                }}
-              >
-                <IconSymbol ios_icon_name="xmark" android_material_icon_name="close" size={24} color={colors.text} />
-              </Pressable>
-              
-              <View style={styles.wishlistTipIcon}>
-                <IconSymbol ios_icon_name="heart.fill" android_material_icon_name="favorite" size={48} color="#FF3B30" />
-              </View>
-              
-              <Text style={styles.wishlistTipTitle}>Wishlist Creata!</Text>
-              <Text style={styles.wishlistTipText}>
-                Usa il cuore ❤️ per salvare gli articoli che ti interessano nella tua wishlist.
-                {'\n\n'}
-                Potrai trovarli nella sezione Profilo e raggiungerli direttamente nel feed quando vuoi!
-                {'\n\n'}
-                💡 Perfetto per non perdere di vista i prodotti che ami!
-              </Text>
-              
-              <Pressable 
-                style={styles.wishlistTipButton}
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                  setShowWishlistTip(false);
-                }}
-              >
-                <Text style={styles.wishlistTipButtonText}>Ho Capito!</Text>
-              </Pressable>
-            </View>
-          </View>
         )}
       </View>
     </>
@@ -1336,140 +834,45 @@ const styles = StyleSheet.create({
   centerContent: {
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 40,
   },
   loadingText: {
     fontSize: 16,
     color: colors.textSecondary,
     marginTop: 16,
-    fontWeight: '500',
   },
-  loadingHint: {
-    fontSize: 12,
-    color: colors.textTertiary,
-    marginTop: 8,
-    fontStyle: 'italic',
-  },
-  errorTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#FF3B30',
-    marginTop: 20,
-    marginBottom: 12,
-    textAlign: 'center',
-  },
-  errorText: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    lineHeight: 20,
-    marginBottom: 8,
-  },
-  errorHint: {
-    fontSize: 12,
-    color: colors.textTertiary,
-    textAlign: 'center',
-    fontStyle: 'italic',
-    marginBottom: 24,
-  },
-  retryButton: {
+  header: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.text,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 8,
-    gap: 8,
-  },
-  retryButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#FFF',
-  },
-  emptyTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: colors.text,
-    marginTop: 24,
-    marginBottom: 12,
-    textAlign: 'center',
-  },
-  emptyText: {
-    fontSize: 15,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    lineHeight: 22,
-    marginBottom: 16,
-  },
-  adminHint: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#007AFF',
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-  emptySubtext: {
-    fontSize: 13,
-    color: colors.textTertiary,
-    textAlign: 'center',
-    fontStyle: 'italic',
-    marginBottom: 24,
-  },
-  adminButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#007AFF',
-    paddingHorizontal: 24,
-    paddingVertical: 14,
-    borderRadius: 8,
-    gap: 8,
-    marginBottom: 16,
-  },
-  adminButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#FFF',
-  },
-  refreshButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingTop: Platform.OS === 'android' ? 48 : 60,
+    paddingBottom: 16,
     backgroundColor: colors.card,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colors.border,
-    gap: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
-  refreshButtonText: {
-    fontSize: 15,
-    fontWeight: '600',
+  headerButton: {
+    padding: 8,
+    position: 'relative',
+  },
+  headerCenter: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '700',
     color: colors.text,
   },
-  listContainer: {
-    width: SCREEN_WIDTH,
-    height: SCREEN_HEIGHT,
-  },
-  topLeftButton: {
-    position: 'absolute',
-    top: Platform.OS === 'android' ? 48 : 60,
-    left: 20,
-    backgroundColor: 'transparent',
-    padding: 12,
-    zIndex: 100,
-  },
-  topRightButton: {
-    position: 'absolute',
-    top: Platform.OS === 'android' ? 48 : 60,
-    right: 20,
-    backgroundColor: 'transparent',
-    padding: 12,
-    zIndex: 100,
+  headerSubtitle: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginTop: 2,
   },
   notificationBadge: {
     position: 'absolute',
-    top: 8,
-    right: 8,
+    top: 4,
+    right: 4,
     backgroundColor: '#FF3B30',
     borderRadius: 10,
     minWidth: 20,
@@ -1477,298 +880,319 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 5,
-    borderWidth: 2,
-    borderColor: colors.background,
   },
   notificationBadgeText: {
     fontSize: 10,
     fontWeight: '700',
     color: '#FFF',
   },
-  helpButton: {
-    position: 'absolute',
-    top: Platform.OS === 'android' ? 48 : 60,
-    left: '50%',
-    marginLeft: -20,
-    zIndex: 100,
+  scrollView: {
+    flex: 1,
   },
-  helpButtonCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 4,
+  scrollContent: {
+    padding: 16,
+    paddingBottom: 100,
   },
-  rightSideIcons: {
-    position: 'absolute',
-    right: 10,
-    top: '18%',
-    bottom: '35%',
-    justifyContent: 'space-evenly',
-    alignItems: 'center',
-    gap: 16,
-    zIndex: 10,
-  },
-  iconButton: {
-    alignItems: 'center',
-    gap: 3,
-  },
-  iconCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(255, 255, 255, 0.92)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(0, 0, 0, 0.08)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12,
-    shadowRadius: 3,
-    elevation: 3,
-  },
-  iconLabel: {
-    fontSize: 8,
-    fontWeight: '700',
-    color: colors.text,
-    textAlign: 'center',
-    maxWidth: 56,
-    backgroundColor: 'rgba(255, 255, 255, 0.92)',
-    paddingHorizontal: 5,
-    paddingVertical: 2,
-    borderRadius: 6,
-    overflow: 'hidden',
-  },
-  listCounterIcon: {
-    fontSize: 9,
-    fontWeight: '800',
-    color: colors.text,
-    letterSpacing: 0.2,
-  },
-  progressCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    position: 'relative',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  progressCircleBackground: {
-    position: 'absolute',
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(255, 255, 255, 0.92)',
-    borderWidth: 1,
-    borderColor: 'rgba(0, 0, 0, 0.08)',
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12,
-    shadowRadius: 3,
-    elevation: 3,
-  },
-  progressCircleFill: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: colors.text,
-    opacity: 0.2,
-  },
-  progressCircleContent: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 1,
-  },
-  progressNumber: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: colors.text,
-    lineHeight: 13,
-  },
-  progressTotal: {
-    fontSize: 7,
-    fontWeight: '700',
-    color: colors.textSecondary,
-    lineHeight: 9,
-  },
-  navButtonLeft: {
-    position: 'absolute',
-    left: 16,
-    bottom: '22%',
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: 'rgba(0, 0, 0, 0.85)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.4)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
-    zIndex: 100,
-  },
-  navButtonRight: {
-    position: 'absolute',
-    right: 16,
-    bottom: '22%',
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: 'rgba(0, 0, 0, 0.85)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.4)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
-    zIndex: 100,
-  },
-  navButtonPressed: {
-    opacity: 0.7,
-    transform: [{ scale: 0.95 }],
-  },
-  navButtonInner: {
-    width: '100%',
-    height: '100%',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  multiListBanner: {
-    position: 'absolute',
-    top: Platform.OS === 'android' ? 120 : 130,
-    left: 20,
-    right: 20,
-    zIndex: 50,
-  },
-  multiListBannerContent: {
+  statsCard: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(59, 130, 246, 0.95)',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 20,
-    gap: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-  multiListBannerText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#FFF',
-    letterSpacing: 0.3,
-  },
-  hintContainer: {
-    position: 'absolute',
-    bottom: 300,
-    left: 20,
-    right: 80,
-    zIndex: 10,
-  },
-  hintCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 248, 220, 0.97)',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 12,
-    gap: 10,
+    backgroundColor: colors.card,
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 24,
     borderWidth: 1,
-    borderColor: '#FFB800',
+    borderColor: colors.border,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
-    elevation: 4,
+    elevation: 3,
   },
-  hintText: {
+  statItem: {
     flex: 1,
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#8B6914',
-    lineHeight: 16,
-  },
-  closeBannerButton: {
-    padding: 4,
-    marginLeft: 4,
-  },
-  modalOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    justifyContent: 'center',
     alignItems: 'center',
-    zIndex: 1000,
+    gap: 8,
   },
-  wishlistTipModal: {
-    backgroundColor: colors.background,
-    borderRadius: 24,
-    padding: 32,
-    marginHorizontal: 24,
-    maxWidth: 400,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-    elevation: 10,
-  },
-  wishlistTipClose: {
-    position: 'absolute',
-    top: 16,
-    right: 16,
-    padding: 8,
-    zIndex: 1,
-  },
-  wishlistTipIcon: {
-    marginBottom: 20,
-  },
-  wishlistTipTitle: {
+  statValue: {
     fontSize: 24,
     fontWeight: '800',
     color: colors.text,
-    marginBottom: 16,
+  },
+  statLabel: {
+    fontSize: 11,
+    color: colors.textSecondary,
     textAlign: 'center',
   },
-  wishlistTipText: {
-    fontSize: 15,
-    color: colors.textSecondary,
-    lineHeight: 22,
-    textAlign: 'center',
+  section: {
     marginBottom: 24,
   },
-  wishlistTipButton: {
-    backgroundColor: colors.text,
-    paddingVertical: 14,
-    paddingHorizontal: 32,
-    borderRadius: 12,
-    minWidth: 200,
+  sectionHeader: {
+    flexDirection: 'row',
     alignItems: 'center',
+    gap: 12,
+    marginBottom: 12,
   },
-  wishlistTipButtonText: {
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  sectionSubtitle: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginBottom: 16,
+    lineHeight: 20,
+  },
+  challengeCard: {
+    backgroundColor: colors.card,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  challengeHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 12,
+  },
+  challengeInfo: {
+    flex: 1,
+  },
+  challengeTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: colors.background,
+    color: colors.text,
+    marginBottom: 4,
+  },
+  challengeDescription: {
+    fontSize: 13,
+    color: colors.textSecondary,
+  },
+  progressContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 8,
+  },
+  progressBar: {
+    flex: 1,
+    height: 8,
+    backgroundColor: colors.backgroundSecondary,
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 4,
+  },
+  progressText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.text,
+    minWidth: 40,
+    textAlign: 'right',
+  },
+  rewardBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    alignSelf: 'flex-start',
+    backgroundColor: '#FFF9E6',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  rewardText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#8B6914',
+  },
+  listCard: {
+    backgroundColor: colors.card,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 2,
+    borderColor: colors.border,
+  },
+  listCardSelected: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primary + '10',
+  },
+  listCardPressed: {
+    opacity: 0.7,
+    transform: [{ scale: 0.98 }],
+  },
+  listHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 12,
+  },
+  listIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: colors.backgroundSecondary,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  listIconSelected: {
+    backgroundColor: colors.primary,
+  },
+  listInfo: {
+    flex: 1,
+  },
+  listName: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: 4,
+  },
+  listSupplier: {
+    fontSize: 13,
+    color: colors.textSecondary,
+  },
+  selectedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#FFF9E6',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+  selectedBadgeText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#8B6914',
+  },
+  listDetails: {
+    flexDirection: 'row',
+    gap: 16,
+  },
+  listDetailItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  listDetailText: {
+    fontSize: 12,
+    color: colors.textSecondary,
+  },
+  infoCard: {
+    flexDirection: 'row',
+    backgroundColor: colors.info + '10',
+    borderWidth: 1,
+    borderColor: colors.info + '30',
+    borderRadius: 12,
+    padding: 16,
+    gap: 12,
+  },
+  infoContent: {
+    flex: 1,
+  },
+  infoTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: 8,
+  },
+  infoText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    lineHeight: 20,
+  },
+  rewardAnimation: {
+    position: 'absolute',
+    top: '50%',
+    left: '50%',
+    marginLeft: -100,
+    marginTop: -50,
+    zIndex: 1000,
+  },
+  rewardAnimationContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: '#FFF',
+    paddingHorizontal: 24,
+    paddingVertical: 16,
+    borderRadius: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  rewardAnimationText: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: colors.text,
+  },
+  welcomeContainer: {
+    padding: 24,
+    alignItems: 'center',
+  },
+  welcomeIcon: {
+    marginTop: 60,
+    marginBottom: 32,
+  },
+  welcomeTitle: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: colors.text,
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  welcomeSubtitle: {
+    fontSize: 16,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    marginBottom: 40,
+    lineHeight: 24,
+  },
+  welcomeSection: {
+    width: '100%',
+    gap: 24,
+    marginBottom: 40,
+  },
+  welcomeFeature: {
+    alignItems: 'center',
+    backgroundColor: colors.card,
+    borderRadius: 16,
+    padding: 24,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  welcomeFeatureTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.text,
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  welcomeFeatureText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  welcomeButton: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: 48,
+    paddingVertical: 16,
+    borderRadius: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  welcomeButtonText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#FFF',
   },
 });
