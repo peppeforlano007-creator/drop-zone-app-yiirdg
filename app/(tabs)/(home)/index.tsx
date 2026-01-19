@@ -130,19 +130,41 @@ export default function GameFeedScreen() {
         const parsedChallenges = JSON.parse(savedChallenges);
         
         // Find the first unlocked, incomplete challenge
+        // This is the challenge the user should be working on
         let newCurrentIndex = 0;
+        let foundCurrentChallenge = false;
+        
         for (let i = 0; i < parsedChallenges.length; i++) {
-          if (!parsedChallenges[i].locked && !parsedChallenges[i].completed) {
-            newCurrentIndex = i;
-            break;
+          const challenge = parsedChallenges[i];
+          
+          // Skip locked challenges
+          if (challenge.locked) {
+            continue;
           }
-          // If all challenges are completed, set to last challenge
-          if (i === parsedChallenges.length - 1) {
+          
+          // If we find an unlocked, incomplete challenge, that's the current one
+          if (!challenge.completed && !foundCurrentChallenge) {
             newCurrentIndex = i;
+            foundCurrentChallenge = true;
+            console.log(`📍 Found current challenge at index ${i}: ${challenge.title} (unlocked: ${!challenge.locked}, completed: ${challenge.completed})`);
+            break;
           }
         }
         
-        console.log('📊 Reloaded challenges:', parsedChallenges);
+        // If all challenges are completed, set to last challenge
+        if (!foundCurrentChallenge) {
+          newCurrentIndex = parsedChallenges.length - 1;
+          console.log('📍 All challenges completed, showing last challenge');
+        }
+        
+        console.log('📊 Reloaded challenges:', parsedChallenges.map((c: Challenge) => ({
+          id: c.id,
+          title: c.title,
+          locked: c.locked,
+          completed: c.completed,
+          progress: c.progress,
+          target: c.target
+        })));
         console.log('📊 Current challenge index (first unlocked incomplete):', newCurrentIndex);
         
         setWeeklyChallenges(parsedChallenges);
@@ -389,15 +411,27 @@ export default function GameFeedScreen() {
         if (Array.isArray(parsedChallenges)) {
           // Find the first unlocked, incomplete challenge
           let newCurrentIndex = 0;
+          let foundCurrentChallenge = false;
+          
           for (let i = 0; i < parsedChallenges.length; i++) {
-            if (!parsedChallenges[i].locked && !parsedChallenges[i].completed) {
+            const challenge = parsedChallenges[i];
+            
+            // Skip locked challenges
+            if (challenge.locked) {
+              continue;
+            }
+            
+            // If we find an unlocked, incomplete challenge, that's the current one
+            if (!challenge.completed && !foundCurrentChallenge) {
               newCurrentIndex = i;
+              foundCurrentChallenge = true;
               break;
             }
-            // If all challenges are completed, set to last challenge
-            if (i === parsedChallenges.length - 1) {
-              newCurrentIndex = i;
-            }
+          }
+          
+          // If all challenges are completed, set to last challenge
+          if (!foundCurrentChallenge) {
+            newCurrentIndex = parsedChallenges.length - 1;
           }
           
           setWeeklyChallenges(parsedChallenges);
@@ -772,7 +806,7 @@ export default function GameFeedScreen() {
     
     // Check if challenge is locked or already completed
     if (!challenge || challenge.locked || challenge.completed) {
-      console.log('Challenge is locked or already completed');
+      console.log(`Challenge ${challengeId} is locked (${challenge.locked}) or already completed (${challenge.completed})`);
       return;
     }
 
@@ -782,7 +816,7 @@ export default function GameFeedScreen() {
     const newProgress = Math.min(currentProgress + increment, target);
     const completed = newProgress >= target;
     
-    console.log(`Updated challenge ${challengeId}: ${currentProgress} -> ${newProgress} (target: ${target})`);
+    console.log(`Updated challenge ${challengeId} (${challenge.title}): ${currentProgress} -> ${newProgress} (target: ${target}), completed: ${completed}`);
     
     // Create updated challenges array
     const updatedChallenges = [...weeklyChallenges];
@@ -790,7 +824,7 @@ export default function GameFeedScreen() {
 
     // If challenge is completed, unlock the next one
     if (completed && !challenge.completed) {
-      console.log('🎉 Challenge completed! Unlocking next challenge...');
+      console.log(`🎉 Challenge ${challengeId} (${challenge.title}) completed! Unlocking next challenge...`);
       
       // Find the next challenge and unlock it
       if (challengeIndex < updatedChallenges.length - 1) {
@@ -801,7 +835,7 @@ export default function GameFeedScreen() {
         const newIndex = challengeIndex + 1;
         setCurrentChallengeIndex(newIndex);
         await AsyncStorage.setItem(CURRENT_CHALLENGE_INDEX_KEY, newIndex.toString());
-        console.log(`✅ Unlocked challenge ${nextChallenge.id}: ${nextChallenge.title}`);
+        console.log(`✅ Unlocked challenge ${nextChallenge.id} (${nextChallenge.title})`);
         console.log(`✅ Updated current challenge index to: ${newIndex}`);
         
         // Award challenge reward
@@ -833,6 +867,14 @@ export default function GameFeedScreen() {
     try {
       await AsyncStorage.setItem(WEEKLY_CHALLENGES_KEY, JSON.stringify(updatedChallenges));
       console.log('✅ Challenge progress and unlock status saved successfully');
+      console.log('📊 Updated challenges state:', updatedChallenges.map(c => ({
+        id: c.id,
+        title: c.title,
+        locked: c.locked,
+        completed: c.completed,
+        progress: c.progress,
+        target: c.target
+      })));
     } catch (error) {
       console.error('Error saving challenges:', error);
     }
