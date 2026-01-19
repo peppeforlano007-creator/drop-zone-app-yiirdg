@@ -1,3 +1,6 @@
+// Initialize Natively console log capture before anything else
+import './utils/errorLogger';
+
 
 // CRITICAL: Load polyfills FIRST before anything else
 // This must be the very first import to ensure URL is available

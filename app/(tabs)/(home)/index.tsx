@@ -25,14 +25,17 @@ interface SupplierList {
 }
 
 interface GameStats {
-  daily_streak: number;
+  weekly_streak: number;
   total_discoveries: number;
   lists_explored: number;
-  lists_explored_today: number;
-  lists_interested_today: number;
-  lists_shared_today: number;
-  points_earned_today: number;
+  lists_explored_this_week: number;
+  lists_interested_this_week: number;
+  lists_shared_this_week: number;
+  lists_navigated_to_end: string[]; // IDs of lists navigated to the end
+  points_earned_this_week: number;
+  points_earned_this_month: number;
   last_played: string;
+  last_week_start: string;
   explored_list_ids: string[];
 }
 
@@ -45,28 +48,52 @@ interface Challenge {
   target: number;
   reward: number;
   completed: boolean;
+  locked: boolean;
 }
 
 const WELCOME_MODAL_KEY = 'game_welcome_shown';
-const GAME_STATS_KEY = 'game_stats';
-const LAST_CHALLENGE_DATE_KEY = 'last_challenge_date';
+const GAME_STATS_KEY = 'game_stats_v2';
+const WEEKLY_CHALLENGES_KEY = 'weekly_challenges';
+const CURRENT_CHALLENGE_INDEX_KEY = 'current_challenge_index';
+
+// Helper to get the start of the current week (Monday)
+const getWeekStart = (date: Date = new Date()): string => {
+  const d = new Date(date);
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Adjust when day is Sunday
+  d.setDate(diff);
+  d.setHours(0, 0, 0, 0);
+  return d.toISOString().split('T')[0];
+};
+
+// Helper to get the start of the current month
+const getMonthStart = (date: Date = new Date()): string => {
+  const d = new Date(date);
+  d.setDate(1);
+  d.setHours(0, 0, 0, 0);
+  return d.toISOString().split('T')[0];
+};
 
 export default function GameFeedScreen() {
   const { logout, user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [supplierLists, setSupplierLists] = useState<SupplierList[]>([]);
   const [gameStats, setGameStats] = useState<GameStats>({
-    daily_streak: 0,
+    weekly_streak: 0,
     total_discoveries: 0,
     lists_explored: 0,
-    lists_explored_today: 0,
-    lists_interested_today: 0,
-    lists_shared_today: 0,
-    points_earned_today: 0,
+    lists_explored_this_week: 0,
+    lists_interested_this_week: 0,
+    lists_shared_this_week: 0,
+    lists_navigated_to_end: [],
+    points_earned_this_week: 0,
+    points_earned_this_month: 0,
     last_played: new Date().toISOString().split('T')[0],
+    last_week_start: getWeekStart(),
     explored_list_ids: [],
   });
-  const [dailyChallenges, setDailyChallenges] = useState<Challenge[]>([]);
+  const [weeklyChallenges, setWeeklyChallenges] = useState<Challenge[]>([]);
+  const [currentChallengeIndex, setCurrentChallengeIndex] = useState(0);
   const [selectedLists, setSelectedLists] = useState<Set<string>>(new Set());
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [showRewardAnimation, setShowRewardAnimation] = useState(false);
@@ -168,34 +195,88 @@ export default function GameFeedScreen() {
 
       // Load game stats
       const savedStats = await AsyncStorage.getItem(GAME_STATS_KEY);
+      const currentWeekStart = getWeekStart();
+      const currentMonthStart = getMonthStart();
+      
       if (savedStats) {
         const stats = JSON.parse(savedStats);
-        const today = new Date().toISOString().split('T')[0];
         
-        // Check if streak should continue
-        const lastPlayed = new Date(stats.last_played);
-        const todayDate = new Date(today);
-        const daysDiff = Math.floor((todayDate.getTime() - lastPlayed.getTime()) / (1000 * 60 * 60 * 24));
-        
-        if (daysDiff === 1) {
-          // Continue streak
-          stats.daily_streak += 1;
-        } else if (daysDiff > 1) {
-          // Reset streak
-          stats.daily_streak = 1;
+        // Check if we're in a new week
+        if (stats.last_week_start !== currentWeekStart) {
+          console.log('New week detected, resetting weekly stats');
+          
+          // Check if streak should continue (last played was last week)
+          const lastWeekStart = new Date(stats.last_week_start);
+          const thisWeekStart = new Date(currentWeekStart);
+          const weeksDiff = Math.floor((thisWeekStart.getTime() - lastWeekStart.getTime()) / (1000 * 60 * 60 * 24 * 7));
+          
+          if (weeksDiff === 1 && stats.points_earned_this_week > 0) {
+            // Continue streak if they played last week
+            stats.weekly_streak += 1;
+          } else if (weeksDiff > 1) {
+            // Reset streak if more than a week has passed
+            stats.weekly_streak = 1;
+          }
+          
+          // Reset weekly counters
+          stats.points_earned_this_week = 0;
+          stats.lists_explored_this_week = 0;
+          stats.lists_interested_this_week = 0;
+          stats.lists_shared_this_week = 0;
+          stats.lists_navigated_to_end = [];
+          stats.last_week_start = currentWeekStart;
+          
+          // Reset challenges for new week
+          await AsyncStorage.removeItem(WEEKLY_CHALLENGES_KEY);
+          await AsyncStorage.setItem(CURRENT_CHALLENGE_INDEX_KEY, '0');
         }
         
-        // Reset daily counters if new day
-        if (stats.last_played !== today) {
-          stats.points_earned_today = 0;
-          stats.lists_explored_today = 0;
-          stats.lists_interested_today = 0;
-          stats.lists_shared_today = 0;
-          stats.last_played = today;
+        // Check if we're in a new month
+        const lastMonthStart = stats.last_month_start || currentMonthStart;
+        if (lastMonthStart !== currentMonthStart) {
+          console.log('New month detected, transferring points to loyalty program');
+          
+          // Transfer monthly points to loyalty program
+          if (stats.points_earned_this_month > 0 && user) {
+            const { data: profile } = await supabase
+              .from('profiles')
+              .select('loyalty_points')
+              .eq('user_id', user.id)
+              .single();
+
+            const currentLoyaltyPoints = profile?.loyalty_points || 0;
+            const newLoyaltyPoints = currentLoyaltyPoints + stats.points_earned_this_month;
+
+            await supabase
+              .from('profiles')
+              .update({ loyalty_points: newLoyaltyPoints })
+              .eq('user_id', user.id);
+
+            console.log(`Transferred ${stats.points_earned_this_month} points to loyalty program`);
+            
+            Alert.alert(
+              '🎉 Punti Trasferiti!',
+              `I tuoi ${stats.points_earned_this_month} punti del mese sono stati aggiunti al programma fedeltà!`,
+              [{ text: 'Fantastico!', style: 'default' }]
+            );
+          }
+          
+          // Reset monthly points
+          stats.points_earned_this_month = 0;
+          stats.last_month_start = currentMonthStart;
         }
         
         setGameStats(stats);
         await AsyncStorage.setItem(GAME_STATS_KEY, JSON.stringify(stats));
+      } else {
+        // Initialize new stats
+        const newStats = {
+          ...gameStats,
+          last_week_start: currentWeekStart,
+          last_month_start: currentMonthStart,
+        };
+        setGameStats(newStats);
+        await AsyncStorage.setItem(GAME_STATS_KEY, JSON.stringify(newStats));
       }
 
       // Load user interests to mark selected lists
@@ -211,8 +292,8 @@ export default function GameFeedScreen() {
         }
       }
 
-      // Generate daily challenges
-      await generateDailyChallenges(listsWithCounts.length);
+      // Generate weekly challenges
+      await generateWeeklyChallenges(listsWithCounts.length);
 
       setLoading(false);
     } catch (error) {
@@ -222,76 +303,83 @@ export default function GameFeedScreen() {
     }
   };
 
-  const generateDailyChallenges = async (listCount: number) => {
-    const today = new Date().toISOString().split('T')[0];
-    const lastChallengeDate = await AsyncStorage.getItem(LAST_CHALLENGE_DATE_KEY);
+  const generateWeeklyChallenges = async (listCount: number) => {
+    const currentWeekStart = getWeekStart();
     
-    if (lastChallengeDate === today) {
-      // Load existing challenges
-      const savedChallenges = await AsyncStorage.getItem(`challenges_${today}`);
-      if (savedChallenges) {
-        try {
-          const parsedChallenges = JSON.parse(savedChallenges);
-          if (Array.isArray(parsedChallenges)) {
-            setDailyChallenges(parsedChallenges);
-            return;
-          }
-        } catch (error) {
-          console.error('Error parsing saved challenges:', error);
+    // Try to load existing challenges for this week
+    const savedChallenges = await AsyncStorage.getItem(WEEKLY_CHALLENGES_KEY);
+    const savedIndex = await AsyncStorage.getItem(CURRENT_CHALLENGE_INDEX_KEY);
+    
+    if (savedChallenges) {
+      try {
+        const parsedChallenges = JSON.parse(savedChallenges);
+        const parsedIndex = savedIndex ? parseInt(savedIndex, 10) : 0;
+        
+        if (Array.isArray(parsedChallenges)) {
+          setWeeklyChallenges(parsedChallenges);
+          setCurrentChallengeIndex(parsedIndex);
+          return;
         }
+      } catch (error) {
+        console.error('Error parsing saved challenges:', error);
       }
     }
 
     // Ensure listCount is valid
     const validListCount = Math.max(1, listCount || 3);
 
-    // Generate new challenges
+    // Generate new sequential challenges
     const challenges: Challenge[] = [
       {
         id: '1',
-        title: 'Esploratore Mattutino',
-        description: 'Esplora i prodotti di 3 liste diverse oggi',
-        icon: 'explore',
+        title: 'COLLEZIONISTA',
+        description: `Esplora i prodotti di tutte le ${validListCount} liste disponibili`,
+        icon: 'collections',
         progress: 0,
-        target: 3,
-        reward: 50,
+        target: validListCount,
+        reward: 100,
         completed: false,
+        locked: false, // First challenge is unlocked
       },
       {
         id: '2',
-        title: 'Cacciatore di Offerte',
-        description: 'Mostra interesse per 5 liste (tocca il cuore)',
-        icon: 'favorite',
+        title: 'NAVIGATORE',
+        description: 'Naviga fino in fondo per scoprire tutti i prodotti di una lista',
+        icon: 'explore',
         progress: 0,
-        target: 5,
-        reward: 100,
+        target: 1,
+        reward: 150,
         completed: false,
+        locked: true, // Locked until previous challenge is completed
       },
       {
         id: '3',
-        title: 'Collezionista',
-        description: `Esplora i prodotti di tutte le ${validListCount} liste disponibili`,
-        icon: 'stars',
+        title: 'CACCIATORE DI OFFERTE',
+        description: 'Mostra interesse per una lista',
+        icon: 'favorite',
         progress: 0,
-        target: validListCount,
-        reward: 200,
+        target: 1,
+        reward: 100,
         completed: false,
+        locked: true,
       },
       {
         id: '4',
-        title: 'Ambasciatore',
-        description: 'Condividi 3 liste con amici e parenti',
+        title: 'AMBASCIATORE',
+        description: 'Condividi una lista con amici e parenti e potrai attivare un drop su quella lista con ritiro nella tua città',
         icon: 'share',
         progress: 0,
-        target: 3,
-        reward: 150,
+        target: 1,
+        reward: 200,
         completed: false,
+        locked: true,
       },
     ];
 
-    setDailyChallenges(challenges);
-    await AsyncStorage.setItem(`challenges_${today}`, JSON.stringify(challenges));
-    await AsyncStorage.setItem(LAST_CHALLENGE_DATE_KEY, today);
+    setWeeklyChallenges(challenges);
+    setCurrentChallengeIndex(0);
+    await AsyncStorage.setItem(WEEKLY_CHALLENGES_KEY, JSON.stringify(challenges));
+    await AsyncStorage.setItem(CURRENT_CHALLENGE_INDEX_KEY, '0');
   };
 
   const loadUnreadNotifications = async () => {
@@ -326,14 +414,14 @@ export default function GameFeedScreen() {
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-    // Check if this list was already explored today
+    // Check if this list was already explored this week
     const alreadyExplored = Array.isArray(gameStats.explored_list_ids) && gameStats.explored_list_ids.includes(list.id);
 
     if (!alreadyExplored) {
       // Update stats
       const newStats = { ...gameStats };
       newStats.lists_explored = (newStats.lists_explored || 0) + 1;
-      newStats.lists_explored_today = (newStats.lists_explored_today || 0) + 1;
+      newStats.lists_explored_this_week = (newStats.lists_explored_this_week || 0) + 1;
       
       // Ensure explored_list_ids is an array
       if (!Array.isArray(newStats.explored_list_ids)) {
@@ -347,15 +435,18 @@ export default function GameFeedScreen() {
       // Award points for exploring
       await awardPoints(10, 'list_explored');
 
-      // Update challenges
-      await updateChallengeProgress('1', 1); // Esploratore Mattutino
-      await updateChallengeProgress('3', 1); // Collezionista
+      // Update COLLEZIONISTA challenge (id: '1')
+      await updateChallengeProgress('1', 1);
     }
 
-    // Navigate to list details (we'll create a simple product list view)
+    // Navigate to list details
     router.push({
       pathname: '/list-products',
-      params: { listId: list.id, listName: list.name || 'Prodotti' }
+      params: { 
+        listId: list.id, 
+        listName: list.name || 'Prodotti',
+        supplierListId: list.id // Pass this for tracking navigation to end
+      }
     });
   };
 
@@ -394,7 +485,7 @@ export default function GameFeedScreen() {
 
       // Update stats
       const newStats = { ...gameStats };
-      newStats.lists_interested_today = Math.max(0, (newStats.lists_interested_today || 0) - 1);
+      newStats.lists_interested_this_week = Math.max(0, (newStats.lists_interested_this_week || 0) - 1);
       setGameStats(newStats);
       await AsyncStorage.setItem(GAME_STATS_KEY, JSON.stringify(newStats));
     } else {
@@ -433,12 +524,12 @@ export default function GameFeedScreen() {
       
       // Update stats
       const newStats = { ...gameStats };
-      newStats.lists_interested_today = (newStats.lists_interested_today || 0) + 1;
+      newStats.lists_interested_this_week = (newStats.lists_interested_this_week || 0) + 1;
       setGameStats(newStats);
       await AsyncStorage.setItem(GAME_STATS_KEY, JSON.stringify(newStats));
 
-      // Update challenge
-      await updateChallengeProgress('2', 1); // Cacciatore di Offerte
+      // Update CACCIATORE DI OFFERTE challenge (id: '3')
+      await updateChallengeProgress('3', 1);
     }
 
     setSelectedLists(newSelected);
@@ -508,15 +599,15 @@ export default function GameFeedScreen() {
 
       // Update stats
       const newStats = { ...gameStats };
-      newStats.lists_shared_today += 1;
+      newStats.lists_shared_this_week = (newStats.lists_shared_this_week || 0) + 1;
       setGameStats(newStats);
       await AsyncStorage.setItem(GAME_STATS_KEY, JSON.stringify(newStats));
 
       // Award points
       await awardPoints(20, 'list_shared');
 
-      // Update challenge
-      await updateChallengeProgress('4', 1); // Ambasciatore
+      // Update AMBASCIATORE challenge (id: '4')
+      await updateChallengeProgress('4', 1);
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       
@@ -533,20 +624,12 @@ export default function GameFeedScreen() {
     }
 
     try {
-      // Update user loyalty points
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('loyalty_points')
-        .eq('user_id', user.id)
-        .single();
-
-      const currentPoints = profile?.loyalty_points || 0;
-      const newPoints = currentPoints + points;
-
-      await supabase
-        .from('profiles')
-        .update({ loyalty_points: newPoints })
-        .eq('user_id', user.id);
+      // Update game stats (points accumulate during the week/month)
+      const newStats = { ...gameStats };
+      newStats.points_earned_this_week = (newStats.points_earned_this_week || 0) + points;
+      newStats.points_earned_this_month = (newStats.points_earned_this_month || 0) + points;
+      setGameStats(newStats);
+      await AsyncStorage.setItem(GAME_STATS_KEY, JSON.stringify(newStats));
 
       // Log activity
       await supabase
@@ -556,12 +639,6 @@ export default function GameFeedScreen() {
           activity_type: activityType,
           points_earned: points,
         });
-
-      // Update game stats
-      const newStats = { ...gameStats };
-      newStats.points_earned_today += points;
-      setGameStats(newStats);
-      await AsyncStorage.setItem(GAME_STATS_KEY, JSON.stringify(newStats));
 
       // Show reward animation
       setRewardAmount(points);
@@ -588,18 +665,18 @@ export default function GameFeedScreen() {
   };
 
   const updateChallengeProgress = async (challengeId: string, increment: number) => {
-    if (!Array.isArray(dailyChallenges) || dailyChallenges.length === 0) {
+    if (!Array.isArray(weeklyChallenges) || weeklyChallenges.length === 0) {
       console.warn('No challenges to update');
       return;
     }
     
-    const newChallenges = dailyChallenges.map(challenge => {
+    const newChallenges = weeklyChallenges.map(challenge => {
       if (!challenge || !challenge.id) {
         console.warn('Invalid challenge object:', challenge);
         return challenge;
       }
       
-      if (challenge.id === challengeId && !challenge.completed) {
+      if (challenge.id === challengeId && !challenge.completed && !challenge.locked) {
         const currentProgress = challenge.progress || 0;
         const target = challenge.target || 1;
         const newProgress = Math.min(currentProgress + increment, target);
@@ -609,11 +686,26 @@ export default function GameFeedScreen() {
           // Award challenge reward
           awardPoints(challenge.reward || 0, 'challenge_completed');
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          Alert.alert(
-            '🎉 Sfida Completata!',
-            `Hai completato "${challenge.title || 'Sfida'}" e guadagnato ${challenge.reward || 0} punti!`,
-            [{ text: 'Fantastico!', style: 'default' }]
-          );
+          
+          // Unlock next challenge
+          const currentIndex = weeklyChallenges.findIndex(c => c.id === challengeId);
+          if (currentIndex >= 0 && currentIndex < weeklyChallenges.length - 1) {
+            const nextIndex = currentIndex + 1;
+            setCurrentChallengeIndex(nextIndex);
+            AsyncStorage.setItem(CURRENT_CHALLENGE_INDEX_KEY, nextIndex.toString());
+            
+            Alert.alert(
+              '🎉 Sfida Completata!',
+              `Hai completato "${challenge.title || 'Sfida'}" e guadagnato ${challenge.reward || 0} punti!\n\nLa prossima sfida è stata sbloccata!`,
+              [{ text: 'Fantastico!', style: 'default' }]
+            );
+          } else {
+            Alert.alert(
+              '🎉 Tutte le Sfide Completate!',
+              `Hai completato "${challenge.title || 'Sfida'}" e guadagnato ${challenge.reward || 0} punti!\n\nHai completato tutte le sfide della settimana! 🏆`,
+              [{ text: 'Incredibile!', style: 'default' }]
+            );
+          }
         }
         
         return { ...challenge, progress: newProgress, completed };
@@ -621,11 +713,18 @@ export default function GameFeedScreen() {
       return challenge;
     });
 
-    setDailyChallenges(newChallenges);
+    // Unlock the next challenge if current one is completed
+    const updatedChallenges = newChallenges.map((challenge, index) => {
+      if (index === currentChallengeIndex + 1 && newChallenges[currentChallengeIndex]?.completed) {
+        return { ...challenge, locked: false };
+      }
+      return challenge;
+    });
+
+    setWeeklyChallenges(updatedChallenges);
     
     try {
-      const today = new Date().toISOString().split('T')[0];
-      await AsyncStorage.setItem(`challenges_${today}`, JSON.stringify(newChallenges));
+      await AsyncStorage.setItem(WEEKLY_CHALLENGES_KEY, JSON.stringify(updatedChallenges));
     } catch (error) {
       console.error('Error saving challenges:', error);
     }
@@ -702,7 +801,7 @@ export default function GameFeedScreen() {
             
             <Text style={styles.welcomeTitle}>Benvenuto al Gioco delle Liste!</Text>
             <Text style={styles.welcomeSubtitle}>
-              Scopri le liste dei fornitori, guadagna punti e sblocca ricompense
+              Completa le sfide settimanali, guadagna punti e sblocca ricompense
             </Text>
 
             <View style={styles.welcomeSection}>
@@ -713,9 +812,9 @@ export default function GameFeedScreen() {
                   size={32}
                   color="#FFD700"
                 />
-                <Text style={styles.welcomeFeatureTitle}>Guadagna Punti</Text>
+                <Text style={styles.welcomeFeatureTitle}>Sfide Settimanali</Text>
                 <Text style={styles.welcomeFeatureText}>
-                  Esplora le liste e mostra interesse per guadagnare punti fedeltà
+                  Completa le sfide una alla volta per guadagnare punti
                 </Text>
               </View>
 
@@ -726,9 +825,9 @@ export default function GameFeedScreen() {
                   size={32}
                   color="#FF6B35"
                 />
-                <Text style={styles.welcomeFeatureTitle}>Mantieni la Striscia</Text>
+                <Text style={styles.welcomeFeatureTitle}>Striscia Settimanale</Text>
                 <Text style={styles.welcomeFeatureText}>
-                  Gioca ogni giorno per mantenere la tua striscia attiva
+                  Gioca ogni settimana per mantenere la tua striscia attiva
                 </Text>
               </View>
 
@@ -739,9 +838,9 @@ export default function GameFeedScreen() {
                   size={32}
                   color={colors.primary}
                 />
-                <Text style={styles.welcomeFeatureTitle}>Sfide Giornaliere</Text>
+                <Text style={styles.welcomeFeatureTitle}>Programma Fedeltà</Text>
                 <Text style={styles.welcomeFeatureText}>
-                  Completa le sfide per guadagnare punti bonus
+                  A fine mese i punti vengono trasferiti al programma fedeltà per riscattare coupon
                 </Text>
               </View>
 
@@ -767,6 +866,8 @@ export default function GameFeedScreen() {
       </>
     );
   }
+
+  const currentChallenge = weeklyChallenges[currentChallengeIndex];
 
   return (
     <>
@@ -821,8 +922,8 @@ export default function GameFeedScreen() {
                   color="#FF6B35"
                 />
               </Animated.View>
-              <Text style={styles.statValue}>{gameStats.daily_streak}</Text>
-              <Text style={styles.statLabel}>Giorni di Fila</Text>
+              <Text style={styles.statValue}>{gameStats.weekly_streak}</Text>
+              <Text style={styles.statLabel}>Settimane di Fila</Text>
             </View>
 
             <View style={styles.statItem}>
@@ -832,52 +933,57 @@ export default function GameFeedScreen() {
                 size={32}
                 color="#FFD700"
               />
-              <Text style={styles.statValue}>{gameStats.points_earned_today}</Text>
-              <Text style={styles.statLabel}>Punti Oggi</Text>
+              <Text style={styles.statValue}>{gameStats.points_earned_this_week}</Text>
+              <Text style={styles.statLabel}>Punti Questa Settimana</Text>
             </View>
 
             <View style={styles.statItem}>
               <IconSymbol
-                ios_icon_name="list.bullet"
-                android_material_icon_name="list"
+                ios_icon_name="calendar"
+                android_material_icon_name="calendar_today"
                 size={32}
                 color={colors.primary}
               />
-              <Text style={styles.statValue}>{gameStats.lists_explored}</Text>
-              <Text style={styles.statLabel}>Liste Esplorate</Text>
+              <Text style={styles.statValue}>{gameStats.points_earned_this_month}</Text>
+              <Text style={styles.statLabel}>Punti Questo Mese</Text>
             </View>
           </View>
 
-          {/* Daily Challenges */}
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <IconSymbol
-                ios_icon_name="trophy.fill"
-                android_material_icon_name="emoji_events"
-                size={24}
-                color={colors.primary}
-              />
-              <Text style={styles.sectionTitle}>Sfide Giornaliere</Text>
-            </View>
+          {/* Current Challenge */}
+          {currentChallenge && (
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <IconSymbol
+                  ios_icon_name="trophy.fill"
+                  android_material_icon_name="emoji_events"
+                  size={24}
+                  color={colors.primary}
+                />
+                <Text style={styles.sectionTitle}>Sfida Attuale</Text>
+              </View>
 
-            {dailyChallenges.map((challenge) => (
-              <View key={challenge.id} style={styles.challengeCard}>
+              <View style={[styles.challengeCard, styles.currentChallengeCard]}>
                 <View style={styles.challengeHeader}>
                   <IconSymbol
-                    ios_icon_name={challenge.icon === 'explore' ? 'map.fill' : challenge.icon === 'favorite' ? 'heart.fill' : challenge.icon === 'share' ? 'square.and.arrow.up.fill' : 'star.fill'}
-                    android_material_icon_name={challenge.icon}
-                    size={24}
-                    color={challenge.completed ? '#4CAF50' : colors.text}
+                    ios_icon_name={
+                      currentChallenge.icon === 'collections' ? 'square.grid.2x2.fill' :
+                      currentChallenge.icon === 'explore' ? 'map.fill' :
+                      currentChallenge.icon === 'favorite' ? 'heart.fill' :
+                      'square.and.arrow.up.fill'
+                    }
+                    android_material_icon_name={currentChallenge.icon}
+                    size={32}
+                    color={currentChallenge.completed ? '#4CAF50' : colors.primary}
                   />
                   <View style={styles.challengeInfo}>
-                    <Text style={styles.challengeTitle}>{challenge.title}</Text>
-                    <Text style={styles.challengeDescription}>{challenge.description}</Text>
+                    <Text style={styles.currentChallengeTitle}>{currentChallenge.title}</Text>
+                    <Text style={styles.challengeDescription}>{currentChallenge.description}</Text>
                   </View>
-                  {challenge.completed && (
+                  {currentChallenge.completed && (
                     <IconSymbol
                       ios_icon_name="checkmark.circle.fill"
                       android_material_icon_name="check_circle"
-                      size={28}
+                      size={32}
                       color="#4CAF50"
                     />
                   )}
@@ -889,14 +995,14 @@ export default function GameFeedScreen() {
                       style={[
                         styles.progressFill,
                         {
-                          width: `${(challenge.progress / challenge.target) * 100}%`,
-                          backgroundColor: challenge.completed ? '#4CAF50' : colors.primary,
+                          width: `${(currentChallenge.progress / currentChallenge.target) * 100}%`,
+                          backgroundColor: currentChallenge.completed ? '#4CAF50' : colors.primary,
                         },
                       ]}
                     />
                   </View>
                   <Text style={styles.progressText}>
-                    {challenge.progress}/{challenge.target}
+                    {currentChallenge.progress}/{currentChallenge.target}
                   </Text>
                 </View>
 
@@ -907,8 +1013,94 @@ export default function GameFeedScreen() {
                     size={16}
                     color="#FFD700"
                   />
-                  <Text style={styles.rewardText}>+{challenge.reward} punti</Text>
+                  <Text style={styles.rewardText}>+{currentChallenge.reward} punti</Text>
                 </View>
+              </View>
+            </View>
+          )}
+
+          {/* All Challenges Overview */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <IconSymbol
+                ios_icon_name="list.bullet"
+                android_material_icon_name="list"
+                size={24}
+                color={colors.primary}
+              />
+              <Text style={styles.sectionTitle}>Tutte le Sfide</Text>
+            </View>
+
+            {weeklyChallenges.map((challenge, index) => (
+              <View key={challenge.id} style={[
+                styles.challengeCard,
+                challenge.locked && styles.lockedChallengeCard
+              ]}>
+                <View style={styles.challengeHeader}>
+                  <View style={styles.challengeNumberBadge}>
+                    <Text style={styles.challengeNumberText}>{index + 1}</Text>
+                  </View>
+                  <View style={styles.challengeInfo}>
+                    <Text style={[
+                      styles.challengeTitle,
+                      challenge.locked && styles.lockedChallengeText
+                    ]}>
+                      {challenge.title}
+                    </Text>
+                    <Text style={[
+                      styles.challengeDescription,
+                      challenge.locked && styles.lockedChallengeText
+                    ]}>
+                      {challenge.description}
+                    </Text>
+                  </View>
+                  {challenge.locked ? (
+                    <IconSymbol
+                      ios_icon_name="lock.fill"
+                      android_material_icon_name="lock"
+                      size={24}
+                      color={colors.textSecondary}
+                    />
+                  ) : challenge.completed ? (
+                    <IconSymbol
+                      ios_icon_name="checkmark.circle.fill"
+                      android_material_icon_name="check_circle"
+                      size={28}
+                      color="#4CAF50"
+                    />
+                  ) : null}
+                </View>
+
+                {!challenge.locked && (
+                  <>
+                    <View style={styles.progressContainer}>
+                      <View style={styles.progressBar}>
+                        <View
+                          style={[
+                            styles.progressFill,
+                            {
+                              width: `${(challenge.progress / challenge.target) * 100}%`,
+                              backgroundColor: challenge.completed ? '#4CAF50' : colors.primary,
+                            },
+                          ]}
+                        />
+                      </View>
+                      <Text style={styles.progressText}>
+                        {challenge.progress}/{challenge.target}
+                      </Text>
+                    </View>
+
+                    <View style={styles.rewardBadge}>
+                      <IconSymbol
+                        ios_icon_name="star.fill"
+                        android_material_icon_name="star"
+                        size={16}
+                        color="#FFD700"
+                      />
+                      <Text style={styles.rewardText}>+{challenge.reward} punti</Text>
+                    </View>
+                  </>
+                )}
               </View>
             ))}
           </View>
@@ -1056,11 +1248,10 @@ export default function GameFeedScreen() {
             <View style={styles.infoContent}>
               <Text style={styles.infoTitle}>Come Funziona</Text>
               <Text style={styles.infoText}>
-                • Tocca "Esplora Prodotti" per vedere i prodotti di una lista (+10 punti){'\n'}
-                • Tocca il cuore per mostrare interesse (+5 punti){'\n'}
-                • Condividi le liste con amici e parenti (+20 punti){'\n'}
-                • Completa le sfide giornaliere per punti bonus{'\n'}
-                • Più persone coinvolgi, più è probabile attivare un drop nella tua città!
+                • Completa le sfide una alla volta per sbloccare la successiva{'\n'}
+                • Ogni settimana puoi partecipare una volta{'\n'}
+                • A fine mese i punti vengono trasferiti al programma fedeltà{'\n'}
+                • Condividi le liste per aumentare le possibilità di attivare drop!
               </Text>
             </View>
           </View>
@@ -1227,11 +1418,32 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
+  currentChallengeCard: {
+    borderWidth: 2,
+    borderColor: colors.primary,
+    backgroundColor: colors.primary + '10',
+  },
+  lockedChallengeCard: {
+    opacity: 0.6,
+  },
   challengeHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
     marginBottom: 12,
+  },
+  challengeNumberBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  challengeNumberText: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#FFF',
   },
   challengeInfo: {
     flex: 1,
@@ -1242,8 +1454,18 @@ const styles = StyleSheet.create({
     color: colors.text,
     marginBottom: 4,
   },
+  currentChallengeTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: colors.primary,
+    marginBottom: 4,
+  },
   challengeDescription: {
     fontSize: 13,
+    color: colors.textSecondary,
+    lineHeight: 18,
+  },
+  lockedChallengeText: {
     color: colors.textSecondary,
   },
   progressContainer: {
