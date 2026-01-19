@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, FlatList, ActivityIndicator, Platform, Pressable, Image, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, FlatList, ActivityIndicator, Platform, Pressable, Image, Dimensions, Alert } from 'react-native';
 import { Stack, useLocalSearchParams, router } from 'expo-router';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
@@ -13,6 +13,7 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const GAME_STATS_KEY = 'game_stats_v2';
 const WEEKLY_CHALLENGES_KEY = 'weekly_challenges';
+const CURRENT_CHALLENGE_INDEX_KEY = 'current_challenge_index';
 
 interface Product {
   id: string;
@@ -165,22 +166,65 @@ export default function ListProductsScreen() {
 
       const challenges: Challenge[] = JSON.parse(savedChallenges);
       
-      const updatedChallenges = challenges.map(challenge => {
-        if (challenge.id === challengeId && !challenge.completed && !challenge.locked) {
-          const currentProgress = challenge.progress || 0;
-          const target = challenge.target || 1;
-          const newProgress = Math.min(currentProgress + increment, target);
-          const completed = newProgress >= target;
-          
-          console.log(`Updated challenge ${challengeId}: ${currentProgress} -> ${newProgress} (target: ${target})`);
-          
-          return { ...challenge, progress: newProgress, completed };
-        }
-        return challenge;
-      });
+      // Find the challenge being updated
+      const challengeIndex = challenges.findIndex(c => c.id === challengeId);
+      if (challengeIndex === -1) {
+        console.warn('Challenge not found:', challengeId);
+        return;
+      }
 
-      await AsyncStorage.setItem(WEEKLY_CHALLENGES_KEY, JSON.stringify(updatedChallenges));
-      console.log('Challenge progress updated successfully');
+      const challenge = challenges[challengeIndex];
+      
+      // Check if challenge is locked or already completed
+      if (challenge.locked || challenge.completed) {
+        console.log('Challenge is locked or already completed');
+        return;
+      }
+
+      // Update progress
+      const currentProgress = challenge.progress || 0;
+      const target = challenge.target || 1;
+      const newProgress = Math.min(currentProgress + increment, target);
+      const completed = newProgress >= target;
+      
+      console.log(`Updated challenge ${challengeId}: ${currentProgress} -> ${newProgress} (target: ${target})`);
+      
+      // Update the challenge
+      challenges[challengeIndex] = { ...challenge, progress: newProgress, completed };
+
+      // If challenge is completed, unlock the next one
+      if (completed && !challenge.completed) {
+        console.log('🎉 Challenge completed! Unlocking next challenge...');
+        
+        // Find the next challenge and unlock it
+        if (challengeIndex < challenges.length - 1) {
+          const nextChallenge = challenges[challengeIndex + 1];
+          challenges[challengeIndex + 1] = { ...nextChallenge, locked: false };
+          
+          // Update current challenge index
+          const newIndex = challengeIndex + 1;
+          await AsyncStorage.setItem(CURRENT_CHALLENGE_INDEX_KEY, newIndex.toString());
+          console.log(`Unlocked challenge ${nextChallenge.id}: ${nextChallenge.title}`);
+          
+          // Show completion alert
+          Alert.alert(
+            '🎉 Sfida Completata!',
+            `Hai completato "${challenge.title}" e guadagnato ${challenge.reward} punti!\n\nLa prossima sfida "${nextChallenge.title}" è stata sbloccata!`,
+            [{ text: 'Fantastico!', style: 'default' }]
+          );
+        } else {
+          // All challenges completed
+          Alert.alert(
+            '🎉 Tutte le Sfide Completate!',
+            `Hai completato "${challenge.title}" e guadagnato ${challenge.reward} punti!\n\nHai completato tutte le sfide della settimana! 🏆`,
+            [{ text: 'Incredibile!', style: 'default' }]
+          );
+        }
+      }
+
+      // Save updated challenges
+      await AsyncStorage.setItem(WEEKLY_CHALLENGES_KEY, JSON.stringify(challenges));
+      console.log('✅ Challenge progress and unlock status saved successfully');
       
     } catch (error) {
       console.error('Error updating challenge progress:', error);
