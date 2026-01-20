@@ -66,7 +66,7 @@ export default function ListProductsScreen() {
 
   useEffect(() => {
     loadProducts();
-  }, [listId, loadProducts]);
+  }, [listId]);
 
   const loadProducts = async () => {
     try {

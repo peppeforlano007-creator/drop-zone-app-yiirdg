@@ -29,8 +29,8 @@ export default function TabLayout() {
     },
     {
       route: '/(tabs)/payment-methods',
-      label: 'Ritiro',
-      icon: 'local_shipping',
+      label: 'Pagamenti',
+      icon: 'creditcard.fill',
     },
     {
       route: '/(tabs)/profile',

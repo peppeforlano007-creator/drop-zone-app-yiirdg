@@ -1,5 +1,5 @@
 
-import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { View, StyleSheet, Dimensions, Platform, Text, Pressable, Alert, Animated, ActivityIndicator, ScrollView, Modal } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Stack, router, useFocusEffect } from 'expo-router';
@@ -108,6 +108,13 @@ export default function GameFeedScreen() {
   const rewardAnim = useRef(new Animated.Value(0)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
+  // Load game data on mount
+  useEffect(() => {
+    loadGameData();
+    loadUnreadNotifications();
+    checkWelcomeScreen();
+  }, []);
+
   // Reload challenges when screen comes into focus
   useFocusEffect(
     useCallback(() => {
@@ -190,7 +197,7 @@ export default function GameFeedScreen() {
     }
   };
 
-  const loadGameData = useCallback(async () => {
+  const loadGameData = async () => {
     try {
       console.log('🎮 Loading game data...');
       setLoading(true);
@@ -423,7 +430,7 @@ export default function GameFeedScreen() {
       Alert.alert('Errore', 'Impossibile caricare i dati del gioco');
       setLoading(false);
     }
-  }, [user]);
+  };
 
   const generateWeeklyChallenges = async (listCount: number) => {
     const currentWeekStart = getWeekStart();
@@ -525,7 +532,7 @@ export default function GameFeedScreen() {
     await AsyncStorage.setItem(CURRENT_CHALLENGE_INDEX_KEY, '0');
   };
 
-  const loadUnreadNotifications = useCallback(async () => {
+  const loadUnreadNotifications = async () => {
     if (!user) return;
     
     try {
@@ -539,51 +546,46 @@ export default function GameFeedScreen() {
     } catch (error) {
       console.error('Error loading notifications:', error);
     }
-  }, [user]);
+  };
 
-  // Load game data on mount
-  useEffect(() => {
-    loadGameData();
-    loadUnreadNotifications();
-    checkWelcomeScreen();
-  }, [loadGameData, loadUnreadNotifications]);
-
-  // Memoize the action enabled states based on current challenge
-  // This prevents recalculation on every render
-  const actionStates = useMemo(() => {
+  // Helper function to check if an action is enabled based on current challenge
+  const isActionEnabled = (action: 'explore' | 'interest' | 'share'): boolean => {
     const currentChallenge = weeklyChallenges[currentChallengeIndex];
-    if (!currentChallenge) {
-      return { explore: false, interest: false, share: false };
-    }
+    if (!currentChallenge) return false;
+
+    console.log(`🔍 Checking if action "${action}" is enabled for challenge: ${currentChallenge.title}`);
 
     // Challenge 1 (COLLEZIONISTA): Only Esplora enabled
     if (currentChallenge.id === '1') {
-      return { explore: true, interest: false, share: false };
+      const enabled = action === 'explore';
+      console.log(`  → Challenge 1 (COLLEZIONISTA): ${action} is ${enabled ? 'ENABLED' : 'DISABLED'}`);
+      return enabled;
     }
 
     // Challenge 2 (NAVIGATORE): Only Esplora enabled
     if (currentChallenge.id === '2') {
-      return { explore: true, interest: false, share: false };
+      const enabled = action === 'explore';
+      console.log(`  → Challenge 2 (NAVIGATORE): ${action} is ${enabled ? 'ENABLED' : 'DISABLED'}`);
+      return enabled;
     }
 
     // Challenge 3 (CACCIATORE DI OFFERTE): Esplora + Mi Interessa enabled
     if (currentChallenge.id === '3') {
-      return { explore: true, interest: true, share: false };
+      const enabled = action === 'explore' || action === 'interest';
+      console.log(`  → Challenge 3 (CACCIATORE DI OFFERTE): ${action} is ${enabled ? 'ENABLED' : 'DISABLED'}`);
+      return enabled;
     }
 
     // Challenge 4 (AMBASCIATORE): All actions enabled
     if (currentChallenge.id === '4') {
-      return { explore: true, interest: true, share: true };
+      console.log(`  → Challenge 4 (AMBASCIATORE): ${action} is ENABLED (all actions enabled)`);
+      return true;
     }
 
-    // Default: disable all
-    return { explore: false, interest: false, share: false };
-  }, [weeklyChallenges, currentChallengeIndex]);
-
-  // Helper function to check if an action is enabled based on current challenge
-  const isActionEnabled = useCallback((action: 'explore' | 'interest' | 'share'): boolean => {
-    return actionStates[action];
-  }, [actionStates]);
+    // Default: disable if challenge not recognized
+    console.log(`  → Unknown challenge: ${action} is DISABLED by default`);
+    return false;
+  };
 
   const handleListExplore = async (list: SupplierList) => {
     console.log('User tapped Explore button for list:', list?.name || 'unknown');
@@ -1118,7 +1120,7 @@ export default function GameFeedScreen() {
         }),
       ])
     ).start();
-  }, [pulseAnim]);
+  }, []);
 
   if (loading) {
     return (
@@ -1478,10 +1480,10 @@ export default function GameFeedScreen() {
               const isInterested = selectedLists.has(list.id);
               const isExplored = Array.isArray(gameStats.explored_list_ids) && gameStats.explored_list_ids.includes(list.id);
               
-              // Get action states from memoized values
-              const exploreEnabled = actionStates.explore;
-              const interestEnabled = actionStates.interest;
-              const shareEnabled = actionStates.share;
+              // Check which actions are enabled
+              const exploreEnabled = isActionEnabled('explore');
+              const interestEnabled = isActionEnabled('interest');
+              const shareEnabled = isActionEnabled('share');
               
               return (
                 <View key={list.id} style={styles.listCard}>

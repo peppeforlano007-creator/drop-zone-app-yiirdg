@@ -18,7 +18,7 @@ export default function TestSupabaseScreen() {
 
   useEffect(() => {
     testConnection();
-  }, [testConnection]);
+  }, []);
 
   const testConnection = async () => {
     try {
