@@ -113,7 +113,7 @@ export default function GameFeedScreen() {
     loadGameData();
     loadUnreadNotifications();
     checkWelcomeScreen();
-  }, []);
+  }, [loadGameData, loadUnreadNotifications]);
 
   // Reload challenges when screen comes into focus
   useFocusEffect(
@@ -1120,7 +1120,7 @@ export default function GameFeedScreen() {
         }),
       ])
     ).start();
-  }, []);
+  }, [pulseAnim]);
 
   if (loading) {
     return (
