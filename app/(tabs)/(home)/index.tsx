@@ -547,6 +547,45 @@ export default function GameFeedScreen() {
     }
   };
 
+  // Helper function to check if an action is enabled based on current challenge
+  const isActionEnabled = (action: 'explore' | 'interest' | 'share'): boolean => {
+    const currentChallenge = weeklyChallenges[currentChallengeIndex];
+    if (!currentChallenge) return false;
+
+    console.log(`🔍 Checking if action "${action}" is enabled for challenge: ${currentChallenge.title}`);
+
+    // Challenge 1 (COLLEZIONISTA): Only Esplora enabled
+    if (currentChallenge.id === '1') {
+      const enabled = action === 'explore';
+      console.log(`  → Challenge 1 (COLLEZIONISTA): ${action} is ${enabled ? 'ENABLED' : 'DISABLED'}`);
+      return enabled;
+    }
+
+    // Challenge 2 (NAVIGATORE): Only Esplora enabled
+    if (currentChallenge.id === '2') {
+      const enabled = action === 'explore';
+      console.log(`  → Challenge 2 (NAVIGATORE): ${action} is ${enabled ? 'ENABLED' : 'DISABLED'}`);
+      return enabled;
+    }
+
+    // Challenge 3 (CACCIATORE DI OFFERTE): Esplora + Mi Interessa enabled
+    if (currentChallenge.id === '3') {
+      const enabled = action === 'explore' || action === 'interest';
+      console.log(`  → Challenge 3 (CACCIATORE DI OFFERTE): ${action} is ${enabled ? 'ENABLED' : 'DISABLED'}`);
+      return enabled;
+    }
+
+    // Challenge 4 (AMBASCIATORE): All actions enabled
+    if (currentChallenge.id === '4') {
+      console.log(`  → Challenge 4 (AMBASCIATORE): ${action} is ENABLED (all actions enabled)`);
+      return true;
+    }
+
+    // Default: disable if challenge not recognized
+    console.log(`  → Unknown challenge: ${action} is DISABLED by default`);
+    return false;
+  };
+
   const handleListExplore = async (list: SupplierList) => {
     console.log('User tapped Explore button for list:', list?.name || 'unknown');
     
@@ -558,6 +597,18 @@ export default function GameFeedScreen() {
     
     if (!user || !user.pickupPointId) {
       Alert.alert('Errore', 'Devi essere registrato con un punto di ritiro');
+      return;
+    }
+
+    // Check if action is enabled
+    if (!isActionEnabled('explore')) {
+      console.log('❌ Explore action is DISABLED for current challenge');
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert(
+        'Azione Non Disponibile',
+        'Questa azione non è ancora disponibile. Completa le sfide precedenti per sbloccarla!',
+        [{ text: 'OK' }]
+      );
       return;
     }
 
@@ -610,6 +661,18 @@ export default function GameFeedScreen() {
     
     if (!user || !user.pickupPointId) {
       Alert.alert('Errore', 'Devi essere registrato con un punto di ritiro');
+      return;
+    }
+
+    // Check if action is enabled
+    if (!isActionEnabled('interest')) {
+      console.log('❌ Interest action is DISABLED for current challenge');
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert(
+        'Azione Non Disponibile',
+        'Questa azione non è ancora disponibile. Completa le sfide precedenti per sbloccarla!',
+        [{ text: 'OK' }]
+      );
       return;
     }
 
@@ -689,6 +752,18 @@ export default function GameFeedScreen() {
     
     if (!user || !user.pickupPointId) {
       Alert.alert('Errore', 'Devi essere registrato con un punto di ritiro');
+      return;
+    }
+
+    // Check if action is enabled
+    if (!isActionEnabled('share')) {
+      console.log('❌ Share action is DISABLED for current challenge');
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert(
+        'Azione Non Disponibile',
+        'Questa azione non è ancora disponibile. Completa le sfide precedenti per sbloccarla!',
+        [{ text: 'OK' }]
+      );
       return;
     }
 
@@ -1336,6 +1411,11 @@ export default function GameFeedScreen() {
               const isInterested = selectedLists.has(list.id);
               const isExplored = Array.isArray(gameStats.explored_list_ids) && gameStats.explored_list_ids.includes(list.id);
               
+              // Check which actions are enabled
+              const exploreEnabled = isActionEnabled('explore');
+              const interestEnabled = isActionEnabled('interest');
+              const shareEnabled = isActionEnabled('share');
+              
               return (
                 <View key={list.id} style={styles.listCard}>
                   <View style={styles.listHeader}>
@@ -1382,17 +1462,22 @@ export default function GameFeedScreen() {
                     <Pressable
                       style={({ pressed }) => [
                         styles.exploreButton,
-                        pressed && styles.buttonPressed,
+                        !exploreEnabled && styles.buttonDisabled,
+                        pressed && exploreEnabled && styles.buttonPressed,
                       ]}
                       onPress={() => handleListExplore(list)}
+                      disabled={!exploreEnabled}
                     >
                       <IconSymbol
-                        ios_icon_name="eye.fill"
-                        android_material_icon_name="visibility"
+                        ios_icon_name={exploreEnabled ? 'eye.fill' : 'lock.fill'}
+                        android_material_icon_name={exploreEnabled ? 'visibility' : 'lock'}
                         size={20}
-                        color="#FFF"
+                        color={exploreEnabled ? '#FFF' : '#999'}
                       />
-                      <Text style={styles.exploreButtonText}>
+                      <Text style={[
+                        styles.exploreButtonText,
+                        !exploreEnabled && styles.buttonTextDisabled
+                      ]}>
                         {isExplored ? 'Esplora Ancora' : 'Esplora Prodotti'}
                       </Text>
                     </Pressable>
@@ -1401,19 +1486,22 @@ export default function GameFeedScreen() {
                       style={({ pressed }) => [
                         styles.interestButton,
                         isInterested && styles.interestButtonActive,
-                        pressed && styles.buttonPressed,
+                        !interestEnabled && styles.buttonDisabled,
+                        pressed && interestEnabled && styles.buttonPressed,
                       ]}
                       onPress={() => handleListInterest(list)}
+                      disabled={!interestEnabled}
                     >
                       <IconSymbol
-                        ios_icon_name={isInterested ? 'heart.fill' : 'heart'}
-                        android_material_icon_name={isInterested ? 'favorite' : 'favorite_border'}
+                        ios_icon_name={!interestEnabled ? 'lock.fill' : (isInterested ? 'heart.fill' : 'heart')}
+                        android_material_icon_name={!interestEnabled ? 'lock' : (isInterested ? 'favorite' : 'favorite_border')}
                         size={20}
-                        color={isInterested ? '#FFF' : colors.primary}
+                        color={!interestEnabled ? '#999' : (isInterested ? '#FFF' : colors.primary)}
                       />
                       <Text style={[
                         styles.interestButtonText,
-                        isInterested && styles.interestButtonTextActive
+                        isInterested && styles.interestButtonTextActive,
+                        !interestEnabled && styles.buttonTextDisabled
                       ]}>
                         {isInterested ? 'Interessato' : 'Mi Interessa'}
                       </Text>
@@ -1424,17 +1512,22 @@ export default function GameFeedScreen() {
                   <Pressable
                     style={({ pressed }) => [
                       styles.shareButton,
-                      pressed && styles.buttonPressed,
+                      !shareEnabled && styles.buttonDisabled,
+                      pressed && shareEnabled && styles.buttonPressed,
                     ]}
                     onPress={() => handleListShare(list)}
+                    disabled={!shareEnabled}
                   >
                     <IconSymbol
-                      ios_icon_name="square.and.arrow.up"
-                      android_material_icon_name="share"
+                      ios_icon_name={shareEnabled ? 'square.and.arrow.up' : 'lock.fill'}
+                      android_material_icon_name={shareEnabled ? 'share' : 'lock'}
                       size={20}
-                      color={colors.primary}
+                      color={shareEnabled ? colors.primary : '#999'}
                     />
-                    <Text style={styles.shareButtonText}>
+                    <Text style={[
+                      styles.shareButtonText,
+                      !shareEnabled && styles.buttonTextDisabled
+                    ]}>
                       Condividi con Amici (+20 punti)
                     </Text>
                   </Pressable>
@@ -1455,6 +1548,7 @@ export default function GameFeedScreen() {
               <Text style={styles.infoTitle}>Come Funziona</Text>
               <Text style={styles.infoText}>
                 • Completa le sfide una alla volta per sbloccare la successiva{'\n'}
+                • Le azioni si sbloccano progressivamente con le sfide{'\n'}
                 • Ogni settimana puoi partecipare una volta{'\n'}
                 • Se salti una settimana, la tua striscia si azzera{'\n'}
                 • I punti mensili vengono sempre preservati{'\n'}
@@ -1906,6 +2000,14 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     color: colors.primary,
+  },
+  buttonDisabled: {
+    opacity: 0.4,
+    backgroundColor: '#E0E0E0',
+    borderColor: '#999',
+  },
+  buttonTextDisabled: {
+    color: '#999',
   },
   buttonPressed: {
     opacity: 0.7,
