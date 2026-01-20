@@ -7,17 +7,7 @@
  * Format: country_code + phone_number (e.g., "393201234567" for Italy)
  */
 
-// Country codes for validation
-const COUNTRY_CODES = [
-  { code: '39', country: 'Italia', digits: 10 },
-  { code: '1', country: 'Stati Uniti', digits: 10 },
-  { code: '44', country: 'Regno Unito', digits: 10 },
-  { code: '33', country: 'Francia', digits: 9 },
-  { code: '49', country: 'Germania', digits: 10 },
-  { code: '34', country: 'Spagna', digits: 9 },
-  { code: '41', country: 'Svizzera', digits: 9 },
-  { code: '43', country: 'Austria', digits: 10 },
-];
+import { COUNTRY_CODES } from '@/components/CountryCodePicker';
 
 /**
  * Validates if a phone number is in a valid format for a specific country code

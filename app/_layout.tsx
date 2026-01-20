@@ -1,4 +1,7 @@
 
+// Load polyfills first
+import './polyfills';
+
 import "react-native-reanimated";
 import React, { useEffect, useState, useCallback } from "react";
 import { useFonts } from "expo-font";
@@ -342,6 +345,26 @@ export default function RootLayout() {
 
                   {/* Subscription Screens */}
                   <Stack.Screen name="subscription-plans" options={{ headerShown: false }} />
+
+                  {/* Legal Screens */}
+                  <Stack.Screen name="legal/privacy-policy" options={{ headerShown: false }} />
+                  <Stack.Screen name="legal/terms-conditions" options={{ headerShown: false }} />
+                  <Stack.Screen name="legal/cookie-policy" options={{ headerShown: false }} />
+
+                  {/* Wishlist */}
+                  <Stack.Screen name="wishlist" options={{ headerShown: false }} />
+
+                  {/* Loyalty Program */}
+                  <Stack.Screen name="loyalty-program" options={{ headerShown: false }} />
+
+                  {/* My Coupons */}
+                  <Stack.Screen name="my-coupons" options={{ headerShown: false }} />
+
+                  {/* Admin Login */}
+                  <Stack.Screen name="admin-login" options={{ headerShown: false }} />
+
+                  {/* Test Supabase */}
+                  <Stack.Screen name="test-supabase" options={{ headerShown: false }} />
 
                   {/* Modal Demo Screens */}
                   <Stack.Screen

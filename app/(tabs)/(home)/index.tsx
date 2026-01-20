@@ -1,17 +1,21 @@
 
-import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { View, StyleSheet, Dimensions, Platform, Text, Pressable, Alert, Animated, ActivityIndicator, ScrollView, Modal } from 'react-native';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { View, StyleSheet, FlatList, Dimensions, Platform, Text, Pressable, Alert, Animated, ActivityIndicator } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Stack, router, useFocusEffect } from 'expo-router';
+import { Stack, router } from 'expo-router';
 import { colors } from '@/styles/commonStyles';
+import ProductCard from '@/components/ProductCard';
+import { Product, ProductVariant } from '@/types/Product';
 import { IconSymbol } from '@/components/IconSymbol';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/app/integrations/supabase/client';
 import * as Haptics from 'expo-haptics';
-import * as Sharing from 'expo-sharing';
-import * as FileSystem from 'expo-file-system/legacy';
+import FeedWelcomeModal from '@/components/FeedWelcomeModal';
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
+
+// PERFORMANCE OPTIMIZATION: Batch size for loading variants
+const VARIANT_BATCH_SIZE = 50;
 
 interface SupplierList {
   id: string;
@@ -22,1055 +26,734 @@ interface SupplierList {
   max_discount: number;
   min_reservation_value: number;
   max_reservation_value: number;
-  product_count: number;
 }
 
-interface GameStats {
-  weekly_streak: number;
-  total_discoveries: number;
-  lists_explored: number;
-  lists_explored_this_week: number;
-  lists_interested_this_week: number;
-  lists_shared_this_week: number;
-  lists_navigated_to_end: string[]; // IDs of lists navigated to the end
-  points_earned_this_week: number;
-  points_earned_this_month: number;
-  last_played: string;
-  last_week_start: string;
-  last_month_start?: string;
-  explored_list_ids: string[];
+interface ProductList {
+  listId: string;
+  listName: string;
+  supplierName: string;
+  products: Product[];
+  minDiscount: number;
+  maxDiscount: number;
+  minReservationValue: number;
+  maxReservationValue: number;
 }
 
-interface Challenge {
-  id: string;
-  title: string;
-  description: string;
-  icon: string;
-  progress: number;
-  target: number;
-  reward: number;
-  completed: boolean;
-  locked: boolean;
-}
+const WELCOME_MODAL_KEY = 'feed_welcome_modal_shown';
 
-const WELCOME_MODAL_KEY = 'game_welcome_shown';
-const GAME_STATS_KEY = 'game_stats_v2';
-const WEEKLY_CHALLENGES_KEY = 'weekly_challenges';
-const CURRENT_CHALLENGE_INDEX_KEY = 'current_challenge_index';
-
-// Helper to get the start of the current week (Monday)
-const getWeekStart = (date: Date = new Date()): string => {
-  const d = new Date(date);
-  const day = d.getDay();
-  const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Adjust when day is Sunday
-  d.setDate(diff);
-  d.setHours(0, 0, 0, 0);
-  return d.toISOString().split('T')[0];
-};
-
-// Helper to get the start of the current month
-const getMonthStart = (date: Date = new Date()): string => {
-  const d = new Date(date);
-  d.setDate(1);
-  d.setHours(0, 0, 0, 0);
-  return d.toISOString().split('T')[0];
-};
-
-export default function GameFeedScreen() {
+export default function HomeScreen() {
   const { logout, user } = useAuth();
+  const [interestedProducts, setInterestedProducts] = useState<Set<string>>(new Set());
+  const [wishlistProducts, setWishlistProducts] = useState<Set<string>>(new Set());
+  const [currentListIndex, setCurrentListIndex] = useState(0);
+  const [currentProductIndex, setCurrentProductIndex] = useState(0);
+  const [productLists, setProductLists] = useState<ProductList[]>([]);
   const [loading, setLoading] = useState(true);
-  const [supplierLists, setSupplierLists] = useState<SupplierList[]>([]);
-  const [gameStats, setGameStats] = useState<GameStats>({
-    weekly_streak: 0,
-    total_discoveries: 0,
-    lists_explored: 0,
-    lists_explored_this_week: 0,
-    lists_interested_this_week: 0,
-    lists_shared_this_week: 0,
-    lists_navigated_to_end: [],
-    points_earned_this_week: 0,
-    points_earned_this_month: 0,
-    last_played: new Date().toISOString().split('T')[0],
-    last_week_start: getWeekStart(),
-    explored_list_ids: [],
-  });
-  const [weeklyChallenges, setWeeklyChallenges] = useState<Challenge[]>([]);
-  const [currentChallengeIndex, setCurrentChallengeIndex] = useState(0);
-  const [selectedLists, setSelectedLists] = useState<Set<string>>(new Set());
+  const [error, setError] = useState<string | null>(null);
+  const [bannerDismissed, setBannerDismissed] = useState<Record<string, boolean>>({});
+  const [processingInterests, setProcessingInterests] = useState<Set<string>>(new Set());
   const [unreadNotifications, setUnreadNotifications] = useState(0);
-  const [showRewardAnimation, setShowRewardAnimation] = useState(false);
-  const [rewardAmount, setRewardAmount] = useState(0);
-  const [showWelcome, setShowWelcome] = useState(false);
-  const [showMissedWeekModal, setShowMissedWeekModal] = useState(false);
-  const [missedWeeksCount, setMissedWeeksCount] = useState(0);
-  const [previousStreak, setPreviousStreak] = useState(0);
-  
-  const rewardAnim = useRef(new Animated.Value(0)).current;
-  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const [showWelcomeModal, setShowWelcomeModal] = useState(false);
+  const [showWishlistTip, setShowWishlistTip] = useState(false);
+  const [loadingProgress, setLoadingProgress] = useState('');
+  const listFlatListRef = useRef<FlatList>(null);
+  const productFlatListRef = useRef<FlatList>(null);
+  const progressAnim = useRef(new Animated.Value(0)).current;
+  const bannerOpacity = useRef(new Animated.Value(0)).current;
 
-  // Reload challenges when screen comes into focus
-  useFocusEffect(
-    useCallback(() => {
-      console.log('🔄 Screen focused, reloading challenges...');
-      reloadChallenges();
-    }, [])
-  );
-
-  const reloadChallenges = async () => {
-    try {
-      const savedChallenges = await AsyncStorage.getItem(WEEKLY_CHALLENGES_KEY);
-      
-      if (savedChallenges) {
-        const parsedChallenges = JSON.parse(savedChallenges);
-        
-        console.log('📊 Current challenges state:', parsedChallenges.map((c: Challenge) => ({
-          id: c.id,
-          title: c.title,
-          locked: c.locked,
-          completed: c.completed,
-          progress: c.progress,
-          target: c.target
-        })));
-        
-        // Find the first unlocked, incomplete challenge
-        // This is the challenge the user should be working on
-        let newCurrentIndex = 0;
-        let foundCurrentChallenge = false;
-        
-        for (let i = 0; i < parsedChallenges.length; i++) {
-          const challenge = parsedChallenges[i];
-          
-          // The current challenge is the first one that is:
-          // 1. NOT locked
-          // 2. NOT completed
-          if (!challenge.locked && !challenge.completed) {
-            newCurrentIndex = i;
-            foundCurrentChallenge = true;
-            console.log(`📍 Found current challenge at index ${i}: ${challenge.title} (locked: ${challenge.locked}, completed: ${challenge.completed}, progress: ${challenge.progress}/${challenge.target})`);
-            break;
-          }
+  // Check if welcome modal should be shown
+  useEffect(() => {
+    const checkWelcomeModal = async () => {
+      try {
+        const hasShown = await AsyncStorage.getItem(WELCOME_MODAL_KEY);
+        if (!hasShown) {
+          setTimeout(() => {
+            setShowWelcomeModal(true);
+          }, 1000);
         }
-        
-        // If all challenges are completed, set to last challenge
-        if (!foundCurrentChallenge) {
-          newCurrentIndex = parsedChallenges.length - 1;
-          console.log('📍 All challenges completed, showing last challenge');
-        }
-        
-        console.log('✅ Setting current challenge index to:', newCurrentIndex);
-        
-        setWeeklyChallenges(parsedChallenges);
-        setCurrentChallengeIndex(newCurrentIndex);
-        
-        // Update the saved index to match
-        await AsyncStorage.setItem(CURRENT_CHALLENGE_INDEX_KEY, newCurrentIndex.toString());
+      } catch (error) {
+        console.error('Error checking welcome modal state:', error);
       }
-    } catch (error) {
-      console.error('Error reloading challenges:', error);
-    }
-  };
+    };
 
-  const checkWelcomeScreen = async () => {
-    try {
-      const hasShown = await AsyncStorage.getItem(WELCOME_MODAL_KEY);
-      if (!hasShown) {
-        setShowWelcome(true);
-      }
-    } catch (error) {
-      console.error('Error checking welcome screen:', error);
-    }
-  };
+    checkWelcomeModal();
+  }, []);
 
-  const closeWelcome = async () => {
+  const handleCloseWelcomeModal = async () => {
     try {
       await AsyncStorage.setItem(WELCOME_MODAL_KEY, 'true');
-      setShowWelcome(false);
+      setShowWelcomeModal(false);
     } catch (error) {
-      console.error('Error saving welcome state:', error);
+      console.error('Error saving welcome modal state:', error);
+      setShowWelcomeModal(false);
     }
   };
 
-  const loadGameData = useCallback(async () => {
-    try {
-      console.log('🎮 Loading game data...');
-      setLoading(true);
+  const handleOpenWelcomeModal = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setShowWelcomeModal(true);
+  };
 
-      // Check if admin requested a game data reset
-      if (user?.id) {
-        const { data: profile, error: profileError } = await supabase
-          .from('profiles')
-          .select('game_data_reset_requested')
-          .eq('user_id', user.id)
-          .single();
-        
-        if (!profileError && profile?.game_data_reset_requested) {
-          console.log('🔄 Admin requested game data reset. Clearing all game data...');
-          
-          // Clear all game-related AsyncStorage data
-          await AsyncStorage.removeItem(GAME_STATS_KEY);
-          await AsyncStorage.removeItem(WEEKLY_CHALLENGES_KEY);
-          await AsyncStorage.removeItem(CURRENT_CHALLENGE_INDEX_KEY);
-          
-          // Clear the reset flag in database
-          await supabase
-            .from('profiles')
-            .update({ 
-              game_data_reset_requested: false,
-              loyalty_points: 0 
-            })
-            .eq('user_id', user.id);
-          
-          console.log('✅ Game data reset complete!');
-          
-          Alert.alert(
-            '🎮 Dati di Gioco Resettati',
-            'Le tue sfide e i tuoi punti sono stati resettati dall\'amministratore. Inizia una nuova avventura!',
-            [{ text: 'OK' }]
-          );
+  // PERFORMANCE OPTIMIZATION: Load variants in batches to avoid URL length limits
+  const loadVariantsInBatches = async (productIds: string[]) => {
+    console.log(`📦 Loading variants for ${productIds.length} products in batches of ${VARIANT_BATCH_SIZE}`);
+    
+    const allVariants: any[] = [];
+    const batches = Math.ceil(productIds.length / VARIANT_BATCH_SIZE);
+    
+    for (let i = 0; i < batches; i++) {
+      const start = i * VARIANT_BATCH_SIZE;
+      const end = Math.min(start + VARIANT_BATCH_SIZE, productIds.length);
+      const batchIds = productIds.slice(start, end);
+      
+      console.log(`   Batch ${i + 1}/${batches}: Loading variants for ${batchIds.length} products`);
+      setLoadingProgress(`Caricamento varianti ${i + 1}/${batches}...`);
+      
+      try {
+        const { data, error } = await supabase
+          .from('product_variants')
+          .select('*')
+          .in('product_id', batchIds)
+          .gt('stock', 0);
+
+        if (error) {
+          console.warn(`⚠️  Error loading variant batch ${i + 1} (non-fatal):`, error.message);
+          continue;
         }
-      }
 
-      // Load supplier lists with product counts
-      const { data: lists, error: listsError } = await supabase
+        if (data && data.length > 0) {
+          allVariants.push(...data);
+          console.log(`   ✅ Batch ${i + 1}: Loaded ${data.length} variants`);
+        }
+      } catch (error) {
+        console.error(`❌ Exception loading variant batch ${i + 1}:`, error);
+      }
+    }
+    
+    console.log(`✅ Total variants loaded: ${allVariants.length}`);
+    return allVariants;
+  };
+
+  const loadProducts = useCallback(async () => {
+    try {
+      console.log('\n╔════════════════════════════════════════════════════════════════╗');
+      console.log('║  🚀 FEED LOADING - MULTI-LIST NAVIGATION FIX                  ║');
+      console.log('╚════════════════════════════════════════════════════════════════╝');
+      console.log('⏰ Timestamp:', new Date().toISOString());
+      console.log('👤 User:', user?.email || 'Not logged in');
+      
+      setError(null);
+      setLoading(true);
+      setLoadingProgress('Caricamento liste fornitori...');
+      
+      // ═══════════════════════════════════════════════════════════════════
+      // STEP 1: FETCH ACTIVE SUPPLIER LISTS
+      // ═══════════════════════════════════════════════════════════════════
+      console.log('\n┌─ STEP 1: Fetching Active Supplier Lists ─────────────────────┐');
+      
+      const { data: supplierLists, error: listsError } = await supabase
         .from('supplier_lists')
-        .select(`
-          id,
-          name,
-          supplier_id,
-          min_discount,
-          max_discount,
-          min_reservation_value,
-          max_reservation_value,
-          products!inner(id)
-        `)
+        .select('*')
         .eq('status', 'active')
-        .gt('products.stock', 0)
-        .eq('products.status', 'active');
+        .order('created_at', { ascending: false });
 
       if (listsError) {
-        console.error('Error loading supplier lists:', listsError);
-        throw listsError;
+        throw new Error(`Failed to fetch supplier lists: ${listsError.message}`);
       }
 
-      // Get supplier names
-      const supplierIds = [...new Set((lists || []).map(l => l.supplier_id).filter(Boolean))];
-      const { data: profiles } = await supabase
+      if (!supplierLists || supplierLists.length === 0) {
+        console.log('⚠️  No active supplier lists found');
+        console.log('└───────────────────────────────────────────────────────────────┘\n');
+        setProductLists([]);
+        setLoading(false);
+        setLoadingProgress('');
+        return;
+      }
+
+      console.log(`✅ Found ${supplierLists.length} active supplier lists:`);
+      supplierLists.forEach((list, idx) => {
+        console.log(`   ${idx + 1}. "${list.name}" (ID: ${list.id.substring(0, 8)}...)`);
+      });
+      console.log('└───────────────────────────────────────────────────────────────┘\n');
+
+      // ═══════════════════════════════════════════════════════════════════
+      // STEP 2: FETCH SUPPLIER PROFILES
+      // ═══════════════════════════════════════════════════════════════════
+      console.log('┌─ STEP 2: Fetching Supplier Profiles ─────────────────────────┐');
+      setLoadingProgress('Caricamento profili fornitori...');
+      
+      const supplierIds = supplierLists.map(list => list.supplier_id);
+      const { data: profiles, error: profilesError } = await supabase
         .from('profiles')
         .select('user_id, full_name')
         .in('user_id', supplierIds);
 
-      const profilesMap = new Map((profiles || []).map(p => [p.user_id, p.full_name]));
+      if (profilesError) {
+        console.warn('⚠️  Error loading profiles (non-fatal):', profilesError.message);
+      }
 
-      // Count products per list with null safety
-      const listsWithCounts = (lists || []).reduce((acc: SupplierList[], list: any) => {
-        if (!list || !list.id || !list.name) {
-          console.warn('Skipping invalid list:', list);
-          return acc;
-        }
-        
-        const productCount = Array.isArray(list.products) ? list.products.length : 0;
-        if (productCount > 0) {
-          acc.push({
-            id: list.id,
-            name: list.name || 'Lista Senza Nome',
-            supplier_id: list.supplier_id || '',
-            supplier_name: profilesMap.get(list.supplier_id) || 'Fornitore',
-            min_discount: list.min_discount || 0,
-            max_discount: list.max_discount || 0,
-            min_reservation_value: list.min_reservation_value || 0,
-            max_reservation_value: list.max_reservation_value || 0,
-            product_count: productCount,
-          });
-        }
-        return acc;
-      }, []);
+      const profilesMap = new Map(profiles?.map(p => [p.user_id, p.full_name]) || []);
+      console.log(`✅ Loaded ${profiles?.length || 0} supplier profiles`);
+      console.log('└───────────────────────────────────────────────────────────────┘\n');
 
-      console.log(`Loaded ${listsWithCounts.length} supplier lists with products`);
-      setSupplierLists(listsWithCounts);
-
-      // Load game stats
-      const savedStats = await AsyncStorage.getItem(GAME_STATS_KEY);
-      const currentWeekStart = getWeekStart();
-      const currentMonthStart = getMonthStart();
+      // ═══════════════════════════════════════════════════════════════════
+      // STEP 3: FETCH PRODUCTS WITH STOCK (OPTIMIZED)
+      // ═══════════════════════════════════════════════════════════════════
+      console.log('┌─ STEP 3: Fetching Products with Stock (OPTIMIZED) ───────────┐');
+      setLoadingProgress('Caricamento prodotti...');
       
-      if (savedStats) {
-        const stats = JSON.parse(savedStats);
+      const listIds = supplierLists.map(list => list.id);
+      
+      // PERFORMANCE: Select only essential fields to reduce data transfer
+      const { data: products, error: productsError } = await supabase
+        .from('products')
+        .select('id, name, description, brand, sku, image_url, additional_images, original_price, available_sizes, available_colors, condition, category, stock, supplier_list_id, supplier_id, status, created_at')
+        .in('supplier_list_id', listIds)
+        .gt('stock', 0)
+        .eq('status', 'active')
+        .order('created_at', { ascending: false });
+
+      if (productsError) {
+        throw new Error(`Failed to fetch products: ${productsError.message}`);
+      }
+
+      console.log(`✅ Loaded ${products?.length || 0} products with stock > 0`);
+      
+      if (!products || products.length === 0) {
+        console.log('⚠️  No products with stock found');
+        console.log('└───────────────────────────────────────────────────────────────┘\n');
+        setProductLists([]);
+        setLoading(false);
+        setLoadingProgress('');
+        return;
+      }
+
+      // Log products per list
+      const productsPerList = new Map<string, number>();
+      products.forEach(p => {
+        const count = productsPerList.get(p.supplier_list_id) || 0;
+        productsPerList.set(p.supplier_list_id, count + 1);
+      });
+
+      console.log('\n📊 Products per List:');
+      supplierLists.forEach((list, idx) => {
+        const count = productsPerList.get(list.id) || 0;
+        console.log(`   ${idx + 1}. "${list.name}": ${count} products`);
+      });
+      console.log('└───────────────────────────────────────────────────────────────┘\n');
+
+      // ═══════════════════════════════════════════════════════════════════
+      // STEP 4: LOAD PRODUCT VARIANTS IN BATCHES (OPTIMIZED)
+      // ═══════════════════════════════════════════════════════════════════
+      console.log('┌─ STEP 4: Loading Product Variants (BATCHED) ─────────────────┐');
+      
+      const productIds = products.map(p => p.id);
+      const variants = await loadVariantsInBatches(productIds);
+      
+      console.log('└───────────────────────────────────────────────────────────────┘\n');
+
+      // Create variants map
+      const variantsMap = new Map<string, ProductVariant[]>();
+      if (variants && variants.length > 0) {
+        variants.forEach(v => {
+          if (!variantsMap.has(v.product_id)) {
+            variantsMap.set(v.product_id, []);
+          }
+          variantsMap.get(v.product_id)!.push({
+            id: v.id,
+            productId: v.product_id,
+            size: v.size || undefined,
+            color: v.color || undefined,
+            stock: v.stock || 0,
+            status: v.status || 'active',
+          });
+        });
+      }
+
+      // ═══════════════════════════════════════════════════════════════════
+      // STEP 5: BUILD PRODUCT LISTS (OPTIMIZED - LAZY LOADING)
+      // ═══════════════════════════════════════════════════════════════════
+      console.log('┌─ STEP 5: Building Product Lists (OPTIMIZED) ─────────────────┐');
+      setLoadingProgress('Preparazione feed...');
+      
+      const finalLists: ProductList[] = [];
+
+      // Process each supplier list
+      for (const supplierList of supplierLists) {
+        const listProducts = products.filter(p => p.supplier_list_id === supplierList.id);
         
-        // Check if we're in a new week
-        if (stats.last_week_start !== currentWeekStart) {
-          console.log('New week detected, checking streak status');
+        console.log(`\n📦 Processing "${supplierList.name}":`);
+        console.log(`   • Raw products: ${listProducts.length}`);
+
+        // Skip empty lists
+        if (listProducts.length === 0) {
+          console.log(`   ⚠️  Skipping - no products`);
+          continue;
+        }
+
+        // PERFORMANCE: Transform products with minimal processing
+        const transformedProducts: Product[] = listProducts.map(p => {
+          const productVariants = variantsMap.get(p.id) || [];
           
-          // Calculate how many weeks have passed
-          const lastWeekStart = new Date(stats.last_week_start);
-          const thisWeekStart = new Date(currentWeekStart);
-          const weeksDiff = Math.floor((thisWeekStart.getTime() - lastWeekStart.getTime()) / (1000 * 60 * 60 * 24 * 7));
-          
-          console.log(`Weeks difference: ${weeksDiff}`);
-          
-          // Check if user participated last week (earned any points)
-          const participatedLastWeek = stats.points_earned_this_week > 0;
-          
-          if (weeksDiff === 1 && participatedLastWeek) {
-            // User played last week, continue streak
-            console.log('User played last week, continuing streak');
-            stats.weekly_streak += 1;
-          } else if (weeksDiff > 1) {
-            // User missed one or more weeks, reset streak
-            console.log(`User missed ${weeksDiff - 1} week(s), resetting streak`);
-            
-            // Show missed week modal if they had a streak
-            if (stats.weekly_streak > 0) {
-              setPreviousStreak(stats.weekly_streak);
-              setMissedWeeksCount(weeksDiff - 1);
-              setShowMissedWeekModal(true);
+          // PERFORMANCE: Simplified image handling
+          let additionalImages: string[] = [];
+          if (p.additional_images) {
+            if (Array.isArray(p.additional_images)) {
+              additionalImages = p.additional_images.filter(Boolean);
             }
-            
-            // Reset streak to 0 (will become 1 when they play this week)
-            stats.weekly_streak = 0;
-          } else if (weeksDiff === 1 && !participatedLastWeek) {
-            // User didn't participate last week, reset streak
-            console.log('User did not participate last week, resetting streak');
-            
-            if (stats.weekly_streak > 0) {
-              setPreviousStreak(stats.weekly_streak);
-              setMissedWeeksCount(1);
-              setShowMissedWeekModal(true);
-            }
-            
-            stats.weekly_streak = 0;
           }
           
-          // Reset weekly counters
-          stats.points_earned_this_week = 0;
-          stats.lists_explored_this_week = 0;
-          stats.lists_interested_this_week = 0;
-          stats.lists_shared_this_week = 0;
-          stats.lists_navigated_to_end = [];
-          stats.last_week_start = currentWeekStart;
+          const imageUrls = [p.image_url, ...additionalImages].filter(Boolean);
           
-          // Reset challenges for new week
-          await AsyncStorage.removeItem(WEEKLY_CHALLENGES_KEY);
-          await AsyncStorage.setItem(CURRENT_CHALLENGE_INDEX_KEY, '0');
-        }
-        
-        // Check if we're in a new month
-        const lastMonthStart = stats.last_month_start || currentMonthStart;
-        if (lastMonthStart !== currentMonthStart) {
-          console.log('New month detected, transferring points to loyalty program');
-          
-          // Transfer monthly points to loyalty program
-          if (stats.points_earned_this_month > 0 && user) {
-            const { data: profile } = await supabase
-              .from('profiles')
-              .select('loyalty_points')
-              .eq('user_id', user.id)
-              .single();
+          return {
+            id: p.id,
+            name: p.name,
+            description: p.description || undefined,
+            brand: p.brand || undefined,
+            sku: p.sku || undefined,
+            imageUrl: p.image_url || '',
+            imageUrls: imageUrls,
+            originalPrice: parseFloat(p.original_price),
+            availableSizes: p.available_sizes || [],
+            availableColors: p.available_colors || [],
+            sizes: p.available_sizes || [],
+            colors: p.available_colors || [],
+            condition: p.condition as any,
+            category: p.category || undefined,
+            stock: p.stock,
+            listId: supplierList.id,
+            supplierId: p.supplier_id,
+            supplierName: profilesMap.get(supplierList.supplier_id) || 'Fornitore',
+            minDiscount: supplierList.min_discount || 30,
+            maxDiscount: supplierList.max_discount || 80,
+            minReservationValue: supplierList.min_reservation_value || 5000,
+            maxReservationValue: supplierList.max_reservation_value || 30000,
+            hasVariants: productVariants.length > 0,
+            variants: productVariants,
+          };
+        });
 
-            const currentLoyaltyPoints = profile?.loyalty_points || 0;
-            const newLoyaltyPoints = currentLoyaltyPoints + stats.points_earned_this_month;
+        console.log(`   ✅ Transformed: ${transformedProducts.length} products`);
 
-            await supabase
-              .from('profiles')
-              .update({ loyalty_points: newLoyaltyPoints })
-              .eq('user_id', user.id);
+        // Add to final lists
+        finalLists.push({
+          listId: supplierList.id,
+          listName: supplierList.name,
+          supplierName: profilesMap.get(supplierList.supplier_id) || 'Fornitore',
+          products: transformedProducts,
+          minDiscount: supplierList.min_discount || 30,
+          maxDiscount: supplierList.max_discount || 80,
+          minReservationValue: supplierList.min_reservation_value || 5000,
+          maxReservationValue: supplierList.max_reservation_value || 30000,
+        });
+      }
 
-            console.log(`Transferred ${stats.points_earned_this_month} points to loyalty program`);
-            
-            Alert.alert(
-              '🎉 Punti Trasferiti!',
-              `I tuoi ${stats.points_earned_this_month} punti del mese sono stati aggiunti al programma fedeltà!`,
-              [{ text: 'Fantastico!', style: 'default' }]
-            );
-          }
-          
-          // Reset monthly points
-          stats.points_earned_this_month = 0;
-          stats.last_month_start = currentMonthStart;
-        }
-        
-        setGameStats(stats);
-        await AsyncStorage.setItem(GAME_STATS_KEY, JSON.stringify(stats));
+      console.log('\n└───────────────────────────────────────────────────────────────┘\n');
+
+      // ═══════════════════════════════════════════════════════════════════
+      // FINAL VALIDATION & STATE UPDATE
+      // ═══════════════════════════════════════════════════════════════════
+      console.log('╔════════════════════════════════════════════════════════════════╗');
+      console.log('║  📊 FINAL RESULT & STATE UPDATE                                ║');
+      console.log('╚════════════════════════════════════════════════════════════════╝');
+      console.log(`✅ Active Supplier Lists in DB: ${supplierLists.length}`);
+      console.log(`✅ Lists Being Added to State: ${finalLists.length}`);
+      console.log(`✅ Total Products in Feed: ${finalLists.reduce((sum, l) => sum + l.products.length, 0)}`);
+      
+      console.log('\n📋 Final Lists Being Set:');
+      finalLists.forEach((list, idx) => {
+        console.log(`   ${idx + 1}. "${list.listName}" by ${list.supplierName}`);
+        console.log(`      • Products: ${list.products.length}`);
+        console.log(`      • Discount: ${list.minDiscount}% - ${list.maxDiscount}%`);
+      });
+
+      if (finalLists.length !== supplierLists.length) {
+        console.log('\n⚠️  Some lists were filtered out (no products)');
       } else {
-        // Initialize new stats
-        const newStats = {
-          ...gameStats,
-          last_week_start: currentWeekStart,
-          last_month_start: currentMonthStart,
-        };
-        setGameStats(newStats);
-        await AsyncStorage.setItem(GAME_STATS_KEY, JSON.stringify(newStats));
+        console.log('\n✅ SUCCESS: All active lists with products are included!');
       }
-
-      // Load user interests to mark selected lists
-      if (user) {
-        const { data: interests } = await supabase
-          .from('user_interests')
-          .select('supplier_list_id')
-          .eq('user_id', user.id);
-
-        if (interests) {
-          const interestedListIds = new Set(interests.map(i => i.supplier_list_id));
-          setSelectedLists(interestedListIds);
-        }
-      }
-
-      // Generate weekly challenges
-      await generateWeeklyChallenges(listsWithCounts.length);
-
+      
+      console.log('\n🎯 SETTING STATE NOW...');
+      
+      // CRITICAL: Set the state
+      setProductLists(finalLists);
+      
+      console.log('✅ STATE SET COMPLETE');
+      console.log(`🔢 Total lists in state: ${finalLists.length}`);
+      console.log('\n╚════════════════════════════════════════════════════════════════╝\n');
+      
       setLoading(false);
+      setLoadingProgress('');
+
     } catch (error) {
-      console.error('Error loading game data:', error);
-      Alert.alert('Errore', 'Impossibile caricare i dati del gioco');
+      console.error('\n╔════════════════════════════════════════════════════════════════╗');
+      console.error('║  ❌ CRITICAL ERROR                                             ║');
+      console.error('╚════════════════════════════════════════════════════════════════╝');
+      console.error('Error:', error);
+      console.error('Stack:', error instanceof Error ? error.stack : 'No stack trace');
+      setError(`Errore: ${error instanceof Error ? error.message : 'Errore sconosciuto'}`);
       setLoading(false);
+      setLoadingProgress('');
     }
   }, [user]);
 
-  const generateWeeklyChallenges = async (listCount: number) => {
-    const currentWeekStart = getWeekStart();
-    
-    // Try to load existing challenges for this week
-    const savedChallenges = await AsyncStorage.getItem(WEEKLY_CHALLENGES_KEY);
-    
-    if (savedChallenges) {
-      try {
-        const parsedChallenges = JSON.parse(savedChallenges);
-        
-        if (Array.isArray(parsedChallenges)) {
-          // Find the first unlocked, incomplete challenge
-          let newCurrentIndex = 0;
-          let foundCurrentChallenge = false;
-          
-          for (let i = 0; i < parsedChallenges.length; i++) {
-            const challenge = parsedChallenges[i];
-            
-            // The current challenge is the first one that is:
-            // 1. NOT locked
-            // 2. NOT completed
-            if (!challenge.locked && !challenge.completed) {
-              newCurrentIndex = i;
-              foundCurrentChallenge = true;
-              break;
-            }
-          }
-          
-          // If all challenges are completed, set to last challenge
-          if (!foundCurrentChallenge) {
-            newCurrentIndex = parsedChallenges.length - 1;
-          }
-          
-          setWeeklyChallenges(parsedChallenges);
-          setCurrentChallengeIndex(newCurrentIndex);
-          await AsyncStorage.setItem(CURRENT_CHALLENGE_INDEX_KEY, newCurrentIndex.toString());
-          return;
-        }
-      } catch (error) {
-        console.error('Error parsing saved challenges:', error);
-      }
+  // Log state changes
+  useEffect(() => {
+    console.log('🔄 STATE CHANGE DETECTED:');
+    console.log(`   productLists.length = ${productLists.length}`);
+    console.log(`   currentListIndex = ${currentListIndex}`);
+    if (productLists.length > 0) {
+      console.log('   Lists in state:');
+      productLists.forEach((list, idx) => {
+        console.log(`     ${idx + 1}. "${list.listName}" (${list.products.length} products)`);
+      });
     }
+  }, [productLists, currentListIndex]);
 
-    // Ensure listCount is valid
-    const validListCount = Math.max(1, listCount || 3);
+  // Subscribe to real-time product updates
+  useEffect(() => {
+    console.log('Setting up real-time subscription for product stock updates');
+    
+    const channel = supabase
+      .channel('home_product_stock_updates')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'products',
+        },
+        (payload) => {
+          console.log('📡 Product stock update received:', payload);
+          const updatedProduct = payload.new as any;
+          
+          if (updatedProduct.stock <= 0) {
+            console.log('🗑️ Product stock is 0, removing from feed:', updatedProduct.id);
+            
+            setProductLists(prevLists => {
+              const updatedLists = prevLists.map(list => {
+                const filteredProducts = list.products.filter(p => p.id !== updatedProduct.id);
+                return {
+                  ...list,
+                  products: filteredProducts,
+                };
+              }).filter(list => list.products.length > 0);
+              
+              console.log(`✓ Updated lists count: ${updatedLists.length}`);
+              return updatedLists;
+            });
+          } else {
+            console.log('✅ Product stock updated:', updatedProduct.id, 'new stock:', updatedProduct.stock);
+            setProductLists(prevLists => {
+              return prevLists.map(list => {
+                if (list.listId === updatedProduct.supplier_list_id) {
+                  return {
+                    ...list,
+                    products: list.products.map(p => 
+                      p.id === updatedProduct.id 
+                        ? { ...p, stock: updatedProduct.stock }
+                        : p
+                    ),
+                  };
+                }
+                return list;
+              });
+            });
+          }
+        }
+      )
+      .subscribe();
 
-    // Generate new sequential challenges
-    const challenges: Challenge[] = [
-      {
-        id: '1',
-        title: 'COLLEZIONISTA',
-        description: `Esplora i prodotti di tutte le ${validListCount} liste disponibili`,
-        icon: 'collections',
-        progress: 0,
-        target: validListCount,
-        reward: 100,
-        completed: false,
-        locked: false, // First challenge is unlocked
-      },
-      {
-        id: '2',
-        title: 'NAVIGATORE',
-        description: 'Naviga fino in fondo per scoprire tutti i prodotti di una lista',
-        icon: 'explore',
-        progress: 0,
-        target: 1,
-        reward: 150,
-        completed: false,
-        locked: true, // Locked until previous challenge is completed
-      },
-      {
-        id: '3',
-        title: 'CACCIATORE DI OFFERTE',
-        description: 'Mostra interesse per una lista',
-        icon: 'favorite',
-        progress: 0,
-        target: 1,
-        reward: 100,
-        completed: false,
-        locked: true,
-      },
-      {
-        id: '4',
-        title: 'AMBASCIATORE',
-        description: 'Condividi una lista con amici e parenti e potrai attivare un drop su quella lista con ritiro nella tua città',
-        icon: 'share',
-        progress: 0,
-        target: 1,
-        reward: 200,
-        completed: false,
-        locked: true,
-      },
-    ];
+    return () => {
+      console.log('Cleaning up real-time subscription');
+      supabase.removeChannel(channel);
+    };
+  }, []);
 
-    setWeeklyChallenges(challenges);
-    setCurrentChallengeIndex(0);
-    await AsyncStorage.setItem(WEEKLY_CHALLENGES_KEY, JSON.stringify(challenges));
-    await AsyncStorage.setItem(CURRENT_CHALLENGE_INDEX_KEY, '0');
-  };
+  const loadUserInterests = useCallback(async () => {
+    if (!user) return;
+    
+    try {
+      const { data: interests, error } = await supabase
+        .from('user_interests')
+        .select('product_id')
+        .eq('user_id', user.id);
+
+      if (error) {
+        console.error('Error loading user interests:', error);
+        return;
+      }
+
+      if (interests) {
+        const productIds = new Set(interests.map(i => i.product_id));
+        setInterestedProducts(productIds);
+        console.log(`Loaded ${productIds.size} user interests`);
+      }
+    } catch (error) {
+      console.error('Exception loading user interests:', error);
+    }
+  }, [user]);
+
+  const loadUserWishlist = useCallback(async () => {
+    if (!user) return;
+    
+    try {
+      const { data: wishlist, error } = await supabase
+        .from('wishlists')
+        .select('product_id')
+        .eq('user_id', user.id);
+
+      if (error) {
+        console.error('Error loading user wishlist:', error);
+        return;
+      }
+
+      if (wishlist) {
+        const productIds = new Set(wishlist.map(w => w.product_id));
+        setWishlistProducts(productIds);
+        console.log(`Loaded ${productIds.size} wishlist items`);
+      }
+    } catch (error) {
+      console.error('Exception loading user wishlist:', error);
+    }
+  }, [user]);
 
   const loadUnreadNotifications = useCallback(async () => {
     if (!user) return;
     
     try {
-      const { count } = await supabase
+      const { count, error } = await supabase
         .from('notifications')
         .select('*', { count: 'exact', head: true })
         .eq('user_id', user.id)
         .eq('read', false);
 
-      setUnreadNotifications(count || 0);
-    } catch (error) {
-      console.error('Error loading notifications:', error);
-    }
-  }, [user]);
-
-  // Load game data on mount
-  useEffect(() => {
-    loadGameData();
-    loadUnreadNotifications();
-    checkWelcomeScreen();
-  }, [loadGameData, loadUnreadNotifications]);
-
-  // Memoize the action enabled states based on current challenge
-  // This prevents recalculation on every render
-  const actionStates = useMemo(() => {
-    const currentChallenge = weeklyChallenges[currentChallengeIndex];
-    if (!currentChallenge) {
-      return { explore: false, interest: false, share: false };
-    }
-
-    // Challenge 1 (COLLEZIONISTA): Only Esplora enabled
-    if (currentChallenge.id === '1') {
-      return { explore: true, interest: false, share: false };
-    }
-
-    // Challenge 2 (NAVIGATORE): Only Esplora enabled
-    if (currentChallenge.id === '2') {
-      return { explore: true, interest: false, share: false };
-    }
-
-    // Challenge 3 (CACCIATORE DI OFFERTE): Esplora + Mi Interessa enabled
-    if (currentChallenge.id === '3') {
-      return { explore: true, interest: true, share: false };
-    }
-
-    // Challenge 4 (AMBASCIATORE): All actions enabled
-    if (currentChallenge.id === '4') {
-      return { explore: true, interest: true, share: true };
-    }
-
-    // Default: disable all
-    return { explore: false, interest: false, share: false };
-  }, [weeklyChallenges, currentChallengeIndex]);
-
-  // Helper function to check if an action is enabled based on current challenge
-  const isActionEnabled = useCallback((action: 'explore' | 'interest' | 'share'): boolean => {
-    return actionStates[action];
-  }, [actionStates]);
-
-  const handleListExplore = async (list: SupplierList) => {
-    console.log('User tapped Explore button for list:', list?.name || 'unknown');
-    
-    if (!list || !list.id) {
-      console.error('Invalid list object:', list);
-      Alert.alert('Errore', 'Lista non valida');
-      return;
-    }
-    
-    if (!user || !user.pickupPointId) {
-      Alert.alert('Errore', 'Devi essere registrato con un punto di ritiro');
-      return;
-    }
-
-    // Check if action is enabled
-    if (!isActionEnabled('explore')) {
-      console.log('❌ Explore action is DISABLED for current challenge');
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert(
-        'Azione Non Disponibile',
-        'Questa azione non è ancora disponibile. Completa le sfide precedenti per sbloccarla!',
-        [{ text: 'OK' }]
-      );
-      return;
-    }
-
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-
-    // Check if this list was already explored this week
-    const alreadyExplored = Array.isArray(gameStats.explored_list_ids) && gameStats.explored_list_ids.includes(list.id);
-
-    if (!alreadyExplored) {
-      // Update stats
-      const newStats = { ...gameStats };
-      newStats.lists_explored = (newStats.lists_explored || 0) + 1;
-      newStats.lists_explored_this_week = (newStats.lists_explored_this_week || 0) + 1;
-      
-      // Ensure explored_list_ids is an array
-      if (!Array.isArray(newStats.explored_list_ids)) {
-        newStats.explored_list_ids = [];
-      }
-      newStats.explored_list_ids.push(list.id);
-      
-      setGameStats(newStats);
-      await AsyncStorage.setItem(GAME_STATS_KEY, JSON.stringify(newStats));
-
-      // Award points for exploring
-      await awardPoints(10, 'list_explored');
-
-      // Update COLLEZIONISTA challenge (id: '1')
-      await updateChallengeProgress('1', 1);
-    }
-
-    // Navigate to list details
-    router.push({
-      pathname: '/list-products',
-      params: { 
-        listId: list.id, 
-        listName: list.name || 'Prodotti',
-        supplierListId: list.id // Pass this for tracking navigation to end
-      }
-    });
-  };
-
-  const handleListInterest = async (list: SupplierList) => {
-    console.log('User tapped Interest button (heart) for list:', list?.name || 'unknown');
-    
-    if (!list || !list.id) {
-      console.error('Invalid list object:', list);
-      Alert.alert('Errore', 'Lista non valida');
-      return;
-    }
-    
-    if (!user || !user.pickupPointId) {
-      Alert.alert('Errore', 'Devi essere registrato con un punto di ritiro');
-      return;
-    }
-
-    // Check if action is enabled
-    if (!isActionEnabled('interest')) {
-      console.log('❌ Interest action is DISABLED for current challenge');
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert(
-        'Azione Non Disponibile',
-        'Questa azione non è ancora disponibile. Completa le sfide precedenti per sbloccarla!',
-        [{ text: 'OK' }]
-      );
-      return;
-    }
-
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-
-    const isSelected = selectedLists.has(list.id);
-    const newSelected = new Set(selectedLists);
-
-    if (isSelected) {
-      newSelected.delete(list.id);
-      
-      // Remove interest
-      const { error } = await supabase
-        .from('user_interests')
-        .delete()
-        .eq('user_id', user.id)
-        .eq('supplier_list_id', list.id);
-
       if (error) {
-        console.error('Error removing interest:', error);
-      }
-
-      // Update stats
-      const newStats = { ...gameStats };
-      newStats.lists_interested_this_week = Math.max(0, (newStats.lists_interested_this_week || 0) - 1);
-      setGameStats(newStats);
-      await AsyncStorage.setItem(GAME_STATS_KEY, JSON.stringify(newStats));
-    } else {
-      newSelected.add(list.id);
-      
-      // Add interest for all products in the list
-      const { data: products, error: productsError } = await supabase
-        .from('products')
-        .select('id')
-        .eq('supplier_list_id', list.id)
-        .eq('status', 'active')
-        .gt('stock', 0)
-        .limit(1);
-
-      if (productsError) {
-        console.error('Error fetching products:', productsError);
-      }
-
-      if (products && products.length > 0) {
-        const { error: insertError } = await supabase
-          .from('user_interests')
-          .insert({
-            user_id: user.id,
-            product_id: products[0].id,
-            supplier_list_id: list.id,
-            pickup_point_id: user.pickupPointId,
-          });
-
-        if (insertError) {
-          console.error('Error inserting interest:', insertError);
-        }
-      }
-
-      // Award points
-      await awardPoints(5, 'list_interest');
-      
-      // Update stats
-      const newStats = { ...gameStats };
-      newStats.lists_interested_this_week = (newStats.lists_interested_this_week || 0) + 1;
-      setGameStats(newStats);
-      await AsyncStorage.setItem(GAME_STATS_KEY, JSON.stringify(newStats));
-
-      // Update CACCIATORE DI OFFERTE challenge (id: '3')
-      await updateChallengeProgress('3', 1);
-    }
-
-    setSelectedLists(newSelected);
-  };
-
-  const handleListShare = async (list: SupplierList) => {
-    console.log('User tapped Share button for list:', list.name);
-    
-    if (!user || !user.pickupPointId) {
-      Alert.alert('Errore', 'Devi essere registrato con un punto di ritiro');
-      return;
-    }
-
-    // Check if action is enabled
-    if (!isActionEnabled('share')) {
-      console.log('❌ Share action is DISABLED for current challenge');
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert(
-        'Azione Non Disponibile',
-        'Questa azione non è ancora disponibile. Completa le sfide precedenti per sbloccarla!',
-        [{ text: 'OK' }]
-      );
-      return;
-    }
-
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-
-    try {
-      // Safely get pickup point name with fallback
-      const pickupPointName = user.pickupPoint || 'il tuo punto di ritiro';
-      
-      // Create shareable content - sanitize all strings to avoid encoding issues
-      const sanitizeText = (text: string): string => {
-        // Remove any problematic characters that could cause base64 encoding issues
-        return text
-          .replace(/[\r\n\t]/g, ' ') // Replace newlines/tabs with spaces
-          .replace(/[^\x20-\x7E\u00A0-\uFFFF]/g, '') // Remove non-printable chars
-          .trim();
-      };
-      
-      const listName = sanitizeText(list.name || 'questa lista');
-      const productCount = list.product_count || 0;
-      const minDiscount = list.min_discount || 0;
-      const maxDiscount = list.max_discount || 0;
-      const pickupPoint = sanitizeText(pickupPointName);
-      
-      // Create shareable content with sanitized strings
-      const shareMessage = `🎁 Scopri ${listName} su DropShop!\n\n` +
-        `${productCount} prodotti disponibili con sconti dal ${minDiscount}% al ${maxDiscount}%!\n\n` +
-        `Più persone della tua città mostrano interesse, più è probabile che si attivi un drop con sconti incredibili! 🔥\n\n` +
-        `Punto di ritiro: ${pickupPoint}\n\n` +
-        `Unisciti a noi e approfitta delle migliori offerte!`;
-
-      console.log('Share message prepared:', shareMessage);
-
-      // Check if sharing is available
-      const isAvailable = await Sharing.isAvailableAsync();
-      
-      if (!isAvailable) {
-        console.log('Sharing not available, showing fallback alert');
-        // Fallback: Show a message with shareable text
-        Alert.alert(
-          'Condividi questa lista',
-          shareMessage,
-          [
-            { text: 'OK', style: 'default' }
-          ]
-        );
-        
-        // Still track the share attempt
-        await supabase
-          .from('list_shares')
-          .insert({
-            user_id: user.id,
-            supplier_list_id: list.id,
-            pickup_point_id: user.pickupPointId,
-          });
-
-        // Update stats
-        const newStats = { ...gameStats };
-        newStats.lists_shared_this_week = (newStats.lists_shared_this_week || 0) + 1;
-        setGameStats(newStats);
-        await AsyncStorage.setItem(GAME_STATS_KEY, JSON.stringify(newStats));
-
-        // Award points
-        await awardPoints(20, 'list_shared');
-
-        // Update AMBASCIATORE challenge (id: '4')
-        await updateChallengeProgress('4', 1);
-
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        console.error('Error loading unread notifications count:', error);
         return;
       }
 
-      // Create a temporary file with the share message
-      const fileUri = `${FileSystem.cacheDirectory}share_list_${Date.now()}.txt`;
-      
-      console.log('Creating share file at:', fileUri);
-      
-      // Write the message to a file using UTF8 encoding
-      await FileSystem.writeAsStringAsync(fileUri, shareMessage, {
-        encoding: FileSystem.EncodingType.UTF8,
-      });
-
-      console.log('Share file created successfully');
-
-      // Share using native share dialog
-      await Sharing.shareAsync(fileUri, {
-        mimeType: 'text/plain',
-        dialogTitle: `Condividi ${listName}`,
-        UTI: 'public.plain-text',
-      });
-
-      console.log('Share dialog completed');
-
-      // Clean up the temporary file
-      try {
-        await FileSystem.deleteAsync(fileUri, { idempotent: true });
-        console.log('Temporary share file deleted');
-      } catch (deleteError) {
-        console.warn('Could not delete temporary file:', deleteError);
-      }
-
-      // Track the share
-      await supabase
-        .from('list_shares')
-        .insert({
-          user_id: user.id,
-          supplier_list_id: list.id,
-          pickup_point_id: user.pickupPointId,
-        });
-
-      // Update stats
-      const newStats = { ...gameStats };
-      newStats.lists_shared_this_week = (newStats.lists_shared_this_week || 0) + 1;
-      setGameStats(newStats);
-      await AsyncStorage.setItem(GAME_STATS_KEY, JSON.stringify(newStats));
-
-      // Award points
-      await awardPoints(20, 'list_shared');
-
-      // Update AMBASCIATORE challenge (id: '4')
-      await updateChallengeProgress('4', 1);
-
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      
+      setUnreadNotifications(count || 0);
     } catch (error) {
-      console.error('Error sharing list:', error);
-      
-      // Provide more detailed error information
-      let errorMessage = 'Impossibile condividere la lista. Riprova più tardi.';
-      
-      if (error instanceof Error) {
-        console.error('Error details:', {
-          message: error.message,
-          stack: error.stack,
-          name: error.name
-        });
-        
-        // Don't show technical error details to user
-        errorMessage = 'Si è verificato un errore durante la condivisione. Riprova più tardi.';
-      }
-      
-      Alert.alert('Errore', errorMessage, [{ text: 'OK' }]);
+      console.error('Exception loading unread notifications:', error);
     }
-  };
+  }, [user]);
 
-  const awardPoints = async (points: number, activityType: string) => {
-    if (!user || user.rating_stars < 5) {
-      console.log('User not eligible for points (rating < 5 stars)');
-      return;
-    }
+  useEffect(() => {
+    loadProducts();
+    loadUserInterests();
+    loadUserWishlist();
+    loadUnreadNotifications();
+  }, [loadProducts, loadUserInterests, loadUserWishlist, loadUnreadNotifications]);
 
-    try {
-      // Update game stats (points accumulate during the week/month)
-      const newStats = { ...gameStats };
-      newStats.points_earned_this_week = (newStats.points_earned_this_week || 0) + points;
-      newStats.points_earned_this_month = (newStats.points_earned_this_month || 0) + points;
-      
-      // If this is the first activity this week, start the streak
-      if (newStats.points_earned_this_week === points && newStats.weekly_streak === 0) {
-        newStats.weekly_streak = 1;
-      }
-      
-      setGameStats(newStats);
-      await AsyncStorage.setItem(GAME_STATS_KEY, JSON.stringify(newStats));
+  // Subscribe to real-time notification updates
+  useEffect(() => {
+    if (!user) return;
 
-      // Log activity
-      await supabase
-        .from('user_activity_log')
-        .insert({
-          user_id: user.id,
-          activity_type: activityType,
-          points_earned: points,
-        });
-
-      // Show reward animation
-      setRewardAmount(points);
-      setShowRewardAnimation(true);
-      
-      Animated.sequence([
-        Animated.timing(rewardAnim, {
-          toValue: 1,
-          duration: 300,
-          useNativeDriver: true,
-        }),
-        Animated.delay(1500),
-        Animated.timing(rewardAnim, {
-          toValue: 0,
-          duration: 300,
-          useNativeDriver: true,
-        }),
-      ]).start(() => setShowRewardAnimation(false));
-
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } catch (error) {
-      console.error('Error awarding points:', error);
-    }
-  };
-
-  const updateChallengeProgress = async (challengeId: string, increment: number) => {
-    console.log(`🎯 updateChallengeProgress called for challenge ${challengeId} with increment ${increment}`);
-    
-    if (!Array.isArray(weeklyChallenges) || weeklyChallenges.length === 0) {
-      console.warn('No challenges to update');
-      return;
-    }
-    
-    // Find the challenge being updated
-    const challengeIndex = weeklyChallenges.findIndex(c => c && c.id === challengeId);
-    if (challengeIndex === -1) {
-      console.warn('Challenge not found:', challengeId);
-      return;
-    }
-
-    const challenge = weeklyChallenges[challengeIndex];
-    
-    // Check if challenge is locked or already completed
-    if (!challenge || challenge.locked) {
-      console.log(`❌ Challenge ${challengeId} (${challenge?.title}) is LOCKED. Cannot update progress.`);
-      return;
-    }
-    
-    if (challenge.completed) {
-      console.log(`✅ Challenge ${challengeId} (${challenge.title}) is already COMPLETED. No update needed.`);
-      return;
-    }
-
-    // Update progress
-    const currentProgress = challenge.progress || 0;
-    const target = challenge.target || 1;
-    const newProgress = Math.min(currentProgress + increment, target);
-    const completed = newProgress >= target;
-    
-    console.log(`📊 Challenge ${challengeId} (${challenge.title}): progress ${currentProgress} -> ${newProgress} (target: ${target}), completed: ${completed}`);
-    
-    // Create updated challenges array
-    const updatedChallenges = [...weeklyChallenges];
-    updatedChallenges[challengeIndex] = { ...challenge, progress: newProgress, completed };
-
-    // CRITICAL FIX: If challenge is completed, unlock ONLY the immediate next challenge
-    if (completed && !challenge.completed) {
-      console.log(`🎉 Challenge ${challengeId} (${challenge.title}) COMPLETED! Unlocking next challenge...`);
-      
-      // Find the IMMEDIATE next challenge (challengeIndex + 1)
-      const nextIndex = challengeIndex + 1;
-      
-      if (nextIndex < updatedChallenges.length) {
-        const nextChallenge = updatedChallenges[nextIndex];
-        
-        console.log(`🔓 Unlocking challenge at index ${nextIndex}: ${nextChallenge.title}`);
-        
-        // Unlock ONLY the immediate next challenge
-        updatedChallenges[nextIndex] = { ...nextChallenge, locked: false };
-        
-        // CRITICAL: Ensure ALL challenges after the next one remain LOCKED
-        for (let i = nextIndex + 1; i < updatedChallenges.length; i++) {
-          const laterChallenge = updatedChallenges[i];
-          
-          // Only lock if not already completed
-          if (!laterChallenge.completed) {
-            console.log(`🔒 Keeping challenge at index ${i} (${laterChallenge.title}) LOCKED`);
-            updatedChallenges[i] = { ...laterChallenge, locked: true };
-          }
+    const channel = supabase
+      .channel('notifications_badge')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'notifications',
+          filter: `user_id=eq.${user.id}`,
+        },
+        () => {
+          loadUnreadNotifications();
         }
-        
-        // Update current challenge index to the next unlocked challenge
-        setCurrentChallengeIndex(nextIndex);
-        await AsyncStorage.setItem(CURRENT_CHALLENGE_INDEX_KEY, nextIndex.toString());
-        console.log(`✅ Updated current challenge index to: ${nextIndex}`);
-        
-        // Award challenge reward
-        await awardPoints(challenge.reward || 0, 'challenge_completed');
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        
-        // Show completion alert
-        Alert.alert(
-          '🎉 Sfida Completata!',
-          `Hai completato "${challenge.title || 'Sfida'}" e guadagnato ${challenge.reward || 0} punti!\n\nLa prossima sfida "${nextChallenge.title}" è stata sbloccata!`,
-          [{ text: 'Fantastico!', style: 'default' }]
-        );
-      } else {
-        // All challenges completed
-        await awardPoints(challenge.reward || 0, 'challenge_completed');
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        
-        Alert.alert(
-          '🎉 Tutte le Sfide Completate!',
-          `Hai completato "${challenge.title || 'Sfida'}" e guadagnato ${challenge.reward || 0} punti!\n\nHai completato tutte le sfide della settimana! 🏆`,
-          [{ text: 'Incredibile!', style: 'default' }]
-        );
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user, loadUnreadNotifications]);
+
+  const currentList = productLists[currentListIndex];
+  const totalProductsInList = currentList?.products.length || 0;
+  const interestedInCurrentList = currentList?.products.filter(p => interestedProducts.has(p.id)).length || 0;
+
+  // Load banner state from AsyncStorage when list changes
+  useEffect(() => {
+    const loadBannerState = async () => {
+      if (!currentList) return;
+      
+      const sessionKey = `banner_dismissed_${currentList.listId}`;
+      
+      try {
+        const dismissed = await AsyncStorage.getItem(sessionKey);
+        setBannerDismissed(prev => ({
+          ...prev,
+          [currentList.listId]: dismissed === 'true'
+        }));
+      } catch (error) {
+        console.error('Error loading banner state:', error);
       }
+    };
+    
+    loadBannerState();
+  }, [currentList]);
+
+  // Animate banner visibility
+  useEffect(() => {
+    const shouldShowBanner = 
+      currentList && 
+      interestedInCurrentList > 1 && 
+      !bannerDismissed[currentList.listId];
+
+    if (shouldShowBanner) {
+      Animated.timing(bannerOpacity, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      Animated.timing(bannerOpacity, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [interestedInCurrentList, currentList, bannerDismissed, bannerOpacity]);
+
+  useEffect(() => {
+    // Animate progress bar
+    Animated.timing(progressAnim, {
+      toValue: totalProductsInList > 0 ? (currentProductIndex + 1) / totalProductsInList : 0,
+      duration: 300,
+      useNativeDriver: false,
+    }).start();
+  }, [currentProductIndex, totalProductsInList, progressAnim]);
+
+  const handleWishlistToggle = async (productId: string) => {
+    if (!user) {
+      Alert.alert('Errore', 'Devi essere registrato per usare la wishlist');
+      return;
     }
 
-    // Update state and save to AsyncStorage
-    setWeeklyChallenges(updatedChallenges);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     
+    const isCurrentlyInWishlist = wishlistProducts.has(productId);
+
     try {
-      await AsyncStorage.setItem(WEEKLY_CHALLENGES_KEY, JSON.stringify(updatedChallenges));
-      console.log('✅ Challenge progress and unlock status saved successfully');
-      console.log('📊 Final challenges state:', updatedChallenges.map(c => ({
-        id: c.id,
-        title: c.title,
-        locked: c.locked,
-        completed: c.completed,
-        progress: c.progress,
-        target: c.target
-      })));
-    } catch (error) {
-      console.error('Error saving challenges:', error);
+      if (isCurrentlyInWishlist) {
+        const { error } = await supabase
+          .from('wishlists')
+          .delete()
+          .eq('user_id', user.id)
+          .eq('product_id', productId);
+
+        if (error) {
+          console.error('Error removing from wishlist:', error);
+          Alert.alert('Errore', 'Impossibile rimuovere dalla wishlist');
+          return;
+        }
+
+        setWishlistProducts(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(productId);
+          return newSet;
+        });
+      } else {
+        const { error } = await supabase
+          .from('wishlists')
+          .insert({
+            user_id: user.id,
+            product_id: productId,
+            drop_id: null,
+          });
+
+        if (error) {
+          console.error('Error adding to wishlist:', error);
+          Alert.alert('Errore', 'Impossibile aggiungere alla wishlist');
+          return;
+        }
+
+        setWishlistProducts(prev => {
+          const newSet = new Set(prev);
+          newSet.add(productId);
+          return newSet;
+        });
+        
+        if (wishlistProducts.size === 0) {
+          setShowWishlistTip(true);
+        }
+      }
+    } catch (error: any) {
+      console.error('Exception handling wishlist:', error);
+      Alert.alert('Errore', 'Si è verificato un errore');
+    }
+  };
+
+  const handleInterest = async (productId: string) => {
+    if (!user || !user.pickupPointId) {
+      Alert.alert('Errore', 'Devi essere registrato con un punto di ritiro per mostrare interesse');
+      return;
+    }
+
+    if (processingInterests.has(productId)) {
+      return;
+    }
+
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    
+    const isCurrentlyInterested = interestedProducts.has(productId);
+    const product = currentList?.products.find(p => p.id === productId);
+    
+    if (!product) return;
+
+    setProcessingInterests(prev => new Set(prev).add(productId));
+
+    try {
+      if (isCurrentlyInterested) {
+        const { error } = await supabase
+          .from('user_interests')
+          .delete()
+          .eq('user_id', user.id)
+          .eq('product_id', productId);
+
+        if (error) {
+          console.error('Error removing interest:', error);
+          Alert.alert('Errore', `Impossibile rimuovere l'interesse: ${error.message}`);
+          return;
+        }
+
+        setInterestedProducts(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(productId);
+          return newSet;
+        });
+      } else {
+        const { error } = await supabase
+          .from('user_interests')
+          .insert({
+            user_id: user.id,
+            product_id: productId,
+            supplier_list_id: product.listId,
+            pickup_point_id: user.pickupPointId,
+          });
+
+        if (error) {
+          throw error;
+        }
+
+        setInterestedProducts(prev => {
+          const newSet = new Set(prev);
+          newSet.add(productId);
+          return newSet;
+        });
+      }
+    } catch (error: any) {
+      console.error('Exception handling interest:', error);
+      Alert.alert('Errore', `Impossibile gestire l'interesse: ${error.message}`);
+    } finally {
+      setProcessingInterests(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(productId);
+        return newSet;
+      });
     }
   };
 
@@ -1098,151 +781,224 @@ export default function GameFeedScreen() {
     router.push('/(tabs)/notifications');
   };
 
-  const closeMissedWeekModal = () => {
-    setShowMissedWeekModal(false);
+  const handleNextList = () => {
+    if (currentListIndex < productLists.length - 1) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      const nextIndex = currentListIndex + 1;
+      console.log(`→ Switching to list ${nextIndex + 1}/${productLists.length}: "${productLists[nextIndex].listName}"`);
+      
+      setCurrentListIndex(nextIndex);
+      setCurrentProductIndex(0);
+      
+      setTimeout(() => {
+        try {
+          if (listFlatListRef.current) {
+            listFlatListRef.current.scrollToOffset({
+              offset: SCREEN_WIDTH * nextIndex,
+              animated: true,
+            });
+          }
+        } catch (error) {
+          console.error('Error scrolling to next list:', error);
+        }
+      }, 100);
+    }
   };
 
-  // Pulse animation for streak
-  useEffect(() => {
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, {
-          toValue: 1.1,
-          duration: 1000,
-          useNativeDriver: true,
-        }),
-        Animated.timing(pulseAnim, {
-          toValue: 1,
-          duration: 1000,
-          useNativeDriver: true,
-        }),
-      ])
-    ).start();
-  }, [pulseAnim]);
+  const handlePreviousList = () => {
+    if (currentListIndex > 0) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      const prevIndex = currentListIndex - 1;
+      console.log(`← Switching to list ${prevIndex + 1}/${productLists.length}: "${productLists[prevIndex].listName}"`);
+      
+      setCurrentListIndex(prevIndex);
+      setCurrentProductIndex(0);
+      
+      setTimeout(() => {
+        try {
+          if (listFlatListRef.current) {
+            listFlatListRef.current.scrollToOffset({
+              offset: SCREEN_WIDTH * prevIndex,
+              animated: true,
+            });
+          }
+        } catch (error) {
+          console.error('Error scrolling to previous list:', error);
+        }
+      }, 100);
+    }
+  };
+
+  const handleProductScroll = (event: any) => {
+    const offsetY = event.nativeEvent.contentOffset.y;
+    const index = Math.round(offsetY / SCREEN_HEIGHT);
+    if (index !== currentProductIndex && index >= 0 && index < totalProductsInList) {
+      setCurrentProductIndex(index);
+    }
+  };
+
+  const handleRetry = () => {
+    console.log('Retrying product load...');
+    setError(null);
+    loadProducts();
+  };
+
+  const handleGoToAdmin = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    router.push('/admin/testing');
+  };
+
+  const handleDismissBanner = async () => {
+    if (!currentList) return;
+    
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    
+    setBannerDismissed(prev => ({
+      ...prev,
+      [currentList.listId]: true
+    }));
+    
+    const sessionKey = `banner_dismissed_${currentList.listId}`;
+    try {
+      await AsyncStorage.setItem(sessionKey, 'true');
+    } catch (error) {
+      console.error('Error saving banner state:', error);
+    }
+  };
+
+  const renderList = ({ item, index }: { item: ProductList; index: number }) => {
+    const isCurrentList = index === currentListIndex;
+    
+    // Handle empty lists
+    if (item.products.length === 0) {
+      return (
+        <View style={styles.listContainer}>
+          <View style={[styles.container, styles.centerContent]}>
+            <IconSymbol 
+              ios_icon_name="tray" 
+              android_material_icon_name="inbox" 
+              size={80} 
+              color={colors.textTertiary} 
+            />
+            <Text style={styles.emptyTitle}>Lista Vuota</Text>
+            <Text style={styles.emptyText}>
+              La lista &quot;{item.listName}&quot; non ha prodotti disponibili al momento.
+            </Text>
+          </View>
+        </View>
+      );
+    }
+    
+    return (
+      <View style={styles.listContainer}>
+        <FlatList
+          ref={isCurrentList ? productFlatListRef : null}
+          data={item.products}
+          renderItem={({ item: product }) => (
+            <ProductCard
+              product={product}
+              onInterest={handleInterest}
+              isInterested={interestedProducts.has(product.id)}
+            />
+          )}
+          keyExtractor={(product) => product.id}
+          pagingEnabled
+          showsVerticalScrollIndicator={false}
+          snapToInterval={SCREEN_HEIGHT}
+          snapToAlignment="start"
+          decelerationRate="fast"
+          getItemLayout={(_, productIndex) => ({
+            length: SCREEN_HEIGHT,
+            offset: SCREEN_HEIGHT * productIndex,
+            index: productIndex,
+          })}
+          removeClippedSubviews={true}
+          maxToRenderPerBatch={2}
+          windowSize={3}
+          initialNumToRender={1}
+          onScroll={isCurrentList ? handleProductScroll : undefined}
+          scrollEventThrottle={16}
+          scrollEnabled={isCurrentList}
+        />
+      </View>
+    );
+  };
+
+  const getItemLayout = (_: any, index: number) => ({
+    length: SCREEN_WIDTH,
+    offset: SCREEN_WIDTH * index,
+    index,
+  });
 
   if (loading) {
     return (
       <>
         <Stack.Screen options={{ headerShown: false }} />
         <View style={[styles.container, styles.centerContent]}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={styles.loadingText}>Caricamento gioco...</Text>
+          <ActivityIndicator size="large" color={colors.text} />
+          <Text style={styles.loadingText}>
+            {loadingProgress || 'Caricamento prodotti...'}
+          </Text>
+          <Text style={styles.loadingHint}>
+            Ottimizzazione in corso per prestazioni migliori
+          </Text>
         </View>
       </>
     );
   }
 
-  if (showWelcome) {
+  if (error) {
     return (
       <>
         <Stack.Screen options={{ headerShown: false }} />
-        <View style={styles.container}>
-          <ScrollView contentContainerStyle={styles.welcomeContainer}>
-            <View style={styles.welcomeIcon}>
-              <IconSymbol
-                ios_icon_name="gamecontroller.fill"
-                android_material_icon_name="sports_esports"
-                size={80}
-                color={colors.primary}
-              />
-            </View>
-            
-            <Text style={styles.welcomeTitle}>Benvenuto al Gioco delle Liste!</Text>
-            <Text style={styles.welcomeSubtitle}>
-              Completa le sfide settimanali, guadagna punti e sblocca ricompense
-            </Text>
-
-            <View style={styles.welcomeSection}>
-              <View style={styles.welcomeFeature}>
-                <IconSymbol
-                  ios_icon_name="star.fill"
-                  android_material_icon_name="star"
-                  size={32}
-                  color="#FFD700"
-                />
-                <Text style={styles.welcomeFeatureTitle}>Sfide Settimanali</Text>
-                <Text style={styles.welcomeFeatureText}>
-                  Completa le sfide una alla volta per guadagnare punti
-                </Text>
-              </View>
-
-              <View style={styles.welcomeFeature}>
-                <IconSymbol
-                  ios_icon_name="flame.fill"
-                  android_material_icon_name="local_fire_department"
-                  size={32}
-                  color="#FF6B35"
-                />
-                <Text style={styles.welcomeFeatureTitle}>Striscia Settimanale</Text>
-                <Text style={styles.welcomeFeatureText}>
-                  Gioca ogni settimana per mantenere la tua striscia attiva
-                </Text>
-              </View>
-
-              <View style={styles.welcomeFeature}>
-                <IconSymbol
-                  ios_icon_name="trophy.fill"
-                  android_material_icon_name="emoji_events"
-                  size={32}
-                  color={colors.primary}
-                />
-                <Text style={styles.welcomeFeatureTitle}>Programma Fedeltà</Text>
-                <Text style={styles.welcomeFeatureText}>
-                  A fine mese i punti vengono trasferiti al programma fedeltà per riscattare coupon
-                </Text>
-              </View>
-
-              <View style={styles.welcomeFeature}>
-                <IconSymbol
-                  ios_icon_name="gift.fill"
-                  android_material_icon_name="card_giftcard"
-                  size={32}
-                  color="#4CAF50"
-                />
-                <Text style={styles.welcomeFeatureTitle}>Condividi e Guadagna</Text>
-                <Text style={styles.welcomeFeatureText}>
-                  Condividi le liste con amici per aumentare le possibilità di attivare drop nella tua città
-                </Text>
-              </View>
-            </View>
-
-            <Pressable style={styles.welcomeButton} onPress={closeWelcome}>
-              <Text style={styles.welcomeButtonText}>Inizia a Giocare!</Text>
-            </Pressable>
-          </ScrollView>
+        <View style={[styles.container, styles.centerContent]}>
+          <IconSymbol 
+            ios_icon_name="exclamationmark.triangle" 
+            android_material_icon_name="error" 
+            size={64} 
+            color="#FF3B30" 
+          />
+          <Text style={styles.errorTitle}>Errore di Caricamento</Text>
+          <Text style={styles.errorText}>{error}</Text>
+          <Text style={styles.errorHint}>
+            Verifica la tua connessione internet e riprova.
+          </Text>
+          <Pressable style={styles.retryButton} onPress={handleRetry}>
+            <IconSymbol 
+              ios_icon_name="arrow.clockwise" 
+              android_material_icon_name="refresh" 
+              size={20} 
+              color="#FFF" 
+            />
+            <Text style={styles.retryButtonText}>Riprova</Text>
+          </Pressable>
         </View>
       </>
     );
   }
 
-  const currentChallenge = weeklyChallenges[currentChallengeIndex];
-
-  return (
-    <>
-      <Stack.Screen options={{ headerShown: false }} />
-      <View style={styles.container}>
-        {/* Header */}
-        <View style={styles.header}>
-          <Pressable onPress={handleLogout} style={styles.headerButton}>
-            <IconSymbol
-              ios_icon_name="rectangle.portrait.and.arrow.right"
-              android_material_icon_name="logout"
-              size={24}
-              color={colors.text}
+  if (productLists.length === 0) {
+    const isAdmin = user?.role === 'admin';
+    
+    return (
+      <>
+        <Stack.Screen options={{ headerShown: false }} />
+        <View style={[styles.container, styles.centerContent]}>
+          <Pressable onPress={handleLogout} style={styles.topLeftButton}>
+            <IconSymbol 
+              ios_icon_name="rectangle.portrait.and.arrow.right" 
+              android_material_icon_name="logout" 
+              size={24} 
+              color={colors.text} 
             />
           </Pressable>
 
-          <View style={styles.headerCenter}>
-            <Text style={styles.headerTitle}>Gioco delle Liste</Text>
-            <Text style={styles.headerSubtitle}>{user?.pickupPoint || 'N/A'}</Text>
-          </View>
-
-          <Pressable onPress={handleNotifications} style={styles.headerButton}>
-            <IconSymbol
-              ios_icon_name="bell.fill"
-              android_material_icon_name="notifications"
-              size={24}
-              color={colors.text}
+          <Pressable onPress={handleNotifications} style={styles.topRightButton}>
+            <IconSymbol 
+              ios_icon_name="bell.fill" 
+              android_material_icon_name="notifications" 
+              size={24} 
+              color={colors.text} 
             />
             {unreadNotifications > 0 && (
               <View style={styles.notificationBadge}>
@@ -1252,490 +1008,322 @@ export default function GameFeedScreen() {
               </View>
             )}
           </Pressable>
+
+          <IconSymbol 
+            ios_icon_name="tray" 
+            android_material_icon_name="inbox" 
+            size={80} 
+            color={colors.textTertiary} 
+          />
+          <Text style={styles.emptyTitle}>Nessun Prodotto Disponibile</Text>
+          <Text style={styles.emptyText}>
+            Al momento non ci sono prodotti disponibili.{'\n'}
+            Tutti gli articoli potrebbero essere esauriti o i fornitori non hanno ancora caricato articoli.
+          </Text>
+          
+          {isAdmin && (
+            <>
+              <Text style={styles.adminHint}>
+                👨‍💼 Sei un amministratore
+              </Text>
+              <Text style={styles.emptySubtext}>
+                Puoi creare dati di test per provare l&apos;app
+              </Text>
+              
+              <Pressable style={styles.adminButton} onPress={handleGoToAdmin}>
+                <IconSymbol 
+                  ios_icon_name="wrench.and.screwdriver.fill" 
+                  android_material_icon_name="build" 
+                  size={20} 
+                  color="#FFF" 
+                />
+                <Text style={styles.adminButtonText}>Vai a Testing & Crea Dati</Text>
+              </Pressable>
+            </>
+          )}
+          
+          {!isAdmin && (
+            <Text style={styles.emptySubtext}>
+              Torna più tardi per scoprire le offerte!
+            </Text>
+          )}
+          
+          <Pressable style={styles.refreshButton} onPress={handleRetry}>
+            <IconSymbol 
+              ios_icon_name="arrow.clockwise" 
+              android_material_icon_name="refresh" 
+              size={20} 
+              color={colors.text} 
+            />
+            <Text style={styles.refreshButtonText}>Aggiorna</Text>
+          </Pressable>
         </View>
+      </>
+    );
+  }
 
-        <ScrollView
-          style={styles.scrollView}
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-        >
-          {/* Stats Card */}
-          <View style={styles.statsCard}>
-            <View style={styles.statItem}>
-              <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
-                <IconSymbol
-                  ios_icon_name="flame.fill"
-                  android_material_icon_name="local_fire_department"
-                  size={32}
-                  color="#FF6B35"
-                />
-              </Animated.View>
-              <Text style={styles.statValue}>{gameStats.weekly_streak}</Text>
-              <Text style={styles.statLabel}>Settimane di Fila</Text>
-            </View>
+  const shouldShowBanner = 
+    currentList && 
+    interestedInCurrentList > 1 && 
+    !bannerDismissed[currentList.listId];
 
-            <View style={styles.statItem}>
-              <IconSymbol
-                ios_icon_name="star.fill"
-                android_material_icon_name="star"
-                size={32}
-                color="#FFD700"
-              />
-              <Text style={styles.statValue}>{gameStats.points_earned_this_week}</Text>
-              <Text style={styles.statLabel}>Punti Questa Settimana</Text>
-            </View>
+  // CRITICAL FIX: Always show navigation buttons when there are multiple lists
+  const showLeftNav = productLists.length > 1 && currentListIndex > 0;
+  const showRightNav = productLists.length > 1 && currentListIndex < productLists.length - 1;
 
-            <View style={styles.statItem}>
-              <IconSymbol
-                ios_icon_name="calendar"
-                android_material_icon_name="calendar_today"
-                size={32}
-                color={colors.primary}
-              />
-              <Text style={styles.statValue}>{gameStats.points_earned_this_month}</Text>
-              <Text style={styles.statLabel}>Punti Questo Mese</Text>
-            </View>
-          </View>
+  return (
+    <>
+      <Stack.Screen options={{ headerShown: false }} />
+      <View style={styles.container}>
+        <FlatList
+          ref={listFlatListRef}
+          data={productLists}
+          renderItem={renderList}
+          keyExtractor={(item) => item.listId}
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          scrollEnabled={false}
+          getItemLayout={getItemLayout}
+          removeClippedSubviews={true}
+          initialNumToRender={1}
+          maxToRenderPerBatch={1}
+          windowSize={3}
+          onScrollToIndexFailed={(info) => {
+            console.warn('Scroll to index failed:', info);
+            setTimeout(() => {
+              try {
+                listFlatListRef.current?.scrollToOffset({ 
+                  offset: SCREEN_WIDTH * info.index,
+                  animated: false,
+                });
+              } catch (error) {
+                console.error('Retry scroll failed:', error);
+              }
+            }, 100);
+          }}
+        />
+        
+        {/* GREEN CIRCLE FIX: Move top buttons higher with reduced top padding */}
+        <Pressable onPress={handleLogout} style={styles.topLeftButton}>
+          <IconSymbol 
+            ios_icon_name="rectangle.portrait.and.arrow.right" 
+            android_material_icon_name="logout" 
+            size={24} 
+            color={colors.text} 
+          />
+        </Pressable>
 
-          {/* Current Challenge */}
-          {currentChallenge && (
-            <View style={styles.section}>
-              <View style={styles.sectionHeader}>
-                <IconSymbol
-                  ios_icon_name="trophy.fill"
-                  android_material_icon_name="emoji_events"
-                  size={24}
-                  color={colors.primary}
-                />
-                <Text style={styles.sectionTitle}>Sfida Attuale</Text>
-              </View>
-
-              <View style={[styles.challengeCard, styles.currentChallengeCard]}>
-                <View style={styles.challengeHeader}>
-                  <IconSymbol
-                    ios_icon_name={
-                      currentChallenge.icon === 'collections' ? 'square.grid.2x2.fill' :
-                      currentChallenge.icon === 'explore' ? 'map.fill' :
-                      currentChallenge.icon === 'favorite' ? 'heart.fill' :
-                      'square.and.arrow.up.fill'
-                    }
-                    android_material_icon_name={currentChallenge.icon}
-                    size={32}
-                    color={currentChallenge.completed ? '#4CAF50' : colors.primary}
-                  />
-                  <View style={styles.challengeInfo}>
-                    <Text style={styles.currentChallengeTitle}>{currentChallenge.title}</Text>
-                    <Text style={styles.challengeDescription}>{currentChallenge.description}</Text>
-                  </View>
-                  {currentChallenge.completed && (
-                    <IconSymbol
-                      ios_icon_name="checkmark.circle.fill"
-                      android_material_icon_name="check_circle"
-                      size={32}
-                      color="#4CAF50"
-                    />
-                  )}
-                </View>
-
-                <View style={styles.progressContainer}>
-                  <View style={styles.progressBar}>
-                    <View
-                      style={[
-                        styles.progressFill,
-                        {
-                          width: `${(currentChallenge.progress / currentChallenge.target) * 100}%`,
-                          backgroundColor: currentChallenge.completed ? '#4CAF50' : colors.primary,
-                        },
-                      ]}
-                    />
-                  </View>
-                  <Text style={styles.progressText}>
-                    {currentChallenge.progress}/{currentChallenge.target}
-                  </Text>
-                </View>
-
-                <View style={styles.rewardBadge}>
-                  <IconSymbol
-                    ios_icon_name="star.fill"
-                    android_material_icon_name="star"
-                    size={16}
-                    color="#FFD700"
-                  />
-                  <Text style={styles.rewardText}>+{currentChallenge.reward} punti</Text>
-                </View>
-              </View>
+        <Pressable onPress={handleNotifications} style={styles.topRightButton}>
+          <IconSymbol 
+            ios_icon_name="bell.fill" 
+            android_material_icon_name="notifications" 
+            size={24} 
+            color={colors.text} 
+          />
+          {unreadNotifications > 0 && (
+            <View style={styles.notificationBadge}>
+              <Text style={styles.notificationBadgeText}>
+                {unreadNotifications > 99 ? '99+' : unreadNotifications}
+              </Text>
             </View>
           )}
+        </Pressable>
 
-          {/* All Challenges Overview */}
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <IconSymbol
-                ios_icon_name="list.bullet"
-                android_material_icon_name="list"
-                size={24}
-                color={colors.primary}
-              />
-              <Text style={styles.sectionTitle}>Tutte le Sfide</Text>
-            </View>
-
-            {weeklyChallenges.map((challenge, index) => (
-              <View key={challenge.id} style={[
-                styles.challengeCard,
-                challenge.locked && styles.lockedChallengeCard
-              ]}>
-                <View style={styles.challengeHeader}>
-                  <View style={styles.challengeNumberBadge}>
-                    <Text style={styles.challengeNumberText}>{index + 1}</Text>
-                  </View>
-                  <View style={styles.challengeInfo}>
-                    <Text style={[
-                      styles.challengeTitle,
-                      challenge.locked && styles.lockedChallengeText
-                    ]}>
-                      {challenge.title}
-                    </Text>
-                    <Text style={[
-                      styles.challengeDescription,
-                      challenge.locked && styles.lockedChallengeText
-                    ]}>
-                      {challenge.description}
-                    </Text>
-                  </View>
-                  {challenge.locked ? (
-                    <IconSymbol
-                      ios_icon_name="lock.fill"
-                      android_material_icon_name="lock"
-                      size={24}
-                      color={colors.textSecondary}
-                    />
-                  ) : challenge.completed ? (
-                    <IconSymbol
-                      ios_icon_name="checkmark.circle.fill"
-                      android_material_icon_name="check_circle"
-                      size={28}
-                      color="#4CAF50"
-                    />
-                  ) : null}
-                </View>
-
-                {!challenge.locked && (
-                  <>
-                    <View style={styles.progressContainer}>
-                      <View style={styles.progressBar}>
-                        <View
-                          style={[
-                            styles.progressFill,
-                            {
-                              width: `${(challenge.progress / challenge.target) * 100}%`,
-                              backgroundColor: challenge.completed ? '#4CAF50' : colors.primary,
-                            },
-                          ]}
-                        />
-                      </View>
-                      <Text style={styles.progressText}>
-                        {challenge.progress}/{challenge.target}
-                      </Text>
-                    </View>
-
-                    <View style={styles.rewardBadge}>
-                      <IconSymbol
-                        ios_icon_name="star.fill"
-                        android_material_icon_name="star"
-                        size={16}
-                        color="#FFD700"
-                      />
-                      <Text style={styles.rewardText}>+{challenge.reward} punti</Text>
-                    </View>
-                  </>
-                )}
-              </View>
-            ))}
-          </View>
-
-          {/* Supplier Lists */}
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <IconSymbol
-                ios_icon_name="list.bullet.rectangle"
-                android_material_icon_name="list"
-                size={24}
-                color={colors.primary}
-              />
-              <Text style={styles.sectionTitle}>Liste Disponibili</Text>
-            </View>
-
-            <Text style={styles.sectionSubtitle}>
-              Esplora le liste, mostra interesse e condividile con amici per attivare drop nella tua città!
-            </Text>
-
-            {supplierLists.map((list) => {
-              if (!list || !list.id) {
-                console.warn('Skipping invalid list in render:', list);
-                return null;
-              }
-              
-              const isInterested = selectedLists.has(list.id);
-              const isExplored = Array.isArray(gameStats.explored_list_ids) && gameStats.explored_list_ids.includes(list.id);
-              
-              // Get action states from memoized values
-              const exploreEnabled = actionStates.explore;
-              const interestEnabled = actionStates.interest;
-              const shareEnabled = actionStates.share;
-              
-              return (
-                <View key={list.id} style={styles.listCard}>
-                  <View style={styles.listHeader}>
-                    <View style={[styles.listIcon, isExplored && styles.listIconExplored]}>
-                      <IconSymbol
-                        ios_icon_name={isExplored ? 'checkmark' : 'bag.fill'}
-                        android_material_icon_name={isExplored ? 'check' : 'shopping_bag'}
-                        size={24}
-                        color={isExplored ? '#4CAF50' : colors.text}
-                      />
-                    </View>
-                    <View style={styles.listInfo}>
-                      <Text style={styles.listName}>{list.name}</Text>
-                      <Text style={styles.listSupplier}>di {list.supplier_name}</Text>
-                    </View>
-                  </View>
-
-                  <View style={styles.listDetails}>
-                    <View style={styles.listDetailItem}>
-                      <IconSymbol
-                        ios_icon_name="tag.fill"
-                        android_material_icon_name="local_offer"
-                        size={16}
-                        color={colors.textSecondary}
-                      />
-                      <Text style={styles.listDetailText}>
-                        {list.min_discount}% - {list.max_discount}% sconto
-                      </Text>
-                    </View>
-                    <View style={styles.listDetailItem}>
-                      <IconSymbol
-                        ios_icon_name="cube.box.fill"
-                        android_material_icon_name="inventory"
-                        size={16}
-                        color={colors.textSecondary}
-                      />
-                      <Text style={styles.listDetailText}>
-                        {list.product_count} prodotti
-                      </Text>
-                    </View>
-                  </View>
-
-                  <View style={styles.listActions}>
-                    <Pressable
-                      style={({ pressed }) => [
-                        styles.exploreButton,
-                        !exploreEnabled && styles.buttonDisabled,
-                        pressed && exploreEnabled && styles.buttonPressed,
-                      ]}
-                      onPress={() => handleListExplore(list)}
-                      disabled={!exploreEnabled}
-                    >
-                      <IconSymbol
-                        ios_icon_name={exploreEnabled ? 'eye.fill' : 'lock.fill'}
-                        android_material_icon_name={exploreEnabled ? 'visibility' : 'lock'}
-                        size={20}
-                        color={exploreEnabled ? '#FFF' : '#999'}
-                      />
-                      <Text style={[
-                        styles.exploreButtonText,
-                        !exploreEnabled && styles.buttonTextDisabled
-                      ]}>
-                        {isExplored ? 'Esplora Ancora' : 'Esplora Prodotti'}
-                      </Text>
-                    </Pressable>
-
-                    <Pressable
-                      style={({ pressed }) => [
-                        styles.interestButton,
-                        isInterested && styles.interestButtonActive,
-                        !interestEnabled && styles.buttonDisabled,
-                        pressed && interestEnabled && styles.buttonPressed,
-                      ]}
-                      onPress={() => handleListInterest(list)}
-                      disabled={!interestEnabled}
-                    >
-                      <IconSymbol
-                        ios_icon_name={!interestEnabled ? 'lock.fill' : (isInterested ? 'heart.fill' : 'heart')}
-                        android_material_icon_name={!interestEnabled ? 'lock' : (isInterested ? 'favorite' : 'favorite_border')}
-                        size={20}
-                        color={!interestEnabled ? '#999' : (isInterested ? '#FFF' : colors.primary)}
-                      />
-                      <Text style={[
-                        styles.interestButtonText,
-                        isInterested && styles.interestButtonTextActive,
-                        !interestEnabled && styles.buttonTextDisabled
-                      ]}>
-                        {isInterested ? 'Interessato' : 'Mi Interessa'}
-                      </Text>
-                    </Pressable>
-                  </View>
-
-                  {/* Share Button */}
-                  <Pressable
-                    style={({ pressed }) => [
-                      styles.shareButton,
-                      !shareEnabled && styles.buttonDisabled,
-                      pressed && shareEnabled && styles.buttonPressed,
-                    ]}
-                    onPress={() => handleListShare(list)}
-                    disabled={!shareEnabled}
-                  >
-                    <IconSymbol
-                      ios_icon_name={shareEnabled ? 'square.and.arrow.up' : 'lock.fill'}
-                      android_material_icon_name={shareEnabled ? 'share' : 'lock'}
-                      size={20}
-                      color={shareEnabled ? colors.primary : '#999'}
-                    />
-                    <Text style={[
-                      styles.shareButtonText,
-                      !shareEnabled && styles.buttonTextDisabled
-                    ]}>
-                      Condividi con Amici (+20 punti)
-                    </Text>
-                  </Pressable>
-                </View>
-              );
-            })}
-          </View>
-
-          {/* Info Card */}
-          <View style={styles.infoCard}>
-            <IconSymbol
-              ios_icon_name="info.circle.fill"
-              android_material_icon_name="info"
-              size={24}
-              color={colors.info}
+        <Pressable onPress={handleOpenWelcomeModal} style={styles.helpButton}>
+          <View style={styles.helpButtonCircle}>
+            <IconSymbol 
+              ios_icon_name="questionmark.circle.fill" 
+              android_material_icon_name="help" 
+              size={28} 
+              color="#3B82F6" 
             />
-            <View style={styles.infoContent}>
-              <Text style={styles.infoTitle}>Come Funziona</Text>
-              <Text style={styles.infoText}>
-                • Completa le sfide una alla volta per sbloccare la successiva{'\n'}
-                • Le azioni si sbloccano progressivamente con le sfide{'\n'}
-                • Ogni settimana puoi partecipare una volta{'\n'}
-                • Se salti una settimana, la tua striscia si azzera{'\n'}
-                • I punti mensili vengono sempre preservati{'\n'}
-                • A fine mese i punti vengono trasferiti al programma fedeltà{'\n'}
-                • Condividi le liste per aumentare le possibilità di attivare drop!
+          </View>
+        </Pressable>
+        
+        <View style={styles.rightSideIcons}>
+          <View style={styles.iconButton}>
+            <View style={styles.iconCircle}>
+              <IconSymbol 
+                ios_icon_name="mappin.circle.fill" 
+                android_material_icon_name="location-on" 
+                size={18} 
+                color={colors.text} 
+              />
+            </View>
+            <Text style={styles.iconLabel} numberOfLines={1}>
+              {user?.pickupPoint || 'N/A'}
+            </Text>
+          </View>
+
+          <View style={styles.iconButton}>
+            <View style={styles.iconCircle}>
+              <IconSymbol 
+                ios_icon_name="list.bullet.rectangle" 
+                android_material_icon_name="list" 
+                size={18} 
+                color={colors.text} 
+              />
+            </View>
+            <Text style={styles.iconLabel} numberOfLines={2}>
+              {currentList?.listName}
+            </Text>
+          </View>
+
+          <View style={styles.iconButton}>
+            <View style={styles.progressCircle}>
+              <View style={styles.progressCircleBackground}>
+                <Animated.View 
+                  style={[
+                    styles.progressCircleFill,
+                    {
+                      height: progressAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: ['0%', '100%'],
+                      }),
+                    },
+                  ]} 
+                />
+              </View>
+              <View style={styles.progressCircleContent}>
+                <Text style={styles.progressNumber}>{currentProductIndex + 1}</Text>
+                <Text style={styles.progressTotal}>/{totalProductsInList}</Text>
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.iconButton}>
+            <View style={styles.iconCircle}>
+              <Text style={styles.listCounterIcon}>
+                {currentListIndex + 1}/{productLists.length}
               </Text>
             </View>
           </View>
-        </ScrollView>
+        </View>
 
-        {/* Reward Animation */}
-        {showRewardAnimation && (
-          <Animated.View
+        {/* CRITICAL FIX: Enhanced navigation buttons - always visible when multiple lists exist */}
+        {showLeftNav && (
+          <Pressable 
+            style={({ pressed }) => [
+              styles.navButtonLeft,
+              pressed && styles.navButtonPressed,
+            ]}
+            onPress={handlePreviousList}
+            hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
+          >
+            <View style={styles.navButtonInner}>
+              <IconSymbol 
+                ios_icon_name="chevron.left" 
+                android_material_icon_name="chevron-left" 
+                size={24} 
+                color="#FFF" 
+              />
+            </View>
+          </Pressable>
+        )}
+
+        {showRightNav && (
+          <Pressable 
+            style={({ pressed }) => [
+              styles.navButtonRight,
+              pressed && styles.navButtonPressed,
+            ]}
+            onPress={handleNextList}
+            hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
+          >
+            <View style={styles.navButtonInner}>
+              <IconSymbol 
+                ios_icon_name="chevron.right" 
+                android_material_icon_name="chevron-right" 
+                size={24} 
+                color="#FFF" 
+              />
+            </View>
+          </Pressable>
+        )}
+
+        {/* GREEN CIRCLE FIX: Move multi-list banner higher */}
+        {productLists.length > 1 && (
+          <View style={styles.multiListBanner}>
+            <View style={styles.multiListBannerContent}>
+              <IconSymbol 
+                ios_icon_name="list.bullet" 
+                android_material_icon_name="list" 
+                size={16} 
+                color="#FFF" 
+              />
+              <Text style={styles.multiListBannerText}>
+                {productLists.length} liste disponibili • Scorri con le frecce
+              </Text>
+            </View>
+          </View>
+        )}
+
+        {shouldShowBanner && (
+          <Animated.View 
             style={[
-              styles.rewardAnimation,
+              styles.hintContainer,
               {
-                opacity: rewardAnim,
-                transform: [
-                  {
-                    translateY: rewardAnim.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [0, -50],
-                    }),
-                  },
-                  {
-                    scale: rewardAnim,
-                  },
-                ],
-              },
+                opacity: bannerOpacity,
+                pointerEvents: shouldShowBanner ? 'auto' : 'none',
+              }
             ]}
           >
-            <View style={styles.rewardAnimationContent}>
-              <IconSymbol
-                ios_icon_name="star.fill"
-                android_material_icon_name="star"
-                size={32}
-                color="#FFD700"
-              />
-              <Text style={styles.rewardAnimationText}>+{rewardAmount} punti!</Text>
+            <View style={styles.hintCard}>
+              <IconSymbol ios_icon_name="lightbulb.fill" android_material_icon_name="lightbulb" size={18} color="#FFB800" />
+              <Text style={styles.hintText}>
+                Ottimo! Più articoli della stessa lista aumentano le probabilità di attivare un drop!
+              </Text>
+              <Pressable onPress={handleDismissBanner} style={styles.closeBannerButton}>
+                <IconSymbol ios_icon_name="xmark" android_material_icon_name="close" size={16} color="#8B6914" />
+              </Pressable>
             </View>
           </Animated.View>
         )}
 
-        {/* Missed Week Modal */}
-        <Modal
-          visible={showMissedWeekModal}
-          transparent={true}
-          animationType="fade"
-          onRequestClose={closeMissedWeekModal}
-        >
+        <FeedWelcomeModal
+          visible={showWelcomeModal}
+          onClose={handleCloseWelcomeModal}
+        />
+
+        {showWishlistTip && (
           <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
-              <View style={styles.modalIcon}>
-                <IconSymbol
-                  ios_icon_name="exclamationmark.triangle.fill"
-                  android_material_icon_name="warning"
-                  size={64}
-                  color="#FF9800"
-                />
-              </View>
-
-              <Text style={styles.modalTitle}>Striscia Persa</Text>
-              
-              <Text style={styles.modalMessage}>
-                {missedWeeksCount === 1 
-                  ? 'Non hai partecipato al gioco la settimana scorsa.'
-                  : `Non hai partecipato al gioco per ${missedWeeksCount} settimane.`}
-              </Text>
-
-              <View style={styles.modalStats}>
-                <View style={styles.modalStatItem}>
-                  <Text style={styles.modalStatLabel}>Striscia Precedente</Text>
-                  <View style={styles.modalStatValue}>
-                    <IconSymbol
-                      ios_icon_name="flame.fill"
-                      android_material_icon_name="local_fire_department"
-                      size={24}
-                      color="#FF6B35"
-                    />
-                    <Text style={styles.modalStatNumber}>{previousStreak}</Text>
-                  </View>
-                </View>
-
-                <View style={styles.modalStatDivider} />
-
-                <View style={styles.modalStatItem}>
-                  <Text style={styles.modalStatLabel}>Striscia Attuale</Text>
-                  <View style={styles.modalStatValue}>
-                    <IconSymbol
-                      ios_icon_name="flame.fill"
-                      android_material_icon_name="local_fire_department"
-                      size={24}
-                      color={colors.textSecondary}
-                    />
-                    <Text style={styles.modalStatNumber}>0</Text>
-                  </View>
-                </View>
-              </View>
-
-              <View style={styles.modalInfoBox}>
-                <IconSymbol
-                  ios_icon_name="info.circle.fill"
-                  android_material_icon_name="info"
-                  size={20}
-                  color={colors.info}
-                />
-                <Text style={styles.modalInfoText}>
-                  Non preoccuparti! I tuoi punti mensili sono stati preservati. Ricomincia a giocare questa settimana per ricostruire la tua striscia!
-                </Text>
-              </View>
-
-              <Pressable
-                style={styles.modalButton}
-                onPress={closeMissedWeekModal}
+            <View style={styles.wishlistTipModal}>
+              <Pressable 
+                style={styles.wishlistTipClose}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setShowWishlistTip(false);
+                }}
               >
-                <Text style={styles.modalButtonText}>Ricomincia a Giocare!</Text>
+                <IconSymbol ios_icon_name="xmark" android_material_icon_name="close" size={24} color={colors.text} />
+              </Pressable>
+              
+              <View style={styles.wishlistTipIcon}>
+                <IconSymbol ios_icon_name="heart.fill" android_material_icon_name="favorite" size={48} color="#FF3B30" />
+              </View>
+              
+              <Text style={styles.wishlistTipTitle}>Wishlist Creata!</Text>
+              <Text style={styles.wishlistTipText}>
+                Usa il cuore ❤️ per salvare gli articoli che ti interessano nella tua wishlist.
+                {'\n\n'}
+                Potrai trovarli nella sezione Profilo e raggiungerli direttamente nel feed quando vuoi!
+                {'\n\n'}
+                💡 Perfetto per non perdere di vista i prodotti che ami!
+              </Text>
+              
+              <Pressable 
+                style={styles.wishlistTipButton}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                  setShowWishlistTip(false);
+                }}
+              >
+                <Text style={styles.wishlistTipButtonText}>Ho Capito!</Text>
               </Pressable>
             </View>
           </View>
-        </Modal>
+        )}
       </View>
     </>
   );
@@ -1749,45 +1337,141 @@ const styles = StyleSheet.create({
   centerContent: {
     justifyContent: 'center',
     alignItems: 'center',
+    paddingHorizontal: 40,
   },
   loadingText: {
     fontSize: 16,
     color: colors.textSecondary,
     marginTop: 16,
+    fontWeight: '500',
   },
-  header: {
+  loadingHint: {
+    fontSize: 12,
+    color: colors.textTertiary,
+    marginTop: 8,
+    fontStyle: 'italic',
+  },
+  errorTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#FF3B30',
+    marginTop: 20,
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  errorText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 8,
+  },
+  errorHint: {
+    fontSize: 12,
+    color: colors.textTertiary,
+    textAlign: 'center',
+    fontStyle: 'italic',
+    marginBottom: 24,
+  },
+  retryButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingTop: Platform.OS === 'android' ? 48 : 60,
-    paddingBottom: 16,
-    backgroundColor: colors.card,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    backgroundColor: colors.text,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+    gap: 8,
   },
-  headerButton: {
-    padding: 8,
-    position: 'relative',
+  retryButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFF',
   },
-  headerCenter: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  headerTitle: {
-    fontSize: 18,
+  emptyTitle: {
+    fontSize: 22,
     fontWeight: '700',
     color: colors.text,
+    marginTop: 24,
+    marginBottom: 12,
+    textAlign: 'center',
   },
-  headerSubtitle: {
-    fontSize: 12,
+  emptyText: {
+    fontSize: 15,
     color: colors.textSecondary,
-    marginTop: 2,
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 16,
+  },
+  adminHint: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#007AFF',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  emptySubtext: {
+    fontSize: 13,
+    color: colors.textTertiary,
+    textAlign: 'center',
+    fontStyle: 'italic',
+    marginBottom: 24,
+  },
+  adminButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#007AFF',
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    borderRadius: 8,
+    gap: 8,
+    marginBottom: 16,
+  },
+  adminButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFF',
+  },
+  refreshButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.card,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: 8,
+  },
+  refreshButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  listContainer: {
+    width: SCREEN_WIDTH,
+    height: SCREEN_HEIGHT,
+  },
+  // GREEN CIRCLE FIX: Reduced top padding from 48/60 to 20/30
+  topLeftButton: {
+    position: 'absolute',
+    top: Platform.OS === 'android' ? 20 : 30,
+    left: 20,
+    backgroundColor: 'transparent',
+    padding: 12,
+    zIndex: 100,
+  },
+  topRightButton: {
+    position: 'absolute',
+    top: Platform.OS === 'android' ? 20 : 30,
+    right: 20,
+    backgroundColor: 'transparent',
+    padding: 12,
+    zIndex: 100,
   },
   notificationBadge: {
     position: 'absolute',
-    top: 4,
-    right: 4,
+    top: 8,
+    right: 8,
     backgroundColor: '#FF3B30',
     borderRadius: 10,
     minWidth: 20,
@@ -1795,417 +1479,257 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 5,
+    borderWidth: 2,
+    borderColor: colors.background,
   },
   notificationBadgeText: {
     fontSize: 10,
     fontWeight: '700',
     color: '#FFF',
   },
-  scrollView: {
-    flex: 1,
+  // GREEN CIRCLE FIX: Reduced top padding from 48/60 to 20/30
+  helpButton: {
+    position: 'absolute',
+    top: Platform.OS === 'android' ? 20 : 30,
+    left: '50%',
+    marginLeft: -20,
+    zIndex: 100,
   },
-  scrollContent: {
-    padding: 16,
-    paddingBottom: 100,
+  helpButtonCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
   },
-  statsCard: {
-    flexDirection: 'row',
-    backgroundColor: colors.card,
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 24,
+  rightSideIcons: {
+    position: 'absolute',
+    right: 10,
+    top: '18%',
+    bottom: '35%',
+    justifyContent: 'space-evenly',
+    alignItems: 'center',
+    gap: 16,
+    zIndex: 10,
+  },
+  iconButton: {
+    alignItems: 'center',
+    gap: 3,
+  },
+  iconCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255, 255, 255, 0.92)',
+    justifyContent: 'center',
+    alignItems: 'center',
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: 'rgba(0, 0, 0, 0.08)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 3,
+    elevation: 3,
+  },
+  iconLabel: {
+    fontSize: 8,
+    fontWeight: '700',
+    color: colors.text,
+    textAlign: 'center',
+    maxWidth: 56,
+    backgroundColor: 'rgba(255, 255, 255, 0.92)',
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    borderRadius: 6,
+    overflow: 'hidden',
+  },
+  listCounterIcon: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: colors.text,
+    letterSpacing: 0.2,
+  },
+  progressCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    position: 'relative',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  progressCircleBackground: {
+    position: 'absolute',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255, 255, 255, 0.92)',
+    borderWidth: 1,
+    borderColor: 'rgba(0, 0, 0, 0.08)',
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 3,
+    elevation: 3,
+  },
+  progressCircleFill: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: colors.text,
+    opacity: 0.2,
+  },
+  progressCircleContent: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 1,
+  },
+  progressNumber: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: colors.text,
+    lineHeight: 13,
+  },
+  progressTotal: {
+    fontSize: 7,
+    fontWeight: '700',
+    color: colors.textSecondary,
+    lineHeight: 9,
+  },
+  navButtonLeft: {
+    position: 'absolute',
+    left: 16,
+    bottom: '22%',
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.4)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+    zIndex: 100,
+  },
+  navButtonRight: {
+    position: 'absolute',
+    right: 16,
+    bottom: '22%',
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.4)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+    zIndex: 100,
+  },
+  navButtonPressed: {
+    opacity: 0.7,
+    transform: [{ scale: 0.95 }],
+  },
+  navButtonInner: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  // GREEN CIRCLE FIX: Reduced top padding from 120/130 to 80/90
+  multiListBanner: {
+    position: 'absolute',
+    top: Platform.OS === 'android' ? 80 : 90,
+    left: 20,
+    right: 20,
+    zIndex: 50,
+  },
+  multiListBannerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(59, 130, 246, 0.95)',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    gap: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  multiListBannerText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#FFF',
+    letterSpacing: 0.3,
+  },
+  hintContainer: {
+    position: 'absolute',
+    bottom: 300,
+    left: 20,
+    right: 80,
+    zIndex: 10,
+  },
+  hintCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 248, 220, 0.97)',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
+    gap: 10,
+    borderWidth: 1,
+    borderColor: '#FFB800',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
-    elevation: 3,
-  },
-  statItem: {
-    flex: 1,
-    alignItems: 'center',
-    gap: 8,
-  },
-  statValue: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: colors.text,
-  },
-  statLabel: {
-    fontSize: 11,
-    color: colors.textSecondary,
-    textAlign: 'center',
-  },
-  section: {
-    marginBottom: 24,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginBottom: 12,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: colors.text,
-  },
-  sectionSubtitle: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    marginBottom: 16,
-    lineHeight: 20,
-  },
-  challengeCard: {
-    backgroundColor: colors.card,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  currentChallengeCard: {
-    borderWidth: 2,
-    borderColor: colors.primary,
-    backgroundColor: colors.primary + '10',
-  },
-  lockedChallengeCard: {
-    opacity: 0.6,
-  },
-  challengeHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginBottom: 12,
-  },
-  challengeNumberBadge: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: colors.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  challengeNumberText: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#FFF',
-  },
-  challengeInfo: {
-    flex: 1,
-  },
-  challengeTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.text,
-    marginBottom: 4,
-  },
-  currentChallengeTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: colors.primary,
-    marginBottom: 4,
-  },
-  challengeDescription: {
-    fontSize: 13,
-    color: colors.textSecondary,
-    lineHeight: 18,
-  },
-  lockedChallengeText: {
-    color: colors.textSecondary,
-  },
-  progressContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginBottom: 8,
-  },
-  progressBar: {
-    flex: 1,
-    height: 8,
-    backgroundColor: colors.backgroundSecondary,
-    borderRadius: 4,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    borderRadius: 4,
-  },
-  progressText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: colors.text,
-    minWidth: 40,
-    textAlign: 'right',
-  },
-  rewardBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    alignSelf: 'flex-start',
-    backgroundColor: '#FFF9E6',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  rewardText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#8B6914',
-  },
-  listCard: {
-    backgroundColor: colors.card,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  listHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginBottom: 12,
-  },
-  listIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: colors.backgroundSecondary,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  listIconExplored: {
-    backgroundColor: '#E8F5E9',
-  },
-  listInfo: {
-    flex: 1,
-  },
-  listName: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.text,
-    marginBottom: 4,
-  },
-  listSupplier: {
-    fontSize: 13,
-    color: colors.textSecondary,
-  },
-  listDetails: {
-    flexDirection: 'row',
-    gap: 16,
-    marginBottom: 12,
-  },
-  listDetailItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  listDetailText: {
-    fontSize: 12,
-    color: colors.textSecondary,
-  },
-  listActions: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 8,
-  },
-  exploreButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: colors.primary,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-  },
-  exploreButtonText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#FFF',
-  },
-  interestButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: colors.background,
-    borderWidth: 2,
-    borderColor: colors.primary,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-  },
-  interestButtonActive: {
-    backgroundColor: colors.primary,
-  },
-  interestButtonText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: colors.primary,
-  },
-  interestButtonTextActive: {
-    color: '#FFF',
-  },
-  shareButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: colors.background,
-    borderWidth: 2,
-    borderColor: colors.primary,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-  },
-  shareButtonText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: colors.primary,
-  },
-  buttonDisabled: {
-    opacity: 0.4,
-    backgroundColor: '#E0E0E0',
-    borderColor: '#999',
-  },
-  buttonTextDisabled: {
-    color: '#999',
-  },
-  buttonPressed: {
-    opacity: 0.7,
-    transform: [{ scale: 0.98 }],
-  },
-  infoCard: {
-    flexDirection: 'row',
-    backgroundColor: colors.info + '10',
-    borderWidth: 1,
-    borderColor: colors.info + '30',
-    borderRadius: 12,
-    padding: 16,
-    gap: 12,
-  },
-  infoContent: {
-    flex: 1,
-  },
-  infoTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.text,
-    marginBottom: 8,
-  },
-  infoText: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    lineHeight: 20,
-  },
-  rewardAnimation: {
-    position: 'absolute',
-    top: '50%',
-    left: '50%',
-    marginLeft: -100,
-    marginTop: -50,
-    zIndex: 1000,
-  },
-  rewardAnimationContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    backgroundColor: '#FFF',
-    paddingHorizontal: 24,
-    paddingVertical: 16,
-    borderRadius: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-  rewardAnimationText: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: colors.text,
-  },
-  welcomeContainer: {
-    padding: 24,
-    alignItems: 'center',
-  },
-  welcomeIcon: {
-    marginTop: 60,
-    marginBottom: 32,
-  },
-  welcomeTitle: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: colors.text,
-    textAlign: 'center',
-    marginBottom: 12,
-  },
-  welcomeSubtitle: {
-    fontSize: 16,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    marginBottom: 40,
-    lineHeight: 24,
-  },
-  welcomeSection: {
-    width: '100%',
-    gap: 24,
-    marginBottom: 40,
-  },
-  welcomeFeature: {
-    alignItems: 'center',
-    backgroundColor: colors.card,
-    borderRadius: 16,
-    padding: 24,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  welcomeFeatureTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: colors.text,
-    marginTop: 16,
-    marginBottom: 8,
-  },
-  welcomeFeatureText: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    lineHeight: 20,
-  },
-  welcomeButton: {
-    backgroundColor: colors.primary,
-    paddingHorizontal: 48,
-    paddingVertical: 16,
-    borderRadius: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
     elevation: 4,
   },
-  welcomeButtonText: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#FFF',
+  hintText: {
+    flex: 1,
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#8B6914',
+    lineHeight: 16,
+  },
+  closeBannerButton: {
+    padding: 4,
+    marginLeft: 4,
   },
   modalOverlay: {
-    flex: 1,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     backgroundColor: 'rgba(0, 0, 0, 0.7)',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 24,
+    zIndex: 1000,
   },
-  modalContent: {
-    backgroundColor: colors.card,
+  wishlistTipModal: {
+    backgroundColor: colors.background,
     borderRadius: 24,
     padding: 32,
-    width: '100%',
+    marginHorizontal: 24,
     maxWidth: 400,
     alignItems: 'center',
     shadowColor: '#000',
@@ -2214,88 +1738,41 @@ const styles = StyleSheet.create({
     shadowRadius: 16,
     elevation: 10,
   },
-  modalIcon: {
-    marginBottom: 24,
+  wishlistTipClose: {
+    position: 'absolute',
+    top: 16,
+    right: 16,
+    padding: 8,
+    zIndex: 1,
   },
-  modalTitle: {
-    fontSize: 28,
+  wishlistTipIcon: {
+    marginBottom: 20,
+  },
+  wishlistTipTitle: {
+    fontSize: 24,
     fontWeight: '800',
     color: colors.text,
     marginBottom: 16,
     textAlign: 'center',
   },
-  modalMessage: {
-    fontSize: 16,
+  wishlistTipText: {
+    fontSize: 15,
     color: colors.textSecondary,
+    lineHeight: 22,
     textAlign: 'center',
-    lineHeight: 24,
-    marginBottom: 32,
-  },
-  modalStats: {
-    flexDirection: 'row',
-    width: '100%',
-    marginBottom: 24,
-    backgroundColor: colors.background,
-    borderRadius: 16,
-    padding: 20,
-  },
-  modalStatItem: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  modalStatLabel: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    marginBottom: 12,
-    textAlign: 'center',
-  },
-  modalStatValue: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  modalStatNumber: {
-    fontSize: 32,
-    fontWeight: '800',
-    color: colors.text,
-  },
-  modalStatDivider: {
-    width: 1,
-    backgroundColor: colors.border,
-    marginHorizontal: 16,
-  },
-  modalInfoBox: {
-    flexDirection: 'row',
-    backgroundColor: colors.info + '10',
-    borderWidth: 1,
-    borderColor: colors.info + '30',
-    borderRadius: 12,
-    padding: 16,
-    gap: 12,
     marginBottom: 24,
   },
-  modalInfoText: {
-    flex: 1,
-    fontSize: 14,
-    color: colors.textSecondary,
-    lineHeight: 20,
-  },
-  modalButton: {
-    backgroundColor: colors.primary,
+  wishlistTipButton: {
+    backgroundColor: colors.text,
+    paddingVertical: 14,
     paddingHorizontal: 32,
-    paddingVertical: 16,
-    borderRadius: 16,
-    width: '100%',
+    borderRadius: 12,
+    minWidth: 200,
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
   },
-  modalButtonText: {
-    fontSize: 18,
+  wishlistTipButtonText: {
+    fontSize: 16,
     fontWeight: '700',
-    color: '#FFF',
+    color: colors.background,
   },
 });
