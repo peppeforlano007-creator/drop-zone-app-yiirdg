@@ -1,5 +1,5 @@
 
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { View, StyleSheet, Dimensions, Platform, Text, Pressable, Alert, Animated, ActivityIndicator, ScrollView, Modal } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Stack, router, useFocusEffect } from 'expo-router';
@@ -548,44 +548,42 @@ export default function GameFeedScreen() {
     checkWelcomeScreen();
   }, [loadGameData, loadUnreadNotifications]);
 
-  // Helper function to check if an action is enabled based on current challenge
-  const isActionEnabled = (action: 'explore' | 'interest' | 'share'): boolean => {
+  // Memoize the action enabled states based on current challenge
+  // This prevents recalculation on every render
+  const actionStates = useMemo(() => {
     const currentChallenge = weeklyChallenges[currentChallengeIndex];
-    if (!currentChallenge) return false;
-
-    console.log(`🔍 Checking if action "${action}" is enabled for challenge: ${currentChallenge.title}`);
+    if (!currentChallenge) {
+      return { explore: false, interest: false, share: false };
+    }
 
     // Challenge 1 (COLLEZIONISTA): Only Esplora enabled
     if (currentChallenge.id === '1') {
-      const enabled = action === 'explore';
-      console.log(`  → Challenge 1 (COLLEZIONISTA): ${action} is ${enabled ? 'ENABLED' : 'DISABLED'}`);
-      return enabled;
+      return { explore: true, interest: false, share: false };
     }
 
     // Challenge 2 (NAVIGATORE): Only Esplora enabled
     if (currentChallenge.id === '2') {
-      const enabled = action === 'explore';
-      console.log(`  → Challenge 2 (NAVIGATORE): ${action} is ${enabled ? 'ENABLED' : 'DISABLED'}`);
-      return enabled;
+      return { explore: true, interest: false, share: false };
     }
 
     // Challenge 3 (CACCIATORE DI OFFERTE): Esplora + Mi Interessa enabled
     if (currentChallenge.id === '3') {
-      const enabled = action === 'explore' || action === 'interest';
-      console.log(`  → Challenge 3 (CACCIATORE DI OFFERTE): ${action} is ${enabled ? 'ENABLED' : 'DISABLED'}`);
-      return enabled;
+      return { explore: true, interest: true, share: false };
     }
 
     // Challenge 4 (AMBASCIATORE): All actions enabled
     if (currentChallenge.id === '4') {
-      console.log(`  → Challenge 4 (AMBASCIATORE): ${action} is ENABLED (all actions enabled)`);
-      return true;
+      return { explore: true, interest: true, share: true };
     }
 
-    // Default: disable if challenge not recognized
-    console.log(`  → Unknown challenge: ${action} is DISABLED by default`);
-    return false;
-  };
+    // Default: disable all
+    return { explore: false, interest: false, share: false };
+  }, [weeklyChallenges, currentChallengeIndex]);
+
+  // Helper function to check if an action is enabled based on current challenge
+  const isActionEnabled = useCallback((action: 'explore' | 'interest' | 'share'): boolean => {
+    return actionStates[action];
+  }, [actionStates]);
 
   const handleListExplore = async (list: SupplierList) => {
     console.log('User tapped Explore button for list:', list?.name || 'unknown');
@@ -1480,10 +1478,10 @@ export default function GameFeedScreen() {
               const isInterested = selectedLists.has(list.id);
               const isExplored = Array.isArray(gameStats.explored_list_ids) && gameStats.explored_list_ids.includes(list.id);
               
-              // Check which actions are enabled
-              const exploreEnabled = isActionEnabled('explore');
-              const interestEnabled = isActionEnabled('interest');
-              const shareEnabled = isActionEnabled('share');
+              // Get action states from memoized values
+              const exploreEnabled = actionStates.explore;
+              const interestEnabled = actionStates.interest;
+              const shareEnabled = actionStates.share;
               
               return (
                 <View key={list.id} style={styles.listCard}>
