@@ -108,13 +108,6 @@ export default function GameFeedScreen() {
   const rewardAnim = useRef(new Animated.Value(0)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
-  // Load game data on mount
-  useEffect(() => {
-    loadGameData();
-    loadUnreadNotifications();
-    checkWelcomeScreen();
-  }, [loadGameData, loadUnreadNotifications]);
-
   // Reload challenges when screen comes into focus
   useFocusEffect(
     useCallback(() => {
@@ -197,7 +190,7 @@ export default function GameFeedScreen() {
     }
   };
 
-  const loadGameData = async () => {
+  const loadGameData = useCallback(async () => {
     try {
       console.log('🎮 Loading game data...');
       setLoading(true);
@@ -430,7 +423,7 @@ export default function GameFeedScreen() {
       Alert.alert('Errore', 'Impossibile caricare i dati del gioco');
       setLoading(false);
     }
-  };
+  }, [user]);
 
   const generateWeeklyChallenges = async (listCount: number) => {
     const currentWeekStart = getWeekStart();
@@ -532,7 +525,7 @@ export default function GameFeedScreen() {
     await AsyncStorage.setItem(CURRENT_CHALLENGE_INDEX_KEY, '0');
   };
 
-  const loadUnreadNotifications = async () => {
+  const loadUnreadNotifications = useCallback(async () => {
     if (!user) return;
     
     try {
@@ -546,7 +539,14 @@ export default function GameFeedScreen() {
     } catch (error) {
       console.error('Error loading notifications:', error);
     }
-  };
+  }, [user]);
+
+  // Load game data on mount
+  useEffect(() => {
+    loadGameData();
+    loadUnreadNotifications();
+    checkWelcomeScreen();
+  }, [loadGameData, loadUnreadNotifications]);
 
   // Helper function to check if an action is enabled based on current challenge
   const isActionEnabled = (action: 'explore' | 'interest' | 'share'): boolean => {
