@@ -201,6 +201,41 @@ export default function GameFeedScreen() {
       console.log('🎮 Loading game data...');
       setLoading(true);
 
+      // Check if admin requested a game data reset
+      if (user?.id) {
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('game_data_reset_requested')
+          .eq('user_id', user.id)
+          .single();
+        
+        if (!profileError && profile?.game_data_reset_requested) {
+          console.log('🔄 Admin requested game data reset. Clearing all game data...');
+          
+          // Clear all game-related AsyncStorage data
+          await AsyncStorage.removeItem(GAME_STATS_KEY);
+          await AsyncStorage.removeItem(WEEKLY_CHALLENGES_KEY);
+          await AsyncStorage.removeItem(CURRENT_CHALLENGE_INDEX_KEY);
+          
+          // Clear the reset flag in database
+          await supabase
+            .from('profiles')
+            .update({ 
+              game_data_reset_requested: false,
+              loyalty_points: 0 
+            })
+            .eq('user_id', user.id);
+          
+          console.log('✅ Game data reset complete!');
+          
+          Alert.alert(
+            '🎮 Dati di Gioco Resettati',
+            'Le tue sfide e i tuoi punti sono stati resettati dall\'amministratore. Inizia una nuova avventura!',
+            [{ text: 'OK' }]
+          );
+        }
+      }
+
       // Load supplier lists with product counts
       const { data: lists, error: listsError } = await supabase
         .from('supplier_lists')
