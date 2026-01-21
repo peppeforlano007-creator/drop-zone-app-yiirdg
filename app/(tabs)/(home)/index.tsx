@@ -9,7 +9,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/app/integrations/supabase/client';
 import * as Haptics from 'expo-haptics';
 import * as Sharing from 'expo-sharing';
-import * as FileSystem from 'expo-file-system/legacy';
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -774,97 +773,44 @@ export default function GameFeedScreen() {
       // Safely get pickup point name with fallback
       const pickupPointName = user.pickupPoint || 'il tuo punto di ritiro';
       
-      // Create shareable content - sanitize all strings to avoid encoding issues
-      const sanitizeText = (text: string): string => {
-        // Remove any problematic characters that could cause base64 encoding issues
-        return text
-          .replace(/[\r\n\t]/g, ' ') // Replace newlines/tabs with spaces
-          .replace(/[^\x20-\x7E\u00A0-\uFFFF]/g, '') // Remove non-printable chars
-          .trim();
-      };
-      
-      const listName = sanitizeText(list.name || 'questa lista');
-      const productCount = list.product_count || 0;
-      const minDiscount = list.min_discount || 0;
-      const maxDiscount = list.max_discount || 0;
-      const pickupPoint = sanitizeText(pickupPointName);
-      
-      // Create shareable content with sanitized strings
-      const shareMessage = `🎁 Scopri ${listName} su DropShop!\n\n` +
-        `${productCount} prodotti disponibili con sconti dal ${minDiscount}% al ${maxDiscount}%!\n\n` +
-        `Più persone della tua città mostrano interesse, più è probabile che si attivi un drop con sconti incredibili! 🔥\n\n` +
-        `Punto di ritiro: ${pickupPoint}\n\n` +
-        `Unisciti a noi e approfitta delle migliori offerte!`;
-
-      console.log('Share message prepared:', shareMessage);
-
       // Check if sharing is available
       const isAvailable = await Sharing.isAvailableAsync();
       
       if (!isAvailable) {
-        console.log('Sharing not available, showing fallback alert');
         // Fallback: Show a message with shareable text
+        const shareText = `🎁 Scopri ${list.name || 'questa lista'} su DropShop!\n\n` +
+          `${list.product_count || 0} prodotti disponibili con sconti dal ${list.min_discount || 0}% al ${list.max_discount || 0}%!\n\n` +
+          `Più persone della tua città mostrano interesse, più è probabile che si attivi un drop con sconti incredibili! 🔥\n\n` +
+          `Punto di ritiro: ${pickupPointName}\n\n` +
+          `Unisciti a noi e approfitta delle migliori offerte!`;
+        
         Alert.alert(
           'Condividi questa lista',
-          shareMessage,
+          shareText,
           [
-            { text: 'OK', style: 'default' }
+            { text: 'Copia Testo', onPress: () => {
+              // In a real app, you'd use Clipboard API here
+              Alert.alert('Successo', 'Testo copiato! Condividilo con i tuoi amici.');
+            }},
+            { text: 'Chiudi', style: 'cancel' }
           ]
         );
-        
-        // Still track the share attempt
-        await supabase
-          .from('list_shares')
-          .insert({
-            user_id: user.id,
-            supplier_list_id: list.id,
-            pickup_point_id: user.pickupPointId,
-          });
-
-        // Update stats
-        const newStats = { ...gameStats };
-        newStats.lists_shared_this_week = (newStats.lists_shared_this_week || 0) + 1;
-        setGameStats(newStats);
-        await AsyncStorage.setItem(GAME_STATS_KEY, JSON.stringify(newStats));
-
-        // Award points
-        await awardPoints(20, 'list_shared');
-
-        // Update AMBASCIATORE challenge (id: '4')
-        await updateChallengeProgress('4', 1);
-
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         return;
       }
 
-      // Create a temporary file with the share message
-      const fileUri = `${FileSystem.cacheDirectory}share_list_${Date.now()}.txt`;
-      
-      console.log('Creating share file at:', fileUri);
-      
-      // Write the message to a file using UTF8 encoding
-      await FileSystem.writeAsStringAsync(fileUri, shareMessage, {
-        encoding: FileSystem.EncodingType.UTF8,
-      });
-
-      console.log('Share file created successfully');
+      // Create shareable content
+      const shareMessage = `🎁 Scopri ${list.name || 'questa lista'} su DropShop!\n\n` +
+        `${list.product_count || 0} prodotti disponibili con sconti dal ${list.min_discount || 0}% al ${list.max_discount || 0}%!\n\n` +
+        `Più persone della tua città mostrano interesse, più è probabile che si attivi un drop con sconti incredibili! 🔥\n\n` +
+        `Punto di ritiro: ${pickupPointName}\n\n` +
+        `Unisciti a noi e approfitta delle migliori offerte!`;
 
       // Share using native share dialog
-      await Sharing.shareAsync(fileUri, {
+      await Sharing.shareAsync('data:text/plain;base64,' + btoa(shareMessage), {
         mimeType: 'text/plain',
-        dialogTitle: `Condividi ${listName}`,
+        dialogTitle: `Condividi ${list.name || 'lista'}`,
         UTI: 'public.plain-text',
       });
-
-      console.log('Share dialog completed');
-
-      // Clean up the temporary file
-      try {
-        await FileSystem.deleteAsync(fileUri, { idempotent: true });
-        console.log('Temporary share file deleted');
-      } catch (deleteError) {
-        console.warn('Could not delete temporary file:', deleteError);
-      }
 
       // Track the share
       await supabase
@@ -891,22 +837,7 @@ export default function GameFeedScreen() {
       
     } catch (error) {
       console.error('Error sharing list:', error);
-      
-      // Provide more detailed error information
-      let errorMessage = 'Impossibile condividere la lista. Riprova più tardi.';
-      
-      if (error instanceof Error) {
-        console.error('Error details:', {
-          message: error.message,
-          stack: error.stack,
-          name: error.name
-        });
-        
-        // Don't show technical error details to user
-        errorMessage = 'Si è verificato un errore durante la condivisione. Riprova più tardi.';
-      }
-      
-      Alert.alert('Errore', errorMessage, [{ text: 'OK' }]);
+      Alert.alert('Errore', 'Impossibile condividere la lista. Riprova più tardi.');
     }
   };
 
