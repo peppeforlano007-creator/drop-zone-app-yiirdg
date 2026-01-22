@@ -9,7 +9,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/app/integrations/supabase/client';
 import * as Haptics from 'expo-haptics';
 import * as Sharing from 'expo-sharing';
-import * as FileSystem from 'expo-file-system/legacy';
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -126,51 +125,15 @@ export default function GameFeedScreen() {
   const reloadChallenges = async () => {
     try {
       const savedChallenges = await AsyncStorage.getItem(WEEKLY_CHALLENGES_KEY);
+      const savedIndex = await AsyncStorage.getItem(CURRENT_CHALLENGE_INDEX_KEY);
       
       if (savedChallenges) {
         const parsedChallenges = JSON.parse(savedChallenges);
+        const parsedIndex = savedIndex ? parseInt(savedIndex, 10) : 0;
         
-        console.log('📊 Current challenges state:', parsedChallenges.map((c: Challenge) => ({
-          id: c.id,
-          title: c.title,
-          locked: c.locked,
-          completed: c.completed,
-          progress: c.progress,
-          target: c.target
-        })));
-        
-        // Find the first unlocked, incomplete challenge
-        // This is the challenge the user should be working on
-        let newCurrentIndex = 0;
-        let foundCurrentChallenge = false;
-        
-        for (let i = 0; i < parsedChallenges.length; i++) {
-          const challenge = parsedChallenges[i];
-          
-          // The current challenge is the first one that is:
-          // 1. NOT locked
-          // 2. NOT completed
-          if (!challenge.locked && !challenge.completed) {
-            newCurrentIndex = i;
-            foundCurrentChallenge = true;
-            console.log(`📍 Found current challenge at index ${i}: ${challenge.title} (locked: ${challenge.locked}, completed: ${challenge.completed}, progress: ${challenge.progress}/${challenge.target})`);
-            break;
-          }
-        }
-        
-        // If all challenges are completed, set to last challenge
-        if (!foundCurrentChallenge) {
-          newCurrentIndex = parsedChallenges.length - 1;
-          console.log('📍 All challenges completed, showing last challenge');
-        }
-        
-        console.log('✅ Setting current challenge index to:', newCurrentIndex);
-        
+        console.log('📊 Reloaded challenges:', parsedChallenges);
         setWeeklyChallenges(parsedChallenges);
-        setCurrentChallengeIndex(newCurrentIndex);
-        
-        // Update the saved index to match
-        await AsyncStorage.setItem(CURRENT_CHALLENGE_INDEX_KEY, newCurrentIndex.toString());
+        setCurrentChallengeIndex(parsedIndex);
       }
     } catch (error) {
       console.error('Error reloading challenges:', error);
@@ -201,41 +164,6 @@ export default function GameFeedScreen() {
     try {
       console.log('🎮 Loading game data...');
       setLoading(true);
-
-      // Check if admin requested a game data reset
-      if (user?.id) {
-        const { data: profile, error: profileError } = await supabase
-          .from('profiles')
-          .select('game_data_reset_requested')
-          .eq('user_id', user.id)
-          .single();
-        
-        if (!profileError && profile?.game_data_reset_requested) {
-          console.log('🔄 Admin requested game data reset. Clearing all game data...');
-          
-          // Clear all game-related AsyncStorage data
-          await AsyncStorage.removeItem(GAME_STATS_KEY);
-          await AsyncStorage.removeItem(WEEKLY_CHALLENGES_KEY);
-          await AsyncStorage.removeItem(CURRENT_CHALLENGE_INDEX_KEY);
-          
-          // Clear the reset flag in database
-          await supabase
-            .from('profiles')
-            .update({ 
-              game_data_reset_requested: false,
-              loyalty_points: 0 
-            })
-            .eq('user_id', user.id);
-          
-          console.log('✅ Game data reset complete!');
-          
-          Alert.alert(
-            '🎮 Dati di Gioco Resettati',
-            'Le tue sfide e i tuoi punti sono stati resettati dall\'amministratore. Inizia una nuova avventura!',
-            [{ text: 'OK' }]
-          );
-        }
-      }
 
       // Load supplier lists with product counts
       const { data: lists, error: listsError } = await supabase
@@ -437,37 +365,16 @@ export default function GameFeedScreen() {
     
     // Try to load existing challenges for this week
     const savedChallenges = await AsyncStorage.getItem(WEEKLY_CHALLENGES_KEY);
+    const savedIndex = await AsyncStorage.getItem(CURRENT_CHALLENGE_INDEX_KEY);
     
     if (savedChallenges) {
       try {
         const parsedChallenges = JSON.parse(savedChallenges);
+        const parsedIndex = savedIndex ? parseInt(savedIndex, 10) : 0;
         
         if (Array.isArray(parsedChallenges)) {
-          // Find the first unlocked, incomplete challenge
-          let newCurrentIndex = 0;
-          let foundCurrentChallenge = false;
-          
-          for (let i = 0; i < parsedChallenges.length; i++) {
-            const challenge = parsedChallenges[i];
-            
-            // The current challenge is the first one that is:
-            // 1. NOT locked
-            // 2. NOT completed
-            if (!challenge.locked && !challenge.completed) {
-              newCurrentIndex = i;
-              foundCurrentChallenge = true;
-              break;
-            }
-          }
-          
-          // If all challenges are completed, set to last challenge
-          if (!foundCurrentChallenge) {
-            newCurrentIndex = parsedChallenges.length - 1;
-          }
-          
           setWeeklyChallenges(parsedChallenges);
-          setCurrentChallengeIndex(newCurrentIndex);
-          await AsyncStorage.setItem(CURRENT_CHALLENGE_INDEX_KEY, newCurrentIndex.toString());
+          setCurrentChallengeIndex(parsedIndex);
           return;
         }
       } catch (error) {
@@ -548,45 +455,6 @@ export default function GameFeedScreen() {
     }
   };
 
-  // Helper function to check if an action is enabled based on current challenge
-  const isActionEnabled = (action: 'explore' | 'interest' | 'share'): boolean => {
-    const currentChallenge = weeklyChallenges[currentChallengeIndex];
-    if (!currentChallenge) return false;
-
-    console.log(`🔍 Checking if action "${action}" is enabled for challenge: ${currentChallenge.title}`);
-
-    // Challenge 1 (COLLEZIONISTA): Only Esplora enabled
-    if (currentChallenge.id === '1') {
-      const enabled = action === 'explore';
-      console.log(`  → Challenge 1 (COLLEZIONISTA): ${action} is ${enabled ? 'ENABLED' : 'DISABLED'}`);
-      return enabled;
-    }
-
-    // Challenge 2 (NAVIGATORE): Only Esplora enabled
-    if (currentChallenge.id === '2') {
-      const enabled = action === 'explore';
-      console.log(`  → Challenge 2 (NAVIGATORE): ${action} is ${enabled ? 'ENABLED' : 'DISABLED'}`);
-      return enabled;
-    }
-
-    // Challenge 3 (CACCIATORE DI OFFERTE): Esplora + Mi Interessa enabled
-    if (currentChallenge.id === '3') {
-      const enabled = action === 'explore' || action === 'interest';
-      console.log(`  → Challenge 3 (CACCIATORE DI OFFERTE): ${action} is ${enabled ? 'ENABLED' : 'DISABLED'}`);
-      return enabled;
-    }
-
-    // Challenge 4 (AMBASCIATORE): All actions enabled
-    if (currentChallenge.id === '4') {
-      console.log(`  → Challenge 4 (AMBASCIATORE): ${action} is ENABLED (all actions enabled)`);
-      return true;
-    }
-
-    // Default: disable if challenge not recognized
-    console.log(`  → Unknown challenge: ${action} is DISABLED by default`);
-    return false;
-  };
-
   const handleListExplore = async (list: SupplierList) => {
     console.log('User tapped Explore button for list:', list?.name || 'unknown');
     
@@ -598,18 +466,6 @@ export default function GameFeedScreen() {
     
     if (!user || !user.pickupPointId) {
       Alert.alert('Errore', 'Devi essere registrato con un punto di ritiro');
-      return;
-    }
-
-    // Check if action is enabled
-    if (!isActionEnabled('explore')) {
-      console.log('❌ Explore action is DISABLED for current challenge');
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert(
-        'Azione Non Disponibile',
-        'Questa azione non è ancora disponibile. Completa le sfide precedenti per sbloccarla!',
-        [{ text: 'OK' }]
-      );
       return;
     }
 
@@ -662,18 +518,6 @@ export default function GameFeedScreen() {
     
     if (!user || !user.pickupPointId) {
       Alert.alert('Errore', 'Devi essere registrato con un punto di ritiro');
-      return;
-    }
-
-    // Check if action is enabled
-    if (!isActionEnabled('interest')) {
-      console.log('❌ Interest action is DISABLED for current challenge');
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert(
-        'Azione Non Disponibile',
-        'Questa azione non è ancora disponibile. Completa le sfide precedenti per sbloccarla!',
-        [{ text: 'OK' }]
-      );
       return;
     }
 
@@ -756,115 +600,50 @@ export default function GameFeedScreen() {
       return;
     }
 
-    // Check if action is enabled
-    if (!isActionEnabled('share')) {
-      console.log('❌ Share action is DISABLED for current challenge');
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert(
-        'Azione Non Disponibile',
-        'Questa azione non è ancora disponibile. Completa le sfide precedenti per sbloccarla!',
-        [{ text: 'OK' }]
-      );
-      return;
-    }
-
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     try {
       // Safely get pickup point name with fallback
       const pickupPointName = user.pickupPoint || 'il tuo punto di ritiro';
       
-      // Create shareable content - sanitize all strings to avoid encoding issues
-      const sanitizeText = (text: string): string => {
-        // Remove any problematic characters that could cause base64 encoding issues
-        return text
-          .replace(/[\r\n\t]/g, ' ') // Replace newlines/tabs with spaces
-          .replace(/[^\x20-\x7E\u00A0-\uFFFF]/g, '') // Remove non-printable chars
-          .trim();
-      };
-      
-      const listName = sanitizeText(list.name || 'questa lista');
-      const productCount = list.product_count || 0;
-      const minDiscount = list.min_discount || 0;
-      const maxDiscount = list.max_discount || 0;
-      const pickupPoint = sanitizeText(pickupPointName);
-      
-      // Create shareable content with sanitized strings
-      const shareMessage = `🎁 Scopri ${listName} su DropShop!\n\n` +
-        `${productCount} prodotti disponibili con sconti dal ${minDiscount}% al ${maxDiscount}%!\n\n` +
-        `Più persone della tua città mostrano interesse, più è probabile che si attivi un drop con sconti incredibili! 🔥\n\n` +
-        `Punto di ritiro: ${pickupPoint}\n\n` +
-        `Unisciti a noi e approfitta delle migliori offerte!`;
-
-      console.log('Share message prepared:', shareMessage);
-
       // Check if sharing is available
       const isAvailable = await Sharing.isAvailableAsync();
       
       if (!isAvailable) {
-        console.log('Sharing not available, showing fallback alert');
         // Fallback: Show a message with shareable text
+        const shareText = `🎁 Scopri ${list.name || 'questa lista'} su DropShop!\n\n` +
+          `${list.product_count || 0} prodotti disponibili con sconti dal ${list.min_discount || 0}% al ${list.max_discount || 0}%!\n\n` +
+          `Più persone della tua città mostrano interesse, più è probabile che si attivi un drop con sconti incredibili! 🔥\n\n` +
+          `Punto di ritiro: ${pickupPointName}\n\n` +
+          `Unisciti a noi e approfitta delle migliori offerte!`;
+        
         Alert.alert(
           'Condividi questa lista',
-          shareMessage,
+          shareText,
           [
-            { text: 'OK', style: 'default' }
+            { text: 'Copia Testo', onPress: () => {
+              // In a real app, you'd use Clipboard API here
+              Alert.alert('Successo', 'Testo copiato! Condividilo con i tuoi amici.');
+            }},
+            { text: 'Chiudi', style: 'cancel' }
           ]
         );
-        
-        // Still track the share attempt
-        await supabase
-          .from('list_shares')
-          .insert({
-            user_id: user.id,
-            supplier_list_id: list.id,
-            pickup_point_id: user.pickupPointId,
-          });
-
-        // Update stats
-        const newStats = { ...gameStats };
-        newStats.lists_shared_this_week = (newStats.lists_shared_this_week || 0) + 1;
-        setGameStats(newStats);
-        await AsyncStorage.setItem(GAME_STATS_KEY, JSON.stringify(newStats));
-
-        // Award points
-        await awardPoints(20, 'list_shared');
-
-        // Update AMBASCIATORE challenge (id: '4')
-        await updateChallengeProgress('4', 1);
-
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         return;
       }
 
-      // Create a temporary file with the share message
-      const fileUri = `${FileSystem.cacheDirectory}share_list_${Date.now()}.txt`;
-      
-      console.log('Creating share file at:', fileUri);
-      
-      // Write the message to a file using UTF8 encoding
-      await FileSystem.writeAsStringAsync(fileUri, shareMessage, {
-        encoding: FileSystem.EncodingType.UTF8,
-      });
-
-      console.log('Share file created successfully');
+      // Create shareable content
+      const shareMessage = `🎁 Scopri ${list.name || 'questa lista'} su DropShop!\n\n` +
+        `${list.product_count || 0} prodotti disponibili con sconti dal ${list.min_discount || 0}% al ${list.max_discount || 0}%!\n\n` +
+        `Più persone della tua città mostrano interesse, più è probabile che si attivi un drop con sconti incredibili! 🔥\n\n` +
+        `Punto di ritiro: ${pickupPointName}\n\n` +
+        `Unisciti a noi e approfitta delle migliori offerte!`;
 
       // Share using native share dialog
-      await Sharing.shareAsync(fileUri, {
+      await Sharing.shareAsync('data:text/plain;base64,' + btoa(shareMessage), {
         mimeType: 'text/plain',
-        dialogTitle: `Condividi ${listName}`,
+        dialogTitle: `Condividi ${list.name || 'lista'}`,
         UTI: 'public.plain-text',
       });
-
-      console.log('Share dialog completed');
-
-      // Clean up the temporary file
-      try {
-        await FileSystem.deleteAsync(fileUri, { idempotent: true });
-        console.log('Temporary share file deleted');
-      } catch (deleteError) {
-        console.warn('Could not delete temporary file:', deleteError);
-      }
 
       // Track the share
       await supabase
@@ -891,22 +670,7 @@ export default function GameFeedScreen() {
       
     } catch (error) {
       console.error('Error sharing list:', error);
-      
-      // Provide more detailed error information
-      let errorMessage = 'Impossibile condividere la lista. Riprova più tardi.';
-      
-      if (error instanceof Error) {
-        console.error('Error details:', {
-          message: error.message,
-          stack: error.stack,
-          name: error.name
-        });
-        
-        // Don't show technical error details to user
-        errorMessage = 'Si è verificato un errore durante la condivisione. Riprova più tardi.';
-      }
-      
-      Alert.alert('Errore', errorMessage, [{ text: 'OK' }]);
+      Alert.alert('Errore', 'Impossibile condividere la lista. Riprova più tardi.');
     }
   };
 
@@ -964,113 +728,66 @@ export default function GameFeedScreen() {
   };
 
   const updateChallengeProgress = async (challengeId: string, increment: number) => {
-    console.log(`🎯 updateChallengeProgress called for challenge ${challengeId} with increment ${increment}`);
-    
     if (!Array.isArray(weeklyChallenges) || weeklyChallenges.length === 0) {
       console.warn('No challenges to update');
       return;
     }
     
-    // Find the challenge being updated
-    const challengeIndex = weeklyChallenges.findIndex(c => c && c.id === challengeId);
-    if (challengeIndex === -1) {
-      console.warn('Challenge not found:', challengeId);
-      return;
-    }
-
-    const challenge = weeklyChallenges[challengeIndex];
-    
-    // Check if challenge is locked or already completed
-    if (!challenge || challenge.locked) {
-      console.log(`❌ Challenge ${challengeId} (${challenge?.title}) is LOCKED. Cannot update progress.`);
-      return;
-    }
-    
-    if (challenge.completed) {
-      console.log(`✅ Challenge ${challengeId} (${challenge.title}) is already COMPLETED. No update needed.`);
-      return;
-    }
-
-    // Update progress
-    const currentProgress = challenge.progress || 0;
-    const target = challenge.target || 1;
-    const newProgress = Math.min(currentProgress + increment, target);
-    const completed = newProgress >= target;
-    
-    console.log(`📊 Challenge ${challengeId} (${challenge.title}): progress ${currentProgress} -> ${newProgress} (target: ${target}), completed: ${completed}`);
-    
-    // Create updated challenges array
-    const updatedChallenges = [...weeklyChallenges];
-    updatedChallenges[challengeIndex] = { ...challenge, progress: newProgress, completed };
-
-    // CRITICAL FIX: If challenge is completed, unlock ONLY the immediate next challenge
-    if (completed && !challenge.completed) {
-      console.log(`🎉 Challenge ${challengeId} (${challenge.title}) COMPLETED! Unlocking next challenge...`);
+    const newChallenges = weeklyChallenges.map(challenge => {
+      if (!challenge || !challenge.id) {
+        console.warn('Invalid challenge object:', challenge);
+        return challenge;
+      }
       
-      // Find the IMMEDIATE next challenge (challengeIndex + 1)
-      const nextIndex = challengeIndex + 1;
-      
-      if (nextIndex < updatedChallenges.length) {
-        const nextChallenge = updatedChallenges[nextIndex];
+      if (challenge.id === challengeId && !challenge.completed && !challenge.locked) {
+        const currentProgress = challenge.progress || 0;
+        const target = challenge.target || 1;
+        const newProgress = Math.min(currentProgress + increment, target);
+        const completed = newProgress >= target;
         
-        console.log(`🔓 Unlocking challenge at index ${nextIndex}: ${nextChallenge.title}`);
-        
-        // Unlock ONLY the immediate next challenge
-        updatedChallenges[nextIndex] = { ...nextChallenge, locked: false };
-        
-        // CRITICAL: Ensure ALL challenges after the next one remain LOCKED
-        for (let i = nextIndex + 1; i < updatedChallenges.length; i++) {
-          const laterChallenge = updatedChallenges[i];
+        if (completed && !challenge.completed) {
+          // Award challenge reward
+          awardPoints(challenge.reward || 0, 'challenge_completed');
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           
-          // Only lock if not already completed
-          if (!laterChallenge.completed) {
-            console.log(`🔒 Keeping challenge at index ${i} (${laterChallenge.title}) LOCKED`);
-            updatedChallenges[i] = { ...laterChallenge, locked: true };
+          // Unlock next challenge
+          const currentIndex = weeklyChallenges.findIndex(c => c.id === challengeId);
+          if (currentIndex >= 0 && currentIndex < weeklyChallenges.length - 1) {
+            const nextIndex = currentIndex + 1;
+            setCurrentChallengeIndex(nextIndex);
+            AsyncStorage.setItem(CURRENT_CHALLENGE_INDEX_KEY, nextIndex.toString());
+            
+            Alert.alert(
+              '🎉 Sfida Completata!',
+              `Hai completato "${challenge.title || 'Sfida'}" e guadagnato ${challenge.reward || 0} punti!\n\nLa prossima sfida è stata sbloccata!`,
+              [{ text: 'Fantastico!', style: 'default' }]
+            );
+          } else {
+            Alert.alert(
+              '🎉 Tutte le Sfide Completate!',
+              `Hai completato "${challenge.title || 'Sfida'}" e guadagnato ${challenge.reward || 0} punti!\n\nHai completato tutte le sfide della settimana! 🏆`,
+              [{ text: 'Incredibile!', style: 'default' }]
+            );
           }
         }
         
-        // Update current challenge index to the next unlocked challenge
-        setCurrentChallengeIndex(nextIndex);
-        await AsyncStorage.setItem(CURRENT_CHALLENGE_INDEX_KEY, nextIndex.toString());
-        console.log(`✅ Updated current challenge index to: ${nextIndex}`);
-        
-        // Award challenge reward
-        await awardPoints(challenge.reward || 0, 'challenge_completed');
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        
-        // Show completion alert
-        Alert.alert(
-          '🎉 Sfida Completata!',
-          `Hai completato "${challenge.title || 'Sfida'}" e guadagnato ${challenge.reward || 0} punti!\n\nLa prossima sfida "${nextChallenge.title}" è stata sbloccata!`,
-          [{ text: 'Fantastico!', style: 'default' }]
-        );
-      } else {
-        // All challenges completed
-        await awardPoints(challenge.reward || 0, 'challenge_completed');
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        
-        Alert.alert(
-          '🎉 Tutte le Sfide Completate!',
-          `Hai completato "${challenge.title || 'Sfida'}" e guadagnato ${challenge.reward || 0} punti!\n\nHai completato tutte le sfide della settimana! 🏆`,
-          [{ text: 'Incredibile!', style: 'default' }]
-        );
+        return { ...challenge, progress: newProgress, completed };
       }
-    }
+      return challenge;
+    });
 
-    // Update state and save to AsyncStorage
+    // Unlock the next challenge if current one is completed
+    const updatedChallenges = newChallenges.map((challenge, index) => {
+      if (index === currentChallengeIndex + 1 && newChallenges[currentChallengeIndex]?.completed) {
+        return { ...challenge, locked: false };
+      }
+      return challenge;
+    });
+
     setWeeklyChallenges(updatedChallenges);
     
     try {
       await AsyncStorage.setItem(WEEKLY_CHALLENGES_KEY, JSON.stringify(updatedChallenges));
-      console.log('✅ Challenge progress and unlock status saved successfully');
-      console.log('📊 Final challenges state:', updatedChallenges.map(c => ({
-        id: c.id,
-        title: c.title,
-        locked: c.locked,
-        completed: c.completed,
-        progress: c.progress,
-        target: c.target
-      })));
     } catch (error) {
       console.error('Error saving challenges:', error);
     }
@@ -1480,11 +1197,6 @@ export default function GameFeedScreen() {
               const isInterested = selectedLists.has(list.id);
               const isExplored = Array.isArray(gameStats.explored_list_ids) && gameStats.explored_list_ids.includes(list.id);
               
-              // Check which actions are enabled
-              const exploreEnabled = isActionEnabled('explore');
-              const interestEnabled = isActionEnabled('interest');
-              const shareEnabled = isActionEnabled('share');
-              
               return (
                 <View key={list.id} style={styles.listCard}>
                   <View style={styles.listHeader}>
@@ -1531,22 +1243,17 @@ export default function GameFeedScreen() {
                     <Pressable
                       style={({ pressed }) => [
                         styles.exploreButton,
-                        !exploreEnabled && styles.buttonDisabled,
-                        pressed && exploreEnabled && styles.buttonPressed,
+                        pressed && styles.buttonPressed,
                       ]}
                       onPress={() => handleListExplore(list)}
-                      disabled={!exploreEnabled}
                     >
                       <IconSymbol
-                        ios_icon_name={exploreEnabled ? 'eye.fill' : 'lock.fill'}
-                        android_material_icon_name={exploreEnabled ? 'visibility' : 'lock'}
+                        ios_icon_name="eye.fill"
+                        android_material_icon_name="visibility"
                         size={20}
-                        color={exploreEnabled ? '#FFF' : '#999'}
+                        color="#FFF"
                       />
-                      <Text style={[
-                        styles.exploreButtonText,
-                        !exploreEnabled && styles.buttonTextDisabled
-                      ]}>
+                      <Text style={styles.exploreButtonText}>
                         {isExplored ? 'Esplora Ancora' : 'Esplora Prodotti'}
                       </Text>
                     </Pressable>
@@ -1555,22 +1262,19 @@ export default function GameFeedScreen() {
                       style={({ pressed }) => [
                         styles.interestButton,
                         isInterested && styles.interestButtonActive,
-                        !interestEnabled && styles.buttonDisabled,
-                        pressed && interestEnabled && styles.buttonPressed,
+                        pressed && styles.buttonPressed,
                       ]}
                       onPress={() => handleListInterest(list)}
-                      disabled={!interestEnabled}
                     >
                       <IconSymbol
-                        ios_icon_name={!interestEnabled ? 'lock.fill' : (isInterested ? 'heart.fill' : 'heart')}
-                        android_material_icon_name={!interestEnabled ? 'lock' : (isInterested ? 'favorite' : 'favorite_border')}
+                        ios_icon_name={isInterested ? 'heart.fill' : 'heart'}
+                        android_material_icon_name={isInterested ? 'favorite' : 'favorite_border'}
                         size={20}
-                        color={!interestEnabled ? '#999' : (isInterested ? '#FFF' : colors.primary)}
+                        color={isInterested ? '#FFF' : colors.primary}
                       />
                       <Text style={[
                         styles.interestButtonText,
-                        isInterested && styles.interestButtonTextActive,
-                        !interestEnabled && styles.buttonTextDisabled
+                        isInterested && styles.interestButtonTextActive
                       ]}>
                         {isInterested ? 'Interessato' : 'Mi Interessa'}
                       </Text>
@@ -1581,22 +1285,17 @@ export default function GameFeedScreen() {
                   <Pressable
                     style={({ pressed }) => [
                       styles.shareButton,
-                      !shareEnabled && styles.buttonDisabled,
-                      pressed && shareEnabled && styles.buttonPressed,
+                      pressed && styles.buttonPressed,
                     ]}
                     onPress={() => handleListShare(list)}
-                    disabled={!shareEnabled}
                   >
                     <IconSymbol
-                      ios_icon_name={shareEnabled ? 'square.and.arrow.up' : 'lock.fill'}
-                      android_material_icon_name={shareEnabled ? 'share' : 'lock'}
+                      ios_icon_name="square.and.arrow.up"
+                      android_material_icon_name="share"
                       size={20}
-                      color={shareEnabled ? colors.primary : '#999'}
+                      color={colors.primary}
                     />
-                    <Text style={[
-                      styles.shareButtonText,
-                      !shareEnabled && styles.buttonTextDisabled
-                    ]}>
+                    <Text style={styles.shareButtonText}>
                       Condividi con Amici (+20 punti)
                     </Text>
                   </Pressable>
@@ -1617,7 +1316,6 @@ export default function GameFeedScreen() {
               <Text style={styles.infoTitle}>Come Funziona</Text>
               <Text style={styles.infoText}>
                 • Completa le sfide una alla volta per sbloccare la successiva{'\n'}
-                • Le azioni si sbloccano progressivamente con le sfide{'\n'}
                 • Ogni settimana puoi partecipare una volta{'\n'}
                 • Se salti una settimana, la tua striscia si azzera{'\n'}
                 • I punti mensili vengono sempre preservati{'\n'}
@@ -2069,14 +1767,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     color: colors.primary,
-  },
-  buttonDisabled: {
-    opacity: 0.4,
-    backgroundColor: '#E0E0E0',
-    borderColor: '#999',
-  },
-  buttonTextDisabled: {
-    color: '#999',
   },
   buttonPressed: {
     opacity: 0.7,
