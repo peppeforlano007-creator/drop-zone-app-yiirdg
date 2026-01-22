@@ -29,6 +29,7 @@ interface PlatformSettings {
   enable_notifications: boolean;
   maintenance_mode: boolean;
   whatsapp_support_number: string;
+  min_users_for_drop_suggestion: number;
 }
 
 export default function SettingsScreen() {
@@ -43,6 +44,7 @@ export default function SettingsScreen() {
     enable_notifications: true,
     maintenance_mode: false,
     whatsapp_support_number: '',
+    min_users_for_drop_suggestion: 5,
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -77,6 +79,7 @@ export default function SettingsScreen() {
           min_drop_value: parseInt(settingsMap.get('min_drop_value') || String(prev.min_drop_value)),
           max_drop_value: parseInt(settingsMap.get('max_drop_value') || String(prev.max_drop_value)),
           platform_commission_rate: parseInt(settingsMap.get('platform_commission_rate') || String(prev.platform_commission_rate)),
+          min_users_for_drop_suggestion: parseInt(settingsMap.get('min_users_for_drop_suggestion') || String(prev.min_users_for_drop_suggestion)),
         }));
         
         console.log('Settings loaded from database:', {
@@ -169,6 +172,11 @@ export default function SettingsScreen() {
                   key: 'platform_commission_rate',
                   value: String(settings.platform_commission_rate),
                   description: 'Percentuale di commissione della piattaforma',
+                },
+                {
+                  key: 'min_users_for_drop_suggestion',
+                  value: String(settings.min_users_for_drop_suggestion),
+                  description: 'Numero minimo di utenti interessati per suggerire un drop',
                 },
               ];
 
@@ -411,6 +419,46 @@ export default function SettingsScreen() {
                 value={settings.max_drop_value.toString()}
                 onChangeText={(text) => updateSetting('max_drop_value', parseInt(text) || 0)}
                 keyboardType="number-pad"
+              />
+            </View>
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Suggerimenti Drop</Text>
+            
+            <View style={styles.infoBox}>
+              <Text style={styles.infoText}>
+                💡 Il sistema suggerisce automaticamente di creare un drop quando un numero sufficiente di utenti della stessa città mostra interesse per una lista fornitore.
+              </Text>
+            </View>
+            
+            <View style={styles.settingItem}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Soglia Minima Utenti Interessati</Text>
+                <Text style={styles.settingDescription}>
+                  Numero minimo di utenti della stessa città che devono mostrare interesse per una lista prima che venga suggerito un drop
+                </Text>
+                <Text style={styles.settingExample}>
+                  Esempio: Con soglia 5, il sistema suggerirà un drop quando almeno 5 utenti di Roma mostrano interesse per la stessa lista
+                </Text>
+              </View>
+              <TextInput
+                style={styles.numberInput}
+                value={settings.min_users_for_drop_suggestion.toString()}
+                onChangeText={(text) => {
+                  const value = parseInt(text) || 1;
+                  if (value < 1) {
+                    Alert.alert('Valore Non Valido', 'Il valore minimo deve essere almeno 1');
+                    return;
+                  }
+                  if (value > 100) {
+                    Alert.alert('Valore Troppo Alto', 'Il valore massimo consigliato è 100');
+                    return;
+                  }
+                  updateSetting('min_users_for_drop_suggestion', value);
+                }}
+                keyboardType="number-pad"
+                maxLength={3}
               />
             </View>
           </View>
