@@ -2,7 +2,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { View, StyleSheet, Dimensions, Platform, Text, Pressable, Alert, Animated, ActivityIndicator, ScrollView, Modal } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Stack, router, useFocusEffect } from 'expo-router';
+import { Stack, router } from 'expo-router';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 import { useAuth } from '@/contexts/AuthContext';
@@ -107,38 +107,12 @@ export default function GameFeedScreen() {
   const rewardAnim = useRef(new Animated.Value(0)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
-  // Load game data on mount
+  // Load game data
   useEffect(() => {
     loadGameData();
     loadUnreadNotifications();
     checkWelcomeScreen();
   }, []);
-
-  // Reload challenges when screen comes into focus
-  useFocusEffect(
-    useCallback(() => {
-      console.log('🔄 Screen focused, reloading challenges...');
-      reloadChallenges();
-    }, [])
-  );
-
-  const reloadChallenges = async () => {
-    try {
-      const savedChallenges = await AsyncStorage.getItem(WEEKLY_CHALLENGES_KEY);
-      const savedIndex = await AsyncStorage.getItem(CURRENT_CHALLENGE_INDEX_KEY);
-      
-      if (savedChallenges) {
-        const parsedChallenges = JSON.parse(savedChallenges);
-        const parsedIndex = savedIndex ? parseInt(savedIndex, 10) : 0;
-        
-        console.log('📊 Reloaded challenges:', parsedChallenges);
-        setWeeklyChallenges(parsedChallenges);
-        setCurrentChallengeIndex(parsedIndex);
-      }
-    } catch (error) {
-      console.error('Error reloading challenges:', error);
-    }
-  };
 
   const checkWelcomeScreen = async () => {
     try {
