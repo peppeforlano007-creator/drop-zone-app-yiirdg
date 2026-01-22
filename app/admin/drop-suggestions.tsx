@@ -35,7 +35,6 @@ export default function DropSuggestionsScreen() {
   const [suggestions, setSuggestions] = useState<DropSuggestion[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [minInterests] = useState(5); // Minimum number of interests to suggest a drop
 
   useEffect(() => {
     loadSuggestions();
@@ -163,10 +162,8 @@ export default function DropSuggestionsScreen() {
       groupedInterests.forEach((group, key) => {
         const uniqueUsers = group.users.size;
         
-        // Only suggest if:
-        // 1. Meets minimum interest threshold
-        // 2. No existing drop for this combination
-        if (uniqueUsers >= minInterests && !existingDropKeys.has(key)) {
+        // Only suggest if no existing drop for this combination
+        if (!existingDropKeys.has(key)) {
           suggestionsArray.push({
             supplier_list_id: group.supplier_list_id,
             supplier_list_name: group.supplier_list_name,
@@ -432,12 +429,10 @@ export default function DropSuggestionsScreen() {
               <Text style={styles.infoText}>
                 I drop vengono suggeriti in base al numero di utenti che hanno mostrato interesse per una lista in una specifica città.
                 {'\n\n'}
-                <Text style={styles.infoBold}>Soglia minima:</Text> {minInterests} utenti interessati
-                {'\n\n'}
                 <Text style={styles.infoBold}>Come funziona:</Text>
-                {'\n'}• Gli utenti mostrano interesse per le liste tramite il pulsante "Mi Interessa"
+                {'\n'}• Gli utenti mostrano interesse per le liste tramite il pulsante &quot;Mi Interessa&quot;
                 {'\n'}• Il sistema conta quanti utenti della stessa città sono interessati
-                {'\n'}• Quando si raggiunge la soglia minima, appare un suggerimento qui
+                {'\n'}• Quando ci sono abbastanza utenti interessati, appare un suggerimento qui
                 {'\n'}• Puoi creare il drop con un click!
               </Text>
             </View>
