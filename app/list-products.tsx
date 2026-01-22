@@ -158,6 +158,8 @@ export default function ListProductsScreen() {
 
   const updateChallengeProgress = async (challengeId: string, increment: number) => {
     try {
+      console.log(`🎯 updateChallengeProgress called for challenge ${challengeId} with increment ${increment}`);
+      
       const savedChallenges = await AsyncStorage.getItem(WEEKLY_CHALLENGES_KEY);
       if (!savedChallenges) {
         console.warn('No challenges found');
@@ -176,8 +178,13 @@ export default function ListProductsScreen() {
       const challenge = challenges[challengeIndex];
       
       // Check if challenge is locked or already completed
-      if (challenge.locked || challenge.completed) {
-        console.log('Challenge is locked or already completed');
+      if (challenge.locked) {
+        console.log(`❌ Challenge ${challengeId} is LOCKED. Cannot update progress.`);
+        return;
+      }
+      
+      if (challenge.completed) {
+        console.log(`✅ Challenge ${challengeId} is already COMPLETED. No update needed.`);
         return;
       }
 
@@ -187,7 +194,13 @@ export default function ListProductsScreen() {
       const newProgress = Math.min(currentProgress + increment, target);
       const completed = newProgress >= target;
       
-      console.log(`Updated challenge ${challengeId}: ${currentProgress} -> ${newProgress} (target: ${target})`);
+      console.log(`📊 Challenge ${challengeId}: progress ${currentProgress} -> ${newProgress} (target: ${target}), completed: ${completed}`);
+      
+      // Only proceed if there's an actual change
+      if (newProgress === currentProgress && completed === challenge.completed) {
+        console.log('No change in progress, skipping update');
+        return;
+      }
       
       // Update the challenge
       challenges[challengeIndex] = { ...challenge, progress: newProgress, completed };
@@ -196,15 +209,16 @@ export default function ListProductsScreen() {
       if (completed && !challenge.completed) {
         console.log('🎉 Challenge completed! Unlocking next challenge...');
         
+        const nextIndex = challengeIndex + 1;
+        
         // Find the next challenge and unlock it
-        if (challengeIndex < challenges.length - 1) {
-          const nextChallenge = challenges[challengeIndex + 1];
-          challenges[challengeIndex + 1] = { ...nextChallenge, locked: false };
+        if (nextIndex < challenges.length) {
+          const nextChallenge = challenges[nextIndex];
+          challenges[nextIndex] = { ...nextChallenge, locked: false };
           
           // Update current challenge index
-          const newIndex = challengeIndex + 1;
-          await AsyncStorage.setItem(CURRENT_CHALLENGE_INDEX_KEY, newIndex.toString());
-          console.log(`Unlocked challenge ${nextChallenge.id}: ${nextChallenge.title}`);
+          await AsyncStorage.setItem(CURRENT_CHALLENGE_INDEX_KEY, nextIndex.toString());
+          console.log(`🔓 Unlocked challenge ${nextChallenge.id}: ${nextChallenge.title}`);
           
           // Show completion alert
           Alert.alert(
@@ -222,9 +236,9 @@ export default function ListProductsScreen() {
         }
       }
 
-      // Save updated challenges
+      // Save updated challenges to AsyncStorage
       await AsyncStorage.setItem(WEEKLY_CHALLENGES_KEY, JSON.stringify(challenges));
-      console.log('✅ Challenge progress and unlock status saved successfully');
+      console.log('✅ Challenge progress saved successfully');
       
     } catch (error) {
       console.error('Error updating challenge progress:', error);
