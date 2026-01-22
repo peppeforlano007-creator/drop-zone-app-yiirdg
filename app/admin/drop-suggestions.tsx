@@ -39,7 +39,7 @@ export default function DropSuggestionsScreen() {
 
   useEffect(() => {
     loadSuggestions();
-  }, [loadSuggestions]);
+  }, []);
 
   const loadSuggestions = async () => {
     try {
