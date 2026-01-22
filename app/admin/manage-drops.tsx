@@ -117,11 +117,6 @@ export default function ManageDropsScreen() {
     router.push('/admin/create-drop');
   };
 
-  const handleViewSuggestions = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    router.push('/admin/drop-suggestions');
-  };
-
   const handleProcessUnderfunded = async (dropId: string, dropName: string) => {
     Alert.alert(
       'Elabora Drop Non Finanziato',
@@ -602,24 +597,8 @@ export default function ManageDropsScreen() {
         }}
       />
       <SafeAreaView style={styles.safeArea} edges={['bottom']}>
-        {/* Action Buttons - Fixed at top */}
+        {/* Create Drop Button - Fixed at top */}
         <View style={styles.createDropContainer}>
-          <Pressable
-            style={({ pressed }) => [
-              styles.suggestionsButton,
-              pressed && styles.createDropButtonPressed,
-            ]}
-            onPress={handleViewSuggestions}
-          >
-            <IconSymbol
-              ios_icon_name="lightbulb.fill"
-              android_material_icon_name="lightbulb"
-              size={20}
-              color="#fff"
-            />
-            <Text style={styles.createDropButtonText}>Suggerimenti Drop</Text>
-          </Pressable>
-          
           <Pressable
             style={({ pressed }) => [
               styles.createDropButton,
@@ -753,22 +732,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
-    flexDirection: 'row',
-    gap: 8,
-  },
-  suggestionsButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#FF9800',
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 10,
-    gap: 8,
   },
   createDropButton: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',

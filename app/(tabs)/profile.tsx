@@ -10,7 +10,11 @@ import { supabase } from '@/app/integrations/supabase/client';
 import * as Haptics from 'expo-haptics';
 
 export default function ProfileScreen() {
-  const { logout, user } = useAuth();
+  const { logout, user, updatePickupPoint } = useAuth();
+  const [selectedPickupPoint, setSelectedPickupPoint] = useState(user?.pickupPoint || '');
+  const [pickupPoints, setPickupPoints] = useState<{ id: string; city: string }[]>([]);
+  const [loadingPoints, setLoadingPoints] = useState(true);
+  const [updatingPoint, setUpdatingPoint] = useState(false);
   const [whatsappNumber, setWhatsappNumber] = useState('393123456789');
   const [loadingWhatsapp, setLoadingWhatsapp] = useState(true);
   const [ratingStars, setRatingStars] = useState(5);
@@ -24,7 +28,6 @@ export default function ProfileScreen() {
   const loadUserProfile = useCallback(async () => {
     if (!user) return;
 
-    console.log('Loading user profile data...');
     try {
       const { data, error } = await supabase
         .from('profiles')
@@ -38,7 +41,6 @@ export default function ProfileScreen() {
       }
 
       if (data) {
-        console.log('User profile loaded:', data);
         setRatingStars(data.rating_stars ?? 5);
         setLoyaltyPoints(data.loyalty_points ?? 0);
         setOrdersPickedUp(data.orders_picked_up ?? 0);
@@ -102,11 +104,34 @@ export default function ProfileScreen() {
     }
   }, []);
 
+  const loadPickupPoints = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from('pickup_points')
+        .select('id, city')
+        .eq('status', 'active')
+        .order('city');
+
+      if (error) {
+        console.error('Error loading pickup points:', error);
+        Alert.alert('Errore', 'Impossibile caricare i punti di ritiro');
+        return;
+      }
+
+      setPickupPoints(data || []);
+    } catch (error) {
+      console.error('Exception loading pickup points:', error);
+    } finally {
+      setLoadingPoints(false);
+    }
+  }, []);
+
   useEffect(() => {
+    loadPickupPoints();
     loadWhatsAppNumber();
     loadUserProfile();
     loadWishlistCount();
-  }, [loadWhatsAppNumber, loadUserProfile, loadWishlistCount]);
+  }, [loadPickupPoints, loadWhatsAppNumber, loadUserProfile, loadWishlistCount]);
 
   // Refresh wishlist count when screen is focused
   useFocusEffect(
@@ -116,8 +141,44 @@ export default function ProfileScreen() {
     }, [loadWishlistCount])
   );
 
+  useEffect(() => {
+    if (user?.pickupPoint) {
+      setSelectedPickupPoint(user.pickupPoint);
+    }
+  }, [user?.pickupPoint]);
+
+  const handlePickupPointChange = async (pointId: string, pointCity: string) => {
+    if (!user) return;
+    
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setUpdatingPoint(true);
+    
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ pickup_point_id: pointId })
+        .eq('user_id', user.id);
+
+      if (error) {
+        console.error('Error updating pickup point:', error);
+        Alert.alert('Errore', 'Impossibile aggiornare il punto di ritiro');
+        return;
+      }
+
+      updatePickupPoint(pointId, pointCity);
+      setSelectedPickupPoint(pointCity);
+      
+      console.log('Pickup point updated to:', pointCity);
+      Alert.alert('Successo', `Punto di ritiro aggiornato a ${pointCity}`);
+    } catch (error) {
+      console.error('Exception updating pickup point:', error);
+      Alert.alert('Errore', 'Errore imprevisto durante l\'aggiornamento');
+    } finally {
+      setUpdatingPoint(false);
+    }
+  };
+
   const handleLogout = () => {
-    console.log('User tapped logout button');
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     Alert.alert(
       'Logout',
@@ -128,7 +189,6 @@ export default function ProfileScreen() {
           text: 'Esci',
           style: 'destructive',
           onPress: () => {
-            console.log('User confirmed logout');
             logout();
             router.replace('/login');
           },
@@ -138,37 +198,32 @@ export default function ProfileScreen() {
   };
 
   const handleViewBookings = () => {
-    console.log('User tapped view bookings');
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push('/(tabs)/my-bookings');
   };
 
   const handleNotifications = () => {
-    console.log('User tapped notifications');
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push('/(tabs)/notifications');
+    console.log('Navigating to notifications screen');
   };
 
   const handleAdminPanel = () => {
-    console.log('User tapped admin panel');
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push('/admin/dashboard');
   };
 
   const handleEditProfile = () => {
-    console.log('User tapped edit profile');
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push('/edit-profile');
   };
 
   const handleViewWishlist = () => {
-    console.log('User tapped view wishlist');
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push('/wishlist');
   };
 
   const handleSupport = async () => {
-    console.log('User tapped support button');
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     
     const message = encodeURIComponent('Ciao, ho bisogno di supporto.');
@@ -194,13 +249,11 @@ export default function ProfileScreen() {
   };
 
   const handleViewLoyaltyProgram = () => {
-    console.log('User tapped loyalty program');
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push('/loyalty-program');
   };
 
   const handleViewCoupons = () => {
-    console.log('User tapped view coupons');
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push('/my-coupons');
   };
@@ -355,6 +408,63 @@ export default function ProfileScreen() {
             </View>
           )}
 
+          {/* Pickup Point Selection */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Punto di Ritiro</Text>
+            <Text style={styles.sectionDescription}>
+              Seleziona il punto di ritiro più vicino a te
+            </Text>
+            
+            {loadingPoints ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="small" color={colors.text} />
+                <Text style={styles.loadingText}>Caricamento punti di ritiro...</Text>
+              </View>
+            ) : (
+              <View style={styles.pickupPointsContainer}>
+                {pickupPoints.map((point) => (
+                  <Pressable
+                    key={point.id}
+                    style={[
+                      styles.pickupPointCard,
+                      selectedPickupPoint === point.city && styles.pickupPointCardSelected,
+                    ]}
+                    onPress={() => handlePickupPointChange(point.id, point.city)}
+                    disabled={updatingPoint}
+                  >
+                    <View style={styles.pickupPointContent}>
+                      <IconSymbol
+                        ios_icon_name="mappin.circle.fill"
+                        android_material_icon_name="location_on"
+                        size={24}
+                        color={selectedPickupPoint === point.city ? colors.background : colors.text}
+                      />
+                      <Text
+                        style={[
+                          styles.pickupPointText,
+                          selectedPickupPoint === point.city && styles.pickupPointTextSelected,
+                        ]}
+                      >
+                        {point.city}
+                      </Text>
+                    </View>
+                    {selectedPickupPoint === point.city && (
+                      <IconSymbol 
+                        ios_icon_name="checkmark.circle.fill" 
+                        android_material_icon_name="check_circle" 
+                        size={24} 
+                        color={colors.background} 
+                      />
+                    )}
+                    {updatingPoint && selectedPickupPoint === point.city && (
+                      <ActivityIndicator size="small" color={colors.background} />
+                    )}
+                  </Pressable>
+                ))}
+              </View>
+            )}
+          </View>
+
           {/* Settings */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Impostazioni</Text>
@@ -399,7 +509,6 @@ export default function ProfileScreen() {
             <Pressable 
               style={styles.settingItem} 
               onPress={() => {
-                console.log('User tapped GDPR data management');
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                 router.push('/(tabs)/my-data');
               }}
@@ -522,7 +631,13 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '700',
     color: colors.text,
+    marginBottom: 8,
+  },
+  sectionDescription: {
+    fontSize: 14,
+    color: colors.textSecondary,
     marginBottom: 16,
+    lineHeight: 20,
   },
   ratingCard: {
     backgroundColor: colors.card,
@@ -615,6 +730,47 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     color: colors.background,
+  },
+  pickupPointsContainer: {
+    gap: 12,
+  },
+  pickupPointCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: colors.card,
+    borderWidth: 2,
+    borderColor: colors.border,
+    borderRadius: 12,
+    padding: 16,
+  },
+  pickupPointCardSelected: {
+    borderColor: colors.text,
+    backgroundColor: colors.text,
+  },
+  pickupPointContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  pickupPointText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  pickupPointTextSelected: {
+    color: colors.background,
+  },
+  loadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 20,
+    gap: 12,
+  },
+  loadingText: {
+    fontSize: 14,
+    color: colors.textSecondary,
   },
   settingItem: {
     flexDirection: 'row',

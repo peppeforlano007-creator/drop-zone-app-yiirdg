@@ -142,54 +142,6 @@ export default function UserDetailsScreen() {
     });
   };
 
-  const handleResetGameData = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    
-    Alert.alert(
-      'Reset Dati di Gioco',
-      `Sei sicuro di voler resettare le sfide e i punti di ${user?.full_name}?\n\nQuesta azione:\n• Resetterà tutte le sfide settimanali\n• Azzererà i punti guadagnati\n• Azzererà i punti fedeltà\n• Cancellerà le statistiche di gioco\n\nL'utente verrà notificato al prossimo accesso.`,
-      [
-        { text: 'Annulla', style: 'cancel' },
-        {
-          text: 'Reset',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              // Set the reset flag and clear loyalty points
-              const { error } = await supabase
-                .from('profiles')
-                .update({ 
-                  game_data_reset_requested: true,
-                  game_data_reset_requested_at: new Date().toISOString(),
-                  loyalty_points: 0
-                })
-                .eq('user_id', userId);
-
-              if (error) {
-                console.error('Error resetting game data:', error);
-                Alert.alert('Errore', 'Impossibile resettare i dati di gioco');
-                return;
-              }
-
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-              Alert.alert(
-                'Successo',
-                'I dati di gioco verranno resettati al prossimo accesso dell\'utente.',
-                [{ text: 'OK' }]
-              );
-              
-              // Reload user details
-              loadUserDetails();
-            } catch (error) {
-              console.error('Error resetting game data:', error);
-              Alert.alert('Errore', 'Si è verificato un errore');
-            }
-          },
-        },
-      ]
-    );
-  };
-
   const getRoleColor = (role: string) => {
     switch (role) {
       case 'admin':
@@ -427,42 +379,22 @@ export default function UserDetailsScreen() {
               </Text>
             </View>
 
-            {/* Action Buttons */}
-            <View style={styles.actionButtons}>
-              <Pressable
-                style={({ pressed }) => [
-                  styles.editButton,
-                  pressed && styles.editButtonPressed,
-                ]}
-                onPress={handleEditUser}
-              >
-                <IconSymbol
-                  ios_icon_name="pencil"
-                  android_material_icon_name="edit"
-                  size={20}
-                  color="#FFF"
-                />
-                <Text style={styles.editButtonText}>Modifica Utente</Text>
-              </Pressable>
-
-              {user.role === 'consumer' && (
-                <Pressable
-                  style={({ pressed }) => [
-                    styles.resetButton,
-                    pressed && styles.resetButtonPressed,
-                  ]}
-                  onPress={handleResetGameData}
-                >
-                  <IconSymbol
-                    ios_icon_name="arrow.counterclockwise"
-                    android_material_icon_name="refresh"
-                    size={20}
-                    color="#FFF"
-                  />
-                  <Text style={styles.resetButtonText}>Reset Gioco</Text>
-                </Pressable>
-              )}
-            </View>
+            {/* Action Button */}
+            <Pressable
+              style={({ pressed }) => [
+                styles.editButton,
+                pressed && styles.editButtonPressed,
+              ]}
+              onPress={handleEditUser}
+            >
+              <IconSymbol
+                ios_icon_name="pencil"
+                android_material_icon_name="edit"
+                size={20}
+                color="#FFF"
+              />
+              <Text style={styles.editButtonText}>Modifica Utente</Text>
+            </Pressable>
           </View>
 
           {/* Bookings Section */}
@@ -648,12 +580,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.textTertiary,
   },
-  actionButtons: {
-    flexDirection: 'row',
-    gap: 12,
-  },
   editButton: {
-    flex: 1,
     backgroundColor: colors.primary,
     borderRadius: 12,
     padding: 16,
@@ -667,25 +594,6 @@ const styles = StyleSheet.create({
     transform: [{ scale: 0.98 }],
   },
   editButtonText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#FFF',
-  },
-  resetButton: {
-    flex: 1,
-    backgroundColor: '#FF9800',
-    borderRadius: 12,
-    padding: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-  },
-  resetButtonPressed: {
-    opacity: 0.7,
-    transform: [{ scale: 0.98 }],
-  },
-  resetButtonText: {
     fontSize: 14,
     fontWeight: '700',
     color: '#FFF',

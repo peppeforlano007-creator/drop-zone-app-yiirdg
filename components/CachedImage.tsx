@@ -1,80 +1,118 @@
 
 import React, { useState, useEffect } from 'react';
-import { Image, ImageProps, ActivityIndicator, View, StyleSheet } from 'react-native';
-import { useImageCache } from '@/hooks/useImageCache';
+import { Image, ImageProps, View, StyleSheet, ActivityIndicator } from 'react-native';
 import { colors } from '@/styles/commonStyles';
+import { IconSymbol } from './IconSymbol';
+import { isValidImageUrl } from '@/utils/imageHelpers';
 
 interface CachedImageProps extends Omit<ImageProps, 'source'> {
   uri: string;
+  showPlaceholder?: boolean;
 }
 
-export default function CachedImage({ uri, style, ...props }: CachedImageProps) {
-  const { getCachedImage } = useImageCache();
-  const [cachedUri, setCachedUri] = useState<string | null>(null);
+export default function CachedImage({ uri, showPlaceholder = true, style, ...props }: CachedImageProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [validUri, setValidUri] = useState<string | null>(null);
 
   useEffect(() => {
-    let mounted = true;
-
-    const loadImage = async () => {
-      try {
-        setLoading(true);
-        setError(false);
-        const cached = await getCachedImage(uri);
-        if (mounted) {
-          setCachedUri(cached);
-          setLoading(false);
-        }
-      } catch (err) {
-        console.error('Error loading cached image:', err);
-        if (mounted) {
-          setError(true);
-          setLoading(false);
-        }
-      }
-    };
-
-    loadImage();
-
-    return () => {
-      mounted = false;
-    };
+    // Validate URI on mount and when it changes
+    if (uri && isValidImageUrl(uri)) {
+      setValidUri(uri);
+      setError(false);
+    } else {
+      console.warn('Invalid image URI provided to CachedImage:', uri);
+      setValidUri(null);
+      setError(true);
+      setLoading(false);
+    }
   }, [uri]);
 
-  if (loading) {
-    return (
-      <View style={[styles.container, style]}>
-        <ActivityIndicator size="small" color={colors.primary} />
-      </View>
-    );
-  }
+  const handleLoadStart = () => {
+    console.log('📸 Image loading started:', validUri);
+    setLoading(true);
+    setError(false);
+  };
 
-  if (error || !cachedUri) {
+  const handleLoadEnd = () => {
+    console.log('✅ Image loaded successfully:', validUri);
+    setLoading(false);
+  };
+
+  const handleError = (e: any) => {
+    console.error('❌ Image load error:', validUri, e.nativeEvent?.error);
+    setError(true);
+    setLoading(false);
+  };
+
+  // If no valid URI, show error placeholder immediately
+  if (!validUri) {
     return (
       <View style={[styles.container, style]}>
-        <Image
-          source={{ uri }}
-          style={style}
-          {...props}
-          onError={() => setError(true)}
-        />
+        {showPlaceholder && (
+          <View style={styles.placeholder}>
+            <IconSymbol 
+              ios_icon_name="photo" 
+              android_material_icon_name="broken_image" 
+              size={48} 
+              color={colors.textTertiary} 
+            />
+          </View>
+        )}
       </View>
     );
   }
 
   return (
-    <Image
-      source={{ uri: cachedUri }}
-      style={style}
-      {...props}
-      onError={() => setError(true)}
-    />
+    <View style={[styles.container, style]}>
+      <Image
+        {...props}
+        source={{ 
+          uri: validUri,
+          cache: 'force-cache', // Enable aggressive caching
+        }}
+        style={[styles.image, style]}
+        onLoadStart={handleLoadStart}
+        onLoadEnd={handleLoadEnd}
+        onError={handleError}
+        resizeMode={props.resizeMode || 'cover'}
+        // Add priority for faster loading
+        priority="high"
+        // Reduce quality slightly for faster loading
+        defaultSource={undefined}
+      />
+      
+      {loading && !error && showPlaceholder && (
+        <View style={styles.placeholder}>
+          <ActivityIndicator size="large" color={colors.primary} />
+        </View>
+      )}
+
+      {error && showPlaceholder && (
+        <View style={styles.placeholder}>
+          <IconSymbol 
+            ios_icon_name="photo" 
+            android_material_icon_name="broken_image" 
+            size={48} 
+            color={colors.textTertiary} 
+          />
+        </View>
+      )}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
+    position: 'relative',
+    backgroundColor: colors.backgroundSecondary,
+  },
+  image: {
+    width: '100%',
+    height: '100%',
+  },
+  placeholder: {
+    ...StyleSheet.absoluteFillObject,
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: colors.backgroundSecondary,

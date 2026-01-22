@@ -1,19 +1,14 @@
 
-import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, FlatList, ActivityIndicator, Platform, Pressable, Image, Dimensions, Alert } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, FlatList, ActivityIndicator, Platform, Pressable, Image, Dimensions } from 'react-native';
 import { Stack, useLocalSearchParams, router } from 'expo-router';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 import { supabase } from '@/app/integrations/supabase/client';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-
-const GAME_STATS_KEY = 'game_stats_v2';
-const WEEKLY_CHALLENGES_KEY = 'weekly_challenges';
-const CURRENT_CHALLENGE_INDEX_KEY = 'current_challenge_index';
 
 interface Product {
   id: string;
@@ -29,44 +24,14 @@ interface Product {
   stock: number;
 }
 
-interface GameStats {
-  weekly_streak: number;
-  total_discoveries: number;
-  lists_explored: number;
-  lists_explored_this_week: number;
-  lists_interested_this_week: number;
-  lists_shared_this_week: number;
-  lists_navigated_to_end: string[];
-  points_earned_this_week: number;
-  points_earned_this_month: number;
-  last_played: string;
-  last_week_start: string;
-  last_month_start?: string;
-  explored_list_ids: string[];
-}
-
-interface Challenge {
-  id: string;
-  title: string;
-  description: string;
-  icon: string;
-  progress: number;
-  target: number;
-  reward: number;
-  completed: boolean;
-  locked: boolean;
-}
-
 export default function ListProductsScreen() {
-  const { listId, listName, supplierListId } = useLocalSearchParams();
+  const { listId, listName } = useLocalSearchParams();
   const [loading, setLoading] = useState(true);
   const [products, setProducts] = useState<Product[]>([]);
-  const [hasReachedEnd, setHasReachedEnd] = useState(false);
-  const hasTrackedNavigation = useRef(false);
 
   useEffect(() => {
     loadProducts();
-  }, [listId, loadProducts]);
+  }, [listId]);
 
   const loadProducts = async () => {
     try {
@@ -83,151 +48,11 @@ export default function ListProductsScreen() {
 
       if (error) throw error;
 
-      console.log(`Loaded ${data?.length || 0} products for list`);
       setProducts(data || []);
       setLoading(false);
     } catch (error) {
       console.error('Error loading products:', error);
       setLoading(false);
-    }
-  };
-
-  const handleScrollEnd = async (event: any) => {
-    // Check if user has scrolled to the end of the list
-    const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;
-    const paddingToBottom = 20; // Threshold for "end of list"
-    const isAtEnd = layoutMeasurement.height + contentOffset.y >= contentSize.height - paddingToBottom;
-
-    if (isAtEnd && !hasReachedEnd && !hasTrackedNavigation.current && products.length > 0) {
-      console.log('User reached end of list:', listName);
-      setHasReachedEnd(true);
-      hasTrackedNavigation.current = true;
-      
-      // Track navigation to end
-      await trackNavigationToEnd();
-    }
-  };
-
-  const trackNavigationToEnd = async () => {
-    try {
-      const listIdToTrack = (supplierListId || listId) as string;
-      
-      if (!listIdToTrack) {
-        console.warn('No list ID available to track navigation');
-        return;
-      }
-
-      console.log('Tracking navigation to end for list:', listIdToTrack);
-
-      // Load current game stats
-      const savedStats = await AsyncStorage.getItem(GAME_STATS_KEY);
-      if (!savedStats) {
-        console.warn('No game stats found');
-        return;
-      }
-
-      const gameStats: GameStats = JSON.parse(savedStats);
-
-      // Check if this list was already navigated to the end
-      if (!Array.isArray(gameStats.lists_navigated_to_end)) {
-        gameStats.lists_navigated_to_end = [];
-      }
-
-      const alreadyNavigated = gameStats.lists_navigated_to_end.includes(listIdToTrack);
-      
-      if (alreadyNavigated) {
-        console.log('List already navigated to end this week');
-        return;
-      }
-
-      // Add to navigated lists
-      gameStats.lists_navigated_to_end.push(listIdToTrack);
-      await AsyncStorage.setItem(GAME_STATS_KEY, JSON.stringify(gameStats));
-      console.log('Added list to navigated lists:', listIdToTrack);
-
-      // Update NAVIGATORE challenge (id: '2')
-      await updateChallengeProgress('2', 1);
-
-      // Show success feedback
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      
-    } catch (error) {
-      console.error('Error tracking navigation to end:', error);
-    }
-  };
-
-  const updateChallengeProgress = async (challengeId: string, increment: number) => {
-    try {
-      const savedChallenges = await AsyncStorage.getItem(WEEKLY_CHALLENGES_KEY);
-      if (!savedChallenges) {
-        console.warn('No challenges found');
-        return;
-      }
-
-      const challenges: Challenge[] = JSON.parse(savedChallenges);
-      
-      // Find the challenge being updated
-      const challengeIndex = challenges.findIndex(c => c.id === challengeId);
-      if (challengeIndex === -1) {
-        console.warn('Challenge not found:', challengeId);
-        return;
-      }
-
-      const challenge = challenges[challengeIndex];
-      
-      // Check if challenge is locked or already completed
-      if (challenge.locked || challenge.completed) {
-        console.log('Challenge is locked or already completed');
-        return;
-      }
-
-      // Update progress
-      const currentProgress = challenge.progress || 0;
-      const target = challenge.target || 1;
-      const newProgress = Math.min(currentProgress + increment, target);
-      const completed = newProgress >= target;
-      
-      console.log(`Updated challenge ${challengeId}: ${currentProgress} -> ${newProgress} (target: ${target})`);
-      
-      // Update the challenge
-      challenges[challengeIndex] = { ...challenge, progress: newProgress, completed };
-
-      // If challenge is completed, unlock the next one
-      if (completed && !challenge.completed) {
-        console.log('🎉 Challenge completed! Unlocking next challenge...');
-        
-        // Find the next challenge and unlock it
-        if (challengeIndex < challenges.length - 1) {
-          const nextChallenge = challenges[challengeIndex + 1];
-          challenges[challengeIndex + 1] = { ...nextChallenge, locked: false };
-          
-          // Update current challenge index
-          const newIndex = challengeIndex + 1;
-          await AsyncStorage.setItem(CURRENT_CHALLENGE_INDEX_KEY, newIndex.toString());
-          console.log(`Unlocked challenge ${nextChallenge.id}: ${nextChallenge.title}`);
-          
-          // Show completion alert
-          Alert.alert(
-            '🎉 Sfida Completata!',
-            `Hai completato "${challenge.title}" e guadagnato ${challenge.reward} punti!\n\nLa prossima sfida "${nextChallenge.title}" è stata sbloccata!`,
-            [{ text: 'Fantastico!', style: 'default' }]
-          );
-        } else {
-          // All challenges completed
-          Alert.alert(
-            '🎉 Tutte le Sfide Completate!',
-            `Hai completato "${challenge.title}" e guadagnato ${challenge.reward} punti!\n\nHai completato tutte le sfide della settimana! 🏆`,
-            [{ text: 'Incredibile!', style: 'default' }]
-          );
-        }
-      }
-
-      // Save updated challenges
-      await AsyncStorage.setItem(WEEKLY_CHALLENGES_KEY, JSON.stringify(challenges));
-      console.log('✅ Challenge progress and unlock status saved successfully');
-      
-    } catch (error) {
-      console.error('Error updating challenge progress:', error);
     }
   };
 
@@ -369,17 +194,6 @@ export default function ListProductsScreen() {
               <Text style={styles.headerText}>
                 {products.length} {products.length === 1 ? 'prodotto' : 'prodotti'} disponibili
               </Text>
-              {hasReachedEnd && (
-                <View style={styles.completionBadge}>
-                  <IconSymbol
-                    ios_icon_name="checkmark.circle.fill"
-                    android_material_icon_name="check_circle"
-                    size={16}
-                    color="#4CAF50"
-                  />
-                  <Text style={styles.completionText}>Lista completata!</Text>
-                </View>
-              )}
             </View>
             
             <FlatList
@@ -388,8 +202,6 @@ export default function ListProductsScreen() {
               keyExtractor={(item) => item.id}
               contentContainerStyle={styles.listContent}
               showsVerticalScrollIndicator={false}
-              onScroll={handleScrollEnd}
-              scrollEventThrottle={400}
             />
           </>
         )}
@@ -423,22 +235,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: colors.textSecondary,
-  },
-  completionBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginTop: 8,
-    backgroundColor: '#E8F5E9',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-    alignSelf: 'flex-start',
-  },
-  completionText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#4CAF50',
   },
   listContent: {
     padding: 16,
