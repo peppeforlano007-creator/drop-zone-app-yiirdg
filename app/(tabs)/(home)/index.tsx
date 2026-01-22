@@ -1258,7 +1258,10 @@ export default function GameFeedScreen() {
 
         <ScrollView
           style={styles.scrollView}
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[
+            styles.scrollContent,
+            Platform.OS !== 'ios' && styles.scrollContentWithTabBar,
+          ]}
           showsVerticalScrollIndicator={false}
         >
           {/* Stats Card */}
@@ -1809,6 +1812,9 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 20,
     paddingTop: 24,
+    paddingBottom: 40,
+  },
+  scrollContentWithTabBar: {
     paddingBottom: 160,
   },
   statsCard: {

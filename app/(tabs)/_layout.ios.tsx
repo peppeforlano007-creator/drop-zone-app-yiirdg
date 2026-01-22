@@ -1,25 +1,48 @@
-import React from 'react';
-import { NativeTabs, Icon, Label } from 'expo-router/unstable-native-tabs';
+
+import React, { useEffect } from 'react';
+import { Platform } from 'react-native';
+import { Stack, router } from 'expo-router';
+import FloatingTabBar, { TabBarItem } from '@/components/FloatingTabBar';
+import { colors } from '@/styles/commonStyles';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function TabLayout() {
+  const { user, isAuthenticated } = useAuth();
+
+  useEffect(() => {
+    if (!isAuthenticated || user?.role !== 'consumer') {
+      console.log('Not authenticated or not a consumer, redirecting to login');
+      router.replace('/login');
+    }
+  }, [isAuthenticated, user]);
+
+  const tabs: TabBarItem[] = [
+    {
+      route: '/(tabs)/(home)',
+      label: 'Feed',
+      icon: 'house.fill',
+    },
+    {
+      route: '/(tabs)/drops',
+      label: 'Drop',
+      icon: 'flame.fill',
+    },
+    {
+      route: '/(tabs)/payment-methods',
+      label: 'Pagamenti',
+      icon: 'creditcard.fill',
+    },
+    {
+      route: '/(tabs)/profile',
+      label: 'Profilo',
+      icon: 'person.fill',
+    },
+  ];
+
   return (
-    <NativeTabs>
-      <NativeTabs.Trigger key="home" name="(home)">
-        <Icon sf="house.fill" />
-        <Label>Feed</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger key="drops" name="drops">
-        <Icon sf="flame.fill" />
-        <Label>Drop</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger key="payment-methods" name="payment-methods">
-        <Icon sf="shippingbox.fill" />
-        <Label>Ritiro</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger key="profile" name="profile">
-        <Icon sf="person.fill" />
-        <Label>Profilo</Label>
-      </NativeTabs.Trigger>
-    </NativeTabs>
+    <>
+      <Stack screenOptions={{ headerShown: false }} />
+      <FloatingTabBar tabs={tabs} />
+    </>
   );
 }

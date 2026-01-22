@@ -13,6 +13,7 @@ import {
   FlatList,
   RefreshControl,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
 import { IconSymbol } from '@/components/IconSymbol';
 import { useRealtimeDrops } from '@/hooks/useRealtimeDrop';
@@ -232,7 +233,10 @@ export default function DropsScreen() {
           renderItem={renderDrop}
           keyExtractor={(item) => item.id}
           ListHeaderComponent={renderHeader}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={[
+            styles.listContent,
+            Platform.OS !== 'ios' && styles.listContentWithTabBar,
+          ]}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl
@@ -312,6 +316,9 @@ const styles = StyleSheet.create({
   listContent: {
     paddingHorizontal: 20,
     paddingTop: 24,
+    paddingBottom: 40,
+  },
+  listContentWithTabBar: {
     paddingBottom: 120,
   },
   emptyContainer: {
