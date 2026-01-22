@@ -286,7 +286,7 @@ const styles = StyleSheet.create({
     fontFamily: 'System',
   },
   headerContainer: {
-    marginBottom: 20,
+    marginBottom: 16,
   },
   infoCard: {
     flexDirection: 'row',
@@ -310,16 +310,14 @@ const styles = StyleSheet.create({
     fontFamily: 'System',
   },
   listContent: {
-    paddingHorizontal: 20,
-    paddingTop: 24,
-    paddingBottom: 120,
+    padding: 16,
+    paddingBottom: 100,
   },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 40,
-    paddingVertical: 60,
+    padding: 32,
   },
   emptyTitle: {
     fontSize: 20,

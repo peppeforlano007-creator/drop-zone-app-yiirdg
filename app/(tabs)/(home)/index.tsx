@@ -1807,9 +1807,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingHorizontal: 20,
-    paddingTop: 24,
-    paddingBottom: 120,
+    padding: 16,
+    paddingBottom: 100,
   },
   statsCard: {
     flexDirection: 'row',
