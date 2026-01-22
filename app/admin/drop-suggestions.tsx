@@ -35,6 +35,7 @@ export default function DropSuggestionsScreen() {
   const [suggestions, setSuggestions] = useState<DropSuggestion[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [minInterests, setMinInterests] = useState(5); // Minimum number of interests to suggest a drop
 
   useEffect(() => {
     loadSuggestions();
@@ -44,6 +45,20 @@ export default function DropSuggestionsScreen() {
     try {
       console.log('Loading drop suggestions based on user interests...');
       setLoading(true);
+
+      // Load the minimum users threshold from settings
+      const { data: settingsData } = await supabase
+        .from('app_settings')
+        .select('setting_value')
+        .eq('setting_key', 'min_users_for_drop_suggestion')
+        .maybeSingle();
+
+      const minUsersThreshold = settingsData?.setting_value 
+        ? parseInt(settingsData.setting_value) 
+        : 5; // Default to 5 if not set
+
+      setMinInterests(minUsersThreshold);
+      console.log(`Using minimum users threshold: ${minUsersThreshold}`);
 
       // Query to get suggestions based on user interests grouped by supplier list and pickup point
       const { data: interestData, error: interestError } = await supabase
@@ -162,8 +177,10 @@ export default function DropSuggestionsScreen() {
       groupedInterests.forEach((group, key) => {
         const uniqueUsers = group.users.size;
         
-        // Only suggest if no existing drop for this combination
-        if (!existingDropKeys.has(key)) {
+        // Only suggest if:
+        // 1. Meets minimum interest threshold
+        // 2. No existing drop for this combination
+        if (uniqueUsers >= minInterests && !existingDropKeys.has(key)) {
           suggestionsArray.push({
             supplier_list_id: group.supplier_list_id,
             supplier_list_name: group.supplier_list_name,
@@ -429,10 +446,14 @@ export default function DropSuggestionsScreen() {
               <Text style={styles.infoText}>
                 I drop vengono suggeriti in base al numero di utenti che hanno mostrato interesse per una lista in una specifica città.
                 {'\n\n'}
+                <Text style={styles.infoBold}>Soglia minima attuale:</Text> {minInterests} utenti interessati
+                {'\n'}
+                <Text style={styles.infoSecondary}>(Modificabile in Impostazioni → Suggerimenti Drop)</Text>
+                {'\n\n'}
                 <Text style={styles.infoBold}>Come funziona:</Text>
-                {'\n'}• Gli utenti mostrano interesse per le liste tramite il pulsante &quot;Mi Interessa&quot;
+                {'\n'}• Gli utenti mostrano interesse per le liste tramite il pulsante "Mi Interessa"
                 {'\n'}• Il sistema conta quanti utenti della stessa città sono interessati
-                {'\n'}• Quando ci sono abbastanza utenti interessati, appare un suggerimento qui
+                {'\n'}• Quando si raggiunge la soglia minima, appare un suggerimento qui
                 {'\n'}• Puoi creare il drop con un click!
               </Text>
             </View>
@@ -525,6 +546,11 @@ const styles = StyleSheet.create({
   infoBold: {
     fontWeight: '700',
     color: colors.text,
+  },
+  infoSecondary: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    fontStyle: 'italic',
   },
   sectionHeader: {
     flexDirection: 'row',
