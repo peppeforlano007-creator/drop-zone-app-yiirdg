@@ -53,9 +53,10 @@ export default function LoyaltyProgramScreen() {
   };
 
   const getCouponColor = (index: number) => {
-    const colors = ['#4CAF50', '#2196F3', '#9C27B0'];
-    return colors[index % colors.length];
+    const couponColors = ['#4CAF50', '#2196F3', '#9C27B0'];
+    return couponColors[index % couponColors.length];
   };
+
   return (
     <>
       <Stack.Screen
@@ -181,40 +182,56 @@ export default function LoyaltyProgramScreen() {
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Altri Modi per Guadagnare Punti</Text>
             
-            <View style={styles.activityCard}>
-              <IconSymbol
-                ios_icon_name="hand.thumbsup.fill"
-                android_material_icon_name="thumb_up"
-                size={20}
-                color={colors.text}
-              />
-              <Text style={styles.activityText}>
-                Scorri il feed dei prodotti
+            <View style={styles.card}>
+              <View style={styles.cardHeader}>
+                <IconSymbol
+                  ios_icon_name="gamecontroller.fill"
+                  android_material_icon_name="sports_esports"
+                  size={24}
+                  color="#FF6B35"
+                />
+                <Text style={styles.cardTitle}>Il Gioco delle Liste</Text>
+              </View>
+              <Text style={styles.cardText}>
+                Ogni settimana ricevi 3 sfide da completare nella sezione Punti. Completa le sfide per guadagnare punti extra!
               </Text>
-            </View>
-
-            <View style={styles.activityCard}>
-              <IconSymbol
-                ios_icon_name="heart.fill"
-                android_material_icon_name="favorite"
-                size={20}
-                color={colors.text}
-              />
-              <Text style={styles.activityText}>
-                Clicca su &quot;Vorrò partecipare al drop&quot;
-              </Text>
-            </View>
-
-            <View style={styles.activityCard}>
-              <IconSymbol
-                ios_icon_name="square.and.arrow.up.fill"
-                android_material_icon_name="share"
-                size={20}
-                color={colors.text}
-              />
-              <Text style={styles.activityText}>
-                Condividi i drop con amici e parenti
-              </Text>
+              <View style={styles.gameStepsContainer}>
+                <View style={styles.gameStep}>
+                  <View style={styles.gameStepNumber}>
+                    <Text style={styles.gameStepNumberText}>1</Text>
+                  </View>
+                  <Text style={styles.gameStepText}>
+                    Scorri il feed dei prodotti per esplorare le liste dei fornitori
+                  </Text>
+                </View>
+                <View style={styles.gameStep}>
+                  <View style={styles.gameStepNumber}>
+                    <Text style={styles.gameStepNumberText}>2</Text>
+                  </View>
+                  <Text style={styles.gameStepText}>
+                    Clicca su &quot;Vorrò partecipare al drop&quot; sui prodotti che ti interessano
+                  </Text>
+                </View>
+                <View style={styles.gameStep}>
+                  <View style={styles.gameStepNumber}>
+                    <Text style={styles.gameStepNumberText}>3</Text>
+                  </View>
+                  <Text style={styles.gameStepText}>
+                    Condividi i drop attivi con amici e parenti per aumentare lo sconto
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.highlightBox}>
+                <IconSymbol
+                  ios_icon_name="trophy.fill"
+                  android_material_icon_name="emoji_events"
+                  size={20}
+                  color="#FFD700"
+                />
+                <Text style={styles.highlightText}>
+                  Completa tutte e 3 le sfide settimanali per guadagnare punti bonus!
+                </Text>
+              </View>
             </View>
 
             <View style={styles.activityCard}>
@@ -225,7 +242,85 @@ export default function LoyaltyProgramScreen() {
                 color={colors.text}
               />
               <Text style={styles.activityText}>
-                Prenota articoli nei drop attivi
+                Prenota articoli nei drop attivi e completa gli acquisti
+              </Text>
+            </View>
+
+            <View style={styles.activityCard}>
+              <IconSymbol
+                ios_icon_name="checkmark.circle.fill"
+                android_material_icon_name="check_circle"
+                size={20}
+                color={colors.text}
+              />
+              <Text style={styles.activityText}>
+                Ritira sempre i tuoi ordini per mantenere il rating a 5 stelle
+              </Text>
+            </View>
+          </View>
+
+          {/* Rating System */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Sistema di Rating</Text>
+            
+            <View style={styles.card}>
+              <View style={styles.cardHeader}>
+                <IconSymbol
+                  ios_icon_name="arrow.down.circle.fill"
+                  android_material_icon_name="remove_circle"
+                  size={24}
+                  color={colors.error}
+                />
+                <Text style={styles.cardTitle}>Penalità per Resi</Text>
+              </View>
+              <Text style={styles.cardText}>
+                Ogni ordine rispedito al mittente riduce il tuo rating di 1 stella. I punti guadagnati dall&apos;ordine vengono sottratti dal tuo saldo.
+              </Text>
+              <View style={styles.exampleBox}>
+                <Text style={styles.exampleText}>
+                  Esempio: Ordine da €50 non ritirato → Perdi 1 stella e 50 punti
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.card}>
+              <View style={styles.cardHeader}>
+                <IconSymbol
+                  ios_icon_name="exclamationmark.shield.fill"
+                  android_material_icon_name="block"
+                  size={24}
+                  color={colors.error}
+                />
+                <Text style={styles.cardTitle}>Soglia di Blocco</Text>
+              </View>
+              <Text style={styles.cardText}>
+                Se accumuli 5 o più ordini rispediti al mittente, il tuo account verrà bloccato e non potrai più effettuare prenotazioni.
+              </Text>
+              <View style={styles.warningBox}>
+                <IconSymbol
+                  ios_icon_name="exclamationmark.triangle.fill"
+                  android_material_icon_name="warning"
+                  size={16}
+                  color="#FF6B35"
+                />
+                <Text style={styles.warningBoxText}>
+                  Ritira sempre i tuoi ordini per evitare il blocco dell&apos;account!
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.card}>
+              <View style={styles.cardHeader}>
+                <IconSymbol
+                  ios_icon_name="arrow.up.circle.fill"
+                  android_material_icon_name="add_circle"
+                  size={24}
+                  color={colors.success}
+                />
+                <Text style={styles.cardTitle}>Recupera il Tuo Rating</Text>
+              </View>
+              <Text style={styles.cardText}>
+                Ogni ordine ritirato con successo aumenta il tuo rating di 1 stella, fino a un massimo di 5 stelle. Continua a ritirare i tuoi ordini per tornare al rating massimo!
               </Text>
             </View>
           </View>
@@ -395,6 +490,51 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     lineHeight: 20,
   },
+  gameStepsContainer: {
+    marginTop: 16,
+    gap: 12,
+  },
+  gameStep: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  gameStepNumber: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  gameStepNumberText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  gameStepText: {
+    flex: 1,
+    fontSize: 14,
+    color: colors.textSecondary,
+    lineHeight: 20,
+  },
+  highlightBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#FFD70020',
+    borderRadius: 8,
+    padding: 12,
+    marginTop: 16,
+    borderWidth: 1,
+    borderColor: '#FFD700',
+  },
+  highlightText: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.text,
+  },
   activityCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -410,6 +550,23 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.text,
     flex: 1,
+  },
+  warningBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#FFF3E0',
+    borderRadius: 8,
+    padding: 12,
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: '#FF6B35',
+  },
+  warningBoxText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#D84315',
   },
   warningCard: {
     flexDirection: 'row',
