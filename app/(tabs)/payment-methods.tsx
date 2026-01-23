@@ -172,6 +172,87 @@ export default function PickupPointsScreen() {
             </Text>
           </View>
 
+          {/* How it works section - MOVED TO TOP */}
+          <View style={styles.howItWorksCard}>
+            <Text style={styles.howItWorksTitle}>Come funziona?</Text>
+            <View style={styles.stepsList}>
+              <View style={styles.step}>
+                <View style={styles.stepNumber}>
+                  <Text style={styles.stepNumberText}>1</Text>
+                </View>
+                <View style={styles.stepContent}>
+                  <Text style={styles.stepTitle}>Prenota i prodotti</Text>
+                  <Text style={styles.stepText}>
+                    Prenota i prodotti che ti interessano durante il drop attivo
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.step}>
+                <View style={styles.stepNumber}>
+                  <Text style={styles.stepNumberText}>2</Text>
+                </View>
+                <View style={styles.stepContent}>
+                  <Text style={styles.stepTitle}>Ricevi notifica</Text>
+                  <Text style={styles.stepText}>
+                    Quando l&apos;ordine arriva al punto di ritiro, riceverai una notifica
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.step}>
+                <View style={styles.stepNumber}>
+                  <Text style={styles.stepNumberText}>3</Text>
+                </View>
+                <View style={styles.stepContent}>
+                  <Text style={styles.stepTitle}>Ritira e paga</Text>
+                  <Text style={styles.stepText}>
+                    Ritira il tuo ordine al punto di ritiro e paga in contanti
+                  </Text>
+                </View>
+              </View>
+            </View>
+          </View>
+
+          {/* Important info */}
+          <View style={styles.infoCard}>
+            <IconSymbol
+              ios_icon_name="info.circle.fill"
+              android_material_icon_name="info"
+              size={24}
+              color={colors.primary}
+            />
+            <View style={styles.infoContent}>
+              <Text style={styles.infoTitle}>Importante</Text>
+              <Text style={styles.infoText}>
+                Assicurati di ritirare i tuoi ordini entro i tempi stabiliti. 
+                Dopo 5 ordini non ritirati e rispediti al fornitore, l&apos;account verrà bloccato definitivamente.
+                {'\n\n'}
+                Al punto di ritiro sarà possibile effettuare resi dei singoli articoli, ma dopo molti articoli restituiti il profilo sarà bloccato momentaneamente.
+              </Text>
+            </View>
+          </View>
+
+          {/* Rating info */}
+          <View style={styles.ratingCard}>
+            <IconSymbol
+              ios_icon_name="star.fill"
+              android_material_icon_name="star"
+              size={24}
+              color="#FFD700"
+            />
+            <View style={styles.infoContent}>
+              <Text style={styles.infoTitle}>Sistema di Rating</Text>
+              <Text style={styles.infoText}>
+                Il tuo rating aumenta quando ritiri gli ordini e diminuisce quando vengono rispediti al mittente. 
+                Mantieni un rating alto per accedere al programma fedeltà e guadagnare punti!
+              </Text>
+            </View>
+          </View>
+
+          {/* Pickup points section title */}
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Punti di Ritiro Disponibili</Text>
+          </View>
+
           {pickupPoints.length === 0 ? (
             <View style={styles.emptyContainer}>
               <IconSymbol
@@ -276,82 +357,6 @@ export default function PickupPointsScreen() {
               })}
             </View>
           )}
-
-          {/* How it works section */}
-          <View style={styles.howItWorksCard}>
-            <Text style={styles.howItWorksTitle}>Come funziona?</Text>
-            <View style={styles.stepsList}>
-              <View style={styles.step}>
-                <View style={styles.stepNumber}>
-                  <Text style={styles.stepNumberText}>1</Text>
-                </View>
-                <View style={styles.stepContent}>
-                  <Text style={styles.stepTitle}>Prenota i prodotti</Text>
-                  <Text style={styles.stepText}>
-                    Prenota i prodotti che ti interessano durante il drop attivo
-                  </Text>
-                </View>
-              </View>
-              <View style={styles.step}>
-                <View style={styles.stepNumber}>
-                  <Text style={styles.stepNumberText}>2</Text>
-                </View>
-                <View style={styles.stepContent}>
-                  <Text style={styles.stepTitle}>Ricevi notifica</Text>
-                  <Text style={styles.stepText}>
-                    Quando l&apos;ordine arriva al punto di ritiro, riceverai una notifica
-                  </Text>
-                </View>
-              </View>
-              <View style={styles.step}>
-                <View style={styles.stepNumber}>
-                  <Text style={styles.stepNumberText}>3</Text>
-                </View>
-                <View style={styles.stepContent}>
-                  <Text style={styles.stepTitle}>Ritira e paga</Text>
-                  <Text style={styles.stepText}>
-                    Ritira il tuo ordine al punto di ritiro e paga in contanti
-                  </Text>
-                </View>
-              </View>
-            </View>
-          </View>
-
-          {/* Important info */}
-          <View style={styles.infoCard}>
-            <IconSymbol
-              ios_icon_name="info.circle.fill"
-              android_material_icon_name="info"
-              size={24}
-              color={colors.primary}
-            />
-            <View style={styles.infoContent}>
-              <Text style={styles.infoTitle}>Importante</Text>
-              <Text style={styles.infoText}>
-                Assicurati di ritirare i tuoi ordini entro i tempi stabiliti. 
-                Dopo 5 ordini non ritirati e rispediti al fornitore, l&apos;account verrà bloccato definitivamente.
-                {'\n\n'}
-                Al punto di ritiro sarà possibile effettuare resi dei singoli articoli, ma dopo molti articoli restituiti il profilo sarà bloccato momentaneamente.
-              </Text>
-            </View>
-          </View>
-
-          {/* Rating info */}
-          <View style={styles.ratingCard}>
-            <IconSymbol
-              ios_icon_name="star.fill"
-              android_material_icon_name="star"
-              size={24}
-              color="#FFD700"
-            />
-            <View style={styles.infoContent}>
-              <Text style={styles.infoTitle}>Sistema di Rating</Text>
-              <Text style={styles.infoText}>
-                Il tuo rating aumenta quando ritiri gli ordini e diminuisce quando vengono rispediti al mittente. 
-                Mantieni un rating alto per accedere al programma fedeltà e guadagnare punti!
-              </Text>
-            </View>
-          </View>
         </ScrollView>
       </SafeAreaView>
     </>
@@ -397,6 +402,17 @@ const styles = StyleSheet.create({
   headerSubtitle: {
     fontSize: 14,
     color: colors.textSecondary,
+  },
+  sectionHeader: {
+    paddingHorizontal: 24,
+    marginBottom: 16,
+    marginTop: 8,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: colors.text,
+    letterSpacing: -0.3,
   },
   emptyContainer: {
     alignItems: 'center',
