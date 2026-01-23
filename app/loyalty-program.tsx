@@ -92,6 +92,25 @@ export default function LoyaltyProgramScreen() {
             </Text>
           </View>
 
+          {/* CTA Button - Moved to top to avoid being covered by tab bar */}
+          <View style={styles.ctaButtonContainer}>
+            <Pressable
+              style={styles.ctaButton}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                router.push('/my-coupons');
+              }}
+            >
+              <IconSymbol
+                ios_icon_name="ticket.fill"
+                android_material_icon_name="local_offer"
+                size={24}
+                color="#FFFFFF"
+              />
+              <Text style={styles.ctaButtonText}>Riscatta i Miei Coupon</Text>
+            </Pressable>
+          </View>
+
           {/* How it works */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Come Funziona</Text>
@@ -147,23 +166,6 @@ export default function LoyaltyProgramScreen() {
               </Text>
             </View>
           </View>
-
-          {/* CTA Button - Moved here to avoid being covered by tab bar */}
-          <Pressable
-            style={styles.ctaButton}
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-              router.push('/my-coupons');
-            }}
-          >
-            <IconSymbol
-              ios_icon_name="ticket.fill"
-              android_material_icon_name="local_offer"
-              size={24}
-              color="#FFFFFF"
-            />
-            <Text style={styles.ctaButtonText}>Riscatta i Miei Coupon</Text>
-          </Pressable>
 
           {/* Coupon Tiers */}
           <View style={styles.section}>
@@ -469,6 +471,25 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     textAlign: 'center',
   },
+  ctaButtonContainer: {
+    paddingHorizontal: 24,
+    paddingTop: 24,
+    paddingBottom: 8,
+  },
+  ctaButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+    backgroundColor: colors.primary,
+    borderRadius: 12,
+    padding: 18,
+  },
+  ctaButtonText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
   section: {
     padding: 24,
   },
@@ -678,22 +699,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#D84315',
     lineHeight: 20,
-  },
-  ctaButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 12,
-    backgroundColor: colors.primary,
-    borderRadius: 12,
-    padding: 18,
-    marginHorizontal: 24,
-    marginBottom: 24,
-  },
-  ctaButtonText: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#FFFFFF',
   },
   loadingContainer: {
     paddingVertical: 40,
