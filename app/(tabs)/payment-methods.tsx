@@ -12,12 +12,12 @@ import { Stack } from 'expo-router';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 
-export default function PaymentMethodsScreen() {
+export default function PickupPointsScreen() {
   return (
     <>
       <Stack.Screen
         options={{
-          title: 'Metodi di Pagamento',
+          title: 'Punti di Ritiro',
           headerStyle: {
             backgroundColor: colors.background,
           },
@@ -33,28 +33,28 @@ export default function PaymentMethodsScreen() {
           ]}
         >
           <View style={styles.header}>
-            <Text style={styles.headerTitle}>Metodo di Pagamento</Text>
+            <Text style={styles.headerTitle}>Punti di Ritiro</Text>
             <Text style={styles.headerSubtitle}>
-              Tutti gli ordini vengono pagati alla consegna
+              Ritira i tuoi ordini presso il punto di ritiro della tua città
             </Text>
           </View>
 
-          {/* Cash on Delivery Card */}
-          <View style={styles.paymentCard}>
-            <View style={styles.paymentHeader}>
-              <View style={styles.paymentInfo}>
+          {/* Pickup Point Card */}
+          <View style={styles.pickupCard}>
+            <View style={styles.pickupHeader}>
+              <View style={styles.pickupInfo}>
                 <View style={styles.iconContainer}>
                   <IconSymbol
-                    ios_icon_name="banknote.fill"
-                    android_material_icon_name="payments"
+                    ios_icon_name="location.fill"
+                    android_material_icon_name="location_on"
                     size={48}
                     color={colors.text}
                   />
                 </View>
-                <View style={styles.paymentDetails}>
-                  <Text style={styles.paymentTitle}>Pagamento alla Consegna</Text>
-                  <Text style={styles.paymentDescription}>
-                    Paga in contanti quando ritiri il tuo ordine
+                <View style={styles.pickupDetails}>
+                  <Text style={styles.pickupTitle}>Ritiro presso Punto Locale</Text>
+                  <Text style={styles.pickupDescription}>
+                    Ritira i tuoi ordini e paga in contanti
                   </Text>
                 </View>
               </View>
@@ -100,9 +100,9 @@ export default function PaymentMethodsScreen() {
                   <Text style={styles.stepNumberText}>3</Text>
                 </View>
                 <View style={styles.stepContent}>
-                  <Text style={styles.stepTitle}>Ritira e paga</Text>
+                  <Text style={styles.stepTitle}>Ritira al punto di ritiro</Text>
                   <Text style={styles.stepText}>
-                    Quando l&apos;ordine arriva al punto di ritiro, ritiralo e paga in contanti
+                    Quando l&apos;ordine arriva al tuo punto di ritiro, ritiralo e paga in contanti
                   </Text>
                 </View>
               </View>
@@ -180,7 +180,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.textSecondary,
   },
-  paymentCard: {
+  pickupCard: {
     backgroundColor: colors.card,
     borderRadius: 16,
     padding: 24,
@@ -191,12 +191,12 @@ const styles = StyleSheet.create({
     boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.1)',
     elevation: 4,
   },
-  paymentHeader: {
+  pickupHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  paymentInfo: {
+  pickupInfo: {
     flexDirection: 'row',
     gap: 16,
     flex: 1,
@@ -209,17 +209,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  paymentDetails: {
+  pickupDetails: {
     flex: 1,
     justifyContent: 'center',
   },
-  paymentTitle: {
+  pickupTitle: {
     fontSize: 18,
     fontWeight: '700',
     color: colors.text,
     marginBottom: 6,
   },
-  paymentDescription: {
+  pickupDescription: {
     fontSize: 14,
     color: colors.textSecondary,
     lineHeight: 20,

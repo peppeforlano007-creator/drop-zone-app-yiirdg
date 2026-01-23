@@ -23,6 +23,7 @@ export interface TabBarItem {
   route: string;
   label: string;
   icon: string;
+  androidIcon?: string;
 }
 
 interface FloatingTabBarProps {
@@ -33,6 +34,15 @@ interface FloatingTabBarProps {
 }
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
+// Mapping for SF Symbols to Material Icons
+const iconMapping: Record<string, string> = {
+  'star.fill': 'star',
+  'flame.fill': 'local-fire-department',
+  'location.fill': 'location-on',
+  'person.fill': 'person',
+  'creditcard.fill': 'credit-card',
+};
 
 export default function FloatingTabBar({
   tabs,
@@ -94,6 +104,8 @@ export default function FloatingTabBar({
         <View style={styles.tabsContainer}>
           {tabs.map((tab, index) => {
             const isActive = currentIndex === index;
+            const androidIconName = tab.androidIcon || iconMapping[tab.icon] || tab.icon;
+            
             return (
               <TouchableOpacity
                 key={tab.route}
@@ -102,7 +114,8 @@ export default function FloatingTabBar({
                 activeOpacity={0.7}
               >
                 <IconSymbol
-                  name={tab.icon as any}
+                  ios_icon_name={tab.icon}
+                  android_material_icon_name={androidIconName}
                   size={22}
                   color={isActive ? colors.text : colors.textSecondary}
                 />
