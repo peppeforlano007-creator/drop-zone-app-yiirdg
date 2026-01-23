@@ -148,6 +148,23 @@ export default function LoyaltyProgramScreen() {
             </View>
           </View>
 
+          {/* CTA Button - Moved here to avoid being covered by tab bar */}
+          <Pressable
+            style={styles.ctaButton}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              router.push('/my-coupons');
+            }}
+          >
+            <IconSymbol
+              ios_icon_name="ticket.fill"
+              android_material_icon_name="local_offer"
+              size={24}
+              color="#FFFFFF"
+            />
+            <Text style={styles.ctaButtonText}>Riscatta i Miei Coupon</Text>
+          </Pressable>
+
           {/* Coupon Tiers */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Coupon Disponibili</Text>
@@ -409,23 +426,6 @@ export default function LoyaltyProgramScreen() {
               </Text>
             </View>
           </View>
-
-          {/* CTA Button */}
-          <Pressable
-            style={styles.ctaButton}
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-              router.push('/my-coupons');
-            }}
-          >
-            <IconSymbol
-              ios_icon_name="ticket.fill"
-              android_material_icon_name="local_offer"
-              size={24}
-              color="#FFFFFF"
-            />
-            <Text style={styles.ctaButtonText}>Vai ai Miei Coupon</Text>
-          </Pressable>
         </ScrollView>
       </SafeAreaView>
     </>
