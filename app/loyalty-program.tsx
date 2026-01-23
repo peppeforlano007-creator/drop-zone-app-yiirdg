@@ -193,44 +193,21 @@ export default function LoyaltyProgramScreen() {
                 <Text style={styles.cardTitle}>Il Gioco delle Liste</Text>
               </View>
               <Text style={styles.cardText}>
-                Ogni settimana ricevi 3 sfide da completare nella sezione Punti. Completa le sfide per guadagnare punti extra!
+                Completa 3 sfide settimanali nella sezione Punti per guadagnare punti extra:
               </Text>
-              <View style={styles.gameStepsContainer}>
-                <View style={styles.gameStep}>
-                  <View style={styles.gameStepNumber}>
-                    <Text style={styles.gameStepNumberText}>1</Text>
-                  </View>
-                  <Text style={styles.gameStepText}>
-                    Scorri il feed dei prodotti per esplorare le liste dei fornitori
-                  </Text>
+              <View style={styles.challengeList}>
+                <View style={styles.challengeItem}>
+                  <Text style={styles.challengeBullet}>•</Text>
+                  <Text style={styles.challengeText}>Esplora liste scorrendo il feed</Text>
                 </View>
-                <View style={styles.gameStep}>
-                  <View style={styles.gameStepNumber}>
-                    <Text style={styles.gameStepNumberText}>2</Text>
-                  </View>
-                  <Text style={styles.gameStepText}>
-                    Clicca su &quot;Vorrò partecipare al drop&quot; sui prodotti che ti interessano
-                  </Text>
+                <View style={styles.challengeItem}>
+                  <Text style={styles.challengeBullet}>•</Text>
+                  <Text style={styles.challengeText}>Clicca &quot;Vorrò partecipare al drop&quot;</Text>
                 </View>
-                <View style={styles.gameStep}>
-                  <View style={styles.gameStepNumber}>
-                    <Text style={styles.gameStepNumberText}>3</Text>
-                  </View>
-                  <Text style={styles.gameStepText}>
-                    Condividi i drop attivi con amici e parenti per aumentare lo sconto
-                  </Text>
+                <View style={styles.challengeItem}>
+                  <Text style={styles.challengeBullet}>•</Text>
+                  <Text style={styles.challengeText}>Condividi drop attivi con amici</Text>
                 </View>
-              </View>
-              <View style={styles.highlightBox}>
-                <IconSymbol
-                  ios_icon_name="trophy.fill"
-                  android_material_icon_name="emoji_events"
-                  size={20}
-                  color="#FFD700"
-                />
-                <Text style={styles.highlightText}>
-                  Completa tutte e 3 le sfide settimanali per guadagnare punti bonus!
-                </Text>
               </View>
             </View>
 
@@ -490,50 +467,26 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     lineHeight: 20,
   },
-  gameStepsContainer: {
-    marginTop: 16,
-    gap: 12,
+  challengeList: {
+    marginTop: 12,
+    gap: 8,
   },
-  gameStep: {
+  challengeItem: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 12,
+    gap: 8,
   },
-  gameStepNumber: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: colors.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  gameStepNumberText: {
-    fontSize: 14,
+  challengeBullet: {
+    fontSize: 16,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: colors.primary,
+    lineHeight: 20,
   },
-  gameStepText: {
+  challengeText: {
     flex: 1,
     fontSize: 14,
     color: colors.textSecondary,
     lineHeight: 20,
-  },
-  highlightBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: '#FFD70020',
-    borderRadius: 8,
-    padding: 12,
-    marginTop: 16,
-    borderWidth: 1,
-    borderColor: '#FFD700',
-  },
-  highlightText: {
-    flex: 1,
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.text,
   },
   activityCard: {
     flexDirection: 'row',
