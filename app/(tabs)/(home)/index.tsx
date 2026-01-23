@@ -2499,6 +2499,7 @@ const styles = StyleSheet.create({
   },
   welcomeContainer: {
     padding: 24,
+    paddingBottom: Platform.OS === 'ios' ? 140 : 160,
     alignItems: 'center',
   },
   welcomeIcon: {
