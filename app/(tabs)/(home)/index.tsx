@@ -1608,26 +1608,262 @@ export default function GameFeedScreen() {
             })}
           </View>
 
-          {/* Info Card */}
-          <View style={styles.infoCard}>
-            <IconSymbol
-              ios_icon_name="info.circle.fill"
-              android_material_icon_name="info"
-              size={24}
-              color={colors.info}
-            />
-            <View style={styles.infoContent}>
-              <Text style={styles.infoTitle}>Come Funziona</Text>
-              <Text style={styles.infoText}>
-                • Completa le sfide una alla volta per sbloccare la successiva{'\n'}
-                • Le azioni si sbloccano progressivamente con le sfide{'\n'}
-                • Ogni settimana puoi partecipare una volta{'\n'}
-                • Se salti una settimana, la tua striscia si azzera{'\n'}
-                • I punti mensili vengono sempre preservati{'\n'}
-                • A fine mese i punti vengono trasferiti al programma fedeltà{'\n'}
-                • Condividi le liste per aumentare le possibilità di attivare drop!
-              </Text>
+          {/* How It Works - Expanded */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <IconSymbol
+                ios_icon_name="info.circle.fill"
+                android_material_icon_name="info"
+                size={24}
+                color={colors.info}
+              />
+              <Text style={styles.sectionTitle}>Come Funziona</Text>
             </View>
+
+            {/* Game Mechanics */}
+            <View style={styles.howItWorksCard}>
+              <View style={styles.howItWorksHeader}>
+                <IconSymbol
+                  ios_icon_name="gamecontroller.fill"
+                  android_material_icon_name="sports_esports"
+                  size={32}
+                  color={colors.primary}
+                />
+                <Text style={styles.howItWorksTitle}>Meccaniche di Gioco</Text>
+              </View>
+              <View style={styles.howItWorksList}>
+                <View style={styles.howItWorksItem}>
+                  <Text style={styles.howItWorksBullet}>•</Text>
+                  <Text style={styles.howItWorksText}>
+                    Completa le sfide una alla volta per sbloccare la successiva
+                  </Text>
+                </View>
+                <View style={styles.howItWorksItem}>
+                  <Text style={styles.howItWorksBullet}>•</Text>
+                  <Text style={styles.howItWorksText}>
+                    Le azioni (Esplora, Mi Interessa, Condividi) si sbloccano progressivamente
+                  </Text>
+                </View>
+                <View style={styles.howItWorksItem}>
+                  <Text style={styles.howItWorksBullet}>•</Text>
+                  <Text style={styles.howItWorksText}>
+                    Ogni settimana puoi partecipare una volta per mantenere la striscia attiva
+                  </Text>
+                </View>
+                <View style={styles.howItWorksItem}>
+                  <Text style={styles.howItWorksBullet}>•</Text>
+                  <Text style={styles.howItWorksText}>
+                    Se salti una settimana, la tua striscia si azzera (ma i punti mensili restano)
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            {/* Ways to Earn Points */}
+            <View style={styles.howItWorksCard}>
+              <View style={styles.howItWorksHeader}>
+                <IconSymbol
+                  ios_icon_name="star.fill"
+                  android_material_icon_name="star"
+                  size={32}
+                  color="#FFD700"
+                />
+                <Text style={styles.howItWorksTitle}>Modi per Guadagnare Punti</Text>
+              </View>
+              <View style={styles.howItWorksList}>
+                <View style={styles.pointsEarnItem}>
+                  <View style={styles.pointsEarnLeft}>
+                    <IconSymbol
+                      ios_icon_name="eye.fill"
+                      android_material_icon_name="visibility"
+                      size={20}
+                      color={colors.primary}
+                    />
+                    <Text style={styles.pointsEarnAction}>Esplora una lista</Text>
+                  </View>
+                  <Text style={styles.pointsEarnValue}>+10 punti</Text>
+                </View>
+                <View style={styles.pointsEarnItem}>
+                  <View style={styles.pointsEarnLeft}>
+                    <IconSymbol
+                      ios_icon_name="heart.fill"
+                      android_material_icon_name="favorite"
+                      size={20}
+                      color={colors.primary}
+                    />
+                    <Text style={styles.pointsEarnAction}>Mostra interesse</Text>
+                  </View>
+                  <Text style={styles.pointsEarnValue}>+5 punti</Text>
+                </View>
+                <View style={styles.pointsEarnItem}>
+                  <View style={styles.pointsEarnLeft}>
+                    <IconSymbol
+                      ios_icon_name="square.and.arrow.up.fill"
+                      android_material_icon_name="share"
+                      size={20}
+                      color={colors.primary}
+                    />
+                    <Text style={styles.pointsEarnAction}>Condividi una lista</Text>
+                  </View>
+                  <Text style={styles.pointsEarnValue}>+20 punti</Text>
+                </View>
+                <View style={styles.pointsEarnItem}>
+                  <View style={styles.pointsEarnLeft}>
+                    <IconSymbol
+                      ios_icon_name="trophy.fill"
+                      android_material_icon_name="emoji_events"
+                      size={20}
+                      color={colors.primary}
+                    />
+                    <Text style={styles.pointsEarnAction}>Completa una sfida</Text>
+                  </View>
+                  <Text style={styles.pointsEarnValue}>+100-200 punti</Text>
+                </View>
+              </View>
+            </View>
+
+            {/* Loyalty Program */}
+            <View style={styles.howItWorksCard}>
+              <View style={styles.howItWorksHeader}>
+                <IconSymbol
+                  ios_icon_name="gift.fill"
+                  android_material_icon_name="card_giftcard"
+                  size={32}
+                  color="#4CAF50"
+                />
+                <Text style={styles.howItWorksTitle}>Programma Fedeltà</Text>
+              </View>
+              <View style={styles.howItWorksList}>
+                <View style={styles.howItWorksItem}>
+                  <Text style={styles.howItWorksBullet}>•</Text>
+                  <Text style={styles.howItWorksText}>
+                    A fine mese, tutti i punti guadagnati vengono trasferiti al programma fedeltà
+                  </Text>
+                </View>
+                <View style={styles.howItWorksItem}>
+                  <Text style={styles.howItWorksBullet}>•</Text>
+                  <Text style={styles.howItWorksText}>
+                    I punti fedeltà non scadono mai e si accumulano nel tempo
+                  </Text>
+                </View>
+                <View style={styles.howItWorksItem}>
+                  <Text style={styles.howItWorksBullet}>•</Text>
+                  <Text style={styles.howItWorksText}>
+                    Usa i punti fedeltà per riscattare coupon sconto sui tuoi ordini
+                  </Text>
+                </View>
+                <View style={styles.howItWorksItem}>
+                  <Text style={styles.howItWorksBullet}>•</Text>
+                  <Text style={styles.howItWorksText}>
+                    Più punti accumuli, più sconti puoi ottenere!
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            {/* Rating System */}
+            <View style={styles.howItWorksCard}>
+              <View style={styles.howItWorksHeader}>
+                <IconSymbol
+                  ios_icon_name="star.circle.fill"
+                  android_material_icon_name="stars"
+                  size={32}
+                  color="#FF9800"
+                />
+                <Text style={styles.howItWorksTitle}>Sistema di Rating</Text>
+              </View>
+              <View style={styles.howItWorksList}>
+                <View style={styles.howItWorksItem}>
+                  <Text style={styles.howItWorksBullet}>•</Text>
+                  <Text style={styles.howItWorksText}>
+                    Tutti gli utenti partono con 5 stelle (rating massimo)
+                  </Text>
+                </View>
+                <View style={styles.howItWorksItem}>
+                  <Text style={styles.howItWorksBullet}>•</Text>
+                  <Text style={styles.howItWorksText}>
+                    Solo gli utenti con 5 stelle possono guadagnare punti
+                  </Text>
+                </View>
+                <View style={styles.howItWorksItem}>
+                  <Text style={styles.howItWorksBullet}>•</Text>
+                  <Text style={styles.howItWorksText}>
+                    Il rating può diminuire se restituisci troppi ordini o prodotti
+                  </Text>
+                </View>
+                <View style={styles.howItWorksItem}>
+                  <Text style={styles.howItWorksBullet}>•</Text>
+                  <Text style={styles.howItWorksText}>
+                    Mantieni un comportamento corretto per preservare il tuo rating e continuare a guadagnare punti
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            {/* Drop Activation */}
+            <View style={styles.howItWorksCard}>
+              <View style={styles.howItWorksHeader}>
+                <IconSymbol
+                  ios_icon_name="bolt.fill"
+                  android_material_icon_name="flash_on"
+                  size={32}
+                  color="#FF6B35"
+                />
+                <Text style={styles.howItWorksTitle}>Attivazione Drop</Text>
+              </View>
+              <View style={styles.howItWorksList}>
+                <View style={styles.howItWorksItem}>
+                  <Text style={styles.howItWorksBullet}>•</Text>
+                  <Text style={styles.howItWorksText}>
+                    Quando tanti utenti della tua città mostrano interesse per una lista, si può attivare un drop
+                  </Text>
+                </View>
+                <View style={styles.howItWorksItem}>
+                  <Text style={styles.howItWorksBullet}>•</Text>
+                  <Text style={styles.howItWorksText}>
+                    I drop offrono sconti crescenti: più persone prenotano, più lo sconto aumenta
+                  </Text>
+                </View>
+                <View style={styles.howItWorksItem}>
+                  <Text style={styles.howItWorksBullet}>•</Text>
+                  <Text style={styles.howItWorksText}>
+                    Condividi le liste con amici e parenti per aumentare le possibilità di attivare drop nella tua città
+                  </Text>
+                </View>
+                <View style={styles.howItWorksItem}>
+                  <Text style={styles.howItWorksBullet}>•</Text>
+                  <Text style={styles.howItWorksText}>
+                    Più persone partecipano, migliori sono gli sconti per tutti!
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            {/* Redeem Coupons Button */}
+            <Pressable
+              style={({ pressed }) => [
+                styles.redeemCouponsButton,
+                pressed && styles.redeemCouponsButtonPressed,
+              ]}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                router.push('/my-coupons');
+              }}
+            >
+              <IconSymbol
+                ios_icon_name="ticket.fill"
+                android_material_icon_name="local_offer"
+                size={24}
+                color="#FFF"
+              />
+              <Text style={styles.redeemCouponsButtonText}>Riscatta i Miei Coupon</Text>
+              <IconSymbol
+                ios_icon_name="chevron.right"
+                android_material_icon_name="chevron_right"
+                size={24}
+                color="#FFF"
+              />
+            </Pressable>
           </View>
         </ScrollView>
 
@@ -2089,28 +2325,93 @@ const styles = StyleSheet.create({
     opacity: 0.7,
     transform: [{ scale: 0.98 }],
   },
-  infoCard: {
-    flexDirection: 'row',
-    backgroundColor: colors.info + '10',
-    borderWidth: 1,
-    borderColor: colors.info + '30',
+  howItWorksCard: {
+    backgroundColor: colors.card,
     borderRadius: 12,
-    padding: 16,
+    padding: 20,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  howItWorksHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 12,
+    marginBottom: 16,
   },
-  infoContent: {
-    flex: 1,
-  },
-  infoTitle: {
-    fontSize: 16,
+  howItWorksTitle: {
+    fontSize: 18,
     fontWeight: '700',
     color: colors.text,
-    marginBottom: 8,
   },
-  infoText: {
+  howItWorksList: {
+    gap: 12,
+  },
+  howItWorksItem: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  howItWorksBullet: {
+    fontSize: 16,
+    color: colors.primary,
+    fontWeight: '700',
+    marginTop: 2,
+  },
+  howItWorksText: {
+    flex: 1,
     fontSize: 14,
     color: colors.textSecondary,
     lineHeight: 20,
+  },
+  pointsEarnItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: colors.background,
+    borderRadius: 8,
+  },
+  pointsEarnLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+  },
+  pointsEarnAction: {
+    fontSize: 14,
+    color: colors.text,
+    fontWeight: '600',
+  },
+  pointsEarnValue: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.primary,
+  },
+  redeemCouponsButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+    backgroundColor: colors.primary,
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    marginTop: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  redeemCouponsButtonPressed: {
+    opacity: 0.8,
+    transform: [{ scale: 0.98 }],
+  },
+  redeemCouponsButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFF',
   },
   rewardAnimation: {
     position: 'absolute',
