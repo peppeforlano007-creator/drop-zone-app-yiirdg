@@ -625,7 +625,7 @@ export default function EnhancedProductCard({
                     ios_icon_name="exclamationmark.triangle.fill" 
                     android_material_icon_name="warning" 
                     size={16} 
-                    color="#FF6B00" 
+                    color="#FFF" 
                   />
                   <Text style={styles.selectionWarningText}>
                     SELEZIONE OBBLIGATORIA PER PRENOTARE
@@ -750,7 +750,7 @@ export default function EnhancedProductCard({
                         ios_icon_name="exclamationmark.triangle.fill" 
                         android_material_icon_name="warning" 
                         size={20} 
-                        color="#FF6B00" 
+                        color="#666" 
                       />
                     </View>
                     <View style={styles.bookButtonTextContainer}>
@@ -1054,20 +1054,20 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   selectionContainerRequired: {
-    backgroundColor: '#FFF3E0',
+    backgroundColor: '#FFF9F0',
     borderWidth: 2,
-    borderColor: '#FF6B00',
-    shadowColor: '#FF6B00',
+    borderColor: '#E0E0E0',
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.1,
     shadowRadius: 4,
-    elevation: 4,
+    elevation: 2,
   },
   selectionWarningBanner: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: '#FF6B00',
+    backgroundColor: '#666',
     paddingVertical: 6,
     paddingHorizontal: 10,
     borderRadius: 6,
@@ -1105,7 +1105,7 @@ const styles = StyleSheet.create({
     color: colors.error,
   },
   missingBadge: {
-    backgroundColor: '#FF6B00',
+    backgroundColor: '#666',
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
@@ -1130,22 +1130,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: colors.backgroundSecondary,
+    backgroundColor: '#FFF',
     borderRadius: 6,
-    borderWidth: 1.5,
-    borderColor: 'transparent',
+    borderWidth: 2,
+    borderColor: '#E0E0E0',
   },
   sizeOptionSelected: {
-    backgroundColor: colors.text,
-    borderColor: colors.text,
+    backgroundColor: '#333',
+    borderColor: '#333',
   },
   sizeOptionText: {
     fontSize: 10,
     fontWeight: '700',
-    color: colors.text,
+    color: '#333',
   },
   sizeOptionTextSelected: {
-    color: colors.background,
+    color: '#FFF',
   },
   colorOption: {
     paddingHorizontal: 8,
@@ -1153,21 +1153,21 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     borderRadius: 6,
-    borderWidth: 1.5,
-    borderColor: 'transparent',
-    backgroundColor: colors.backgroundSecondary,
+    borderWidth: 2,
+    borderColor: '#E0E0E0',
+    backgroundColor: '#FFF',
   },
   colorOptionSelected: {
-    backgroundColor: colors.text,
-    borderColor: colors.text,
+    backgroundColor: '#333',
+    borderColor: '#333',
   },
   colorOptionText: {
     fontSize: 10,
     fontWeight: '700',
-    color: colors.text,
+    color: '#333',
   },
   colorOptionTextSelected: {
-    color: colors.background,
+    color: '#FFF',
   },
   bookButtonWrapper: {
     marginTop: 2,
@@ -1205,8 +1205,8 @@ const styles = StyleSheet.create({
     borderColor: '#E0E0E0',
   },
   bookButtonIconWarning: {
-    backgroundColor: '#FFF3E0',
-    borderColor: '#FF6B00',
+    backgroundColor: '#F5F5F5',
+    borderColor: '#E0E0E0',
   },
   bookButtonTextContainer: {
     flex: 1,
@@ -1222,7 +1222,7 @@ const styles = StyleSheet.create({
     color: '#999',
   },
   bookButtonTitleWarning: {
-    color: '#FF6B00',
+    color: '#666',
   },
   bookButtonSubtitle: {
     color: '#666',
@@ -1231,7 +1231,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.1,
   },
   bookButtonSubtitleWarning: {
-    color: '#FF6B00',
+    color: '#666',
     fontSize: 9,
     fontWeight: '700',
     letterSpacing: 0.1,

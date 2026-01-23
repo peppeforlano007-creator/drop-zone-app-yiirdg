@@ -785,6 +785,9 @@ export default function DropDetailsScreen() {
     ? ((currentDiscount - minDiscount) / (maxDiscount - minDiscount)) * 100
     : 0;
 
+  const cityName = drop.pickup_points?.city ?? 'N/A';
+  const listName = drop.supplier_lists?.name ?? 'N/A';
+
   return (
     <View style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
@@ -864,33 +867,33 @@ export default function DropDetailsScreen() {
       </View>
 
       <View style={styles.rightSideIcons} pointerEvents="box-none">
-        <Pressable style={styles.iconButton}>
+        <View style={styles.iconButton}>
           <View style={styles.iconCircle}>
             <IconSymbol 
               ios_icon_name="mappin.circle.fill" 
               android_material_icon_name="location_on" 
-              size={14} 
+              size={20} 
               color="#FFF" 
             />
           </View>
           <Text style={styles.iconLabel} numberOfLines={1}>
-            {drop.pickup_points?.city ?? 'N/A'}
+            {cityName}
           </Text>
-        </Pressable>
+        </View>
 
-        <Pressable style={styles.iconButton}>
+        <View style={styles.iconButton}>
           <View style={styles.iconCircle}>
             <IconSymbol 
               ios_icon_name="list.bullet.rectangle" 
               android_material_icon_name="list" 
-              size={14} 
+              size={20} 
               color="#FFF" 
             />
           </View>
           <Text style={styles.iconLabel} numberOfLines={2}>
-            {drop.supplier_lists?.name ?? 'N/A'}
+            {listName}
           </Text>
-        </Pressable>
+        </View>
 
         <Pressable 
           style={styles.iconButton}
@@ -902,11 +905,11 @@ export default function DropDetailsScreen() {
             <IconSymbol 
               ios_icon_name="square.and.arrow.up.fill" 
               android_material_icon_name="share" 
-              size={14} 
+              size={20} 
               color="#FFF" 
             />
           </Animated.View>
-          <Text style={styles.iconLabel}>Raggiungi {Math.floor(maxDiscount)}%</Text>
+          <Text style={styles.iconLabel}>Condividi</Text>
         </Pressable>
       </View>
 
@@ -1077,45 +1080,52 @@ const styles = StyleSheet.create({
   },
   rightSideIcons: {
     position: 'absolute',
-    right: 12,
-    top: '16%',
-    bottom: '32%',
+    right: 16,
+    top: '18%',
+    bottom: '34%',
     justifyContent: 'space-evenly',
     alignItems: 'center',
-    gap: 14,
+    gap: 32,
     zIndex: 10,
   },
   iconButton: {
     alignItems: 'center',
-    gap: 3,
+    gap: 8,
   },
   iconCircle: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: 'rgba(0, 0, 0, 0.75)',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 1.5,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.5)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.4,
+    shadowRadius: 6,
+    elevation: 8,
   },
   shareCircle: {
-    backgroundColor: 'rgba(76, 175, 80, 0.8)',
+    backgroundColor: 'rgba(76, 175, 80, 0.9)',
+    borderColor: 'rgba(255, 255, 255, 0.6)',
   },
   iconLabel: {
-    fontSize: 7,
-    fontWeight: '700',
+    fontSize: 11,
+    fontWeight: '800',
     color: '#FFF',
     textAlign: 'center',
-    maxWidth: 48,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    paddingHorizontal: 5,
-    paddingVertical: 2,
-    borderRadius: 6,
+    maxWidth: 70,
+    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 10,
     overflow: 'hidden',
     textShadowColor: 'rgba(0, 0, 0, 0.75)',
     textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
+    textShadowRadius: 3,
+    letterSpacing: 0.4,
   },
   realtimeIndicator: {
     position: 'absolute',
