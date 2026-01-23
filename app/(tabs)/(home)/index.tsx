@@ -1674,6 +1674,18 @@ export default function GameFeedScreen() {
                 <View style={styles.pointsEarnItem}>
                   <View style={styles.pointsEarnLeft}>
                     <IconSymbol
+                      ios_icon_name="eurosign.circle.fill"
+                      android_material_icon_name="euro"
+                      size={20}
+                      color={colors.primary}
+                    />
+                    <Text style={styles.pointsEarnAction}>Per ogni euro speso</Text>
+                  </View>
+                  <Text style={styles.pointsEarnValue}>+1 punto</Text>
+                </View>
+                <View style={styles.pointsEarnItem}>
+                  <View style={styles.pointsEarnLeft}>
+                    <IconSymbol
                       ios_icon_name="eye.fill"
                       android_material_icon_name="visibility"
                       size={20}
@@ -1737,7 +1749,13 @@ export default function GameFeedScreen() {
                 <View style={styles.howItWorksItem}>
                   <Text style={styles.howItWorksBullet}>•</Text>
                   <Text style={styles.howItWorksText}>
-                    A fine mese, tutti i punti guadagnati vengono trasferiti al programma fedeltà
+                    Per ogni euro speso, guadagni 1 punto fedeltà automaticamente
+                  </Text>
+                </View>
+                <View style={styles.howItWorksItem}>
+                  <Text style={styles.howItWorksBullet}>•</Text>
+                  <Text style={styles.howItWorksText}>
+                    A fine mese, tutti i punti guadagnati dalle sfide vengono trasferiti al programma fedeltà
                   </Text>
                 </View>
                 <View style={styles.howItWorksItem}>
@@ -1756,6 +1774,39 @@ export default function GameFeedScreen() {
                   <Text style={styles.howItWorksBullet}>•</Text>
                   <Text style={styles.howItWorksText}>
                     Più punti accumuli, più sconti puoi ottenere!
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            {/* Points Deduction */}
+            <View style={styles.howItWorksCard}>
+              <View style={styles.howItWorksHeader}>
+                <IconSymbol
+                  ios_icon_name="arrow.down.circle.fill"
+                  android_material_icon_name="remove_circle"
+                  size={32}
+                  color="#FF3B30"
+                />
+                <Text style={styles.howItWorksTitle}>Sottrazione Punti</Text>
+              </View>
+              <View style={styles.howItWorksList}>
+                <View style={styles.howItWorksItem}>
+                  <Text style={styles.howItWorksBullet}>•</Text>
+                  <Text style={styles.howItWorksText}>
+                    Se restituisci un ordine o un prodotto, i punti guadagnati da quell&apos;acquisto vengono sottratti
+                  </Text>
+                </View>
+                <View style={styles.howItWorksItem}>
+                  <Text style={styles.howItWorksBullet}>•</Text>
+                  <Text style={styles.howItWorksText}>
+                    Esempio: Hai speso €50 (guadagnato 50 punti) e restituisci l&apos;ordine → perdi 50 punti
+                  </Text>
+                </View>
+                <View style={styles.howItWorksItem}>
+                  <Text style={styles.howItWorksBullet}>•</Text>
+                  <Text style={styles.howItWorksText}>
+                    Troppi resi possono anche ridurre il tuo rating sotto le 5 stelle
                   </Text>
                 </View>
               </View>
@@ -1789,6 +1840,12 @@ export default function GameFeedScreen() {
                   <Text style={styles.howItWorksBullet}>•</Text>
                   <Text style={styles.howItWorksText}>
                     Il rating può diminuire se restituisci troppi ordini o prodotti
+                  </Text>
+                </View>
+                <View style={styles.howItWorksItem}>
+                  <Text style={styles.howItWorksBullet}>•</Text>
+                  <Text style={styles.howItWorksText}>
+                    Se superi la soglia minima di ordini non ritirati, il tuo rating scenderà e non potrai più guadagnare punti
                   </Text>
                 </View>
                 <View style={styles.howItWorksItem}>
