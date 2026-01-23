@@ -193,20 +193,111 @@ export default function LoyaltyProgramScreen() {
                 <Text style={styles.cardTitle}>Il Gioco delle Liste</Text>
               </View>
               <Text style={styles.cardText}>
-                Completa 3 sfide settimanali nella sezione Punti per guadagnare punti extra:
+                Completa 4 sfide settimanali nella sezione Punti per guadagnare punti extra. Le sfide si sbloccano progressivamente:
               </Text>
-              <View style={styles.challengeList}>
-                <View style={styles.challengeItem}>
-                  <Text style={styles.challengeBullet}>•</Text>
-                  <Text style={styles.challengeText}>Esplora liste scorrendo il feed</Text>
+              
+              {/* Challenge 1: COLLEZIONISTA */}
+              <View style={styles.challengeCard}>
+                <View style={styles.challengeHeader}>
+                  <View style={styles.challengeNumberBadge}>
+                    <Text style={styles.challengeNumberText}>1</Text>
+                  </View>
+                  <View style={styles.challengeContent}>
+                    <Text style={styles.challengeTitle}>COLLEZIONISTA</Text>
+                    <Text style={styles.challengeDescription}>
+                      Esplora i prodotti di tutte le liste disponibili
+                    </Text>
+                    <View style={styles.challengeReward}>
+                      <IconSymbol
+                        ios_icon_name="star.fill"
+                        android_material_icon_name="star"
+                        size={14}
+                        color="#FFD700"
+                      />
+                      <Text style={styles.challengeRewardText}>100 punti</Text>
+                    </View>
+                  </View>
                 </View>
-                <View style={styles.challengeItem}>
-                  <Text style={styles.challengeBullet}>•</Text>
-                  <Text style={styles.challengeText}>Clicca &quot;Vorrò partecipare al drop&quot;</Text>
+              </View>
+
+              {/* Challenge 2: NAVIGATORE */}
+              <View style={styles.challengeCard}>
+                <View style={styles.challengeHeader}>
+                  <View style={styles.challengeNumberBadge}>
+                    <Text style={styles.challengeNumberText}>2</Text>
+                  </View>
+                  <View style={styles.challengeContent}>
+                    <Text style={styles.challengeTitle}>NAVIGATORE</Text>
+                    <Text style={styles.challengeDescription}>
+                      Naviga fino in fondo per scoprire tutti i prodotti di una lista
+                    </Text>
+                    <View style={styles.challengeReward}>
+                      <IconSymbol
+                        ios_icon_name="star.fill"
+                        android_material_icon_name="star"
+                        size={14}
+                        color="#FFD700"
+                      />
+                      <Text style={styles.challengeRewardText}>150 punti</Text>
+                    </View>
+                    <Text style={styles.challengeUnlock}>
+                      Sblocca: CACCIATORE DI OFFERTE
+                    </Text>
+                  </View>
                 </View>
-                <View style={styles.challengeItem}>
-                  <Text style={styles.challengeBullet}>•</Text>
-                  <Text style={styles.challengeText}>Condividi drop attivi con amici</Text>
+              </View>
+
+              {/* Challenge 3: CACCIATORE DI OFFERTE */}
+              <View style={styles.challengeCard}>
+                <View style={styles.challengeHeader}>
+                  <View style={styles.challengeNumberBadge}>
+                    <Text style={styles.challengeNumberText}>3</Text>
+                  </View>
+                  <View style={styles.challengeContent}>
+                    <Text style={styles.challengeTitle}>CACCIATORE DI OFFERTE</Text>
+                    <Text style={styles.challengeDescription}>
+                      Mostra interesse per una lista
+                    </Text>
+                    <View style={styles.challengeReward}>
+                      <IconSymbol
+                        ios_icon_name="star.fill"
+                        android_material_icon_name="star"
+                        size={14}
+                        color="#FFD700"
+                      />
+                      <Text style={styles.challengeRewardText}>100 punti</Text>
+                    </View>
+                    <Text style={styles.challengeUnlock}>
+                      Sblocca: AMBASCIATORE
+                    </Text>
+                  </View>
+                </View>
+              </View>
+
+              {/* Challenge 4: AMBASCIATORE */}
+              <View style={styles.challengeCard}>
+                <View style={styles.challengeHeader}>
+                  <View style={styles.challengeNumberBadge}>
+                    <Text style={styles.challengeNumberText}>4</Text>
+                  </View>
+                  <View style={styles.challengeContent}>
+                    <Text style={styles.challengeTitle}>AMBASCIATORE</Text>
+                    <Text style={styles.challengeDescription}>
+                      Condividi una lista con amici e parenti e potrai attivare un drop su quella lista con ritiro nella tua città
+                    </Text>
+                    <View style={styles.challengeReward}>
+                      <IconSymbol
+                        ios_icon_name="star.fill"
+                        android_material_icon_name="star"
+                        size={14}
+                        color="#FFD700"
+                      />
+                      <Text style={styles.challengeRewardText}>200 punti</Text>
+                    </View>
+                    <Text style={styles.challengeFinal}>
+                      Sfida finale - Nessuna sfida successiva
+                    </Text>
+                  </View>
                 </View>
               </View>
             </View>
@@ -467,26 +558,68 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     lineHeight: 20,
   },
-  challengeList: {
+  challengeCard: {
+    backgroundColor: colors.backgroundSecondary,
+    borderRadius: 10,
+    padding: 16,
     marginTop: 12,
-    gap: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
-  challengeItem: {
+  challengeHeader: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 8,
+    gap: 12,
   },
-  challengeBullet: {
+  challengeNumberBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  challengeNumberText: {
     fontSize: 16,
-    fontWeight: '700',
-    color: colors.primary,
-    lineHeight: 20,
+    fontWeight: '800',
+    color: '#FFFFFF',
   },
-  challengeText: {
+  challengeContent: {
     flex: 1,
-    fontSize: 14,
+  },
+  challengeTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: 6,
+  },
+  challengeDescription: {
+    fontSize: 13,
     color: colors.textSecondary,
-    lineHeight: 20,
+    lineHeight: 18,
+    marginBottom: 8,
+  },
+  challengeReward: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginBottom: 4,
+  },
+  challengeRewardText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#8B6914',
+  },
+  challengeUnlock: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.primary,
+    fontStyle: 'italic',
+  },
+  challengeFinal: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.textSecondary,
+    fontStyle: 'italic',
   },
   activityCard: {
     flexDirection: 'row',
