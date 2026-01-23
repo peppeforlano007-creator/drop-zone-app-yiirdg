@@ -77,8 +77,9 @@ export default function DropCard({ drop }: DropCardProps) {
     const maxDiscount = Math.floor(drop.supplier_lists?.max_discount ?? 0);
     const currentDiscount = Math.floor(drop.current_discount ?? 0);
     const discountRemaining = maxDiscount - currentDiscount;
+    const supplierListName = drop.supplier_lists?.name ?? 'N/A';
     
-    const message = `🔥 Drop attivo: ${drop.name}!\n\n💰 Sconto attuale: ${currentDiscount}%\n🎯 Sconto massimo: ${maxDiscount}%\n📍 Città: ${drop.pickup_points?.city}\n⏰ Tempo rimanente: ${timeRemaining}\n\n✨ Più persone prenotano, più lo sconto cresce!\n\n👉 Aiutami a raggiungere il ${maxDiscount}% di sconto! Mancano solo ${discountRemaining}% per lo sconto massimo!`;
+    const message = `🔥 Drop attivo: ${supplierListName}!\n\n💰 Sconto attuale: ${currentDiscount}%\n🎯 Sconto massimo: ${maxDiscount}%\n📍 Città: ${drop.pickup_points?.city}\n⏰ Tempo rimanente: ${timeRemaining}\n\n✨ Più persone prenotano, più lo sconto cresce!\n\n👉 Aiutami a raggiungere il ${maxDiscount}% di sconto! Mancano solo ${discountRemaining}% per lo sconto massimo!`;
 
     const url = `whatsapp://send?text=${encodeURIComponent(message)}`;
 
@@ -111,6 +112,9 @@ export default function DropCard({ drop }: DropCardProps) {
     ? `Mancano ${Math.floor(discountRemaining)}% per lo sconto massimo!` 
     : 'Sconto massimo raggiunto!';
 
+  const supplierListName = drop.supplier_lists?.name ?? 'N/A';
+  const cityName = drop.pickup_points?.city ?? 'N/A';
+
   return (
     <Pressable
       style={({ pressed }) => [
@@ -121,15 +125,15 @@ export default function DropCard({ drop }: DropCardProps) {
     >
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <Text style={styles.dropName} numberOfLines={1}>{drop.name}</Text>
+          <Text style={styles.dropName} numberOfLines={1}>{supplierListName}</Text>
           <View style={styles.locationRow}>
             <IconSymbol 
               ios_icon_name="mappin.circle.fill" 
               android_material_icon_name="location_on" 
-              size={14} 
+              size={16} 
               color={colors.primary} 
             />
-            <Text style={styles.locationText}>{drop.pickup_points?.city ?? 'N/A'}</Text>
+            <Text style={styles.locationText}>{cityName}</Text>
           </View>
         </View>
         <View style={styles.timerBadge}>
@@ -193,7 +197,7 @@ export default function DropCard({ drop }: DropCardProps) {
             color={colors.textSecondary} 
           />
           <Text style={styles.supplierText} numberOfLines={1}>
-            {drop.supplier_lists?.name ?? 'N/A'}
+            {supplierListName}
           </Text>
         </View>
         <View style={styles.footerButtons}>
@@ -265,9 +269,9 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   locationText: {
-    fontSize: 13,
+    fontSize: 15,
     color: colors.textSecondary,
-    fontWeight: '500',
+    fontWeight: '600',
     fontFamily: 'System',
   },
   timerBadge: {
