@@ -1,18 +1,144 @@
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   Platform,
+  Pressable,
+  ActivityIndicator,
+  Linking,
+  Alert,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack } from 'expo-router';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
+import { supabase } from '@/app/integrations/supabase/client';
+import * as Haptics from 'expo-haptics';
+
+interface PickupPoint {
+  id: string;
+  name: string;
+  address: string;
+  city: string;
+  postal_code: string;
+  phone: string;
+  email: string;
+  manager_name: string;
+  status: string;
+}
 
 export default function PickupPointsScreen() {
+  const [pickupPoints, setPickupPoints] = useState<PickupPoint[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  useEffect(() => {
+    loadPickupPoints();
+  }, []);
+
+  const loadPickupPoints = async () => {
+    try {
+      console.log('Loading pickup points...');
+      const { data, error } = await supabase
+        .from('pickup_points')
+        .select('*')
+        .eq('status', 'active')
+        .order('city', { ascending: true });
+
+      if (error) {
+        console.error('Error loading pickup points:', error);
+        Alert.alert('Errore', 'Impossibile caricare i punti di ritiro');
+        return;
+      }
+
+      console.log('Loaded pickup points:', data?.length || 0);
+      setPickupPoints(data || []);
+    } catch (error) {
+      console.error('Error loading pickup points:', error);
+      Alert.alert('Errore', 'Impossibile caricare i punti di ritiro');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  const handleRefresh = () => {
+    setRefreshing(true);
+    loadPickupPoints();
+  };
+
+  const handleOpenDirections = async (pickupPoint: PickupPoint) => {
+    console.log('Opening directions for:', pickupPoint.name);
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    const fullAddress = `${pickupPoint.address}, ${pickupPoint.city}, ${pickupPoint.postal_code}`;
+    const encodedAddress = encodeURIComponent(fullAddress);
+    
+    // Google Maps URL that works on both iOS and Android
+    const googleMapsUrl = Platform.select({
+      ios: `comgooglemaps://?q=${encodedAddress}`,
+      android: `geo:0,0?q=${encodedAddress}`,
+      default: `https://www.google.com/maps/search/?api=1&query=${encodedAddress}`,
+    });
+
+    const fallbackUrl = `https://www.google.com/maps/search/?api=1&query=${encodedAddress}`;
+
+    try {
+      // Try to open Google Maps app first
+      const canOpen = await Linking.canOpenURL(googleMapsUrl);
+      if (canOpen) {
+        await Linking.openURL(googleMapsUrl);
+      } else {
+        // Fallback to web browser
+        await Linking.openURL(fallbackUrl);
+      }
+    } catch (error) {
+      console.error('Error opening directions:', error);
+      // Final fallback to web browser
+      await Linking.openURL(fallbackUrl);
+    }
+  };
+
+  const handleCallPickupPoint = async (phone: string, name: string) => {
+    console.log('Calling pickup point:', name);
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    const phoneUrl = `tel:${phone}`;
+    const canCall = await Linking.canOpenURL(phoneUrl);
+    
+    if (canCall) {
+      await Linking.openURL(phoneUrl);
+    } else {
+      Alert.alert('Errore', 'Impossibile effettuare la chiamata');
+    }
+  };
+
+  if (loading) {
+    return (
+      <>
+        <Stack.Screen
+          options={{
+            title: 'Punti di Ritiro',
+            headerStyle: {
+              backgroundColor: colors.background,
+            },
+            headerTintColor: colors.text,
+          }}
+        />
+        <SafeAreaView style={styles.safeArea} edges={['bottom']}>
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={colors.primary} />
+            <Text style={styles.loadingText}>Caricamento punti di ritiro...</Text>
+          </View>
+        </SafeAreaView>
+      </>
+    );
+  }
+
   return (
     <>
       <Stack.Screen
@@ -31,43 +157,125 @@ export default function PickupPointsScreen() {
             styles.contentContainer,
             Platform.OS !== 'ios' && styles.contentContainerWithTabBar,
           ]}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              tintColor={colors.primary}
+            />
+          }
         >
           <View style={styles.header}>
             <Text style={styles.headerTitle}>Punti di Ritiro</Text>
             <Text style={styles.headerSubtitle}>
-              Ritira i tuoi ordini presso il punto di ritiro della tua città
+              Ritira i tuoi ordini presso uno dei nostri punti di ritiro
             </Text>
           </View>
 
-          {/* Pickup Point Card */}
-          <View style={styles.pickupCard}>
-            <View style={styles.pickupHeader}>
-              <View style={styles.pickupInfo}>
-                <View style={styles.iconContainer}>
-                  <IconSymbol
-                    ios_icon_name="location.fill"
-                    android_material_icon_name="location_on"
-                    size={48}
-                    color={colors.text}
-                  />
-                </View>
-                <View style={styles.pickupDetails}>
-                  <Text style={styles.pickupTitle}>Ritiro presso Punto Locale</Text>
-                  <Text style={styles.pickupDescription}>
-                    Ritira i tuoi ordini e paga in contanti
-                  </Text>
-                </View>
-              </View>
-              <View style={styles.activeBadge}>
-                <IconSymbol
-                  ios_icon_name="checkmark.circle.fill"
-                  android_material_icon_name="check_circle"
-                  size={24}
-                  color="#4CAF50"
-                />
-              </View>
+          {pickupPoints.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <IconSymbol
+                ios_icon_name="location.slash"
+                android_material_icon_name="location-off"
+                size={64}
+                color={colors.textSecondary}
+              />
+              <Text style={styles.emptyTitle}>Nessun punto di ritiro disponibile</Text>
+              <Text style={styles.emptyText}>
+                Al momento non ci sono punti di ritiro attivi nella tua zona
+              </Text>
             </View>
-          </View>
+          ) : (
+            <View style={styles.pickupPointsList}>
+              {pickupPoints.map((point) => {
+                const fullAddress = `${point.address}, ${point.city}`;
+                const postalCode = point.postal_code;
+                
+                return (
+                  <View key={point.id} style={styles.pickupPointCard}>
+                    <View style={styles.pickupPointHeader}>
+                      <View style={styles.iconContainer}>
+                        <IconSymbol
+                          ios_icon_name="location.fill"
+                          android_material_icon_name="location-on"
+                          size={32}
+                          color={colors.primary}
+                        />
+                      </View>
+                      <View style={styles.pickupPointInfo}>
+                        <Text style={styles.pickupPointName}>{point.name}</Text>
+                        <Text style={styles.pickupPointCity}>{point.city}</Text>
+                      </View>
+                    </View>
+
+                    <View style={styles.pickupPointDetails}>
+                      <View style={styles.detailRow}>
+                        <IconSymbol
+                          ios_icon_name="mappin.circle.fill"
+                          android_material_icon_name="place"
+                          size={20}
+                          color={colors.textSecondary}
+                        />
+                        <View style={styles.detailTextContainer}>
+                          <Text style={styles.detailText}>{fullAddress}</Text>
+                          <Text style={styles.detailText}>{postalCode}</Text>
+                        </View>
+                      </View>
+
+                      <View style={styles.detailRow}>
+                        <IconSymbol
+                          ios_icon_name="person.fill"
+                          android_material_icon_name="person"
+                          size={20}
+                          color={colors.textSecondary}
+                        />
+                        <Text style={styles.detailText}>{point.manager_name}</Text>
+                      </View>
+
+                      <View style={styles.detailRow}>
+                        <IconSymbol
+                          ios_icon_name="phone.fill"
+                          android_material_icon_name="phone"
+                          size={20}
+                          color={colors.textSecondary}
+                        />
+                        <Text style={styles.detailText}>{point.phone}</Text>
+                      </View>
+                    </View>
+
+                    <View style={styles.actionsContainer}>
+                      <Pressable
+                        style={styles.directionsButton}
+                        onPress={() => handleOpenDirections(point)}
+                        onPressIn={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)}
+                      >
+                        <IconSymbol
+                          ios_icon_name="map.fill"
+                          android_material_icon_name="directions"
+                          size={20}
+                          color="#FFFFFF"
+                        />
+                        <Text style={styles.directionsButtonText}>Indicazioni Stradali</Text>
+                      </Pressable>
+
+                      <Pressable
+                        style={styles.callButton}
+                        onPress={() => handleCallPickupPoint(point.phone, point.name)}
+                        onPressIn={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)}
+                      >
+                        <IconSymbol
+                          ios_icon_name="phone.fill"
+                          android_material_icon_name="phone"
+                          size={20}
+                          color={colors.primary}
+                        />
+                      </Pressable>
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+          )}
 
           {/* How it works section */}
           <View style={styles.howItWorksCard}>
@@ -91,7 +299,7 @@ export default function PickupPointsScreen() {
                 <View style={styles.stepContent}>
                   <Text style={styles.stepTitle}>Ricevi notifica</Text>
                   <Text style={styles.stepText}>
-                    Alla chiusura del drop, ti notificheremo l&apos;importo esatto da pagare
+                    Quando l&apos;ordine arriva al punto di ritiro, riceverai una notifica
                   </Text>
                 </View>
               </View>
@@ -100,9 +308,9 @@ export default function PickupPointsScreen() {
                   <Text style={styles.stepNumberText}>3</Text>
                 </View>
                 <View style={styles.stepContent}>
-                  <Text style={styles.stepTitle}>Ritira al punto di ritiro</Text>
+                  <Text style={styles.stepTitle}>Ritira e paga</Text>
                   <Text style={styles.stepText}>
-                    Quando l&apos;ordine arriva al tuo punto di ritiro, ritiralo e paga in contanti
+                    Ritira il tuo ordine al punto di ritiro e paga in contanti
                   </Text>
                 </View>
               </View>
@@ -165,6 +373,16 @@ const styles = StyleSheet.create({
   contentContainerWithTabBar: {
     paddingBottom: 200,
   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 16,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: colors.textSecondary,
+  },
   header: {
     paddingHorizontal: 24,
     marginBottom: 32,
@@ -180,52 +398,115 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.textSecondary,
   },
-  pickupCard: {
+  emptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+    paddingHorizontal: 40,
+  },
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: colors.text,
+    marginTop: 24,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  emptyText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  pickupPointsList: {
+    paddingHorizontal: 20,
+    gap: 16,
+    marginBottom: 24,
+  },
+  pickupPointCard: {
     backgroundColor: colors.card,
     borderRadius: 16,
-    padding: 24,
-    marginHorizontal: 20,
-    marginBottom: 24,
-    borderWidth: 2,
-    borderColor: colors.primary,
-    boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.1)',
-    elevation: 4,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: colors.border,
+    boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.08)',
+    elevation: 2,
   },
-  pickupHeader: {
+  pickupPointHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-  },
-  pickupInfo: {
-    flexDirection: 'row',
-    gap: 16,
-    flex: 1,
+    marginBottom: 16,
+    gap: 12,
   },
   iconContainer: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     backgroundColor: colors.backgroundSecondary,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  pickupDetails: {
+  pickupPointInfo: {
     flex: 1,
-    justifyContent: 'center',
   },
-  pickupTitle: {
+  pickupPointName: {
     fontSize: 18,
     fontWeight: '700',
     color: colors.text,
-    marginBottom: 6,
+    marginBottom: 4,
   },
-  pickupDescription: {
+  pickupPointCity: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.primary,
+  },
+  pickupPointDetails: {
+    gap: 12,
+    marginBottom: 16,
+  },
+  detailRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  detailTextContainer: {
+    flex: 1,
+  },
+  detailText: {
     fontSize: 14,
     color: colors.textSecondary,
     lineHeight: 20,
   },
-  activeBadge: {
-    marginLeft: 8,
+  actionsContainer: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 8,
+  },
+  directionsButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primary,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    gap: 8,
+  },
+  directionsButtonText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  callButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: colors.backgroundSecondary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   howItWorksCard: {
     backgroundColor: colors.card,
