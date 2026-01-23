@@ -172,7 +172,7 @@ export default function PickupPointsScreen() {
             </Text>
           </View>
 
-          {/* How it works section - MOVED TO TOP */}
+          {/* How it works section - AT TOP */}
           <View style={styles.howItWorksCard}>
             <Text style={styles.howItWorksTitle}>Come funziona?</Text>
             <View style={styles.stepsList}>
@@ -209,42 +209,6 @@ export default function PickupPointsScreen() {
                   </Text>
                 </View>
               </View>
-            </View>
-          </View>
-
-          {/* Important info */}
-          <View style={styles.infoCard}>
-            <IconSymbol
-              ios_icon_name="info.circle.fill"
-              android_material_icon_name="info"
-              size={24}
-              color={colors.primary}
-            />
-            <View style={styles.infoContent}>
-              <Text style={styles.infoTitle}>Importante</Text>
-              <Text style={styles.infoText}>
-                Assicurati di ritirare i tuoi ordini entro i tempi stabiliti. 
-                Dopo 5 ordini non ritirati e rispediti al fornitore, l&apos;account verrà bloccato definitivamente.
-                {'\n\n'}
-                Al punto di ritiro sarà possibile effettuare resi dei singoli articoli, ma dopo molti articoli restituiti il profilo sarà bloccato momentaneamente.
-              </Text>
-            </View>
-          </View>
-
-          {/* Rating info */}
-          <View style={styles.ratingCard}>
-            <IconSymbol
-              ios_icon_name="star.fill"
-              android_material_icon_name="star"
-              size={24}
-              color="#FFD700"
-            />
-            <View style={styles.infoContent}>
-              <Text style={styles.infoTitle}>Sistema di Rating</Text>
-              <Text style={styles.infoText}>
-                Il tuo rating aumenta quando ritiri gli ordini e diminuisce quando vengono rispediti al mittente. 
-                Mantieni un rating alto per accedere al programma fedeltà e guadagnare punti!
-              </Text>
             </View>
           </View>
 
@@ -357,6 +321,42 @@ export default function PickupPointsScreen() {
               })}
             </View>
           )}
+
+          {/* Important info - MOVED TO BOTTOM */}
+          <View style={styles.infoCard}>
+            <IconSymbol
+              ios_icon_name="info.circle.fill"
+              android_material_icon_name="info"
+              size={24}
+              color={colors.primary}
+            />
+            <View style={styles.infoContent}>
+              <Text style={styles.infoTitle}>Importante</Text>
+              <Text style={styles.infoText}>
+                Assicurati di ritirare i tuoi ordini entro i tempi stabiliti. 
+                Dopo 5 ordini non ritirati e rispediti al fornitore, l&apos;account verrà bloccato definitivamente.
+                {'\n\n'}
+                Al punto di ritiro sarà possibile effettuare resi dei singoli articoli, ma dopo molti articoli restituiti il profilo sarà bloccato momentaneamente.
+              </Text>
+            </View>
+          </View>
+
+          {/* Rating info - MOVED TO BOTTOM */}
+          <View style={styles.ratingCard}>
+            <IconSymbol
+              ios_icon_name="star.fill"
+              android_material_icon_name="star"
+              size={24}
+              color="#FFD700"
+            />
+            <View style={styles.infoContent}>
+              <Text style={styles.infoTitle}>Sistema di Rating</Text>
+              <Text style={styles.infoText}>
+                Il tuo rating aumenta quando ritiri gli ordini e diminuisce quando vengono rispediti al mittente. 
+                Mantieni un rating alto per accedere al programma fedeltà e guadagnare punti!
+              </Text>
+            </View>
+          </View>
         </ScrollView>
       </SafeAreaView>
     </>
