@@ -29,8 +29,8 @@ export default function TabLayout() {
     },
     {
       route: '/(tabs)/payment-methods',
-      label: 'Ritiro',
-      icon: 'location.fill',
+      label: 'Punti di ritiro',
+      icon: 'storefront.fill',
     },
     {
       route: '/(tabs)/profile',

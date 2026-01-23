@@ -42,6 +42,7 @@ const iconMapping: Record<string, string> = {
   'location.fill': 'location-on',
   'person.fill': 'person',
   'creditcard.fill': 'credit-card',
+  'storefront.fill': 'store',
 };
 
 export default function FloatingTabBar({
