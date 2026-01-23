@@ -176,10 +176,74 @@ export default function DropsScreen() {
           />
         </View>
         <View style={styles.infoTextContainer}>
+          <Text style={styles.infoTitle}>Come funzionano i Drop</Text>
           <Text style={styles.infoText}>
-            I drop sono attivi per città specifiche. Gli articoli potranno essere ritirati solo presso il punto di ritiro della città indicata. 
-            Lo sconto attuale è quello visualizzato, ma aumenta man mano che condividi con amici e parenti e più persone prenotano con carta, 
-            fino a raggiungere lo sconto massimo del drop.
+            I drop sono attivi per città specifiche. Gli articoli potranno essere ritirati solo presso il punto di ritiro della città indicata.
+          </Text>
+        </View>
+      </View>
+
+      <View style={styles.discountExplanationCard}>
+        <View style={styles.discountExplanationHeader}>
+          <IconSymbol 
+            ios_icon_name="chart.line.uptrend.xyaxis" 
+            android_material_icon_name="trending_up" 
+            size={28} 
+            color={colors.success} 
+          />
+          <Text style={styles.discountExplanationTitle}>Più Prenotazioni = Più Sconto!</Text>
+        </View>
+        
+        <View style={styles.discountExplanationContent}>
+          <View style={styles.discountStep}>
+            <View style={styles.discountStepNumber}>
+              <Text style={styles.discountStepNumberText}>1</Text>
+            </View>
+            <Text style={styles.discountStepText}>
+              Più persone prenotano articoli dal drop, più il valore totale ordinato cresce
+            </Text>
+          </View>
+
+          <View style={styles.discountStep}>
+            <View style={styles.discountStepNumber}>
+              <Text style={styles.discountStepNumberText}>2</Text>
+            </View>
+            <Text style={styles.discountStepText}>
+              Man mano che il valore cresce, lo sconto aumenta automaticamente per tutti
+            </Text>
+          </View>
+
+          <View style={styles.discountStep}>
+            <View style={styles.discountStepNumber}>
+              <Text style={styles.discountStepNumberText}>3</Text>
+            </View>
+            <Text style={styles.discountStepText}>
+              Lo sconto continua a crescere fino alla percentuale massima del drop
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.shareCallToAction}>
+          <IconSymbol 
+            ios_icon_name="person.3.fill" 
+            android_material_icon_name="group" 
+            size={20} 
+            color={colors.primary} 
+          />
+          <Text style={styles.shareCallToActionText}>
+            Condividi con amici e parenti per raggiungere lo sconto massimo più velocemente!
+          </Text>
+        </View>
+
+        <View style={styles.shareButtonsInfo}>
+          <IconSymbol 
+            ios_icon_name="square.and.arrow.up.fill" 
+            android_material_icon_name="share" 
+            size={16} 
+            color={colors.textSecondary} 
+          />
+          <Text style={styles.shareButtonsInfoText}>
+            Ogni drop ha il tasto "Condividi" per invitare altri a partecipare
           </Text>
         </View>
       </View>
@@ -307,11 +371,109 @@ const styles = StyleSheet.create({
   infoTextContainer: {
     flex: 1,
   },
+  infoTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: 8,
+    fontFamily: 'System',
+  },
   infoText: {
     fontSize: 14,
     lineHeight: 20,
     color: colors.text,
     fontFamily: 'System',
+    marginBottom: 8,
+  },
+  infoHighlight: {
+    fontWeight: '600',
+    color: colors.primary,
+    backgroundColor: colors.primary + '10',
+    padding: 8,
+    borderRadius: 8,
+  },
+  discountExplanationCard: {
+    backgroundColor: colors.success + '10',
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 16,
+    borderLeftWidth: 4,
+    borderLeftColor: colors.success,
+  },
+  discountExplanationHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 16,
+  },
+  discountExplanationTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: colors.text,
+    fontFamily: 'System',
+    flex: 1,
+  },
+  discountExplanationContent: {
+    gap: 12,
+    marginBottom: 16,
+  },
+  discountStep: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  discountStepNumber: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: colors.success,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  discountStepNumberText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#FFF',
+    fontFamily: 'System',
+  },
+  discountStepText: {
+    flex: 1,
+    fontSize: 14,
+    lineHeight: 20,
+    color: colors.text,
+    fontFamily: 'System',
+  },
+  shareCallToAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: colors.primary + '15',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 12,
+  },
+  shareCallToActionText: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.primary,
+    fontFamily: 'System',
+    lineHeight: 20,
+  },
+  shareButtonsInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  shareButtonsInfoText: {
+    flex: 1,
+    fontSize: 12,
+    color: colors.textSecondary,
+    fontFamily: 'System',
+    lineHeight: 18,
   },
   listContent: {
     paddingHorizontal: 20,

@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Pressable, Image } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Linking, Alert } from 'react-native';
 import { router } from 'expo-router';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from './IconSymbol';
@@ -70,6 +70,31 @@ export default function DropCard({ drop }: DropCardProps) {
     });
   };
 
+  const handleShare = async (e: any) => {
+    e.stopPropagation();
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+    const maxDiscount = Math.floor(drop.supplier_lists?.max_discount ?? 0);
+    const currentDiscount = Math.floor(drop.current_discount ?? 0);
+    const discountRemaining = maxDiscount - currentDiscount;
+    
+    const message = `🔥 Drop attivo: ${drop.name}!\n\n💰 Sconto attuale: ${currentDiscount}%\n🎯 Sconto massimo: ${maxDiscount}%\n📍 Città: ${drop.pickup_points?.city}\n⏰ Tempo rimanente: ${timeRemaining}\n\n✨ Più persone prenotano, più lo sconto cresce!\n\n👉 Aiutami a raggiungere il ${maxDiscount}% di sconto! Mancano solo ${discountRemaining}% per lo sconto massimo!`;
+
+    const url = `whatsapp://send?text=${encodeURIComponent(message)}`;
+
+    try {
+      const canOpen = await Linking.canOpenURL(url);
+      if (canOpen) {
+        await Linking.openURL(url);
+      } else {
+        Alert.alert('Errore', 'WhatsApp non è installato sul dispositivo');
+      }
+    } catch (error) {
+      console.error('Error opening WhatsApp:', error);
+      Alert.alert('Errore', 'Impossibile aprire WhatsApp');
+    }
+  };
+
   const currentDiscount = Number(drop.current_discount ?? 0);
   const currentValue = Number(drop.current_value ?? 0);
   const minReservationValue = Number(drop.supplier_lists?.min_reservation_value ?? 0);
@@ -80,6 +105,11 @@ export default function DropCard({ drop }: DropCardProps) {
   const valueProgress = maxReservationValue > 0 
     ? Math.min((currentValue / maxReservationValue) * 100, 100) 
     : 0;
+
+  const discountRemaining = maxDiscount - currentDiscount;
+  const discountRemainingText = discountRemaining > 0 
+    ? `Mancano ${Math.floor(discountRemaining)}% per lo sconto massimo!` 
+    : 'Sconto massimo raggiunto!';
 
   return (
     <Pressable
@@ -144,6 +174,16 @@ export default function DropCard({ drop }: DropCardProps) {
         </View>
       </View>
 
+      <View style={styles.shareCallout}>
+        <IconSymbol 
+          ios_icon_name="person.3.fill" 
+          android_material_icon_name="group" 
+          size={16} 
+          color={colors.success} 
+        />
+        <Text style={styles.shareCalloutText}>{discountRemainingText}</Text>
+      </View>
+
       <View style={styles.footer}>
         <View style={styles.supplierInfo}>
           <IconSymbol 
@@ -156,14 +196,28 @@ export default function DropCard({ drop }: DropCardProps) {
             {drop.supplier_lists?.name ?? 'N/A'}
           </Text>
         </View>
-        <View style={styles.viewButton}>
-          <Text style={styles.viewButtonText}>Visualizza</Text>
-          <IconSymbol 
-            ios_icon_name="chevron.right" 
-            android_material_icon_name="chevron_right" 
-            size={16} 
-            color={colors.primary} 
-          />
+        <View style={styles.footerButtons}>
+          <Pressable 
+            style={styles.shareButton}
+            onPress={handleShare}
+          >
+            <IconSymbol 
+              ios_icon_name="square.and.arrow.up.fill" 
+              android_material_icon_name="share" 
+              size={14} 
+              color="#FFF" 
+            />
+            <Text style={styles.shareButtonText}>Raggiungi {Math.floor(maxDiscount)}%</Text>
+          </Pressable>
+          <View style={styles.viewButton}>
+            <Text style={styles.viewButtonText}>Visualizza</Text>
+            <IconSymbol 
+              ios_icon_name="chevron.right" 
+              android_material_icon_name="chevron_right" 
+              size={16} 
+              color="#FFF" 
+            />
+          </View>
         </View>
       </View>
     </Pressable>
@@ -305,17 +359,31 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontFamily: 'System',
   },
-  footer: {
+  shareCallout: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    gap: 8,
+    backgroundColor: colors.success + '15',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 8,
+    marginBottom: 12,
+  },
+  shareCalloutText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.success,
+    fontFamily: 'System',
+  },
+  footer: {
+    flexDirection: 'column',
+    gap: 12,
   },
   supplierInfo: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    flex: 1,
-    marginRight: 12,
   },
   supplierText: {
     fontSize: 12,
@@ -324,18 +392,41 @@ const styles = StyleSheet.create({
     fontFamily: 'System',
     flex: 1,
   },
-  viewButton: {
+  footerButtons: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  shareButton: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: colors.success,
+    borderRadius: 8,
+  },
+  shareButtonText: {
+    fontSize: 13,
+    color: '#FFF',
+    fontWeight: '700',
+    fontFamily: 'System',
+  },
+  viewButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     gap: 4,
     paddingHorizontal: 12,
-    paddingVertical: 6,
-    backgroundColor: colors.primary + '15',
+    paddingVertical: 10,
+    backgroundColor: colors.primary,
     borderRadius: 8,
   },
   viewButtonText: {
-    fontSize: 12,
-    color: colors.primary,
+    fontSize: 13,
+    color: '#FFF',
     fontWeight: '700',
     fontFamily: 'System',
   },

@@ -576,9 +576,12 @@ export default function DropDetailsScreen() {
       
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       
+      const maxDiscount = Math.floor(drop.supplier_lists?.max_discount ?? 0);
+      const discountRemaining = maxDiscount - Math.floor(currentDiscount);
+      
       Alert.alert(
         '✅ Prenotazione confermata!',
-        `Hai prenotato ${product.name} con sconto del ${Math.floor(currentDiscount)}%.\n\nLo sconto potrebbe aumentare se più persone prenotano. Condividi il drop con amici e parenti!`,
+        `Hai prenotato ${product.name} con sconto del ${Math.floor(currentDiscount)}%.\n\n${discountRemaining > 0 ? `💡 Lo sconto può ancora aumentare! Mancano ${discountRemaining}% per raggiungere il massimo.\n\n` : '🎉 Hai già lo sconto massimo!\n\n'}👥 Condividi il drop con amici e parenti per raggiungere insieme il ${maxDiscount}% di sconto!`,
         [{ text: 'OK' }]
       );
     } catch (error: any) {
@@ -630,9 +633,12 @@ export default function DropDetailsScreen() {
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
-    const currentDiscount = drop.current_discount ?? 0;
+    const currentDiscount = Math.floor(drop.current_discount ?? 0);
+    const maxDiscount = Math.floor(drop.supplier_lists?.max_discount ?? 0);
+    const discountRemaining = maxDiscount - currentDiscount;
+    const valueRemaining = maxReservationValue - currentValue;
     
-    const message = `🔥 Drop attivo: ${drop.name}!\n\n💰 Sconto attuale: ${Math.floor(currentDiscount)}%\n⏰ Tempo rimanente: ${timeRemaining}\n\n🎯 Più persone prenotano, più lo sconto aumenta!\n\nUnisciti ora! 👇`;
+    const message = `🔥 Drop attivo: ${drop.name}!\n\n💰 Sconto attuale: ${currentDiscount}%\n🎯 Sconto massimo: ${maxDiscount}%\n📍 Città: ${drop.pickup_points?.city}\n⏰ Tempo rimanente: ${timeRemaining}\n\n✨ Più persone prenotano, più lo sconto cresce!\n\n👉 Aiutami a raggiungere il ${maxDiscount}% di sconto!\n${discountRemaining > 0 ? `Mancano solo ${discountRemaining}% per lo sconto massimo!` : 'Sconto massimo raggiunto! 🎉'}\n\nCondividi con amici e parenti!`;
 
     const url = `whatsapp://send?text=${encodeURIComponent(message)}`;
 
@@ -826,7 +832,6 @@ export default function DropDetailsScreen() {
             </View>
           </View>
           
-          {/* UPDATED: Shortened progress bar with reduced width */}
           <View style={styles.progressBarContainer}>
             <View style={styles.progressBarWrapper}>
               <Text style={styles.progressBarLabel}>{Math.floor(minDiscount)}%</Text>
@@ -858,7 +863,6 @@ export default function DropDetailsScreen() {
         </SafeAreaView>
       </View>
 
-      {/* UPDATED: Removed current discount icon, moved icons higher, smaller size */}
       <View style={styles.rightSideIcons} pointerEvents="box-none">
         <Pressable style={styles.iconButton}>
           <View style={styles.iconCircle}>
@@ -902,7 +906,7 @@ export default function DropDetailsScreen() {
               color="#FFF" 
             />
           </Animated.View>
-          <Text style={styles.iconLabel}>Condividi</Text>
+          <Text style={styles.iconLabel}>Raggiungi {Math.floor(maxDiscount)}%</Text>
         </Pressable>
       </View>
 
