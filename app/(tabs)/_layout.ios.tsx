@@ -19,8 +19,8 @@ export default function TabLayout() {
   const tabs: TabBarItem[] = [
     {
       route: '/(tabs)/(home)',
-      label: 'Feed',
-      icon: 'house.fill',
+      label: 'Punti',
+      icon: 'star.fill',
     },
     {
       route: '/(tabs)/drops',
