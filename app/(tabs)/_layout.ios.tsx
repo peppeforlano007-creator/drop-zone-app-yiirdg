@@ -18,11 +18,6 @@ export default function TabLayout() {
 
   const tabs: TabBarItem[] = [
     {
-      route: '/(tabs)/(home)',
-      label: 'Punti',
-      icon: 'star.fill',
-    },
-    {
       route: '/(tabs)/drops',
       label: 'Drop',
       icon: 'flame.fill',
@@ -36,6 +31,11 @@ export default function TabLayout() {
       route: '/(tabs)/profile',
       label: 'Profilo',
       icon: 'person.fill',
+    },
+    {
+      route: '/(tabs)/(home)',
+      label: 'Punti',
+      icon: 'star.fill',
     },
   ];
 
