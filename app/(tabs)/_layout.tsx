@@ -28,14 +28,14 @@ export default function TabLayout() {
       icon: 'storefront.fill',
     },
     {
-      route: '/(tabs)/profile',
-      label: 'Profilo',
-      icon: 'person.fill',
-    },
-    {
       route: '/(tabs)/(home)',
       label: 'Punti',
       icon: 'star.fill',
+    },
+    {
+      route: '/(tabs)/profile',
+      label: 'Profilo',
+      icon: 'person.fill',
     },
   ];
 
