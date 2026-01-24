@@ -1,5 +1,5 @@
 
-import { StyleSheet, ViewStyle, TextStyle } from 'react-native';
+import { StyleSheet, ViewStyle, TextStyle, Platform } from 'react-native';
 
 export const colors = {
   background: '#FFFFFF',
@@ -16,6 +16,28 @@ export const colors = {
   error: '#EF4444',
   warning: '#F59E0B',
   info: '#3B82F6',
+};
+
+// Layout constants for consistent spacing
+export const layout = {
+  // FloatingTabBar height + safe area bottom + margin
+  // Tab bar itself: ~60px (padding + icon + label)
+  // Safe area bottom: ~34px on iPhone X and newer
+  // Bottom margin: 20px
+  // Total: ~114px, but we add extra buffer to ensure content is never covered
+  tabBarHeight: Platform.select({
+    ios: 120, // iOS with safe area
+    android: 100, // Android without safe area
+    default: 120,
+  }),
+  
+  // Standard content padding for scrollable content
+  // This ensures content never gets covered by the tab bar
+  contentPaddingBottom: Platform.select({
+    ios: 140, // Extra padding for iOS
+    android: 120, // Extra padding for Android
+    default: 140,
+  }),
 };
 
 export const buttonStyles = StyleSheet.create({

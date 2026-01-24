@@ -15,7 +15,7 @@ import {
 import { supabase } from '@/app/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import * as Haptics from 'expo-haptics';
-import { colors } from '@/styles/commonStyles';
+import { colors, layout } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
@@ -604,7 +604,7 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     padding: 16,
-    paddingBottom: 100,
+    paddingBottom: layout.contentPaddingBottom,
   },
   header: {
     alignItems: 'center',

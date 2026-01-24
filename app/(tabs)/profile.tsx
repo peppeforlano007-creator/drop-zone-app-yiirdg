@@ -1,7 +1,7 @@
 
 import { View, Text, StyleSheet, ScrollView, Platform, Pressable, Alert, ActivityIndicator, Linking } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { colors, commonStyles } from '@/styles/commonStyles';
+import { colors, commonStyles, layout } from '@/styles/commonStyles';
 import React, { useState, useEffect, useCallback } from 'react';
 import { IconSymbol } from '@/components/IconSymbol';
 import { Stack, router, useFocusEffect } from 'expo-router';
@@ -323,10 +323,7 @@ export default function ProfileScreen() {
       <SafeAreaView style={styles.container} edges={['bottom']}>
         <ScrollView 
           style={styles.scrollView} 
-          contentContainerStyle={[
-            styles.scrollContent,
-            Platform.OS !== 'ios' && styles.scrollContentWithTabBar,
-          ]}
+          contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
           {/* User Info */}
@@ -551,10 +548,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: 40,
-  },
-  scrollContentWithTabBar: {
-    paddingBottom: 120,
+    paddingBottom: layout.contentPaddingBottom,
   },
   section: {
     padding: 24,

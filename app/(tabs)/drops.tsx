@@ -3,7 +3,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '@/app/integrations/supabase/client';
 import DropCard from '@/components/DropCard';
 import { Stack } from 'expo-router';
-import { colors } from '@/styles/commonStyles';
+import { colors, layout } from '@/styles/commonStyles';
 import React, { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import {
@@ -242,10 +242,7 @@ export default function DropsScreen() {
           renderItem={renderDrop}
           keyExtractor={(item) => item.id}
           ListHeaderComponent={renderHeader}
-          contentContainerStyle={[
-            styles.listContent,
-            Platform.OS !== 'ios' && styles.listContentWithTabBar,
-          ]}
+          contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl
@@ -347,10 +344,7 @@ const styles = StyleSheet.create({
   listContent: {
     paddingHorizontal: 20,
     paddingTop: 24,
-    paddingBottom: 40,
-  },
-  listContentWithTabBar: {
-    paddingBottom: 120,
+    paddingBottom: layout.contentPaddingBottom,
   },
   emptyContainer: {
     flex: 1,

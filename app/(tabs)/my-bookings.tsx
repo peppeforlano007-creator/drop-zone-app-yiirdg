@@ -1,5 +1,5 @@
 
-import { colors } from '@/styles/commonStyles';
+import { colors, layout } from '@/styles/commonStyles';
 import React, { useEffect, useState, useCallback } from 'react';
 import { IconSymbol } from '@/components/IconSymbol';
 import { supabase } from '@/app/integrations/supabase/client';
@@ -490,7 +490,7 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     padding: 16,
-    paddingBottom: 100,
+    paddingBottom: layout.contentPaddingBottom,
   },
   bookingCard: {
     backgroundColor: colors.card,

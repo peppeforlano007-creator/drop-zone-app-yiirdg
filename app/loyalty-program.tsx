@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, router } from 'expo-router';
-import { colors } from '@/styles/commonStyles';
+import { colors, layout } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 import * as Haptics from 'expo-haptics';
 import { supabase } from '@/app/integrations/supabase/client';
@@ -77,10 +77,7 @@ export default function LoyaltyProgramScreen() {
       <SafeAreaView style={styles.safeArea} edges={['bottom']}>
         <ScrollView
           style={styles.container}
-          contentContainerStyle={[
-            styles.contentContainer,
-            Platform.OS !== 'ios' && styles.contentContainerWithTabBar,
-          ]}
+          contentContainerStyle={styles.contentContainer}
         >
           {/* Hero Section */}
           <View style={styles.heroSection}>
@@ -446,10 +443,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   contentContainer: {
-    paddingBottom: 40,
-  },
-  contentContainerWithTabBar: {
-    paddingBottom: 160,
+    paddingBottom: layout.contentPaddingBottom,
   },
   heroSection: {
     alignItems: 'center',

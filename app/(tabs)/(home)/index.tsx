@@ -3,7 +3,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { View, StyleSheet, Dimensions, Platform, Text, Pressable, Alert, Animated, ActivityIndicator, ScrollView, Modal } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Stack, router, useFocusEffect } from 'expo-router';
-import { colors } from '@/styles/commonStyles';
+import { colors, layout } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/app/integrations/supabase/client';
@@ -1258,10 +1258,7 @@ export default function GameFeedScreen() {
 
         <ScrollView
           style={styles.scrollView}
-          contentContainerStyle={[
-            styles.scrollContent,
-            Platform.OS !== 'ios' && styles.scrollContentWithTabBar,
-          ]}
+          contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
           {/* Stats Card */}
@@ -2105,10 +2102,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 20,
     paddingTop: 24,
-    paddingBottom: 40,
-  },
-  scrollContentWithTabBar: {
-    paddingBottom: 160,
+    paddingBottom: layout.contentPaddingBottom,
   },
   statsCard: {
     flexDirection: 'row',
@@ -2499,7 +2493,7 @@ const styles = StyleSheet.create({
   },
   welcomeContainer: {
     padding: 24,
-    paddingBottom: Platform.OS === 'ios' ? 140 : 160,
+    paddingBottom: layout.contentPaddingBottom,
     alignItems: 'center',
   },
   welcomeIcon: {

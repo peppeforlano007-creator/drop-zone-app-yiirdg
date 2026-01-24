@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack } from 'expo-router';
-import { colors } from '@/styles/commonStyles';
+import { colors, layout } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 import { supabase } from '@/app/integrations/supabase/client';
 import * as Haptics from 'expo-haptics';
@@ -153,10 +153,7 @@ export default function PickupPointsScreen() {
       <SafeAreaView style={styles.safeArea} edges={['bottom']}>
         <ScrollView
           style={styles.container}
-          contentContainerStyle={[
-            styles.contentContainer,
-            Platform.OS !== 'ios' && styles.contentContainerWithTabBar,
-          ]}
+          contentContainerStyle={styles.contentContainer}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -373,10 +370,7 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     paddingTop: 80,
-    paddingBottom: 120,
-  },
-  contentContainerWithTabBar: {
-    paddingBottom: 200,
+    paddingBottom: layout.contentPaddingBottom,
   },
   loadingContainer: {
     flex: 1,

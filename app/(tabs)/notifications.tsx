@@ -3,7 +3,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, FlatList, Pressable, RefreshControl, ActivityIndicator, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, router } from 'expo-router';
-import { colors } from '@/styles/commonStyles';
+import { colors, layout } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/app/integrations/supabase/client';
@@ -268,7 +268,6 @@ export default function NotificationsScreen() {
             contentContainerStyle={[
               styles.listContent,
               notifications.length === 0 && styles.listContentEmpty,
-              Platform.OS !== 'ios' && styles.listContentWithTabBar,
             ]}
             ListEmptyComponent={renderEmpty}
             refreshControl={
@@ -304,13 +303,10 @@ const styles = StyleSheet.create({
   },
   listContent: {
     padding: 16,
-    paddingBottom: 40,
+    paddingBottom: layout.contentPaddingBottom,
   },
   listContentEmpty: {
     flex: 1,
-  },
-  listContentWithTabBar: {
-    paddingBottom: 120,
   },
   headerButton: {
     marginRight: 8,
