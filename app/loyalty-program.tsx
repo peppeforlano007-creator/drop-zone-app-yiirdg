@@ -449,7 +449,7 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
   contentContainerWithTabBar: {
-    paddingBottom: 120,
+    paddingBottom: 160,
   },
   heroSection: {
     alignItems: 'center',
