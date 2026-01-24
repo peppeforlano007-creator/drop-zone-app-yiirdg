@@ -57,6 +57,12 @@ export default function LoyaltyProgramScreen() {
     return couponColors[index % couponColors.length];
   };
 
+  const handleRedeemCoupons = () => {
+    console.log('User tapped Riscatta i Miei Coupon button');
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    router.push('/my-coupons');
+  };
+
   return (
     <>
       <Stack.Screen
@@ -92,14 +98,11 @@ export default function LoyaltyProgramScreen() {
             </Text>
           </View>
 
-          {/* CTA Button - Moved to top to avoid being covered by tab bar */}
+          {/* CTA Button - Positioned prominently at the top */}
           <View style={styles.ctaButtonContainer}>
             <Pressable
               style={styles.ctaButton}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                router.push('/my-coupons');
-              }}
+              onPress={handleRedeemCoupons}
             >
               <IconSymbol
                 ios_icon_name="ticket.fill"
