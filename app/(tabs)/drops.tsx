@@ -192,6 +192,18 @@ export default function DropsScreen() {
           Più persone prenotano, più lo sconto cresce fino al massimo. Condividi con amici per raggiungere lo sconto massimo più velocemente!
         </Text>
       </View>
+
+      <View style={styles.paymentReminderCard}>
+        <IconSymbol 
+          ios_icon_name="creditcard.fill" 
+          android_material_icon_name="payment" 
+          size={20} 
+          color={colors.warning} 
+        />
+        <Text style={styles.paymentReminderText}>
+          Al momento del ritiro pagherai l'importo dell'articolo scontato della percentuale di sconto raggiunta a chiusura drop.
+        </Text>
+      </View>
     </View>
   );
 
@@ -340,6 +352,24 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     color: colors.text,
     fontFamily: 'System',
+  },
+  paymentReminderCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: colors.warning + '15',
+    borderRadius: 12,
+    padding: 12,
+    borderLeftWidth: 3,
+    borderLeftColor: colors.warning,
+  },
+  paymentReminderText: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 18,
+    color: colors.text,
+    fontFamily: 'System',
+    fontWeight: '600',
   },
   listContent: {
     paddingHorizontal: 20,
