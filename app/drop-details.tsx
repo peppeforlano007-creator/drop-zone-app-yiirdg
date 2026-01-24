@@ -10,6 +10,7 @@ import { View, Text, StyleSheet, FlatList, Dimensions, Pressable, Alert, Linking
 import { useAuth } from '@/contexts/AuthContext';
 import EnhancedProductCard from '@/components/EnhancedProductCard';
 import * as Haptics from 'expo-haptics';
+import * as Network from 'expo-network';
 
 const { width, height } = Dimensions.get('window');
 
@@ -470,18 +471,21 @@ export default function DropDetailsScreen() {
     console.log('Is Expired:', isExpired);
 
     if (!user) {
+      console.log('❌ User not authenticated');
       Alert.alert('Accesso richiesto', 'Devi effettuare l\'accesso per prenotare');
       router.push('/login');
       return;
     }
 
     if (!drop) {
+      console.log('❌ Drop not found');
       Alert.alert('Errore', 'Impossibile prenotare in questo momento');
       return;
     }
 
     // Check if drop is expired
     if (isExpired || !['active', 'approved'].includes(drop.status)) {
+      console.log('❌ Drop is expired or not active, status:', drop.status);
       Alert.alert(
         'Drop Terminato',
         'Questo drop è terminato e non accetta più prenotazioni.',
@@ -492,11 +496,13 @@ export default function DropDetailsScreen() {
 
     const product = products.find(p => p.id === productId);
     if (!product) {
+      console.log('❌ Product not found in products list');
       Alert.alert('Errore', 'Prodotto non trovato');
       return;
     }
 
     if (product.stock <= 0) {
+      console.log('❌ Product out of stock, stock:', product.stock);
       Alert.alert('Prodotto esaurito', 'Questo prodotto non è più disponibile');
       loadDropDetails();
       return;
@@ -505,11 +511,44 @@ export default function DropDetailsScreen() {
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
+      // Check network connectivity
+      console.log('📡 Checking network connectivity...');
+      const networkState = await Network.getNetworkStateAsync();
+      console.log('Network state:', networkState);
+      
+      if (!networkState.isConnected || !networkState.isInternetReachable) {
+        console.error('❌ No internet connection');
+        Alert.alert(
+          'Nessuna connessione',
+          'Verifica la tua connessione internet e riprova.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+      
+      console.log('✅ Network connected');
+
+      // Verify user session is still valid
+      console.log('🔐 Verifying user session...');
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError || !sessionData.session) {
+        console.error('❌ Session error:', sessionError);
+        Alert.alert(
+          'Sessione scaduta',
+          'La tua sessione è scaduta. Effettua nuovamente l\'accesso.',
+          [{ text: 'OK', onPress: () => router.push('/login') }]
+        );
+        return;
+      }
+      
+      console.log('✅ Session valid, user:', sessionData.session.user.id);
+
       const currentDiscount = drop.current_discount ?? 0;
       const originalPrice = product.original_price ?? 0;
       const currentDiscountedPrice = originalPrice * (1 - currentDiscount / 100);
 
-      console.log('Creating booking with COD payment:', {
+      const bookingPayload = {
         user_id: user.id,
         product_id: productId,
         variant_id: variantId || null,
@@ -521,28 +560,25 @@ export default function DropDetailsScreen() {
         payment_method: 'cod',
         payment_status: 'pending',
         status: 'active',
-      });
+      };
+
+      console.log('📤 Sending booking request to Supabase:', bookingPayload);
+      console.log('📡 Supabase URL:', supabase.supabaseUrl);
+      console.log('🔑 User authenticated:', !!user);
 
       const { data: bookingData, error: bookingError } = await supabase
         .from('bookings')
-        .insert({
-          user_id: user.id,
-          product_id: productId,
-          variant_id: variantId || null,
-          drop_id: drop.id,
-          pickup_point_id: drop.pickup_point_id,
-          original_price: originalPrice,
-          discount_percentage: currentDiscount,
-          final_price: currentDiscountedPrice,
-          payment_method: 'cod',
-          payment_status: 'pending',
-          status: 'active',
-        })
+        .insert(bookingPayload)
         .select()
         .single();
 
       if (bookingError) {
-        console.error('❌ Booking error:', bookingError);
+        console.error('❌ Booking error details:', {
+          message: bookingError.message,
+          details: bookingError.details,
+          hint: bookingError.hint,
+          code: bookingError.code,
+        });
         
         // Check for specific error messages
         if (bookingError.message?.toLowerCase().includes('terminato')) {
@@ -561,16 +597,19 @@ export default function DropDetailsScreen() {
             [{ text: 'OK', onPress: () => loadDropDetails() }]
           );
         } else {
+          // Show detailed error for debugging
+          const errorMessage = `${bookingError.message || 'Errore sconosciuto'}\n\nDettagli: ${bookingError.details || 'N/A'}\n\nCodice: ${bookingError.code || 'N/A'}`;
+          console.error('📋 Full error message shown to user:', errorMessage);
           Alert.alert(
-            'Errore', 
-            bookingError.message || 'Impossibile creare la prenotazione. Riprova più tardi.',
+            'Errore di prenotazione', 
+            errorMessage,
             [{ text: 'OK' }]
           );
         }
         return;
       }
 
-      console.log('✅ Booking created:', bookingData);
+      console.log('✅ Booking created successfully:', bookingData);
 
       setUserBookings(prev => new Set([...prev, productId]));
       
@@ -585,7 +624,12 @@ export default function DropDetailsScreen() {
         [{ text: 'OK' }]
       );
     } catch (error: any) {
-      console.error('❌ Exception in handleBook:', error);
+      console.error('❌ Exception in handleBook:', {
+        message: error?.message,
+        stack: error?.stack,
+        name: error?.name,
+        error: error,
+      });
       
       if (error?.message?.toLowerCase().includes('terminato')) {
         Alert.alert(
@@ -603,9 +647,12 @@ export default function DropDetailsScreen() {
           [{ text: 'OK', onPress: () => loadDropDetails() }]
         );
       } else {
+        // Show detailed error for debugging
+        const errorMessage = `Errore di rete o connessione.\n\nMessaggio: ${error?.message || 'Errore sconosciuto'}\n\nVerifica la tua connessione internet e riprova.`;
+        console.error('📋 Network error shown to user:', errorMessage);
         Alert.alert(
-          'Errore',
-          'Si è verificato un errore durante la prenotazione. Riprova più tardi.',
+          'Errore di connessione',
+          errorMessage,
           [{ text: 'OK' }]
         );
       }
