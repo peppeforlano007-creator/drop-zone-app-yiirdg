@@ -201,7 +201,7 @@ export default function DropsScreen() {
           color={colors.warning} 
         />
         <Text style={styles.paymentReminderText}>
-          Al momento del ritiro pagherai l'importo dell'articolo scontato della percentuale di sconto raggiunta a chiusura drop.
+          Al momento del ritiro pagherai l&apos;importo dell&apos;articolo scontato della percentuale di sconto raggiunta a chiusura drop.
         </Text>
       </View>
     </View>
@@ -245,7 +245,7 @@ export default function DropsScreen() {
           <IconSymbol ios_icon_name="tray" android_material_icon_name="inbox" size={64} color={colors.textSecondary} />
           <Text style={styles.emptyTitle}>Nessun drop attivo</Text>
           <Text style={styles.emptyText}>
-            I drop appariranno qui quando raggiungeranno il valore minimo di prenotazioni
+            I drop appariranno qui quando abbastanza persone della tua città sono interessate ad una lista di articoli. Gioca nella sezione Punti e aumenta la probabilità di attivare un drop nella tua città.
           </Text>
         </View>
       ) : (
@@ -395,6 +395,7 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     textAlign: 'center',
     marginTop: 8,
+    lineHeight: 24,
     fontFamily: 'System',
   },
 });
