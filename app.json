@@ -1,18 +1,17 @@
-
 {
   "expo": {
     "name": "Drop Zone",
-    "slug": "Drop-Zone",
-    "version": "1.0.4",
+    "slug": "dropzone",
+    "version": "1.0.6",
     "orientation": "portrait",
     "icon": "./assets/images/natively-dark.png",
-    "scheme": "drop-zone",
+    "scheme": "dropzone",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.natively.app",
-      "buildNumber": "5"
+      "buildNumber": "7"
     },
     "android": {
       "adaptiveIcon": {
@@ -20,7 +19,7 @@
         "backgroundColor": "#ffffff"
       },
       "package": "com.natively.app",
-      "versionCode": 5
+      "versionCode": 7
     },
     "web": {
       "bundler": "metro",
