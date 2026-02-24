@@ -18,6 +18,7 @@ import {
   Dimensions,
 } from 'react-native';
 import { colors } from '@/styles/commonStyles';
+import { BlurView } from 'expo-blur';
 
 export interface TabBarItem {
   route: string;
@@ -48,7 +49,7 @@ const iconMapping: Record<string, string> = {
 export default function FloatingTabBar({
   tabs,
   containerWidth = SCREEN_WIDTH - 40,
-  borderRadius = 24,
+  borderRadius = 28,
   bottomMargin = 20,
 }: FloatingTabBarProps) {
   const router = useRouter();
@@ -102,7 +103,7 @@ export default function FloatingTabBar({
       style={[styles.safeArea, { marginBottom: bottomMargin }]}
     >
       <View style={[styles.container, { width: containerWidth, borderRadius }]}>
-        <Animated.View style={[styles.indicator, { borderRadius }]} />
+        <Animated.View style={[styles.indicator, indicatorStyle, { borderRadius: borderRadius - 4 }]} />
         <View style={styles.tabsContainer}>
           {tabs.map((tab, index) => {
             const isActive = currentIndex === index;
@@ -118,13 +119,16 @@ export default function FloatingTabBar({
                 <IconSymbol
                   ios_icon_name={tab.icon}
                   android_material_icon_name={androidIconName}
-                  size={24}
+                  size={26}
                   color={isActive ? colors.text : colors.textSecondary}
                 />
                 <Text
                   style={[
                     styles.label,
-                    { color: isActive ? colors.text : colors.textSecondary },
+                    { 
+                      color: isActive ? colors.text : colors.textSecondary,
+                      fontWeight: isActive ? '700' : '600',
+                    },
                   ]}
                 >
                   {tab.label}
@@ -149,17 +153,21 @@ const styles = StyleSheet.create({
   },
   container: {
     overflow: 'hidden',
-    backgroundColor: colors.card,
+    backgroundColor: Platform.select({
+      ios: 'rgba(255, 255, 255, 0.95)',
+      android: colors.card,
+      default: colors.card,
+    }),
     borderWidth: 1,
     borderColor: colors.border,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
-      height: -2,
+      height: -4,
     },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 8,
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 12,
   },
   tabsContainer: {
     flexDirection: 'row',
@@ -169,17 +177,17 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 14,
-    gap: 6,
+    paddingVertical: 16,
+    gap: 8,
   },
   label: {
-    fontSize: 11,
-    fontWeight: '600',
-    letterSpacing: 0.3,
+    fontSize: 12,
+    letterSpacing: 0.2,
   },
   indicator: {
     position: 'absolute',
     height: '100%',
     backgroundColor: colors.backgroundSecondary,
+    margin: 4,
   },
 });
