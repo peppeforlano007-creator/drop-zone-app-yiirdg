@@ -1,11 +1,12 @@
+
 {
   "expo": {
     "name": "Drop Zone",
-    "slug": "Drop Zone",
+    "slug": "dropzone",
     "version": "1.0.4",
     "orientation": "portrait",
     "icon": "./assets/images/natively-dark.png",
-    "scheme": "Drop Zone",
+    "scheme": "dropzone",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
