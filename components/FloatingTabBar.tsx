@@ -38,17 +38,17 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 // Mapping for SF Symbols to Material Icons
 const iconMapping: Record<string, string> = {
   'star.fill': 'star',
-  'flame.fill': 'local-fire-department',
-  'location.fill': 'location-on',
+  'flame.fill': 'local_fire_department',
+  'location.fill': 'location_on',
   'person.fill': 'person',
-  'creditcard.fill': 'credit-card',
+  'creditcard.fill': 'credit_card',
   'storefront.fill': 'store',
 };
 
 export default function FloatingTabBar({
   tabs,
   containerWidth = SCREEN_WIDTH - 40,
-  borderRadius = 8,
+  borderRadius = 24,
   bottomMargin = 20,
 }: FloatingTabBarProps) {
   const router = useRouter();
@@ -56,6 +56,7 @@ export default function FloatingTabBar({
   const animatedIndex = useSharedValue(0);
 
   const handleTabPress = (route: string, index: number) => {
+    console.log('FloatingTabBar: Tab pressed:', route);
     animatedIndex.value = withSpring(index, {
       damping: 15,
       stiffness: 150,
@@ -101,7 +102,7 @@ export default function FloatingTabBar({
       style={[styles.safeArea, { marginBottom: bottomMargin }]}
     >
       <View style={[styles.container, { width: containerWidth, borderRadius }]}>
-        <Animated.View style={[styles.indicator, indicatorStyle]} />
+        <Animated.View style={[styles.indicator, { borderRadius }]} />
         <View style={styles.tabsContainer}>
           {tabs.map((tab, index) => {
             const isActive = currentIndex === index;
@@ -117,7 +118,7 @@ export default function FloatingTabBar({
                 <IconSymbol
                   ios_icon_name={tab.icon}
                   android_material_icon_name={androidIconName}
-                  size={22}
+                  size={24}
                   color={isActive ? colors.text : colors.textSecondary}
                 />
                 <Text
@@ -151,6 +152,14 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card,
     borderWidth: 1,
     borderColor: colors.border,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: -2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 8,
   },
   tabsContainer: {
     flexDirection: 'row',
@@ -160,18 +169,17 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 12,
-    gap: 4,
+    paddingVertical: 14,
+    gap: 6,
   },
   label: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '600',
-    letterSpacing: 0.5,
+    letterSpacing: 0.3,
   },
   indicator: {
     position: 'absolute',
     height: '100%',
     backgroundColor: colors.backgroundSecondary,
-    borderRadius: 8,
   },
 });

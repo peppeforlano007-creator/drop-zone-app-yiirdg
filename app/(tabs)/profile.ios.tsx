@@ -26,7 +26,13 @@ export default function ProfileScreen() {
   const [wishlistCount, setWishlistCount] = useState(0);
 
   const loadUserProfile = useCallback(async () => {
-    if (!user) return;
+    if (!user) {
+      console.log('Profile (iOS): No user found, skipping profile load');
+      setLoadingProfile(false);
+      return;
+    }
+
+    console.log('Profile (iOS): Loading user profile for:', user.id);
 
     try {
       const { data, error } = await supabase
@@ -36,11 +42,13 @@ export default function ProfileScreen() {
         .single();
 
       if (error) {
-        console.error('Error loading user profile:', error);
+        console.error('Profile (iOS): Error loading user profile:', error);
+        setLoadingProfile(false);
         return;
       }
 
       if (data) {
+        console.log('Profile (iOS): User profile loaded successfully');
         setRatingStars(data.rating_stars ?? 5);
         setLoyaltyPoints(data.loyalty_points ?? 0);
         setOrdersPickedUp(data.orders_picked_up ?? 0);
@@ -48,14 +56,17 @@ export default function ProfileScreen() {
         setAccountBlocked(data.account_blocked ?? false);
       }
     } catch (error) {
-      console.error('Exception loading user profile:', error);
+      console.error('Profile (iOS): Exception loading user profile:', error);
     } finally {
       setLoadingProfile(false);
     }
   }, [user]);
 
   const loadWishlistCount = useCallback(async () => {
-    if (!user) return;
+    if (!user) {
+      console.log('Profile (iOS): No user found, skipping wishlist count');
+      return;
+    }
 
     try {
       const { count, error } = await supabase
@@ -64,21 +75,21 @@ export default function ProfileScreen() {
         .eq('user_id', user.id);
 
       if (error) {
-        console.error('Error loading wishlist count:', error);
+        console.error('Profile (iOS): Error loading wishlist count:', error);
         return;
       }
 
-      console.log('✅ Wishlist count loaded:', count);
+      console.log('Profile (iOS): Wishlist count loaded:', count);
       setWishlistCount(count || 0);
     } catch (error) {
-      console.error('Exception loading wishlist count:', error);
+      console.error('Profile (iOS): Exception loading wishlist count:', error);
     }
   }, [user]);
 
   const loadWhatsAppNumber = useCallback(async () => {
     try {
       setLoadingWhatsapp(true);
-      console.log('Profile: Loading WhatsApp number from database...');
+      console.log('Profile (iOS): Loading WhatsApp number from database...');
       
       const { data, error } = await supabase
         .from('app_settings')
@@ -87,18 +98,18 @@ export default function ProfileScreen() {
         .maybeSingle();
 
       if (error) {
-        console.error('Profile: Error loading WhatsApp number:', error);
+        console.error('Profile (iOS): Error loading WhatsApp number:', error);
         return;
       }
 
       if (data?.setting_value) {
-        console.log('Profile: WhatsApp number loaded successfully:', data.setting_value);
+        console.log('Profile (iOS): WhatsApp number loaded successfully:', data.setting_value);
         setWhatsappNumber(data.setting_value);
       } else {
-        console.log('Profile: No WhatsApp number found in database, using fallback');
+        console.log('Profile (iOS): No WhatsApp number found in database, using fallback');
       }
     } catch (error) {
-      console.error('Profile: Exception loading WhatsApp number:', error);
+      console.error('Profile (iOS): Exception loading WhatsApp number:', error);
     } finally {
       setLoadingWhatsapp(false);
     }
@@ -113,14 +124,14 @@ export default function ProfileScreen() {
         .order('city');
 
       if (error) {
-        console.error('Error loading pickup points:', error);
+        console.error('Profile (iOS): Error loading pickup points:', error);
         Alert.alert('Errore', 'Impossibile caricare i punti di ritiro');
         return;
       }
 
       setPickupPoints(data || []);
     } catch (error) {
-      console.error('Exception loading pickup points:', error);
+      console.error('Profile (iOS): Exception loading pickup points:', error);
     } finally {
       setLoadingPoints(false);
     }
@@ -136,7 +147,7 @@ export default function ProfileScreen() {
   // Refresh wishlist count when screen is focused
   useFocusEffect(
     useCallback(() => {
-      console.log('🔄 Profile screen focused, refreshing wishlist count');
+      console.log('Profile (iOS): Screen focused, refreshing wishlist count');
       loadWishlistCount();
     }, [loadWishlistCount])
   );
@@ -160,7 +171,7 @@ export default function ProfileScreen() {
         .eq('user_id', user.id);
 
       if (error) {
-        console.error('Error updating pickup point:', error);
+        console.error('Profile (iOS): Error updating pickup point:', error);
         Alert.alert('Errore', 'Impossibile aggiornare il punto di ritiro');
         return;
       }
@@ -168,10 +179,10 @@ export default function ProfileScreen() {
       updatePickupPoint(pointId, pointCity);
       setSelectedPickupPoint(pointCity);
       
-      console.log('Pickup point updated to:', pointCity);
+      console.log('Profile (iOS): Pickup point updated to:', pointCity);
       Alert.alert('Successo', `Punto di ritiro aggiornato a ${pointCity}`);
     } catch (error) {
-      console.error('Exception updating pickup point:', error);
+      console.error('Profile (iOS): Exception updating pickup point:', error);
       Alert.alert('Errore', 'Errore imprevisto durante l\'aggiornamento');
     } finally {
       setUpdatingPoint(false);
@@ -205,7 +216,7 @@ export default function ProfileScreen() {
   const handleNotifications = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push('/(tabs)/notifications');
-    console.log('Navigating to notifications screen');
+    console.log('Profile (iOS): Navigating to notifications screen');
   };
 
   const handleAdminPanel = () => {
@@ -239,7 +250,7 @@ export default function ProfileScreen() {
         await Linking.openURL(whatsappWebUrl);
       }
     } catch (error) {
-      console.error('Error opening WhatsApp:', error);
+      console.error('Profile (iOS): Error opening WhatsApp:', error);
       Alert.alert(
         'Errore',
         'Impossibile aprire WhatsApp. Assicurati di avere WhatsApp installato sul tuo dispositivo.',
@@ -274,7 +285,29 @@ export default function ProfileScreen() {
     );
   };
 
-  const displayRole = user?.role === 'consumer' ? 'Utente' : user?.role?.toUpperCase();
+  // Show loading state if user is not loaded yet
+  if (!user) {
+    return (
+      <SafeAreaView style={styles.container} edges={['bottom']}>
+        <Stack.Screen
+          options={{
+            headerShown: true,
+            title: 'Profilo',
+            headerStyle: { backgroundColor: colors.background },
+            headerTintColor: colors.text,
+          }}
+        />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.text} />
+          <Text style={styles.loadingText}>Caricamento profilo...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  const displayName = user.name || 'Utente';
+  const displayEmail = user.email || 'Email non disponibile';
+  const displayRole = user.role === 'consumer' ? 'Utente' : user.role?.toUpperCase();
 
   if (accountBlocked) {
     return (
@@ -332,8 +365,8 @@ export default function ProfileScreen() {
               <View style={styles.avatar}>
                 <IconSymbol ios_icon_name="person.fill" android_material_icon_name="person" size={48} color={colors.text} />
               </View>
-              <Text style={styles.userName}>{user?.name || 'Utente'}</Text>
-              <Text style={styles.userEmail}>{user?.email || 'Email non disponibile'}</Text>
+              <Text style={styles.userName}>{displayName}</Text>
+              <Text style={styles.userEmail}>{displayEmail}</Text>
               {displayRole && (
                 <View style={styles.roleBadge}>
                   <Text style={styles.roleText}>{displayRole}</Text>
@@ -387,7 +420,7 @@ export default function ProfileScreen() {
           )}
 
           {/* Admin Panel Button */}
-          {user?.role === 'admin' && (
+          {user.role === 'admin' && (
             <View style={styles.section}>
               <Pressable 
                 style={styles.adminButton}
