@@ -1,76 +1,52 @@
+
 {
   "expo": {
-    "name": "Drop Zone",
-    "slug": "Drop Zone",
-    "version": "1.0.0",
+    "name": "Natively",
+    "slug": "Natively",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/images/natively-dark.png",
+    "scheme": "natively",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
-    "scheme": "Drop Zone",
-    "splash": {
-      "image": "./assets/images/natively-dark.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#000000"
-    },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.dropzone.app",
-      "buildNumber": "1",
-      "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false,
-        "NSCameraUsageDescription": "Questa app ha bisogno di accedere alla fotocamera per caricare foto dei prodotti.",
-        "NSPhotoLibraryUsageDescription": "Questa app ha bisogno di accedere alla galleria per selezionare foto dei prodotti.",
-        "NSLocationWhenInUseUsageDescription": "Questa app utilizza la tua posizione per mostrarti i punti di ritiro pi\u00f9 vicini."
-      },
-      "config": {
-        "usesNonExemptEncryption": false
-      }
+      "bundleIdentifier": "com.natively.app",
+      "buildNumber": "2"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/natively-dark.png",
-        "backgroundColor": "#000000"
+        "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true,
-      "package": "com.dropzone.app",
-      "versionCode": 1,
-      "permissions": [
-        "CAMERA",
-        "READ_EXTERNAL_STORAGE",
-        "WRITE_EXTERNAL_STORAGE",
-        "ACCESS_FINE_LOCATION",
-        "ACCESS_COARSE_LOCATION",
-        "INTERNET"
-      ]
+      "package": "com.natively.app"
     },
     "web": {
-      "favicon": "./assets/images/final_quest_240x240.png",
-      "bundler": "metro"
+      "bundler": "metro",
+      "output": "static",
+      "favicon": "./assets/images/natively-dark.png"
     },
     "plugins": [
-      "expo-font",
       "expo-router",
-      "expo-web-browser",
       [
-        "expo-image-picker",
+        "expo-splash-screen",
         {
-          "photosPermission": "L'app ha bisogno di accedere alle tue foto per caricare immagini dei prodotti.",
-          "cameraPermission": "L'app ha bisogno di accedere alla fotocamera per scattare foto dei prodotti."
-        }
-      ],
-      [
-        "expo-document-picker",
-        {
-          "iCloudContainerEnvironment": "Production"
+          "backgroundColor": "#ffffff",
+          "image": "./assets/images/natively-dark.png",
+          "imageWidth": 200
         }
       ]
     ],
     "experiments": {
       "typedRoutes": true
     },
-    "privacy": "unlisted",
-    "description": "Drop Zone - Social e-commerce con sconti progressivi basati su prenotazioni collettive"
-  },
-  "scheme": "Drop Zone"
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "your-project-id"
+      }
+    }
+  }
 }
