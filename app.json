@@ -1,8 +1,7 @@
-
 {
   "expo": {
     "name": "Drop Zone",
-    "slug": "dropzone",
+    "slug": "drop-zone",
     "version": "1.0.5",
     "orientation": "portrait",
     "icon": "./assets/images/natively-dark.png",
