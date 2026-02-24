@@ -24,17 +24,35 @@ export default function ProfileScreen() {
   const [accountBlocked, setAccountBlocked] = useState(false);
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [wishlistCount, setWishlistCount] = useState(0);
+  const [profileError, setProfileError] = useState<string | null>(null);
 
   const loadUserProfile = useCallback(async () => {
     if (!user) {
       console.log('Profile (iOS): No user found, skipping profile load');
       setLoadingProfile(false);
+      setProfileError('Utente non autenticato');
       return;
     }
 
     console.log('Profile (iOS): Loading user profile for:', user.id);
+    console.log('Profile (iOS): User data:', JSON.stringify(user, null, 2));
 
     try {
+      // Test Supabase connection first
+      const { data: testData, error: testError } = await supabase
+        .from('profiles')
+        .select('count')
+        .limit(1);
+
+      if (testError) {
+        console.error('Profile (iOS): Supabase connection test failed:', testError);
+        setProfileError(`Errore connessione database: ${testError.message}`);
+        setLoadingProfile(false);
+        return;
+      }
+
+      console.log('Profile (iOS): Supabase connection test successful');
+
       const { data, error } = await supabase
         .from('profiles')
         .select('rating_stars, loyalty_points, orders_picked_up, orders_returned, account_blocked')
@@ -43,20 +61,27 @@ export default function ProfileScreen() {
 
       if (error) {
         console.error('Profile (iOS): Error loading user profile:', error);
+        console.error('Profile (iOS): Error details:', JSON.stringify(error, null, 2));
+        setProfileError(`Errore caricamento profilo: ${error.message}`);
         setLoadingProfile(false);
         return;
       }
 
       if (data) {
-        console.log('Profile (iOS): User profile loaded successfully');
+        console.log('Profile (iOS): User profile loaded successfully:', JSON.stringify(data, null, 2));
         setRatingStars(data.rating_stars ?? 5);
         setLoyaltyPoints(data.loyalty_points ?? 0);
         setOrdersPickedUp(data.orders_picked_up ?? 0);
         setOrdersReturned(data.orders_returned ?? 0);
         setAccountBlocked(data.account_blocked ?? false);
+        setProfileError(null);
+      } else {
+        console.warn('Profile (iOS): No profile data returned');
+        setProfileError('Profilo non trovato');
       }
     } catch (error) {
       console.error('Profile (iOS): Exception loading user profile:', error);
+      setProfileError(`Errore imprevisto: ${error}`);
     } finally {
       setLoadingProfile(false);
     }
@@ -129,6 +154,7 @@ export default function ProfileScreen() {
         return;
       }
 
+      console.log('Profile (iOS): Loaded pickup points:', data?.length || 0);
       setPickupPoints(data || []);
     } catch (error) {
       console.error('Profile (iOS): Exception loading pickup points:', error);
@@ -138,6 +164,7 @@ export default function ProfileScreen() {
   }, []);
 
   useEffect(() => {
+    console.log('Profile (iOS): Component mounted, loading data...');
     loadPickupPoints();
     loadWhatsAppNumber();
     loadUserProfile();
@@ -300,6 +327,9 @@ export default function ProfileScreen() {
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={colors.text} />
           <Text style={styles.loadingText}>Caricamento profilo...</Text>
+          {profileError && (
+            <Text style={styles.errorText}>{profileError}</Text>
+          )}
         </View>
       </SafeAreaView>
     );
@@ -307,6 +337,7 @@ export default function ProfileScreen() {
 
   const displayName = user.name || 'Utente';
   const displayEmail = user.email || 'Email non disponibile';
+  const displayPhone = user.phone || 'Telefono non disponibile';
   const displayRole = user.role === 'consumer' ? 'Utente' : user.role?.toUpperCase();
 
   if (accountBlocked) {
@@ -367,6 +398,7 @@ export default function ProfileScreen() {
               </View>
               <Text style={styles.userName}>{displayName}</Text>
               <Text style={styles.userEmail}>{displayEmail}</Text>
+              <Text style={styles.userPhone}>{displayPhone}</Text>
               {displayRole && (
                 <View style={styles.roleBadge}>
                   <Text style={styles.roleText}>{displayRole}</Text>
@@ -375,8 +407,22 @@ export default function ProfileScreen() {
             </View>
           </View>
 
+          {/* Debug Info (only in development) */}
+          {__DEV__ && (
+            <View style={styles.debugSection}>
+              <Text style={styles.debugTitle}>Debug Info</Text>
+              <Text style={styles.debugText}>User ID: {user.id}</Text>
+              <Text style={styles.debugText}>Role: {user.role}</Text>
+              <Text style={styles.debugText}>Pickup Point: {user.pickupPoint || 'None'}</Text>
+              <Text style={styles.debugText}>Loading Profile: {loadingProfile ? 'Yes' : 'No'}</Text>
+              {profileError && (
+                <Text style={styles.debugError}>Error: {profileError}</Text>
+              )}
+            </View>
+          )}
+
           {/* Rating & Loyalty Section */}
-          {!loadingProfile && (
+          {!loadingProfile && !profileError && (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Il Tuo Rating</Text>
               <View style={styles.ratingCard}>
@@ -416,6 +462,21 @@ export default function ProfileScreen() {
                   </Pressable>
                 </View>
               )}
+            </View>
+          )}
+
+          {/* Show error if profile failed to load */}
+          {profileError && (
+            <View style={styles.section}>
+              <View style={styles.errorCard}>
+                <IconSymbol ios_icon_name="exclamationmark.triangle.fill" android_material_icon_name="warning" size={48} color={colors.error} />
+                <Text style={styles.errorCardTitle}>Errore Caricamento Dati</Text>
+                <Text style={styles.errorCardText}>{profileError}</Text>
+                <Pressable style={styles.retryButton} onPress={loadUserProfile}>
+                  <IconSymbol ios_icon_name="arrow.clockwise" android_material_icon_name="refresh" size={20} color={colors.background} />
+                  <Text style={styles.retryButtonText}>Riprova</Text>
+                </Pressable>
+              </View>
             </View>
           )}
 
@@ -610,6 +671,11 @@ const styles = StyleSheet.create({
   userEmail: {
     fontSize: 14,
     color: colors.textSecondary,
+    marginBottom: 4,
+  },
+  userPhone: {
+    fontSize: 14,
+    color: colors.textSecondary,
     marginBottom: 8,
   },
   roleBadge: {
@@ -621,6 +687,65 @@ const styles = StyleSheet.create({
   },
   roleText: {
     fontSize: 12,
+    fontWeight: '700',
+    color: colors.background,
+  },
+  debugSection: {
+    padding: 16,
+    backgroundColor: colors.backgroundSecondary,
+    borderRadius: 12,
+    margin: 16,
+  },
+  debugTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: 8,
+  },
+  debugText: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginBottom: 4,
+    fontFamily: Platform.select({ ios: 'Courier', android: 'monospace' }),
+  },
+  debugError: {
+    fontSize: 12,
+    color: colors.error,
+    marginTop: 8,
+    fontFamily: Platform.select({ ios: 'Courier', android: 'monospace' }),
+  },
+  errorCard: {
+    backgroundColor: colors.card,
+    borderRadius: 16,
+    padding: 24,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: colors.error,
+  },
+  errorCardTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.error,
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  errorCardText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  retryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: colors.text,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+  },
+  retryButtonText: {
+    fontSize: 15,
     fontWeight: '700',
     color: colors.background,
   },
@@ -795,7 +920,7 @@ const styles = StyleSheet.create({
     color: colors.background,
   },
   loadingContainer: {
-    flexDirection: 'row',
+    flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 20,
@@ -804,6 +929,12 @@ const styles = StyleSheet.create({
   loadingText: {
     fontSize: 14,
     color: colors.textSecondary,
+  },
+  errorText: {
+    fontSize: 12,
+    color: colors.error,
+    textAlign: 'center',
+    marginTop: 8,
   },
   settingItem: {
     flexDirection: 'row',
