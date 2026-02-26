@@ -28,14 +28,14 @@ export default function ProfileScreen() {
 
   const loadUserProfile = useCallback(async () => {
     if (!user) {
-      console.log('Profile (iOS): No user found, skipping profile load');
+      console.log('Profile: No user found, skipping profile load');
       setLoadingProfile(false);
       setProfileError('Utente non autenticato');
       return;
     }
 
-    console.log('Profile (iOS): Loading user profile for:', user.id);
-    console.log('Profile (iOS): User data:', JSON.stringify(user, null, 2));
+    console.log('Profile: Loading user profile for:', user.id);
+    console.log('Profile: User data:', JSON.stringify(user, null, 2));
 
     try {
       // Test Supabase connection first
@@ -45,13 +45,13 @@ export default function ProfileScreen() {
         .limit(1);
 
       if (testError) {
-        console.error('Profile (iOS): Supabase connection test failed:', testError);
+        console.error('Profile: Supabase connection test failed:', testError);
         setProfileError(`Errore connessione database: ${testError.message}`);
         setLoadingProfile(false);
         return;
       }
 
-      console.log('Profile (iOS): Supabase connection test successful');
+      console.log('Profile: Supabase connection test successful');
 
       const { data, error } = await supabase
         .from('profiles')
@@ -60,15 +60,15 @@ export default function ProfileScreen() {
         .single();
 
       if (error) {
-        console.error('Profile (iOS): Error loading user profile:', error);
-        console.error('Profile (iOS): Error details:', JSON.stringify(error, null, 2));
+        console.error('Profile: Error loading user profile:', error);
+        console.error('Profile: Error details:', JSON.stringify(error, null, 2));
         setProfileError(`Errore caricamento profilo: ${error.message}`);
         setLoadingProfile(false);
         return;
       }
 
       if (data) {
-        console.log('Profile (iOS): User profile loaded successfully:', JSON.stringify(data, null, 2));
+        console.log('Profile: User profile loaded successfully:', JSON.stringify(data, null, 2));
         setRatingStars(data.rating_stars ?? 5);
         setLoyaltyPoints(data.loyalty_points ?? 0);
         setOrdersPickedUp(data.orders_picked_up ?? 0);
@@ -76,11 +76,11 @@ export default function ProfileScreen() {
         setAccountBlocked(data.account_blocked ?? false);
         setProfileError(null);
       } else {
-        console.warn('Profile (iOS): No profile data returned');
+        console.warn('Profile: No profile data returned');
         setProfileError('Profilo non trovato');
       }
     } catch (error) {
-      console.error('Profile (iOS): Exception loading user profile:', error);
+      console.error('Profile: Exception loading user profile:', error);
       setProfileError(`Errore imprevisto: ${error}`);
     } finally {
       setLoadingProfile(false);
@@ -89,7 +89,7 @@ export default function ProfileScreen() {
 
   const loadWishlistCount = useCallback(async () => {
     if (!user) {
-      console.log('Profile (iOS): No user found, skipping wishlist count');
+      console.log('Profile: No user found, skipping wishlist count');
       return;
     }
 
@@ -100,21 +100,21 @@ export default function ProfileScreen() {
         .eq('user_id', user.id);
 
       if (error) {
-        console.error('Profile (iOS): Error loading wishlist count:', error);
+        console.error('Profile: Error loading wishlist count:', error);
         return;
       }
 
-      console.log('Profile (iOS): Wishlist count loaded:', count);
+      console.log('Profile: Wishlist count loaded:', count);
       setWishlistCount(count || 0);
     } catch (error) {
-      console.error('Profile (iOS): Exception loading wishlist count:', error);
+      console.error('Profile: Exception loading wishlist count:', error);
     }
   }, [user]);
 
   const loadWhatsAppNumber = useCallback(async () => {
     try {
       setLoadingWhatsapp(true);
-      console.log('Profile (iOS): Loading WhatsApp number from database...');
+      console.log('Profile: Loading WhatsApp number from database...');
       
       const { data, error } = await supabase
         .from('app_settings')
@@ -123,18 +123,18 @@ export default function ProfileScreen() {
         .maybeSingle();
 
       if (error) {
-        console.error('Profile (iOS): Error loading WhatsApp number:', error);
+        console.error('Profile: Error loading WhatsApp number:', error);
         return;
       }
 
       if (data?.setting_value) {
-        console.log('Profile (iOS): WhatsApp number loaded successfully:', data.setting_value);
+        console.log('Profile: WhatsApp number loaded successfully:', data.setting_value);
         setWhatsappNumber(data.setting_value);
       } else {
-        console.log('Profile (iOS): No WhatsApp number found in database, using fallback');
+        console.log('Profile: No WhatsApp number found in database, using fallback');
       }
     } catch (error) {
-      console.error('Profile (iOS): Exception loading WhatsApp number:', error);
+      console.error('Profile: Exception loading WhatsApp number:', error);
     } finally {
       setLoadingWhatsapp(false);
     }
@@ -149,22 +149,22 @@ export default function ProfileScreen() {
         .order('city');
 
       if (error) {
-        console.error('Profile (iOS): Error loading pickup points:', error);
+        console.error('Profile: Error loading pickup points:', error);
         Alert.alert('Errore', 'Impossibile caricare i punti di ritiro');
         return;
       }
 
-      console.log('Profile (iOS): Loaded pickup points:', data?.length || 0);
+      console.log('Profile: Loaded pickup points:', data?.length || 0);
       setPickupPoints(data || []);
     } catch (error) {
-      console.error('Profile (iOS): Exception loading pickup points:', error);
+      console.error('Profile: Exception loading pickup points:', error);
     } finally {
       setLoadingPoints(false);
     }
   }, []);
 
   useEffect(() => {
-    console.log('Profile (iOS): Component mounted, loading data...');
+    console.log('Profile: Component mounted, loading data...');
     loadPickupPoints();
     loadWhatsAppNumber();
     loadUserProfile();
@@ -174,7 +174,7 @@ export default function ProfileScreen() {
   // Refresh wishlist count when screen is focused
   useFocusEffect(
     useCallback(() => {
-      console.log('Profile (iOS): Screen focused, refreshing wishlist count');
+      console.log('Profile: Screen focused, refreshing wishlist count');
       loadWishlistCount();
     }, [loadWishlistCount])
   );
@@ -198,7 +198,7 @@ export default function ProfileScreen() {
         .eq('user_id', user.id);
 
       if (error) {
-        console.error('Profile (iOS): Error updating pickup point:', error);
+        console.error('Profile: Error updating pickup point:', error);
         Alert.alert('Errore', 'Impossibile aggiornare il punto di ritiro');
         return;
       }
@@ -206,10 +206,10 @@ export default function ProfileScreen() {
       updatePickupPoint(pointId, pointCity);
       setSelectedPickupPoint(pointCity);
       
-      console.log('Profile (iOS): Pickup point updated to:', pointCity);
+      console.log('Profile: Pickup point updated to:', pointCity);
       Alert.alert('Successo', `Punto di ritiro aggiornato a ${pointCity}`);
     } catch (error) {
-      console.error('Profile (iOS): Exception updating pickup point:', error);
+      console.error('Profile: Exception updating pickup point:', error);
       Alert.alert('Errore', 'Errore imprevisto durante l\'aggiornamento');
     } finally {
       setUpdatingPoint(false);
@@ -243,7 +243,7 @@ export default function ProfileScreen() {
   const handleNotifications = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push('/(tabs)/notifications');
-    console.log('Profile (iOS): Navigating to notifications screen');
+    console.log('Profile: Navigating to notifications screen');
   };
 
   const handleAdminPanel = () => {
@@ -277,7 +277,7 @@ export default function ProfileScreen() {
         await Linking.openURL(whatsappWebUrl);
       }
     } catch (error) {
-      console.error('Profile (iOS): Error opening WhatsApp:', error);
+      console.error('Profile: Error opening WhatsApp:', error);
       Alert.alert(
         'Errore',
         'Impossibile aprire WhatsApp. Assicurati di avere WhatsApp installato sul tuo dispositivo.',
@@ -294,6 +294,11 @@ export default function ProfileScreen() {
   const handleViewCoupons = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push('/my-coupons');
+  };
+
+  const handleGitHubGuide = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push('/github-guide');
   };
 
   const renderStars = (stars: number) => {
@@ -607,6 +612,14 @@ export default function ProfileScreen() {
               <View style={styles.settingContent}>
                 <IconSymbol ios_icon_name="shield.fill" android_material_icon_name="shield" size={20} color={colors.text} />
                 <Text style={styles.settingText}>I Miei Dati (GDPR)</Text>
+              </View>
+              <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="chevron_right" size={20} color={colors.textSecondary} />
+            </Pressable>
+
+            <Pressable style={styles.settingItem} onPress={handleGitHubGuide}>
+              <View style={styles.settingContent}>
+                <IconSymbol ios_icon_name="link.circle.fill" android_material_icon_name="link" size={20} color={colors.primary} />
+                <Text style={styles.settingText}>Guida GitHub</Text>
               </View>
               <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="chevron_right" size={20} color={colors.textSecondary} />
             </Pressable>

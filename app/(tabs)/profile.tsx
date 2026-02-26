@@ -296,6 +296,11 @@ export default function ProfileScreen() {
     router.push('/my-coupons');
   };
 
+  const handleGitHubGuide = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push('/github-guide');
+  };
+
   const renderStars = (stars: number) => {
     return (
       <View style={styles.starsContainer}>
@@ -607,6 +612,14 @@ export default function ProfileScreen() {
               <View style={styles.settingContent}>
                 <IconSymbol ios_icon_name="shield.fill" android_material_icon_name="shield" size={20} color={colors.text} />
                 <Text style={styles.settingText}>I Miei Dati (GDPR)</Text>
+              </View>
+              <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="chevron_right" size={20} color={colors.textSecondary} />
+            </Pressable>
+
+            <Pressable style={styles.settingItem} onPress={handleGitHubGuide}>
+              <View style={styles.settingContent}>
+                <IconSymbol ios_icon_name="link.circle.fill" android_material_icon_name="link" size={20} color={colors.primary} />
+                <Text style={styles.settingText}>Guida GitHub</Text>
               </View>
               <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="chevron_right" size={20} color={colors.textSecondary} />
             </Pressable>
