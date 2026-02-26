@@ -308,7 +308,7 @@ export default function ProfileScreen() {
           <IconSymbol
             key={star}
             ios_icon_name={star <= stars ? 'star.fill' : 'star'}
-            android_material_icon_name={star <= stars ? 'star' : 'star_border'}
+            android_material_icon_name={star <= stars ? 'star' : 'star-border'}
             size={20}
             color={star <= stars ? '#FFD700' : colors.textTertiary}
           />
@@ -435,7 +435,7 @@ export default function ProfileScreen() {
                 <Text style={styles.ratingText}>{ratingStars} / 5 Stelle</Text>
                 <View style={styles.ratingStats}>
                   <View style={styles.ratingStat}>
-                    <IconSymbol ios_icon_name="checkmark.circle.fill" android_material_icon_name="check_circle" size={20} color={colors.success} />
+                    <IconSymbol ios_icon_name="checkmark.circle.fill" android_material_icon_name="check-circle" size={20} color={colors.success} />
                     <Text style={styles.ratingStatText}>{ordersPickedUp} ritirati</Text>
                   </View>
                   <View style={styles.ratingStat}>
@@ -445,7 +445,7 @@ export default function ProfileScreen() {
                 </View>
                 <Pressable style={styles.learnMoreButton} onPress={handleViewLoyaltyProgram}>
                   <Text style={styles.learnMoreText}>Scopri il Programma Fedeltà</Text>
-                  <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="chevron_right" size={16} color={colors.primary} />
+                  <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="chevron-right" size={16} color={colors.primary} />
                 </Pressable>
               </View>
 
@@ -462,7 +462,7 @@ export default function ProfileScreen() {
                     🎉 Hai 5 stelle! Guadagni 1 punto per ogni euro speso.
                   </Text>
                   <Pressable style={styles.couponsButton} onPress={handleViewCoupons}>
-                    <IconSymbol ios_icon_name="ticket.fill" android_material_icon_name="local_offer" size={20} color={colors.background} />
+                    <IconSymbol ios_icon_name="ticket.fill" android_material_icon_name="local-offer" size={20} color={colors.background} />
                     <Text style={styles.couponsButtonText}>I Miei Coupon</Text>
                   </Pressable>
                 </View>
@@ -499,7 +499,7 @@ export default function ProfileScreen() {
                     <Text style={styles.adminButtonSubtitle}>Gestisci utenti, fornitori, prodotti e drop</Text>
                   </View>
                 </View>
-                <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="chevron_right" size={24} color={colors.background} />
+                <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="chevron-right" size={24} color={colors.background} />
               </Pressable>
             </View>
           )}
@@ -531,7 +531,7 @@ export default function ProfileScreen() {
                     <View style={styles.pickupPointContent}>
                       <IconSymbol
                         ios_icon_name="mappin.circle.fill"
-                        android_material_icon_name="location_on"
+                        android_material_icon_name="location-on"
                         size={24}
                         color={selectedPickupPoint === point.city ? colors.background : colors.text}
                       />
@@ -547,7 +547,7 @@ export default function ProfileScreen() {
                     {selectedPickupPoint === point.city && (
                       <IconSymbol 
                         ios_icon_name="checkmark.circle.fill" 
-                        android_material_icon_name="check_circle" 
+                        android_material_icon_name="check-circle" 
                         size={24} 
                         color={colors.background} 
                       />
@@ -570,7 +570,7 @@ export default function ProfileScreen() {
                 <IconSymbol ios_icon_name="person.crop.circle" android_material_icon_name="edit" size={20} color={colors.text} />
                 <Text style={styles.settingText}>Modifica Profilo</Text>
               </View>
-              <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="chevron_right" size={20} color={colors.textSecondary} />
+              <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="chevron-right" size={20} color={colors.textSecondary} />
             </Pressable>
 
             <Pressable style={styles.settingItem} onPress={handleViewWishlist}>
@@ -583,15 +583,15 @@ export default function ProfileScreen() {
                   </View>
                 )}
               </View>
-              <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="chevron_right" size={20} color={colors.textSecondary} />
+              <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="chevron-right" size={20} color={colors.textSecondary} />
             </Pressable>
 
             <Pressable style={styles.settingItem} onPress={handleViewBookings}>
               <View style={styles.settingContent}>
-                <IconSymbol ios_icon_name="cart.fill" android_material_icon_name="shopping_cart" size={20} color={colors.text} />
+                <IconSymbol ios_icon_name="cart.fill" android_material_icon_name="shopping-cart" size={20} color={colors.text} />
                 <Text style={styles.settingText}>Le Mie Prenotazioni</Text>
               </View>
-              <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="chevron_right" size={20} color={colors.textSecondary} />
+              <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="chevron-right" size={20} color={colors.textSecondary} />
             </Pressable>
 
             <Pressable style={styles.settingItem} onPress={handleNotifications}>
@@ -599,7 +599,7 @@ export default function ProfileScreen() {
                 <IconSymbol ios_icon_name="bell.fill" android_material_icon_name="notifications" size={20} color={colors.text} />
                 <Text style={styles.settingText}>Notifiche</Text>
               </View>
-              <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="chevron_right" size={20} color={colors.textSecondary} />
+              <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="chevron-right" size={20} color={colors.textSecondary} />
             </Pressable>
 
             <Pressable 
@@ -613,7 +613,7 @@ export default function ProfileScreen() {
                 <IconSymbol ios_icon_name="shield.fill" android_material_icon_name="shield" size={20} color={colors.text} />
                 <Text style={styles.settingText}>I Miei Dati (GDPR)</Text>
               </View>
-              <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="chevron_right" size={20} color={colors.textSecondary} />
+              <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="chevron-right" size={20} color={colors.textSecondary} />
             </Pressable>
 
             <Pressable style={styles.settingItem} onPress={handleGitHubGuide}>
@@ -621,7 +621,7 @@ export default function ProfileScreen() {
                 <IconSymbol ios_icon_name="link.circle.fill" android_material_icon_name="link" size={20} color={colors.primary} />
                 <Text style={styles.settingText}>Guida GitHub</Text>
               </View>
-              <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="chevron_right" size={20} color={colors.textSecondary} />
+              <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="chevron-right" size={20} color={colors.textSecondary} />
             </Pressable>
 
             <Pressable 
@@ -637,7 +637,7 @@ export default function ProfileScreen() {
                 )}
                 <Text style={styles.settingText}>Aiuto e Supporto</Text>
               </View>
-              <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="chevron_right" size={20} color={colors.textSecondary} />
+              <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="chevron-right" size={20} color={colors.textSecondary} />
             </Pressable>
           </View>
         </ScrollView>
