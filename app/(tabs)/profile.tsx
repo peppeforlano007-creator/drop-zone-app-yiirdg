@@ -1,5 +1,5 @@
 
-import { View, Text, StyleSheet, ScrollView, Platform, Pressable, Alert, ActivityIndicator, Linking } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, Alert, ActivityIndicator, Linking } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, commonStyles, layout } from '@/styles/commonStyles';
 import React, { useState, useEffect, useCallback } from 'react';
@@ -8,8 +8,6 @@ import { Stack, router, useFocusEffect } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/app/integrations/supabase/client';
 import * as Haptics from 'expo-haptics';
-import Constants from 'expo-constants';
-
 export default function ProfileScreen() {
   const { logout, user, session, updatePickupPoint } = useAuth();
   const [selectedPickupPoint, setSelectedPickupPoint] = useState(user?.pickupPoint || '');
@@ -27,12 +25,6 @@ export default function ProfileScreen() {
   const [wishlistCount, setWishlistCount] = useState(0);
   const [profileError, setProfileError] = useState<string | null>(null);
 
-  // Debug info
-  const appVersion = Constants.expoConfig?.version || 'unknown';
-  const buildEnvironment = __DEV__ ? 'Development' : 'Production';
-  const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || 'NOT SET';
-  const hasSupabaseKey = !!process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
-
   const loadUserProfile = useCallback(async () => {
     if (!user) {
       console.log('Profile: No user found, skipping profile load');
@@ -42,10 +34,6 @@ export default function ProfileScreen() {
     }
 
     console.log('Profile: Loading user profile for:', user.id);
-    console.log('Profile: User data:', JSON.stringify(user, null, 2));
-    console.log('Profile: Session exists:', !!session);
-    console.log('Profile: Supabase URL:', supabaseUrl);
-    console.log('Profile: Has Supabase Key:', hasSupabaseKey);
 
     try {
       // Test Supabase connection first
@@ -175,8 +163,6 @@ export default function ProfileScreen() {
 
   useEffect(() => {
     console.log('Profile: Component mounted, loading data...');
-    console.log('Profile: Build environment:', buildEnvironment);
-    console.log('Profile: App version:', appVersion);
     loadPickupPoints();
     loadWhatsAppNumber();
     loadUserProfile();
@@ -308,11 +294,6 @@ export default function ProfileScreen() {
     router.push('/my-coupons');
   };
 
-  const handleGitHubGuide = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    router.push('/github-guide');
-  };
-
   const renderStars = (stars: number) => {
     return (
       <View style={styles.starsContainer}>
@@ -346,14 +327,6 @@ export default function ProfileScreen() {
           <Text style={styles.loadingText}>Caricamento profilo...</Text>
           {profileError && (
             <Text style={styles.errorText}>{profileError}</Text>
-          )}
-          {__DEV__ && (
-            <View style={styles.debugInfo}>
-              <Text style={styles.debugText}>Environment: {buildEnvironment}</Text>
-              <Text style={styles.debugText}>Version: {appVersion}</Text>
-              <Text style={styles.debugText}>Supabase: {hasSupabaseKey ? 'Configured' : 'NOT CONFIGURED'}</Text>
-              <Text style={styles.debugText}>Session: {session ? 'Active' : 'None'}</Text>
-            </View>
           )}
         </View>
       </SafeAreaView>
@@ -431,25 +404,6 @@ export default function ProfileScreen() {
               )}
             </View>
           </View>
-
-          {/* Debug Info (only in development) */}
-          {__DEV__ && (
-            <View style={styles.debugSection}>
-              <Text style={styles.debugTitle}>Debug Info</Text>
-              <Text style={styles.debugText}>User ID: {user.id}</Text>
-              <Text style={styles.debugText}>Role: {user.role}</Text>
-              <Text style={styles.debugText}>Pickup Point: {user.pickupPoint || 'None'}</Text>
-              <Text style={styles.debugText}>Loading Profile: {loadingProfile ? 'Yes' : 'No'}</Text>
-              <Text style={styles.debugText}>Environment: {buildEnvironment}</Text>
-              <Text style={styles.debugText}>Version: {appVersion}</Text>
-              <Text style={styles.debugText}>Supabase URL: {supabaseUrl.substring(0, 30)}...</Text>
-              <Text style={styles.debugText}>Has Supabase Key: {hasSupabaseKey ? 'Yes' : 'No'}</Text>
-              <Text style={styles.debugText}>Session Active: {session ? 'Yes' : 'No'}</Text>
-              {profileError && (
-                <Text style={styles.debugError}>Error: {profileError}</Text>
-              )}
-            </View>
-          )}
 
           {/* Rating & Loyalty Section */}
           {!loadingProfile && !profileError && (
@@ -641,14 +595,6 @@ export default function ProfileScreen() {
               <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="chevron-right" size={20} color={colors.textSecondary} />
             </Pressable>
 
-            <Pressable style={styles.settingItem} onPress={handleGitHubGuide}>
-              <View style={styles.settingContent}>
-                <IconSymbol ios_icon_name="link.circle.fill" android_material_icon_name="link" size={20} color={colors.primary} />
-                <Text style={styles.settingText}>Guida GitHub</Text>
-              </View>
-              <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="chevron-right" size={20} color={colors.textSecondary} />
-            </Pressable>
-
             <Pressable 
               style={styles.settingItem} 
               onPress={handleSupport}
@@ -727,36 +673,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     color: colors.background,
-  },
-  debugSection: {
-    padding: 16,
-    backgroundColor: colors.backgroundSecondary,
-    borderRadius: 12,
-    margin: 16,
-  },
-  debugTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.text,
-    marginBottom: 8,
-  },
-  debugText: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    marginBottom: 4,
-    fontFamily: Platform.select({ ios: 'Courier', android: 'monospace' }),
-  },
-  debugError: {
-    fontSize: 12,
-    color: colors.error,
-    marginTop: 8,
-    fontFamily: Platform.select({ ios: 'Courier', android: 'monospace' }),
-  },
-  debugInfo: {
-    marginTop: 16,
-    padding: 12,
-    backgroundColor: colors.backgroundSecondary,
-    borderRadius: 8,
   },
   errorCard: {
     backgroundColor: colors.card,
