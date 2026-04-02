@@ -41,11 +41,13 @@ export default function ProfileScreen() {
       return;
     }
 
+    const _supabaseUrl = supabaseUrl;
+    const _hasSupabaseKey = hasSupabaseKey;
     console.log('Profile: Loading user profile for:', user.id);
     console.log('Profile: User data:', JSON.stringify(user, null, 2));
     console.log('Profile: Session exists:', !!session);
-    console.log('Profile: Supabase URL:', supabaseUrl);
-    console.log('Profile: Has Supabase Key:', hasSupabaseKey);
+    console.log('Profile: Supabase URL:', _supabaseUrl);
+    console.log('Profile: Has Supabase Key:', _hasSupabaseKey);
 
     try {
       // Test Supabase connection first
@@ -95,7 +97,7 @@ export default function ProfileScreen() {
     } finally {
       setLoadingProfile(false);
     }
-  }, [user, session]);
+  }, [user, session, supabaseUrl, hasSupabaseKey]);
 
   const loadWishlistCount = useCallback(async () => {
     if (!user) {
@@ -177,11 +179,13 @@ export default function ProfileScreen() {
     console.log('Profile: Component mounted, loading data...');
     console.log('Profile: Build environment:', buildEnvironment);
     console.log('Profile: App version:', appVersion);
+    console.log('Profile: Build environment:', buildEnvironment);
+    console.log('Profile: App version:', appVersion);
     loadPickupPoints();
     loadWhatsAppNumber();
     loadUserProfile();
     loadWishlistCount();
-  }, [loadPickupPoints, loadWhatsAppNumber, loadUserProfile, loadWishlistCount]);
+  }, [loadPickupPoints, loadWhatsAppNumber, loadUserProfile, loadWishlistCount, buildEnvironment, appVersion]);
 
   // Refresh wishlist count when screen is focused
   useFocusEffect(

@@ -168,8 +168,8 @@ export function useRealtimeDrops({ pickupPointId, onUpdate, enabled = true }: Us
 
     console.log('🚀 Setting up realtime subscription for drops');
 
-    // Copy the ref value to a variable inside the effect
-    const lastUpdateMap = new Map(lastUpdateRef.current);
+    // Copy the ref value to a variable inside the effect (also used in cleanup)
+    const lastUpdateMap = lastUpdateRef.current;
 
     // Create a channel for all drops
     const dropsChannel = supabase.channel('drops:all', {
@@ -202,14 +202,14 @@ export function useRealtimeDrops({ pickupPointId, onUpdate, enabled = true }: Us
 
     setChannel(dropsChannel);
 
-    // Cleanup function - use the copied variable
+    // Cleanup function - use the captured variable, not lastUpdateRef.current
     return () => {
       console.log('🧹 Cleaning up realtime subscription for drops');
       console.log('Last update map size at cleanup:', lastUpdateMap.size);
       dropsChannel.unsubscribe();
       setChannel(null);
       setIsConnected(false);
-      lastUpdateRef.current.clear();
+      lastUpdateMap.clear();
     };
   }, [pickupPointId, enabled, handleDropUpdate]);
 

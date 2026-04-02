@@ -39,6 +39,7 @@ export default function DropSuggestionsScreen() {
 
   useEffect(() => {
     loadSuggestions();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const loadSuggestions = async () => {

@@ -68,7 +68,9 @@ export default function DropsScreen() {
       // First, run the lifecycle processor to update drop statuses
       await supabase.rpc('process_drop_lifecycle');
 
-      // Show active, approved, pending_approval and inactive drops
+      // Show active, approved, pending_approval and inactive drops.
+      // We do NOT filter by end_time here because pending_approval and inactive drops
+      // may not have a future end_time set yet — they should still be visible.
       const { data, error } = await supabase
         .from('drops')
         .select(`
@@ -86,7 +88,6 @@ export default function DropsScreen() {
           )
         `)
         .in('status', ['active', 'approved', 'pending_approval', 'inactive'])
-        .gt('end_time', new Date().toISOString()) // Only show drops that haven't expired yet
         .order('created_at', { ascending: false });
 
       if (error) {

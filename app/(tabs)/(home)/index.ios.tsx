@@ -32,7 +32,7 @@ interface GameStats {
   lists_explored_this_week: number;
   lists_interested_this_week: number;
   lists_shared_this_week: number;
-  lists_navigated_to_end: string[]; // IDs of lists navigated to the end
+  lists_navigated_to_end: string[];
   points_earned_this_week: number;
   points_earned_this_month: number;
   last_played: string;
@@ -58,17 +58,15 @@ const GAME_STATS_KEY = 'game_stats_v2';
 const WEEKLY_CHALLENGES_KEY = 'weekly_challenges';
 const CURRENT_CHALLENGE_INDEX_KEY = 'current_challenge_index';
 
-// Helper to get the start of the current week (Monday)
 const getWeekStart = (date: Date = new Date()): string => {
   const d = new Date(date);
   const day = d.getDay();
-  const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Adjust when day is Sunday
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
   d.setDate(diff);
   d.setHours(0, 0, 0, 0);
   return d.toISOString().split('T')[0];
 };
 
-// Helper to get the start of the current month
 const getMonthStart = (date: Date = new Date()): string => {
   const d = new Date(date);
   d.setDate(1);
@@ -104,11 +102,10 @@ export default function GameFeedScreen() {
   const [showMissedWeekModal, setShowMissedWeekModal] = useState(false);
   const [missedWeeksCount, setMissedWeeksCount] = useState(0);
   const [previousStreak, setPreviousStreak] = useState(0);
-  
+
   const rewardAnim = useRef(new Animated.Value(0)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
-  // Load game data on mount
   useEffect(() => {
     loadGameData();
     loadUnreadNotifications();
@@ -116,7 +113,6 @@ export default function GameFeedScreen() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Reload challenges when screen comes into focus
   useFocusEffect(
     useCallback(() => {
       console.log('🔄 Screen focused, reloading challenges...');
@@ -127,10 +123,10 @@ export default function GameFeedScreen() {
   const reloadChallenges = async () => {
     try {
       const savedChallenges = await AsyncStorage.getItem(WEEKLY_CHALLENGES_KEY);
-      
+
       if (savedChallenges) {
         const parsedChallenges = JSON.parse(savedChallenges);
-        
+
         console.log('📊 Current challenges state:', parsedChallenges.map((c: Challenge) => ({
           id: c.id,
           title: c.title,
@@ -139,18 +135,12 @@ export default function GameFeedScreen() {
           progress: c.progress,
           target: c.target
         })));
-        
-        // Find the first unlocked, incomplete challenge
-        // This is the challenge the user should be working on
+
         let newCurrentIndex = 0;
         let foundCurrentChallenge = false;
-        
+
         for (let i = 0; i < parsedChallenges.length; i++) {
           const challenge = parsedChallenges[i];
-          
-          // The current challenge is the first one that is:
-          // 1. NOT locked
-          // 2. NOT completed
           if (!challenge.locked && !challenge.completed) {
             newCurrentIndex = i;
             foundCurrentChallenge = true;
@@ -158,19 +148,16 @@ export default function GameFeedScreen() {
             break;
           }
         }
-        
-        // If all challenges are completed, set to last challenge
+
         if (!foundCurrentChallenge) {
           newCurrentIndex = parsedChallenges.length - 1;
           console.log('📍 All challenges completed, showing last challenge');
         }
-        
+
         console.log('✅ Setting current challenge index to:', newCurrentIndex);
-        
+
         setWeeklyChallenges(parsedChallenges);
         setCurrentChallengeIndex(newCurrentIndex);
-        
-        // Update the saved index to match
         await AsyncStorage.setItem(CURRENT_CHALLENGE_INDEX_KEY, newCurrentIndex.toString());
       }
     } catch (error) {
@@ -203,33 +190,30 @@ export default function GameFeedScreen() {
       console.log('🎮 Loading game data...');
       setLoading(true);
 
-      // Check if admin requested a game data reset
       if (user?.id) {
         const { data: profile, error: profileError } = await supabase
           .from('profiles')
           .select('game_data_reset_requested')
           .eq('user_id', user.id)
           .single();
-        
+
         if (!profileError && profile?.game_data_reset_requested) {
           console.log('🔄 Admin requested game data reset. Clearing all game data...');
-          
-          // Clear all game-related AsyncStorage data
+
           await AsyncStorage.removeItem(GAME_STATS_KEY);
           await AsyncStorage.removeItem(WEEKLY_CHALLENGES_KEY);
           await AsyncStorage.removeItem(CURRENT_CHALLENGE_INDEX_KEY);
-          
-          // Clear the reset flag in database
+
           await supabase
             .from('profiles')
-            .update({ 
+            .update({
               game_data_reset_requested: false,
-              loyalty_points: 0 
+              loyalty_points: 0
             })
             .eq('user_id', user.id);
-          
+
           console.log('✅ Game data reset complete!');
-          
+
           Alert.alert(
             '🎮 Dati di Gioco Resettati',
             'Le tue sfide e i tuoi punti sono stati resettati dall\'amministratore. Inizia una nuova avventura!',
@@ -238,7 +222,6 @@ export default function GameFeedScreen() {
         }
       }
 
-      // Load supplier lists with product counts
       const { data: lists, error: listsError } = await supabase
         .from('supplier_lists')
         .select(`
@@ -260,7 +243,6 @@ export default function GameFeedScreen() {
         throw listsError;
       }
 
-      // Get supplier names
       const supplierIds = [...new Set((lists || []).map(l => l.supplier_id).filter(Boolean))];
       const { data: profiles } = await supabase
         .from('profiles')
@@ -269,13 +251,12 @@ export default function GameFeedScreen() {
 
       const profilesMap = new Map((profiles || []).map(p => [p.user_id, p.full_name]));
 
-      // Count products per list with null safety
       const listsWithCounts = (lists || []).reduce((acc: SupplierList[], list: any) => {
         if (!list || !list.id || !list.name) {
           console.warn('Skipping invalid list:', list);
           return acc;
         }
-        
+
         const productCount = Array.isArray(list.products) ? list.products.length : 0;
         if (productCount > 0) {
           acc.push({
@@ -296,77 +277,60 @@ export default function GameFeedScreen() {
       console.log(`Loaded ${listsWithCounts.length} supplier lists with products`);
       setSupplierLists(listsWithCounts);
 
-      // Load game stats
       const savedStats = await AsyncStorage.getItem(GAME_STATS_KEY);
       const currentWeekStart = getWeekStart();
       const currentMonthStart = getMonthStart();
-      
+
       if (savedStats) {
         const stats = JSON.parse(savedStats);
-        
-        // Check if we're in a new week
+
         if (stats.last_week_start !== currentWeekStart) {
           console.log('New week detected, checking streak status');
-          
-          // Calculate how many weeks have passed
+
           const lastWeekStart = new Date(stats.last_week_start);
           const thisWeekStart = new Date(currentWeekStart);
           const weeksDiff = Math.floor((thisWeekStart.getTime() - lastWeekStart.getTime()) / (1000 * 60 * 60 * 24 * 7));
-          
+
           console.log(`Weeks difference: ${weeksDiff}`);
-          
-          // Check if user participated last week (earned any points)
+
           const participatedLastWeek = stats.points_earned_this_week > 0;
-          
+
           if (weeksDiff === 1 && participatedLastWeek) {
-            // User played last week, continue streak
             console.log('User played last week, continuing streak');
             stats.weekly_streak += 1;
           } else if (weeksDiff > 1) {
-            // User missed one or more weeks, reset streak
             console.log(`User missed ${weeksDiff - 1} week(s), resetting streak`);
-            
-            // Show missed week modal if they had a streak
             if (stats.weekly_streak > 0) {
               setPreviousStreak(stats.weekly_streak);
               setMissedWeeksCount(weeksDiff - 1);
               setShowMissedWeekModal(true);
             }
-            
-            // Reset streak to 0 (will become 1 when they play this week)
             stats.weekly_streak = 0;
           } else if (weeksDiff === 1 && !participatedLastWeek) {
-            // User didn't participate last week, reset streak
             console.log('User did not participate last week, resetting streak');
-            
             if (stats.weekly_streak > 0) {
               setPreviousStreak(stats.weekly_streak);
               setMissedWeeksCount(1);
               setShowMissedWeekModal(true);
             }
-            
             stats.weekly_streak = 0;
           }
-          
-          // Reset weekly counters
+
           stats.points_earned_this_week = 0;
           stats.lists_explored_this_week = 0;
           stats.lists_interested_this_week = 0;
           stats.lists_shared_this_week = 0;
           stats.lists_navigated_to_end = [];
           stats.last_week_start = currentWeekStart;
-          
-          // Reset challenges for new week
+
           await AsyncStorage.removeItem(WEEKLY_CHALLENGES_KEY);
           await AsyncStorage.setItem(CURRENT_CHALLENGE_INDEX_KEY, '0');
         }
-        
-        // Check if we're in a new month
+
         const lastMonthStart = stats.last_month_start || currentMonthStart;
         if (lastMonthStart !== currentMonthStart) {
           console.log('New month detected, transferring points to loyalty program');
-          
-          // Transfer monthly points to loyalty program
+
           if (stats.points_earned_this_month > 0 && user) {
             const { data: profile } = await supabase
               .from('profiles')
@@ -383,23 +347,21 @@ export default function GameFeedScreen() {
               .eq('user_id', user.id);
 
             console.log(`Transferred ${stats.points_earned_this_month} points to loyalty program`);
-            
+
             Alert.alert(
               '🎉 Punti Trasferiti!',
               `I tuoi ${stats.points_earned_this_month} punti del mese sono stati aggiunti al programma fedeltà!`,
               [{ text: 'Fantastico!', style: 'default' }]
             );
           }
-          
-          // Reset monthly points
+
           stats.points_earned_this_month = 0;
           stats.last_month_start = currentMonthStart;
         }
-        
+
         setGameStats(stats);
         await AsyncStorage.setItem(GAME_STATS_KEY, JSON.stringify(stats));
       } else {
-        // Initialize new stats
         const newStats = {
           ...gameStats,
           last_week_start: currentWeekStart,
@@ -409,7 +371,6 @@ export default function GameFeedScreen() {
         await AsyncStorage.setItem(GAME_STATS_KEY, JSON.stringify(newStats));
       }
 
-      // Load user interests to mark selected lists
       if (user) {
         const { data: interests } = await supabase
           .from('user_interests')
@@ -422,7 +383,6 @@ export default function GameFeedScreen() {
         }
       }
 
-      // Generate weekly challenges
       await generateWeeklyChallenges(listsWithCounts.length);
 
       setLoading(false);
@@ -434,38 +394,29 @@ export default function GameFeedScreen() {
   };
 
   const generateWeeklyChallenges = async (listCount: number) => {
-    const currentWeekStart = getWeekStart();
-    
-    // Try to load existing challenges for this week
     const savedChallenges = await AsyncStorage.getItem(WEEKLY_CHALLENGES_KEY);
-    
+
     if (savedChallenges) {
       try {
         const parsedChallenges = JSON.parse(savedChallenges);
-        
+
         if (Array.isArray(parsedChallenges)) {
-          // Find the first unlocked, incomplete challenge
           let newCurrentIndex = 0;
           let foundCurrentChallenge = false;
-          
+
           for (let i = 0; i < parsedChallenges.length; i++) {
             const challenge = parsedChallenges[i];
-            
-            // The current challenge is the first one that is:
-            // 1. NOT locked
-            // 2. NOT completed
             if (!challenge.locked && !challenge.completed) {
               newCurrentIndex = i;
               foundCurrentChallenge = true;
               break;
             }
           }
-          
-          // If all challenges are completed, set to last challenge
+
           if (!foundCurrentChallenge) {
             newCurrentIndex = parsedChallenges.length - 1;
           }
-          
+
           setWeeklyChallenges(parsedChallenges);
           setCurrentChallengeIndex(newCurrentIndex);
           await AsyncStorage.setItem(CURRENT_CHALLENGE_INDEX_KEY, newCurrentIndex.toString());
@@ -476,10 +427,8 @@ export default function GameFeedScreen() {
       }
     }
 
-    // Ensure listCount is valid
     const validListCount = Math.max(1, listCount || 3);
 
-    // Generate new sequential challenges
     const challenges: Challenge[] = [
       {
         id: '1',
@@ -490,7 +439,7 @@ export default function GameFeedScreen() {
         target: validListCount,
         reward: 100,
         completed: false,
-        locked: false, // First challenge is unlocked
+        locked: false,
       },
       {
         id: '2',
@@ -501,7 +450,7 @@ export default function GameFeedScreen() {
         target: 1,
         reward: 150,
         completed: false,
-        locked: true, // Locked until previous challenge is completed
+        locked: true,
       },
       {
         id: '3',
@@ -535,7 +484,7 @@ export default function GameFeedScreen() {
 
   const loadUnreadNotifications = async () => {
     if (!user) return;
-    
+
     try {
       const { count } = await supabase
         .from('notifications')
@@ -549,60 +498,50 @@ export default function GameFeedScreen() {
     }
   };
 
-  // Helper function to check if an action is enabled based on current challenge
   const isActionEnabled = (action: 'explore' | 'interest' | 'share'): boolean => {
     const currentChallenge = weeklyChallenges[currentChallengeIndex];
     if (!currentChallenge) return false;
 
     console.log(`🔍 Checking if action "${action}" is enabled for challenge: ${currentChallenge.title}`);
 
-    // Challenge 1 (COLLEZIONISTA): Only Esplora enabled
     if (currentChallenge.id === '1') {
       const enabled = action === 'explore';
       console.log(`  → Challenge 1 (COLLEZIONISTA): ${action} is ${enabled ? 'ENABLED' : 'DISABLED'}`);
       return enabled;
     }
-
-    // Challenge 2 (NAVIGATORE): Only Esplora enabled
     if (currentChallenge.id === '2') {
       const enabled = action === 'explore';
       console.log(`  → Challenge 2 (NAVIGATORE): ${action} is ${enabled ? 'ENABLED' : 'DISABLED'}`);
       return enabled;
     }
-
-    // Challenge 3 (CACCIATORE DI OFFERTE): Esplora + Mi Interessa enabled
     if (currentChallenge.id === '3') {
       const enabled = action === 'explore' || action === 'interest';
       console.log(`  → Challenge 3 (CACCIATORE DI OFFERTE): ${action} is ${enabled ? 'ENABLED' : 'DISABLED'}`);
       return enabled;
     }
-
-    // Challenge 4 (AMBASCIATORE): All actions enabled
     if (currentChallenge.id === '4') {
       console.log(`  → Challenge 4 (AMBASCIATORE): ${action} is ENABLED (all actions enabled)`);
       return true;
     }
 
-    // Default: disable if challenge not recognized
     console.log(`  → Unknown challenge: ${action} is DISABLED by default`);
     return false;
   };
 
   const handleListExplore = async (list: SupplierList) => {
     console.log('User tapped Explore button for list:', list?.name || 'unknown');
-    
+
     if (!list || !list.id) {
       console.error('Invalid list object:', list);
       Alert.alert('Errore', 'Lista non valida');
       return;
     }
-    
+
     if (!user || !user.pickupPointId) {
       Alert.alert('Errore', 'Devi essere registrato con un punto di ritiro');
       return;
     }
 
-    // Check if action is enabled
     if (!isActionEnabled('explore')) {
       console.log('❌ Explore action is DISABLED for current challenge');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -616,57 +555,49 @@ export default function GameFeedScreen() {
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-    // Check if this list was already explored this week
     const alreadyExplored = Array.isArray(gameStats.explored_list_ids) && gameStats.explored_list_ids.includes(list.id);
 
     if (!alreadyExplored) {
-      // Update stats
       const newStats = { ...gameStats };
       newStats.lists_explored = (newStats.lists_explored || 0) + 1;
       newStats.lists_explored_this_week = (newStats.lists_explored_this_week || 0) + 1;
-      
-      // Ensure explored_list_ids is an array
+
       if (!Array.isArray(newStats.explored_list_ids)) {
         newStats.explored_list_ids = [];
       }
       newStats.explored_list_ids.push(list.id);
-      
+
       setGameStats(newStats);
       await AsyncStorage.setItem(GAME_STATS_KEY, JSON.stringify(newStats));
 
-      // Award points for exploring
       await awardPoints(10, 'list_explored');
-
-      // Update COLLEZIONISTA challenge (id: '1')
       await updateChallengeProgress('1', 1);
     }
 
-    // Navigate to list details
     router.push({
       pathname: '/list-products',
-      params: { 
-        listId: list.id, 
+      params: {
+        listId: list.id,
         listName: list.name || 'Prodotti',
-        supplierListId: list.id // Pass this for tracking navigation to end
+        supplierListId: list.id
       }
     });
   };
 
   const handleListInterest = async (list: SupplierList) => {
     console.log('User tapped Interest button (heart) for list:', list?.name || 'unknown');
-    
+
     if (!list || !list.id) {
       console.error('Invalid list object:', list);
       Alert.alert('Errore', 'Lista non valida');
       return;
     }
-    
+
     if (!user || !user.pickupPointId) {
       Alert.alert('Errore', 'Devi essere registrato con un punto di ritiro');
       return;
     }
 
-    // Check if action is enabled
     if (!isActionEnabled('interest')) {
       console.log('❌ Interest action is DISABLED for current challenge');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -685,8 +616,7 @@ export default function GameFeedScreen() {
 
     if (isSelected) {
       newSelected.delete(list.id);
-      
-      // Remove interest
+
       const { error } = await supabase
         .from('user_interests')
         .delete()
@@ -697,15 +627,13 @@ export default function GameFeedScreen() {
         console.error('Error removing interest:', error);
       }
 
-      // Update stats
       const newStats = { ...gameStats };
       newStats.lists_interested_this_week = Math.max(0, (newStats.lists_interested_this_week || 0) - 1);
       setGameStats(newStats);
       await AsyncStorage.setItem(GAME_STATS_KEY, JSON.stringify(newStats));
     } else {
       newSelected.add(list.id);
-      
-      // Add interest for all products in the list
+
       const { data: products, error: productsError } = await supabase
         .from('products')
         .select('id')
@@ -733,16 +661,13 @@ export default function GameFeedScreen() {
         }
       }
 
-      // Award points
       await awardPoints(5, 'list_interest');
-      
-      // Update stats
+
       const newStats = { ...gameStats };
       newStats.lists_interested_this_week = (newStats.lists_interested_this_week || 0) + 1;
       setGameStats(newStats);
       await AsyncStorage.setItem(GAME_STATS_KEY, JSON.stringify(newStats));
 
-      // Update CACCIATORE DI OFFERTE challenge (id: '3')
       await updateChallengeProgress('3', 1);
     }
 
@@ -751,13 +676,12 @@ export default function GameFeedScreen() {
 
   const handleListShare = async (list: SupplierList) => {
     console.log('User tapped Share button for list:', list.name);
-    
+
     if (!user || !user.pickupPointId) {
       Alert.alert('Errore', 'Devi essere registrato con un punto di ritiro');
       return;
     }
 
-    // Check if action is enabled
     if (!isActionEnabled('share')) {
       console.log('❌ Share action is DISABLED for current challenge');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -772,25 +696,21 @@ export default function GameFeedScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     try {
-      // Safely get pickup point name with fallback
       const pickupPointName = user.pickupPoint || 'il tuo punto di ritiro';
-      
-      // Create shareable content - sanitize all strings to avoid encoding issues
+
       const sanitizeText = (text: string): string => {
-        // Remove any problematic characters that could cause base64 encoding issues
         return text
-          .replace(/[\r\n\t]/g, ' ') // Replace newlines/tabs with spaces
-          .replace(/[^\x20-\x7E\u00A0-\uFFFF]/g, '') // Remove non-printable chars
+          .replace(/[\r\n\t]/g, ' ')
+          .replace(/[^\x20-\x7E\u00A0-\uFFFF]/g, '')
           .trim();
       };
-      
+
       const listName = sanitizeText(list.name || 'questa lista');
       const productCount = list.product_count || 0;
       const minDiscount = list.min_discount || 0;
       const maxDiscount = list.max_discount || 0;
       const pickupPoint = sanitizeText(pickupPointName);
-      
-      // Create shareable content with sanitized strings
+
       const shareMessage = `🎁 Scopri ${listName} su DropShop!\n\n` +
         `${productCount} prodotti disponibili con sconti dal ${minDiscount}% al ${maxDiscount}%!\n\n` +
         `Più persone della tua città mostrano interesse, più è probabile che si attivi un drop con sconti incredibili! 🔥\n\n` +
@@ -799,21 +719,16 @@ export default function GameFeedScreen() {
 
       console.log('Share message prepared:', shareMessage);
 
-      // Check if sharing is available
       const isAvailable = await Sharing.isAvailableAsync();
-      
+
       if (!isAvailable) {
         console.log('Sharing not available, showing fallback alert');
-        // Fallback: Show a message with shareable text
         Alert.alert(
           'Condividi questa lista',
           shareMessage,
-          [
-            { text: 'OK', style: 'default' }
-          ]
+          [{ text: 'OK', style: 'default' }]
         );
-        
-        // Still track the share attempt
+
         await supabase
           .from('list_shares')
           .insert({
@@ -822,35 +737,28 @@ export default function GameFeedScreen() {
             pickup_point_id: user.pickupPointId,
           });
 
-        // Update stats
         const newStats = { ...gameStats };
         newStats.lists_shared_this_week = (newStats.lists_shared_this_week || 0) + 1;
         setGameStats(newStats);
         await AsyncStorage.setItem(GAME_STATS_KEY, JSON.stringify(newStats));
 
-        // Award points
         await awardPoints(20, 'list_shared');
-
-        // Update AMBASCIATORE challenge (id: '4')
         await updateChallengeProgress('4', 1);
 
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         return;
       }
 
-      // Create a temporary file with the share message
       const fileUri = `${FileSystem.cacheDirectory}share_list_${Date.now()}.txt`;
-      
+
       console.log('Creating share file at:', fileUri);
-      
-      // Write the message to a file using UTF8 encoding
+
       await FileSystem.writeAsStringAsync(fileUri, shareMessage, {
         encoding: FileSystem.EncodingType.UTF8,
       });
 
       console.log('Share file created successfully');
 
-      // Share using native share dialog
       await Sharing.shareAsync(fileUri, {
         mimeType: 'text/plain',
         dialogTitle: `Condividi ${listName}`,
@@ -859,7 +767,6 @@ export default function GameFeedScreen() {
 
       console.log('Share dialog completed');
 
-      // Clean up the temporary file
       try {
         await FileSystem.deleteAsync(fileUri, { idempotent: true });
         console.log('Temporary share file deleted');
@@ -867,7 +774,6 @@ export default function GameFeedScreen() {
         console.warn('Could not delete temporary file:', deleteError);
       }
 
-      // Track the share
       await supabase
         .from('list_shares')
         .insert({
@@ -876,37 +782,30 @@ export default function GameFeedScreen() {
           pickup_point_id: user.pickupPointId,
         });
 
-      // Update stats
       const newStats = { ...gameStats };
       newStats.lists_shared_this_week = (newStats.lists_shared_this_week || 0) + 1;
       setGameStats(newStats);
       await AsyncStorage.setItem(GAME_STATS_KEY, JSON.stringify(newStats));
 
-      // Award points
       await awardPoints(20, 'list_shared');
-
-      // Update AMBASCIATORE challenge (id: '4')
       await updateChallengeProgress('4', 1);
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      
+
     } catch (error) {
       console.error('Error sharing list:', error);
-      
-      // Provide more detailed error information
+
       let errorMessage = 'Impossibile condividere la lista. Riprova più tardi.';
-      
+
       if (error instanceof Error) {
         console.error('Error details:', {
           message: error.message,
           stack: error.stack,
           name: error.name
         });
-        
-        // Don't show technical error details to user
         errorMessage = 'Si è verificato un errore durante la condivisione. Riprova più tardi.';
       }
-      
+
       Alert.alert('Errore', errorMessage, [{ text: 'OK' }]);
     }
   };
@@ -918,20 +817,17 @@ export default function GameFeedScreen() {
     }
 
     try {
-      // Update game stats (points accumulate during the week/month)
       const newStats = { ...gameStats };
       newStats.points_earned_this_week = (newStats.points_earned_this_week || 0) + points;
       newStats.points_earned_this_month = (newStats.points_earned_this_month || 0) + points;
-      
-      // If this is the first activity this week, start the streak
+
       if (newStats.points_earned_this_week === points && newStats.weekly_streak === 0) {
         newStats.weekly_streak = 1;
       }
-      
+
       setGameStats(newStats);
       await AsyncStorage.setItem(GAME_STATS_KEY, JSON.stringify(newStats));
 
-      // Log activity
       await supabase
         .from('user_activity_log')
         .insert({
@@ -940,10 +836,9 @@ export default function GameFeedScreen() {
           points_earned: points,
         });
 
-      // Show reward animation
       setRewardAmount(points);
       setShowRewardAnimation(true);
-      
+
       Animated.sequence([
         Animated.timing(rewardAnim, {
           toValue: 1,
@@ -966,13 +861,12 @@ export default function GameFeedScreen() {
 
   const updateChallengeProgress = async (challengeId: string, increment: number) => {
     console.log(`🎯 updateChallengeProgress called for challenge ${challengeId} with increment ${increment}`);
-    
+
     if (!Array.isArray(weeklyChallenges) || weeklyChallenges.length === 0) {
       console.warn('No challenges to update');
       return;
     }
-    
-    // Find the challenge being updated
+
     const challengeIndex = weeklyChallenges.findIndex(c => c && c.id === challengeId);
     if (challengeIndex === -1) {
       console.warn('Challenge not found:', challengeId);
@@ -980,76 +874,63 @@ export default function GameFeedScreen() {
     }
 
     const challenge = weeklyChallenges[challengeIndex];
-    
-    // Check if challenge is locked or already completed
+
     if (!challenge || challenge.locked) {
       console.log(`❌ Challenge ${challengeId} (${challenge?.title}) is LOCKED. Cannot update progress.`);
       return;
     }
-    
+
     if (challenge.completed) {
       console.log(`✅ Challenge ${challengeId} (${challenge.title}) is already COMPLETED. No update needed.`);
       return;
     }
 
-    // Update progress
     const currentProgress = challenge.progress || 0;
     const target = challenge.target || 1;
     const newProgress = Math.min(currentProgress + increment, target);
     const completed = newProgress >= target;
-    
+
     console.log(`📊 Challenge ${challengeId} (${challenge.title}): progress ${currentProgress} -> ${newProgress} (target: ${target}), completed: ${completed}`);
-    
-    // Create updated challenges array
+
     const updatedChallenges = [...weeklyChallenges];
     updatedChallenges[challengeIndex] = { ...challenge, progress: newProgress, completed };
 
-    // CRITICAL FIX: If challenge is completed, unlock ONLY the immediate next challenge
     if (completed && !challenge.completed) {
       console.log(`🎉 Challenge ${challengeId} (${challenge.title}) COMPLETED! Unlocking next challenge...`);
-      
-      // Find the IMMEDIATE next challenge (challengeIndex + 1)
+
       const nextIndex = challengeIndex + 1;
-      
+
       if (nextIndex < updatedChallenges.length) {
         const nextChallenge = updatedChallenges[nextIndex];
-        
+
         console.log(`🔓 Unlocking challenge at index ${nextIndex}: ${nextChallenge.title}`);
-        
-        // Unlock ONLY the immediate next challenge
+
         updatedChallenges[nextIndex] = { ...nextChallenge, locked: false };
-        
-        // CRITICAL: Ensure ALL challenges after the next one remain LOCKED
+
         for (let i = nextIndex + 1; i < updatedChallenges.length; i++) {
           const laterChallenge = updatedChallenges[i];
-          
-          // Only lock if not already completed
           if (!laterChallenge.completed) {
             console.log(`🔒 Keeping challenge at index ${i} (${laterChallenge.title}) LOCKED`);
             updatedChallenges[i] = { ...laterChallenge, locked: true };
           }
         }
-        
-        // Update current challenge index to the next unlocked challenge
+
         setCurrentChallengeIndex(nextIndex);
         await AsyncStorage.setItem(CURRENT_CHALLENGE_INDEX_KEY, nextIndex.toString());
         console.log(`✅ Updated current challenge index to: ${nextIndex}`);
-        
-        // Award challenge reward
+
         await awardPoints(challenge.reward || 0, 'challenge_completed');
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        
-        // Show completion alert
+
         Alert.alert(
           '🎉 Sfida Completata!',
           `Hai completato "${challenge.title || 'Sfida'}" e guadagnato ${challenge.reward || 0} punti!\n\nLa prossima sfida "${nextChallenge.title}" è stata sbloccata!`,
           [{ text: 'Fantastico!', style: 'default' }]
         );
       } else {
-        // All challenges completed
         await awardPoints(challenge.reward || 0, 'challenge_completed');
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        
+
         Alert.alert(
           '🎉 Tutte le Sfide Completate!',
           `Hai completato "${challenge.title || 'Sfida'}" e guadagnato ${challenge.reward || 0} punti!\n\nHai completato tutte le sfide della settimana! 🏆`,
@@ -1058,9 +939,8 @@ export default function GameFeedScreen() {
       }
     }
 
-    // Update state and save to AsyncStorage
     setWeeklyChallenges(updatedChallenges);
-    
+
     try {
       await AsyncStorage.setItem(WEEKLY_CHALLENGES_KEY, JSON.stringify(updatedChallenges));
       console.log('✅ Challenge progress and unlock status saved successfully');
@@ -1078,6 +958,7 @@ export default function GameFeedScreen() {
   };
 
   const handleLogout = () => {
+    console.log('User tapped Logout button');
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     Alert.alert(
       'Logout',
@@ -1097,6 +978,7 @@ export default function GameFeedScreen() {
   };
 
   const handleNotifications = () => {
+    console.log('User tapped Notifications button');
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push('/(tabs)/notifications');
   };
@@ -1105,7 +987,6 @@ export default function GameFeedScreen() {
     setShowMissedWeekModal(false);
   };
 
-  // Pulse animation for streak
   useEffect(() => {
     Animated.loop(
       Animated.sequence([
@@ -1150,7 +1031,7 @@ export default function GameFeedScreen() {
                 color={colors.primary}
               />
             </View>
-            
+
             <Text style={styles.welcomeTitle}>Benvenuto al Gioco delle Liste!</Text>
             <Text style={styles.welcomeSubtitle}>
               Completa le sfide settimanali, guadagna punti e sblocca ricompense
@@ -1478,15 +1359,14 @@ export default function GameFeedScreen() {
                 console.warn('Skipping invalid list in render:', list);
                 return null;
               }
-              
+
               const isInterested = selectedLists.has(list.id);
               const isExplored = Array.isArray(gameStats.explored_list_ids) && gameStats.explored_list_ids.includes(list.id);
-              
-              // Check which actions are enabled
+
               const exploreEnabled = isActionEnabled('explore');
               const interestEnabled = isActionEnabled('interest');
               const shareEnabled = isActionEnabled('share');
-              
+
               return (
                 <View key={list.id} style={styles.listCard}>
                   <View style={styles.listHeader}>
@@ -1607,7 +1487,7 @@ export default function GameFeedScreen() {
             })}
           </View>
 
-          {/* How It Works - Expanded */}
+          {/* How It Works */}
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <IconSymbol
@@ -1619,7 +1499,6 @@ export default function GameFeedScreen() {
               <Text style={styles.sectionTitle}>Come Funziona</Text>
             </View>
 
-            {/* Game Mechanics */}
             <View style={styles.howItWorksCard}>
               <View style={styles.howItWorksHeader}>
                 <IconSymbol
@@ -1633,32 +1512,23 @@ export default function GameFeedScreen() {
               <View style={styles.howItWorksList}>
                 <View style={styles.howItWorksItem}>
                   <Text style={styles.howItWorksBullet}>•</Text>
-                  <Text style={styles.howItWorksText}>
-                    Completa le sfide una alla volta per sbloccare la successiva
-                  </Text>
+                  <Text style={styles.howItWorksText}>Completa le sfide una alla volta per sbloccare la successiva</Text>
                 </View>
                 <View style={styles.howItWorksItem}>
                   <Text style={styles.howItWorksBullet}>•</Text>
-                  <Text style={styles.howItWorksText}>
-                    Le azioni (Esplora, Mi Interessa, Condividi) si sbloccano progressivamente
-                  </Text>
+                  <Text style={styles.howItWorksText}>Le azioni (Esplora, Mi Interessa, Condividi) si sbloccano progressivamente</Text>
                 </View>
                 <View style={styles.howItWorksItem}>
                   <Text style={styles.howItWorksBullet}>•</Text>
-                  <Text style={styles.howItWorksText}>
-                    Ogni settimana puoi partecipare una volta per mantenere la striscia attiva
-                  </Text>
+                  <Text style={styles.howItWorksText}>Ogni settimana puoi partecipare una volta per mantenere la striscia attiva</Text>
                 </View>
                 <View style={styles.howItWorksItem}>
                   <Text style={styles.howItWorksBullet}>•</Text>
-                  <Text style={styles.howItWorksText}>
-                    Se salti una settimana, la tua striscia si azzera (ma i punti mensili restano)
-                  </Text>
+                  <Text style={styles.howItWorksText}>Se salti una settimana, la tua striscia si azzera (ma i punti mensili restano)</Text>
                 </View>
               </View>
             </View>
 
-            {/* Ways to Earn Points */}
             <View style={styles.howItWorksCard}>
               <View style={styles.howItWorksHeader}>
                 <IconSymbol
@@ -1672,60 +1542,35 @@ export default function GameFeedScreen() {
               <View style={styles.howItWorksList}>
                 <View style={styles.pointsEarnItem}>
                   <View style={styles.pointsEarnLeft}>
-                    <IconSymbol
-                      ios_icon_name="eurosign.circle.fill"
-                      android_material_icon_name="euro"
-                      size={20}
-                      color={colors.primary}
-                    />
+                    <IconSymbol ios_icon_name="eurosign.circle.fill" android_material_icon_name="euro" size={20} color={colors.primary} />
                     <Text style={styles.pointsEarnAction}>Per ogni euro speso</Text>
                   </View>
                   <Text style={styles.pointsEarnValue}>+1 punto</Text>
                 </View>
                 <View style={styles.pointsEarnItem}>
                   <View style={styles.pointsEarnLeft}>
-                    <IconSymbol
-                      ios_icon_name="eye.fill"
-                      android_material_icon_name="visibility"
-                      size={20}
-                      color={colors.primary}
-                    />
+                    <IconSymbol ios_icon_name="eye.fill" android_material_icon_name="visibility" size={20} color={colors.primary} />
                     <Text style={styles.pointsEarnAction}>Esplora una lista</Text>
                   </View>
                   <Text style={styles.pointsEarnValue}>+10 punti</Text>
                 </View>
                 <View style={styles.pointsEarnItem}>
                   <View style={styles.pointsEarnLeft}>
-                    <IconSymbol
-                      ios_icon_name="heart.fill"
-                      android_material_icon_name="favorite"
-                      size={20}
-                      color={colors.primary}
-                    />
+                    <IconSymbol ios_icon_name="heart.fill" android_material_icon_name="favorite" size={20} color={colors.primary} />
                     <Text style={styles.pointsEarnAction}>Mostra interesse</Text>
                   </View>
                   <Text style={styles.pointsEarnValue}>+5 punti</Text>
                 </View>
                 <View style={styles.pointsEarnItem}>
                   <View style={styles.pointsEarnLeft}>
-                    <IconSymbol
-                      ios_icon_name="square.and.arrow.up.fill"
-                      android_material_icon_name="share"
-                      size={20}
-                      color={colors.primary}
-                    />
+                    <IconSymbol ios_icon_name="square.and.arrow.up.fill" android_material_icon_name="share" size={20} color={colors.primary} />
                     <Text style={styles.pointsEarnAction}>Condividi una lista</Text>
                   </View>
                   <Text style={styles.pointsEarnValue}>+20 punti</Text>
                 </View>
                 <View style={styles.pointsEarnItem}>
                   <View style={styles.pointsEarnLeft}>
-                    <IconSymbol
-                      ios_icon_name="trophy.fill"
-                      android_material_icon_name="emoji_events"
-                      size={20}
-                      color={colors.primary}
-                    />
+                    <IconSymbol ios_icon_name="trophy.fill" android_material_icon_name="emoji_events" size={20} color={colors.primary} />
                     <Text style={styles.pointsEarnAction}>Completa una sfida</Text>
                   </View>
                   <Text style={styles.pointsEarnValue}>+100-200 punti</Text>
@@ -1733,192 +1578,116 @@ export default function GameFeedScreen() {
               </View>
             </View>
 
-            {/* Loyalty Program */}
             <View style={styles.howItWorksCard}>
               <View style={styles.howItWorksHeader}>
-                <IconSymbol
-                  ios_icon_name="gift.fill"
-                  android_material_icon_name="card_giftcard"
-                  size={32}
-                  color="#4CAF50"
-                />
+                <IconSymbol ios_icon_name="gift.fill" android_material_icon_name="card_giftcard" size={32} color="#4CAF50" />
                 <Text style={styles.howItWorksTitle}>Programma Fedeltà</Text>
               </View>
               <View style={styles.howItWorksList}>
                 <View style={styles.howItWorksItem}>
                   <Text style={styles.howItWorksBullet}>•</Text>
-                  <Text style={styles.howItWorksText}>
-                    Per ogni euro speso, guadagni 1 punto fedeltà automaticamente
-                  </Text>
+                  <Text style={styles.howItWorksText}>Per ogni euro speso, guadagni 1 punto fedeltà automaticamente</Text>
                 </View>
                 <View style={styles.howItWorksItem}>
                   <Text style={styles.howItWorksBullet}>•</Text>
-                  <Text style={styles.howItWorksText}>
-                    A fine mese, tutti i punti guadagnati dalle sfide vengono trasferiti al programma fedeltà
-                  </Text>
+                  <Text style={styles.howItWorksText}>A fine mese, tutti i punti guadagnati dalle sfide vengono trasferiti al programma fedeltà</Text>
                 </View>
                 <View style={styles.howItWorksItem}>
                   <Text style={styles.howItWorksBullet}>•</Text>
-                  <Text style={styles.howItWorksText}>
-                    I punti fedeltà non scadono mai e si accumulano nel tempo
-                  </Text>
+                  <Text style={styles.howItWorksText}>I punti fedeltà non scadono mai e si accumulano nel tempo</Text>
                 </View>
                 <View style={styles.howItWorksItem}>
                   <Text style={styles.howItWorksBullet}>•</Text>
-                  <Text style={styles.howItWorksText}>
-                    Usa i punti fedeltà per riscattare coupon sconto sui tuoi ordini
-                  </Text>
-                </View>
-                <View style={styles.howItWorksItem}>
-                  <Text style={styles.howItWorksBullet}>•</Text>
-                  <Text style={styles.howItWorksText}>
-                    Più punti accumuli, più sconti puoi ottenere!
-                  </Text>
+                  <Text style={styles.howItWorksText}>Usa i punti fedeltà per riscattare coupon sconto sui tuoi ordini</Text>
                 </View>
               </View>
             </View>
 
-            {/* Points Deduction */}
             <View style={styles.howItWorksCard}>
               <View style={styles.howItWorksHeader}>
-                <IconSymbol
-                  ios_icon_name="arrow.down.circle.fill"
-                  android_material_icon_name="remove_circle"
-                  size={32}
-                  color="#FF3B30"
-                />
+                <IconSymbol ios_icon_name="arrow.down.circle.fill" android_material_icon_name="remove_circle" size={32} color="#FF3B30" />
                 <Text style={styles.howItWorksTitle}>Sottrazione Punti</Text>
               </View>
               <View style={styles.howItWorksList}>
                 <View style={styles.howItWorksItem}>
                   <Text style={styles.howItWorksBullet}>•</Text>
-                  <Text style={styles.howItWorksText}>
-                    Se restituisci un ordine o un prodotto, i punti guadagnati da quell&apos;acquisto vengono sottratti
-                  </Text>
+                  <Text style={styles.howItWorksText}>Se restituisci un ordine o un prodotto, i punti guadagnati da quell&apos;acquisto vengono sottratti</Text>
                 </View>
                 <View style={styles.howItWorksItem}>
                   <Text style={styles.howItWorksBullet}>•</Text>
-                  <Text style={styles.howItWorksText}>
-                    Esempio: Hai speso €50 (guadagnato 50 punti) e restituisci l&apos;ordine → perdi 50 punti
-                  </Text>
+                  <Text style={styles.howItWorksText}>Esempio: Hai speso €50 (guadagnato 50 punti) e restituisci l&apos;ordine → perdi 50 punti</Text>
                 </View>
                 <View style={styles.howItWorksItem}>
                   <Text style={styles.howItWorksBullet}>•</Text>
-                  <Text style={styles.howItWorksText}>
-                    Troppi resi possono anche ridurre il tuo rating sotto le 5 stelle
-                  </Text>
+                  <Text style={styles.howItWorksText}>Troppi resi possono anche ridurre il tuo rating sotto le 5 stelle</Text>
                 </View>
               </View>
             </View>
 
-            {/* Rating System */}
             <View style={styles.howItWorksCard}>
               <View style={styles.howItWorksHeader}>
-                <IconSymbol
-                  ios_icon_name="star.circle.fill"
-                  android_material_icon_name="stars"
-                  size={32}
-                  color="#FF9800"
-                />
+                <IconSymbol ios_icon_name="star.circle.fill" android_material_icon_name="stars" size={32} color="#FF9800" />
                 <Text style={styles.howItWorksTitle}>Sistema di Rating</Text>
               </View>
               <View style={styles.howItWorksList}>
                 <View style={styles.howItWorksItem}>
                   <Text style={styles.howItWorksBullet}>•</Text>
-                  <Text style={styles.howItWorksText}>
-                    Tutti gli utenti partono con 5 stelle (rating massimo)
-                  </Text>
+                  <Text style={styles.howItWorksText}>Tutti gli utenti partono con 5 stelle (rating massimo)</Text>
                 </View>
                 <View style={styles.howItWorksItem}>
                   <Text style={styles.howItWorksBullet}>•</Text>
-                  <Text style={styles.howItWorksText}>
-                    Solo gli utenti con 5 stelle possono guadagnare punti
-                  </Text>
+                  <Text style={styles.howItWorksText}>Solo gli utenti con 5 stelle possono guadagnare punti</Text>
                 </View>
                 <View style={styles.howItWorksItem}>
                   <Text style={styles.howItWorksBullet}>•</Text>
-                  <Text style={styles.howItWorksText}>
-                    Il rating può diminuire se restituisci troppi ordini o prodotti
-                  </Text>
+                  <Text style={styles.howItWorksText}>Il rating può diminuire se restituisci troppi ordini o prodotti</Text>
                 </View>
                 <View style={styles.howItWorksItem}>
                   <Text style={styles.howItWorksBullet}>•</Text>
-                  <Text style={styles.howItWorksText}>
-                    Se superi la soglia minima di ordini non ritirati, il tuo rating scenderà e non potrai più guadagnare punti
-                  </Text>
-                </View>
-                <View style={styles.howItWorksItem}>
-                  <Text style={styles.howItWorksBullet}>•</Text>
-                  <Text style={styles.howItWorksText}>
-                    Mantieni un comportamento corretto per preservare il tuo rating e continuare a guadagnare punti
-                  </Text>
+                  <Text style={styles.howItWorksText}>Mantieni un comportamento corretto per preservare il tuo rating e continuare a guadagnare punti</Text>
                 </View>
               </View>
             </View>
 
-            {/* Drop Activation */}
             <View style={styles.howItWorksCard}>
               <View style={styles.howItWorksHeader}>
-                <IconSymbol
-                  ios_icon_name="bolt.fill"
-                  android_material_icon_name="flash_on"
-                  size={32}
-                  color="#FF6B35"
-                />
+                <IconSymbol ios_icon_name="bolt.fill" android_material_icon_name="flash_on" size={32} color="#FF6B35" />
                 <Text style={styles.howItWorksTitle}>Attivazione Drop</Text>
               </View>
               <View style={styles.howItWorksList}>
                 <View style={styles.howItWorksItem}>
                   <Text style={styles.howItWorksBullet}>•</Text>
-                  <Text style={styles.howItWorksText}>
-                    Quando tanti utenti della tua città mostrano interesse per una lista, si può attivare un drop
-                  </Text>
+                  <Text style={styles.howItWorksText}>Quando tanti utenti della tua città mostrano interesse per una lista, si può attivare un drop</Text>
                 </View>
                 <View style={styles.howItWorksItem}>
                   <Text style={styles.howItWorksBullet}>•</Text>
-                  <Text style={styles.howItWorksText}>
-                    I drop offrono sconti crescenti: più persone prenotano, più lo sconto aumenta
-                  </Text>
+                  <Text style={styles.howItWorksText}>I drop offrono sconti crescenti: più persone prenotano, più lo sconto aumenta</Text>
                 </View>
                 <View style={styles.howItWorksItem}>
                   <Text style={styles.howItWorksBullet}>•</Text>
-                  <Text style={styles.howItWorksText}>
-                    Condividi le liste con amici e parenti per aumentare le possibilità di attivare drop nella tua città
-                  </Text>
+                  <Text style={styles.howItWorksText}>Condividi le liste con amici e parenti per aumentare le possibilità di attivare drop nella tua città</Text>
                 </View>
                 <View style={styles.howItWorksItem}>
                   <Text style={styles.howItWorksBullet}>•</Text>
-                  <Text style={styles.howItWorksText}>
-                    Più persone partecipano, migliori sono gli sconti per tutti!
-                  </Text>
+                  <Text style={styles.howItWorksText}>Più persone partecipano, migliori sono gli sconti per tutti!</Text>
                 </View>
               </View>
             </View>
 
-            {/* Redeem Coupons Button */}
             <Pressable
               style={({ pressed }) => [
                 styles.redeemCouponsButton,
                 pressed && styles.redeemCouponsButtonPressed,
               ]}
               onPress={() => {
+                console.log('User tapped Riscatta i Miei Coupon button');
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                 router.push('/my-coupons');
               }}
             >
-              <IconSymbol
-                ios_icon_name="ticket.fill"
-                android_material_icon_name="local_offer"
-                size={24}
-                color="#FFF"
-              />
+              <IconSymbol ios_icon_name="ticket.fill" android_material_icon_name="local_offer" size={24} color="#FFF" />
               <Text style={styles.redeemCouponsButtonText}>Riscatta i Miei Coupon</Text>
-              <IconSymbol
-                ios_icon_name="chevron.right"
-                android_material_icon_name="chevron_right"
-                size={24}
-                color="#FFF"
-              />
+              <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="chevron_right" size={24} color="#FFF" />
             </Pressable>
           </View>
         </ScrollView>
@@ -1937,20 +1706,13 @@ export default function GameFeedScreen() {
                       outputRange: [0, -50],
                     }),
                   },
-                  {
-                    scale: rewardAnim,
-                  },
+                  { scale: rewardAnim },
                 ],
               },
             ]}
           >
             <View style={styles.rewardAnimationContent}>
-              <IconSymbol
-                ios_icon_name="star.fill"
-                android_material_icon_name="star"
-                size={32}
-                color="#FFD700"
-              />
+              <IconSymbol ios_icon_name="star.fill" android_material_icon_name="star" size={32} color="#FFD700" />
               <Text style={styles.rewardAnimationText}>+{rewardAmount} punti!</Text>
             </View>
           </Animated.View>
@@ -1975,9 +1737,9 @@ export default function GameFeedScreen() {
               </View>
 
               <Text style={styles.modalTitle}>Striscia Persa</Text>
-              
+
               <Text style={styles.modalMessage}>
-                {missedWeeksCount === 1 
+                {missedWeeksCount === 1
                   ? 'Non hai partecipato al gioco la settimana scorsa.'
                   : `Non hai partecipato al gioco per ${missedWeeksCount} settimane.`}
               </Text>
@@ -1986,12 +1748,7 @@ export default function GameFeedScreen() {
                 <View style={styles.modalStatItem}>
                   <Text style={styles.modalStatLabel}>Striscia Precedente</Text>
                   <View style={styles.modalStatValue}>
-                    <IconSymbol
-                      ios_icon_name="flame.fill"
-                      android_material_icon_name="local_fire_department"
-                      size={24}
-                      color="#FF6B35"
-                    />
+                    <IconSymbol ios_icon_name="flame.fill" android_material_icon_name="local_fire_department" size={24} color="#FF6B35" />
                     <Text style={styles.modalStatNumber}>{previousStreak}</Text>
                   </View>
                 </View>
@@ -2001,33 +1758,20 @@ export default function GameFeedScreen() {
                 <View style={styles.modalStatItem}>
                   <Text style={styles.modalStatLabel}>Striscia Attuale</Text>
                   <View style={styles.modalStatValue}>
-                    <IconSymbol
-                      ios_icon_name="flame.fill"
-                      android_material_icon_name="local_fire_department"
-                      size={24}
-                      color={colors.textSecondary}
-                    />
+                    <IconSymbol ios_icon_name="flame.fill" android_material_icon_name="local_fire_department" size={24} color={colors.textSecondary} />
                     <Text style={styles.modalStatNumber}>0</Text>
                   </View>
                 </View>
               </View>
 
               <View style={styles.modalInfoBox}>
-                <IconSymbol
-                  ios_icon_name="info.circle.fill"
-                  android_material_icon_name="info"
-                  size={20}
-                  color={colors.info}
-                />
+                <IconSymbol ios_icon_name="info.circle.fill" android_material_icon_name="info" size={20} color={colors.info} />
                 <Text style={styles.modalInfoText}>
                   Non preoccuparti! I tuoi punti mensili sono stati preservati. Ricomincia a giocare questa settimana per ricostruire la tua striscia!
                 </Text>
               </View>
 
-              <Pressable
-                style={styles.modalButton}
-                onPress={closeMissedWeekModal}
-              >
+              <Pressable style={styles.modalButton} onPress={closeMissedWeekModal}>
                 <Text style={styles.modalButtonText}>Ricomincia a Giocare!</Text>
               </Pressable>
             </View>

@@ -66,6 +66,7 @@ export default function ListProductsScreen() {
 
   useEffect(() => {
     loadProducts();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [listId]);
 
   const loadProducts = async () => {

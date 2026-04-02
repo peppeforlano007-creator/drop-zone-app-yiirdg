@@ -18,6 +18,7 @@ export default function TestSupabaseScreen() {
 
   useEffect(() => {
     testConnection();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const testConnection = async () => {

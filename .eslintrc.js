@@ -43,6 +43,12 @@ module.exports = {
       rules: {
         '@typescript-eslint/no-var-requires': 'off'
       }
+    },
+    {
+      files: ['**/*.web.tsx', '**/*.web.ts'],
+      rules: {
+        'import/no-unresolved': 'off'
+      }
     }
   ]
 };

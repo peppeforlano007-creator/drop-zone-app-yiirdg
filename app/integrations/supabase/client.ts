@@ -1,14 +1,16 @@
 
 // Supabase client initialization
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
 // Double-check polyfills are loaded (should already be loaded by index.ts)
 if (typeof URL === 'undefined') {
   console.error('❌ CRITICAL: URL not available in client.ts!');
   // Try to load it one more time as a last resort
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   require('react-native-url-polyfill/auto');
-  
+
   if (typeof URL === 'undefined') {
     throw new Error(
       '❌ CRITICAL ERROR: URL polyfill failed to load!\n\n' +
@@ -25,9 +27,6 @@ if (typeof URL === 'undefined') {
 }
 
 console.log('✅ [client.ts] URL polyfill verified');
-
-// Now it's safe to import Supabase
-import { createClient } from '@supabase/supabase-js';
 
 const SUPABASE_URL = "https://sippdylyuzejudmzbwdn.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNpcHBkeWx5dXplanVkbXpid2RuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjMwNDAyNTEsImV4cCI6MjA3ODYxNjI1MX0.yPqwhFDcucUNxXnxnQ4orHBvxVNkxjEBUOypW6MV6jE";

@@ -116,8 +116,16 @@ export default function DropCard({ drop }: DropCardProps) {
   const cityName = drop.pickup_points?.city ?? 'N/A';
 
   const isNonActive = drop.status === 'pending_approval' || drop.status === 'inactive';
-  const badgeText = drop.status === 'pending_approval' ? 'A Breve' : drop.status === 'inactive' ? 'Potrebbero Attivarsi' : '';
-  const badgeColor = drop.status === 'pending_approval' ? '#F59E0B' : '#6B7280';
+
+  const statusBadgeMap: Record<string, { text: string; color: string }> = {
+    active: { text: 'Attivo', color: '#16A34A' },
+    approved: { text: 'Approvato', color: '#2563EB' },
+    pending_approval: { text: 'A Breve', color: '#F59E0B' },
+    inactive: { text: 'Potrebbero Attivarsi', color: '#6B7280' },
+  };
+  const statusBadge = statusBadgeMap[drop.status] ?? null;
+  const badgeText = statusBadge?.text ?? '';
+  const badgeColor = statusBadge?.color ?? '#6B7280';
 
   return (
     <Pressable
@@ -128,7 +136,7 @@ export default function DropCard({ drop }: DropCardProps) {
       ]}
       onPress={handlePress}
     >
-      {isNonActive && (
+      {statusBadge && (
         <View style={[styles.statusBadge, { backgroundColor: badgeColor + 'E6' }]}>
           <Text style={styles.statusBadgeText}>{badgeText}</Text>
         </View>
