@@ -4,9 +4,7 @@
 // Declare __DEV__ global (React Native global for development mode detection)
 declare const __DEV__: boolean;
 
-// eslint-disable-next-line import/first
 import { Platform } from "react-native";
-// eslint-disable-next-line import/first
 import Constants from "expo-constants";
 
 // Simple debouncing to prevent duplicate logs
@@ -27,7 +25,7 @@ const shouldMuteMessage = (message: string): boolean => {
 };
 
 // Queue for batching logs
-let logQueue: { level: string; message: string; source: string; timestamp: string; platform: string }[] = [];
+let logQueue: Array<{ level: string; message: string; source: string; timestamp: string; platform: string }> = [];
 let flushTimeout: ReturnType<typeof setTimeout> | null = null;
 const FLUSH_INTERVAL = 500; // Flush every 500ms
 

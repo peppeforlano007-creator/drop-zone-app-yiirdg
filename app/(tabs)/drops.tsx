@@ -68,9 +68,9 @@ export default function DropsScreen() {
       // First, run the lifecycle processor to update drop statuses
       await supabase.rpc('process_drop_lifecycle');
 
-      // Show active, approved, pending_approval and inactive drops.
-      // We do NOT filter by end_time here because pending_approval and inactive drops
-      // may not have a future end_time set yet — they should still be visible.
+      // Fetch ALL drops except terminal ones so we never accidentally hide a drop
+      // due to an unexpected status value (e.g. 'draft', 'scheduled', 'created', etc.)
+      const terminalStatuses = ['completed', 'expired', 'cancelled', 'underfunded'];
       const { data, error } = await supabase
         .from('drops')
         .select(`
@@ -87,8 +87,10 @@ export default function DropsScreen() {
             max_reservation_value
           )
         `)
-        .in('status', ['active', 'approved', 'pending_approval', 'inactive'])
+        .not('status', 'in', `(${terminalStatuses.join(',')})`)
         .order('created_at', { ascending: false });
+
+      console.log('[drops] raw statuses returned:', data?.map(d => ({ name: d.name, status: d.status })));
 
       if (error) {
         console.error('❌ Error loading drops:', error);
@@ -105,13 +107,15 @@ export default function DropsScreen() {
         })));
       }
 
-      // Sort: active first, then approved, then pending_approval and inactive
+      // Sort: active first, then approved, then pending_approval, inactive, and any other non-terminal status
       const statusOrder: Record<string, number> = {
         active: 0,
         approved: 1,
         pending_approval: 2,
         inactive: 3,
       };
+      // Unknown statuses (e.g. 'draft', 'scheduled', 'created') sort after known ones
+
       const sorted = (data || []).slice().sort((a, b) => {
         const orderA = statusOrder[a.status] ?? 99;
         const orderB = statusOrder[b.status] ?? 99;

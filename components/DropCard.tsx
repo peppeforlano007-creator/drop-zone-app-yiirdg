@@ -78,6 +78,7 @@ export default function DropCard({ drop }: DropCardProps) {
   }, [drop.end_time, drop.status]);
 
   const handlePress = () => {
+    console.log('[DropCard] pressed drop:', drop.id, 'name:', drop.name, 'status:', drop.status);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     router.push({
       pathname: '/drop-details',
@@ -137,8 +138,12 @@ export default function DropCard({ drop }: DropCardProps) {
     approved: { text: 'Approvato', color: '#2563EB' },
     pending_approval: { text: 'A Breve', color: '#F59E0B' },
     inactive: { text: 'Potrebbero Attivarsi', color: '#6B7280' },
+    draft: { text: 'In Preparazione', color: '#6B7280' },
+    scheduled: { text: 'Programmato', color: '#7C3AED' },
+    created: { text: 'In Preparazione', color: '#6B7280' },
   };
-  const statusBadge = statusBadgeMap[drop.status] ?? null;
+  // Fall back to a generic grey badge for any unknown non-terminal status
+  const statusBadge = statusBadgeMap[drop.status] ?? { text: drop.status, color: '#6B7280' };
   const badgeText = statusBadge?.text ?? '';
   const badgeColor = statusBadge?.color ?? '#6B7280';
 
