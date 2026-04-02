@@ -115,14 +115,24 @@ export default function DropCard({ drop }: DropCardProps) {
   const supplierListName = drop.supplier_lists?.name ?? 'N/A';
   const cityName = drop.pickup_points?.city ?? 'N/A';
 
+  const isNonActive = drop.status === 'pending_approval' || drop.status === 'inactive';
+  const badgeText = drop.status === 'pending_approval' ? 'A Breve' : drop.status === 'inactive' ? 'Potrebbero Attivarsi' : '';
+  const badgeColor = drop.status === 'pending_approval' ? '#F59E0B' : '#6B7280';
+
   return (
     <Pressable
       style={({ pressed }) => [
         styles.card,
+        isNonActive && styles.cardDimmed,
         pressed && styles.cardPressed,
       ]}
       onPress={handlePress}
     >
+      {isNonActive && (
+        <View style={[styles.statusBadge, { backgroundColor: badgeColor + 'E6' }]}>
+          <Text style={styles.statusBadgeText}>{badgeText}</Text>
+        </View>
+      )}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <Text style={styles.dropName} numberOfLines={1}>{supplierListName}</Text>
@@ -201,19 +211,21 @@ export default function DropCard({ drop }: DropCardProps) {
           </Text>
         </View>
         <View style={styles.footerButtons}>
-          <Pressable 
-            style={styles.shareButton}
-            onPress={handleShare}
-          >
-            <IconSymbol 
-              ios_icon_name="square.and.arrow.up.fill" 
-              android_material_icon_name="share" 
-              size={14} 
-              color="#FFF" 
-            />
-            <Text style={styles.shareButtonText}>Raggiungi {Math.floor(maxDiscount)}%</Text>
-          </Pressable>
-          <View style={styles.viewButton}>
+          {!isNonActive && (
+            <Pressable 
+              style={styles.shareButton}
+              onPress={handleShare}
+            >
+              <IconSymbol 
+                ios_icon_name="square.and.arrow.up.fill" 
+                android_material_icon_name="share" 
+                size={14} 
+                color="#FFF" 
+              />
+              <Text style={styles.shareButtonText}>Raggiungi {Math.floor(maxDiscount)}%</Text>
+            </Pressable>
+          )}
+          <View style={[styles.viewButton, isNonActive && styles.viewButtonFull]}>
             <Text style={styles.viewButtonText}>Visualizza</Text>
             <IconSymbol 
               ios_icon_name="chevron.right" 
@@ -241,10 +253,31 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 3,
+    overflow: 'hidden',
+  },
+  cardDimmed: {
+    opacity: 0.85,
+    borderColor: colors.border,
   },
   cardPressed: {
     opacity: 0.8,
     transform: [{ scale: 0.98 }],
+  },
+  statusBadge: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    zIndex: 10,
+  },
+  statusBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#FFF',
+    fontFamily: 'System',
+    letterSpacing: 0.3,
   },
   header: {
     flexDirection: 'row',
@@ -427,6 +460,9 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     backgroundColor: colors.primary,
     borderRadius: 8,
+  },
+  viewButtonFull: {
+    flex: 1,
   },
   viewButtonText: {
     fontSize: 13,

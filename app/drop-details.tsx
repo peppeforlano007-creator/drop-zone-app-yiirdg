@@ -112,6 +112,9 @@ export default function DropDetailsScreen() {
   const { user } = useAuth();
   const flatListRef = useRef<FlatList>(null);
 
+  // Derived: drop is viewable but booking is disabled
+  const isDropBookingDisabled = drop?.status === 'pending_approval' || drop?.status === 'inactive';
+
   const loadDropDetails = useCallback(async () => {
     if (!dropId) {
       console.log('❌ No dropId provided');
@@ -156,15 +159,16 @@ export default function DropDetailsScreen() {
         updated_at: dropData.updated_at,
       });
 
-      // Check if drop is expired or closed
+      // Check if drop is truly expired/terminated (not just non-active)
+      const terminalStatuses = ['completed', 'expired', 'cancelled', 'underfunded'];
       const now = new Date();
       const endTime = new Date(dropData.end_time);
-      const expired = now > endTime || !['active', 'approved'].includes(dropData.status);
+      const expired = now > endTime || terminalStatuses.includes(dropData.status);
       
       setIsExpired(expired);
       setDrop(dropData);
 
-      // If drop is expired/closed, show message and don't load products
+      // If drop is truly terminated, show message and don't load products
       if (expired) {
         console.log('⚠️ Drop is expired or closed, status:', dropData.status);
         setProducts([]);
@@ -348,8 +352,9 @@ export default function DropDetailsScreen() {
       updated_at: updatedDrop.updated_at,
     });
     
-    // If drop status changed to expired/completed/underfunded, mark as expired
-    if (updatedDrop.status && !['active', 'approved'].includes(updatedDrop.status)) {
+    // Only mark as expired for truly terminal statuses
+    const terminalStatuses = ['completed', 'expired', 'cancelled', 'underfunded'];
+    if (updatedDrop.status && terminalStatuses.includes(updatedDrop.status)) {
       console.log('⚠️ Drop status changed to', updatedDrop.status);
       setIsExpired(true);
       Alert.alert(
@@ -483,12 +488,13 @@ export default function DropDetailsScreen() {
       return;
     }
 
-    // Check if drop is expired
-    if (isExpired || !['active', 'approved'].includes(drop.status)) {
-      console.log('❌ Drop is expired or not active, status:', drop.status);
+    // Check if drop is expired or not bookable
+    const bookableStatuses = ['active', 'approved'];
+    if (isExpired || !bookableStatuses.includes(drop.status)) {
+      console.log('❌ Drop is not bookable, status:', drop.status);
       Alert.alert(
-        'Drop Terminato',
-        'Questo drop è terminato e non accetta più prenotazioni.',
+        'Drop Non Attivo',
+        'Questo drop non è ancora attivo. Potrai prenotare quando l\'amministratore lo attiverà.',
         [{ text: 'OK' }]
       );
       return;
@@ -745,10 +751,11 @@ export default function DropDetailsScreen() {
           onBook={handleBook}
           isInterested={isBooked}
           dropId={dropId}
+          dropBookingDisabled={isDropBookingDisabled}
         />
       </View>
     );
-  }, [drop, userBookings, handleBook, dropId]);
+  }, [drop, userBookings, handleBook, dropId, isDropBookingDisabled]);
 
   if (loading) {
     return (
@@ -777,19 +784,18 @@ export default function DropDetailsScreen() {
     );
   }
 
-  // Show expired message if drop is closed
-  if (isExpired || !['active', 'approved'].includes(drop.status)) {
+  // Show expired message only for truly terminal statuses
+  if (isExpired) {
+    const completedText = drop.status === 'completed' ? '\n\nGli ordini sono stati inviati al fornitore.' : '';
+    const underfundedText = drop.status === 'underfunded' ? '\n\nIl drop non ha raggiunto il valore minimo ed è stato annullato.' : '';
+    const expiredSubtext = 'Questo drop è terminato e non accetta più prenotazioni.' + completedText + underfundedText;
     return (
       <SafeAreaView style={styles.container}>
         <Stack.Screen options={{ headerShown: false }} />
         <View style={styles.errorContainer}>
           <IconSymbol ios_icon_name="clock.badge.xmark" android_material_icon_name="schedule" size={64} color={colors.warning} />
           <Text style={styles.errorText}>Drop Terminato</Text>
-          <Text style={styles.errorSubtext}>
-            Questo drop è terminato e non accetta più prenotazioni.
-            {drop.status === 'completed' && '\n\nGli ordini sono stati inviati al fornitore.'}
-            {drop.status === 'underfunded' && '\n\nIl drop non ha raggiunto il valore minimo ed è stato annullato.'}
-          </Text>
+          <Text style={styles.errorSubtext}>{expiredSubtext}</Text>
           <Pressable style={styles.backButton} onPress={() => router.back()}>
             <Text style={styles.backButtonText}>Torna ai Drop Attivi</Text>
           </Pressable>
@@ -839,6 +845,24 @@ export default function DropDetailsScreen() {
     <View style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
       
+      {isDropBookingDisabled && (
+        <View style={styles.bookingDisabledBanner} pointerEvents="none">
+          <SafeAreaView edges={['bottom']} style={styles.bookingDisabledSafeArea}>
+            <View style={styles.bookingDisabledContent}>
+              <IconSymbol
+                ios_icon_name="clock.badge.exclamationmark"
+                android_material_icon_name="schedule"
+                size={18}
+                color="#FFF"
+              />
+              <Text style={styles.bookingDisabledText}>
+                Questo drop non è ancora attivo. Potrai prenotare quando l&apos;amministratore lo attiverà.
+              </Text>
+            </View>
+          </SafeAreaView>
+        </View>
+      )}
+
       <FlatList
         ref={flatListRef}
         data={products}
@@ -1199,5 +1223,34 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontWeight: '700',
     fontFamily: 'System',
+  },
+  bookingDisabledBanner: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    zIndex: 200,
+  },
+  bookingDisabledSafeArea: {
+    backgroundColor: 'transparent',
+  },
+  bookingDisabledContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: 'rgba(107, 114, 128, 0.92)',
+    marginHorizontal: 16,
+    marginBottom: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
+  },
+  bookingDisabledText: {
+    flex: 1,
+    fontSize: 13,
+    color: '#FFF',
+    fontWeight: '600',
+    fontFamily: 'System',
+    lineHeight: 18,
   },
 });

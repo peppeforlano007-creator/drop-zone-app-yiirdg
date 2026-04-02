@@ -68,7 +68,7 @@ export default function DropsScreen() {
       // First, run the lifecycle processor to update drop statuses
       await supabase.rpc('process_drop_lifecycle');
 
-      // Only show active and approved drops (not expired, completed, or underfunded)
+      // Show active, approved, pending_approval and inactive drops
       const { data, error } = await supabase
         .from('drops')
         .select(`
@@ -85,7 +85,7 @@ export default function DropsScreen() {
             max_reservation_value
           )
         `)
-        .in('status', ['active', 'approved'])
+        .in('status', ['active', 'approved', 'pending_approval', 'inactive'])
         .gt('end_time', new Date().toISOString()) // Only show drops that haven't expired yet
         .order('created_at', { ascending: false });
 
@@ -103,7 +103,21 @@ export default function DropsScreen() {
           end_time: d.end_time
         })));
       }
-      setDrops(data || []);
+
+      // Sort: active first, then approved, then pending_approval and inactive
+      const statusOrder: Record<string, number> = {
+        active: 0,
+        approved: 1,
+        pending_approval: 2,
+        inactive: 3,
+      };
+      const sorted = (data || []).slice().sort((a, b) => {
+        const orderA = statusOrder[a.status] ?? 99;
+        const orderB = statusOrder[b.status] ?? 99;
+        return orderA - orderB;
+      });
+
+      setDrops(sorted);
     } catch (error) {
       console.error('❌ Exception loading drops:', error);
     } finally {
@@ -123,8 +137,9 @@ export default function DropsScreen() {
     setDrops(prevDrops => {
       const dropIndex = prevDrops.findIndex(d => d.id === updatedDrop.id);
       
-      // If drop status changed to expired/completed/underfunded, remove it from the list
-      if (updatedDrop.status && !['active', 'approved'].includes(updatedDrop.status)) {
+      // Only remove drops that have truly ended (completed, expired, cancelled, underfunded)
+      const terminalStatuses = ['completed', 'expired', 'cancelled', 'underfunded'];
+      if (updatedDrop.status && terminalStatuses.includes(updatedDrop.status)) {
         console.log('Drop status changed to', updatedDrop.status, '- removing from list');
         return prevDrops.filter(d => d.id !== updatedDrop.id);
       }

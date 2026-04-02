@@ -28,6 +28,7 @@ interface EnhancedProductCardProps {
   onBook?: (productId: string, variantId?: string) => void;
   isInterested?: boolean;
   dropId?: string;
+  dropBookingDisabled?: boolean;
 }
 
 export default function EnhancedProductCard({
@@ -39,6 +40,7 @@ export default function EnhancedProductCard({
   onBook,
   isInterested = false,
   dropId,
+  dropBookingDisabled = false,
 }: EnhancedProductCardProps) {
   const { user } = useAuth();
   const [imageLoaded, setImageLoaded] = useState(false);
@@ -444,7 +446,7 @@ export default function EnhancedProductCard({
   const mainImageUrl = imageUrls[0] || '';
 
   // CRITICAL: Determine if booking button should be disabled (ONLY IN DROP)
-  const isBookingDisabled = isProcessing || isOutOfStock || (isInDrop && requiresVariantSelection && !hasAllRequiredSelections);
+  const isBookingDisabled = isProcessing || isOutOfStock || dropBookingDisabled || (isInDrop && requiresVariantSelection && !hasAllRequiredSelections);
 
   return (
     <View style={styles.container}>
