@@ -141,9 +141,13 @@ export default function DropCard({ drop }: DropCardProps) {
     draft: { text: 'In Preparazione', color: '#6B7280' },
     scheduled: { text: 'Programmato', color: '#7C3AED' },
     created: { text: 'In Preparazione', color: '#6B7280' },
+    completed: { text: 'Completato', color: '#374151' },
+    expired: { text: 'Scaduto', color: '#374151' },
+    cancelled: { text: 'Annullato', color: '#DC2626' },
+    underfunded: { text: 'Non Finanziato', color: '#DC2626' },
   };
-  // Fall back to a generic grey badge for any unknown non-terminal status
-  const statusBadge = statusBadgeMap[drop.status] ?? { text: drop.status, color: '#6B7280' };
+  // Fall back to a generic grey badge for any unknown status
+  const statusBadge = statusBadgeMap[drop.status] ?? { text: String(drop.status ?? ''), color: '#6B7280' };
   const badgeText = statusBadge?.text ?? '';
   const badgeColor = statusBadge?.color ?? '#6B7280';
 

@@ -68,9 +68,7 @@ export default function DropsScreen() {
       // First, run the lifecycle processor to update drop statuses
       await supabase.rpc('process_drop_lifecycle');
 
-      // Fetch ALL drops except terminal ones so we never accidentally hide a drop
-      // due to an unexpected status value (e.g. 'draft', 'scheduled', 'created', etc.)
-      const terminalStatuses = ['completed', 'expired', 'cancelled', 'underfunded'];
+      // Fetch ALL drops with NO status filter — display everything so nothing is accidentally hidden
       const { data, error } = await supabase
         .from('drops')
         .select(`
@@ -87,7 +85,6 @@ export default function DropsScreen() {
             max_reservation_value
           )
         `)
-        .not('status', 'in', `(${terminalStatuses.join(',')})`)
         .order('created_at', { ascending: false });
 
       console.log('[drops] raw statuses returned:', data?.map(d => ({ name: d.name, status: d.status })));
@@ -107,18 +104,24 @@ export default function DropsScreen() {
         })));
       }
 
-      // Sort: active first, then approved, then pending_approval, inactive, and any other non-terminal status
+      // Sort: active first, then approved, then pending_approval, inactive, terminal statuses last
       const statusOrder: Record<string, number> = {
         active: 0,
         approved: 1,
         pending_approval: 2,
         inactive: 3,
+        draft: 4,
+        scheduled: 5,
+        created: 6,
+        completed: 90,
+        expired: 91,
+        cancelled: 92,
+        underfunded: 93,
       };
-      // Unknown statuses (e.g. 'draft', 'scheduled', 'created') sort after known ones
 
       const sorted = (data || []).slice().sort((a, b) => {
-        const orderA = statusOrder[a.status] ?? 99;
-        const orderB = statusOrder[b.status] ?? 99;
+        const orderA = statusOrder[a.status] ?? 50;
+        const orderB = statusOrder[b.status] ?? 50;
         return orderA - orderB;
       });
 
@@ -269,22 +272,24 @@ export default function DropsScreen() {
           </Text>
         </View>
       ) : (
-        <FlatList
-          data={drops}
-          renderItem={renderDrop}
-          keyExtractor={(item) => item.id}
-          ListHeaderComponent={renderHeader}
-          contentContainerStyle={styles.listContent}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={handleRefresh}
-              tintColor={colors.primary}
-              colors={[colors.primary]}
-            />
-          }
-        />
+        <View style={styles.listWrapper}>
+          <FlatList
+            data={drops}
+            renderItem={renderDrop}
+            keyExtractor={(item) => item.id}
+            ListHeaderComponent={renderHeader}
+            contentContainerStyle={styles.listContent}
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={handleRefresh}
+                tintColor={colors.primary}
+                colors={[colors.primary]}
+              />
+            }
+          />
+        </View>
       )}
     </SafeAreaView>
   );
@@ -417,5 +422,8 @@ const styles = StyleSheet.create({
     marginTop: 8,
     lineHeight: 24,
     fontFamily: 'System',
+  },
+  listWrapper: {
+    flex: 1,
   },
 });
