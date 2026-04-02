@@ -35,8 +35,23 @@ export default function DropCard({ drop }: DropCardProps) {
 
   useEffect(() => {
     const updateTimer = () => {
+      const nonActiveStatuses = ['pending_approval', 'inactive'];
+      if (nonActiveStatuses.includes(drop.status)) {
+        setTimeRemaining('A breve');
+        return;
+      }
+
+      if (!drop.end_time) {
+        setTimeRemaining('—');
+        return;
+      }
+
       const now = new Date().getTime();
       const endTime = new Date(drop.end_time).getTime();
+      if (isNaN(endTime)) {
+        setTimeRemaining('—');
+        return;
+      }
       const distance = endTime - now;
 
       if (distance < 0) {
@@ -60,7 +75,7 @@ export default function DropCard({ drop }: DropCardProps) {
     const interval = setInterval(updateTimer, 60000); // Update every minute
 
     return () => clearInterval(interval);
-  }, [drop.end_time]);
+  }, [drop.end_time, drop.status]);
 
   const handlePress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);

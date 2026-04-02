@@ -160,10 +160,25 @@ export default function DropDetailsScreen() {
       });
 
       // Check if drop is truly expired/terminated (not just non-active)
+      // pending_approval and inactive drops are visible but not bookable — never treat them as expired
       const terminalStatuses = ['completed', 'expired', 'cancelled', 'underfunded'];
+      const nonActiveStatuses = ['pending_approval', 'inactive'];
+      const isTerminal = terminalStatuses.includes(dropData.status);
+      const isNonActiveStatus = nonActiveStatuses.includes(dropData.status);
+      // Only use end_time expiry check for active/approved drops that have a valid end_time
       const now = new Date();
-      const endTime = new Date(dropData.end_time);
-      const expired = now > endTime || terminalStatuses.includes(dropData.status);
+      const endTime = dropData.end_time ? new Date(dropData.end_time) : null;
+      const isEndTimePast = endTime && !isNaN(endTime.getTime()) && now > endTime;
+      const expired = isTerminal || (!isNonActiveStatus && !!isEndTimePast);
+
+      console.log('📊 Drop status check:', {
+        status: dropData.status,
+        isTerminal,
+        isNonActiveStatus,
+        end_time: dropData.end_time,
+        isEndTimePast,
+        expired,
+      });
       
       setIsExpired(expired);
       setDrop(dropData);
@@ -413,8 +428,23 @@ export default function DropDetailsScreen() {
     if (!drop) return;
 
     const updateTimer = () => {
+      const nonActiveStatuses = ['pending_approval', 'inactive'];
+      if (nonActiveStatuses.includes(drop.status)) {
+        setTimeRemaining('Non ancora attivo');
+        return;
+      }
+
+      if (!drop.end_time) {
+        setTimeRemaining('—');
+        return;
+      }
+
       const now = new Date().getTime();
       const endTime = new Date(drop.end_time).getTime();
+      if (isNaN(endTime)) {
+        setTimeRemaining('—');
+        return;
+      }
       const distance = endTime - now;
 
       if (distance < 0) {
