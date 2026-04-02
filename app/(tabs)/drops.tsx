@@ -172,8 +172,9 @@ export default function DropsScreen() {
     });
   }, [loadDrops]);
 
+  // Do NOT filter by pickupPointId — inactive/pending drops may have no pickup point yet
+  // and would be missed by the realtime subscription filter.
   const { isConnected } = useRealtimeDrops({
-    pickupPointId: userPickupPointId || undefined,
     onUpdate: handleDropUpdate,
     enabled: true,
   });

@@ -160,11 +160,6 @@ export default function DropCard({ drop }: DropCardProps) {
       ]}
       onPress={handlePress}
     >
-      {statusBadge && (
-        <View style={[styles.statusBadge, { backgroundColor: badgeColor + 'E6' }]}>
-          <Text style={styles.statusBadgeText}>{badgeText}</Text>
-        </View>
-      )}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <Text style={styles.dropName} numberOfLines={1}>{supplierListName}</Text>
@@ -186,6 +181,13 @@ export default function DropCard({ drop }: DropCardProps) {
             color="#FFF" 
           />
           <Text style={styles.timerText}>{timeRemaining}</Text>
+        </View>
+      </View>
+
+      <View style={[styles.statusBadgeRow]}>
+        <View style={[styles.statusBadge, { backgroundColor: badgeColor + '22', borderColor: badgeColor + '66' }]}>
+          <View style={[styles.statusDot, { backgroundColor: badgeColor }]} />
+          <Text style={[styles.statusBadgeText, { color: badgeColor }]}>{badgeText}</Text>
         </View>
       </View>
 
@@ -295,19 +297,27 @@ const styles = StyleSheet.create({
     opacity: 0.8,
     transform: [{ scale: 0.98 }],
   },
+  statusBadgeRow: {
+    flexDirection: 'row',
+    marginBottom: 12,
+  },
   statusBadge: {
-    position: 'absolute',
-    top: 12,
-    right: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
     paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 8,
-    zIndex: 10,
+    paddingVertical: 4,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
   },
   statusBadgeText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#FFF',
     fontFamily: 'System',
     letterSpacing: 0.3,
   },
