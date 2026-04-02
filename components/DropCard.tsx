@@ -131,11 +131,11 @@ export default function DropCard({ drop }: DropCardProps) {
   const supplierListName = drop.supplier_lists?.name ?? 'N/A';
   const cityName = drop.pickup_points?.city ?? 'N/A';
 
-  const isNonActive = drop.status === 'pending_approval' || drop.status === 'inactive';
+  const isNonActive = drop.status === 'approved' || drop.status === 'pending_approval' || drop.status === 'inactive';
 
   const statusBadgeMap: Record<string, { text: string; color: string }> = {
     active: { text: 'Attivo', color: '#16A34A' },
-    approved: { text: 'Approvato', color: '#2563EB' },
+    approved: { text: 'Potrebbero Attivarsi', color: '#2563EB' },
     pending_approval: { text: 'A Breve', color: '#F59E0B' },
     inactive: { text: 'Potrebbero Attivarsi', color: '#6B7280' },
     draft: { text: 'In Preparazione', color: '#6B7280' },
