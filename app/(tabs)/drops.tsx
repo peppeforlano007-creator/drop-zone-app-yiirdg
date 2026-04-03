@@ -65,9 +65,6 @@ export default function DropsScreen() {
         }
       }
 
-      // First, run the lifecycle processor to update drop statuses
-      await supabase.rpc('process_drop_lifecycle');
-
       // Fetch only active and approved drops
       const { data, error } = await supabase
         .from('drops')
