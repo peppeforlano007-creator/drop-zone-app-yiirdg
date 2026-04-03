@@ -69,8 +69,9 @@ export function useRealtimeDrop({ dropId, onUpdate, enabled = true }: UseRealtim
     // Copy the ref value to a variable inside the effect
     const lastUpdate = lastUpdateRef.current;
 
-    // Create a channel for this specific drop
-    const dropChannel = supabase.channel(`drop:${dropId}`, {
+    // Create a channel with a unique name to avoid conflicts on re-subscribe
+    const channelName = `drop:${dropId}:${Date.now()}`;
+    const dropChannel = supabase.channel(channelName, {
       config: {
         broadcast: { self: true },
       },
@@ -100,11 +101,11 @@ export function useRealtimeDrop({ dropId, onUpdate, enabled = true }: UseRealtim
 
     setChannel(dropChannel);
 
-    // Cleanup function - use the copied variable
+    // Cleanup function - remove the channel fully so Supabase doesn't retain it
     return () => {
       console.log('🧹 Cleaning up realtime subscription for drop:', dropId);
       console.log('Last update value at cleanup:', lastUpdate);
-      dropChannel.unsubscribe();
+      supabase.removeChannel(dropChannel);
       setChannel(null);
       setIsConnected(false);
       lastUpdateRef.current = '';
@@ -171,8 +172,9 @@ export function useRealtimeDrops({ pickupPointId, onUpdate, enabled = true }: Us
     // Copy the ref value to a variable inside the effect (also used in cleanup)
     const lastUpdateMap = lastUpdateRef.current;
 
-    // Create a channel for all drops
-    const dropsChannel = supabase.channel('drops:all', {
+    // Create a channel with a unique name to avoid conflicts on re-subscribe
+    const channelName = `drops:all:${Date.now()}`;
+    const dropsChannel = supabase.channel(channelName, {
       config: {
         broadcast: { self: true },
       },
@@ -202,11 +204,11 @@ export function useRealtimeDrops({ pickupPointId, onUpdate, enabled = true }: Us
 
     setChannel(dropsChannel);
 
-    // Cleanup function - use the captured variable, not lastUpdateRef.current
+    // Cleanup function - remove the channel fully so Supabase doesn't retain it
     return () => {
       console.log('🧹 Cleaning up realtime subscription for drops');
       console.log('Last update map size at cleanup:', lastUpdateMap.size);
-      dropsChannel.unsubscribe();
+      supabase.removeChannel(dropsChannel);
       setChannel(null);
       setIsConnected(false);
       lastUpdateMap.clear();
