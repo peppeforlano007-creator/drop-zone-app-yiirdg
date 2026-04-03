@@ -113,7 +113,7 @@ export default function DropDetailsScreen() {
   const flatListRef = useRef<FlatList>(null);
 
   // Derived: drop is viewable but booking is disabled
-  const isDropBookingDisabled = drop?.status === 'pending_approval' || drop?.status === 'inactive';
+  const isDropBookingDisabled = drop?.status === 'approved' || drop?.status === 'pending_approval' || drop?.status === 'inactive';
 
   const loadDropDetails = useCallback(async () => {
     if (!dropId) {
@@ -160,12 +160,12 @@ export default function DropDetailsScreen() {
       });
 
       // Check if drop is truly expired/terminated (not just non-active)
-      // pending_approval and inactive drops are visible but not bookable — never treat them as expired
+      // pending_approval, inactive and approved drops are visible but not bookable — never treat them as expired
       const terminalStatuses = ['completed', 'expired', 'cancelled', 'underfunded'];
-      const nonActiveStatuses = ['pending_approval', 'inactive'];
+      const nonActiveStatuses = ['pending_approval', 'inactive', 'approved'];
       const isTerminal = terminalStatuses.includes(dropData.status);
       const isNonActiveStatus = nonActiveStatuses.includes(dropData.status);
-      // Only use end_time expiry check for active/approved drops that have a valid end_time
+      // Only use end_time expiry check for active drops that have a valid end_time
       const now = new Date();
       const endTime = dropData.end_time ? new Date(dropData.end_time) : null;
       const isEndTimePast = endTime && !isNaN(endTime.getTime()) && now > endTime;
@@ -428,7 +428,7 @@ export default function DropDetailsScreen() {
     if (!drop) return;
 
     const updateTimer = () => {
-      const nonActiveStatuses = ['pending_approval', 'inactive'];
+      const nonActiveStatuses = ['pending_approval', 'inactive', 'approved'];
       if (nonActiveStatuses.includes(drop.status)) {
         setTimeRemaining('Non ancora attivo');
         return;

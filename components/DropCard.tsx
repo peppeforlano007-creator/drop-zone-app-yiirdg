@@ -35,7 +35,7 @@ export default function DropCard({ drop }: DropCardProps) {
 
   useEffect(() => {
     const updateTimer = () => {
-      const nonActiveStatuses = ['pending_approval', 'inactive'];
+      const nonActiveStatuses = ['pending_approval', 'inactive', 'approved'];
       if (nonActiveStatuses.includes(drop.status)) {
         setTimeRemaining('A breve');
         return;
