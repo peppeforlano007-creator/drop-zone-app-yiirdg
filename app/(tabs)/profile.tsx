@@ -1,5 +1,5 @@
 
-import { View, Text, StyleSheet, ScrollView, Platform, Pressable, Alert, ActivityIndicator, Linking } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, Alert, ActivityIndicator, Linking } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, commonStyles, layout } from '@/styles/commonStyles';
 import React, { useState, useEffect, useCallback } from 'react';
@@ -8,8 +8,6 @@ import { Stack, router, useFocusEffect } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/app/integrations/supabase/client';
 import * as Haptics from 'expo-haptics';
-import Constants from 'expo-constants';
-
 export default function ProfileScreen() {
   const { logout, user, session, updatePickupPoint } = useAuth();
   const [selectedPickupPoint, setSelectedPickupPoint] = useState(user?.pickupPoint || '');
@@ -27,44 +25,14 @@ export default function ProfileScreen() {
   const [wishlistCount, setWishlistCount] = useState(0);
   const [profileError, setProfileError] = useState<string | null>(null);
 
-  // Debug info
-  const appVersion = Constants.expoConfig?.version || 'unknown';
-  const buildEnvironment = __DEV__ ? 'Development' : 'Production';
-  const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || 'NOT SET';
-  const hasSupabaseKey = !!process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
-
   const loadUserProfile = useCallback(async () => {
     if (!user) {
-      console.log('Profile: No user found, skipping profile load');
       setLoadingProfile(false);
       setProfileError('Utente non autenticato');
       return;
     }
 
-    const _supabaseUrl = supabaseUrl;
-    const _hasSupabaseKey = hasSupabaseKey;
-    console.log('Profile: Loading user profile for:', user.id);
-    console.log('Profile: User data:', JSON.stringify(user, null, 2));
-    console.log('Profile: Session exists:', !!session);
-    console.log('Profile: Supabase URL:', _supabaseUrl);
-    console.log('Profile: Has Supabase Key:', _hasSupabaseKey);
-
     try {
-      // Test Supabase connection first
-      const { data: testData, error: testError } = await supabase
-        .from('profiles')
-        .select('count')
-        .limit(1);
-
-      if (testError) {
-        console.error('Profile: Supabase connection test failed:', testError);
-        setProfileError(`Errore connessione database: ${testError.message}`);
-        setLoadingProfile(false);
-        return;
-      }
-
-      console.log('Profile: Supabase connection test successful');
-
       const { data, error } = await supabase
         .from('profiles')
         .select('rating_stars, loyalty_points, orders_picked_up, orders_returned, account_blocked')
@@ -73,14 +41,12 @@ export default function ProfileScreen() {
 
       if (error) {
         console.error('Profile: Error loading user profile:', error);
-        console.error('Profile: Error details:', JSON.stringify(error, null, 2));
         setProfileError(`Errore caricamento profilo: ${error.message}`);
         setLoadingProfile(false);
         return;
       }
 
       if (data) {
-        console.log('Profile: User profile loaded successfully:', JSON.stringify(data, null, 2));
         setRatingStars(data.rating_stars ?? 5);
         setLoyaltyPoints(data.loyalty_points ?? 0);
         setOrdersPickedUp(data.orders_picked_up ?? 0);
@@ -88,7 +54,6 @@ export default function ProfileScreen() {
         setAccountBlocked(data.account_blocked ?? false);
         setProfileError(null);
       } else {
-        console.warn('Profile: No profile data returned');
         setProfileError('Profilo non trovato');
       }
     } catch (error) {
@@ -97,13 +62,10 @@ export default function ProfileScreen() {
     } finally {
       setLoadingProfile(false);
     }
-  }, [user, session, supabaseUrl, hasSupabaseKey]);
+  }, [user]);
 
   const loadWishlistCount = useCallback(async () => {
-    if (!user) {
-      console.log('Profile: No user found, skipping wishlist count');
-      return;
-    }
+    if (!user) return;
 
     try {
       const { count, error } = await supabase
@@ -116,7 +78,6 @@ export default function ProfileScreen() {
         return;
       }
 
-      console.log('Profile: Wishlist count loaded:', count);
       setWishlistCount(count || 0);
     } catch (error) {
       console.error('Profile: Exception loading wishlist count:', error);
@@ -126,8 +87,6 @@ export default function ProfileScreen() {
   const loadWhatsAppNumber = useCallback(async () => {
     try {
       setLoadingWhatsapp(true);
-      console.log('Profile: Loading WhatsApp number from database...');
-      
       const { data, error } = await supabase
         .from('app_settings')
         .select('setting_value')
@@ -140,10 +99,7 @@ export default function ProfileScreen() {
       }
 
       if (data?.setting_value) {
-        console.log('Profile: WhatsApp number loaded successfully:', data.setting_value);
         setWhatsappNumber(data.setting_value);
-      } else {
-        console.log('Profile: No WhatsApp number found in database, using fallback');
       }
     } catch (error) {
       console.error('Profile: Exception loading WhatsApp number:', error);
@@ -166,7 +122,6 @@ export default function ProfileScreen() {
         return;
       }
 
-      console.log('Profile: Loaded pickup points:', data?.length || 0);
       setPickupPoints(data || []);
     } catch (error) {
       console.error('Profile: Exception loading pickup points:', error);
@@ -176,21 +131,15 @@ export default function ProfileScreen() {
   }, []);
 
   useEffect(() => {
-    console.log('Profile: Component mounted, loading data...');
-    console.log('Profile: Build environment:', buildEnvironment);
-    console.log('Profile: App version:', appVersion);
-    console.log('Profile: Build environment:', buildEnvironment);
-    console.log('Profile: App version:', appVersion);
     loadPickupPoints();
     loadWhatsAppNumber();
     loadUserProfile();
     loadWishlistCount();
-  }, [loadPickupPoints, loadWhatsAppNumber, loadUserProfile, loadWishlistCount, buildEnvironment, appVersion]);
+  }, [loadPickupPoints, loadWhatsAppNumber, loadUserProfile, loadWishlistCount]);
 
   // Refresh wishlist count when screen is focused
   useFocusEffect(
     useCallback(() => {
-      console.log('Profile: Screen focused, refreshing wishlist count');
       loadWishlistCount();
     }, [loadWishlistCount])
   );
@@ -259,7 +208,6 @@ export default function ProfileScreen() {
   const handleNotifications = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push('/(tabs)/notifications');
-    console.log('Profile: Navigating to notifications screen');
   };
 
   const handleAdminPanel = () => {
@@ -351,14 +299,6 @@ export default function ProfileScreen() {
           {profileError && (
             <Text style={styles.errorText}>{profileError}</Text>
           )}
-          {__DEV__ && (
-            <View style={styles.debugInfo}>
-              <Text style={styles.debugText}>Environment: {buildEnvironment}</Text>
-              <Text style={styles.debugText}>Version: {appVersion}</Text>
-              <Text style={styles.debugText}>Supabase: {hasSupabaseKey ? 'Configured' : 'NOT CONFIGURED'}</Text>
-              <Text style={styles.debugText}>Session: {session ? 'Active' : 'None'}</Text>
-            </View>
-          )}
         </View>
       </SafeAreaView>
     );
@@ -435,25 +375,6 @@ export default function ProfileScreen() {
               )}
             </View>
           </View>
-
-          {/* Debug Info (only in development) */}
-          {__DEV__ && (
-            <View style={styles.debugSection}>
-              <Text style={styles.debugTitle}>Debug Info</Text>
-              <Text style={styles.debugText}>User ID: {user.id}</Text>
-              <Text style={styles.debugText}>Role: {user.role}</Text>
-              <Text style={styles.debugText}>Pickup Point: {user.pickupPoint || 'None'}</Text>
-              <Text style={styles.debugText}>Loading Profile: {loadingProfile ? 'Yes' : 'No'}</Text>
-              <Text style={styles.debugText}>Environment: {buildEnvironment}</Text>
-              <Text style={styles.debugText}>Version: {appVersion}</Text>
-              <Text style={styles.debugText}>Supabase URL: {supabaseUrl.substring(0, 30)}...</Text>
-              <Text style={styles.debugText}>Has Supabase Key: {hasSupabaseKey ? 'Yes' : 'No'}</Text>
-              <Text style={styles.debugText}>Session Active: {session ? 'Yes' : 'No'}</Text>
-              {profileError && (
-                <Text style={styles.debugError}>Error: {profileError}</Text>
-              )}
-            </View>
-          )}
 
           {/* Rating & Loyalty Section */}
           {!loadingProfile && !profileError && (
@@ -731,36 +652,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     color: colors.background,
-  },
-  debugSection: {
-    padding: 16,
-    backgroundColor: colors.backgroundSecondary,
-    borderRadius: 12,
-    margin: 16,
-  },
-  debugTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.text,
-    marginBottom: 8,
-  },
-  debugText: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    marginBottom: 4,
-    fontFamily: Platform.select({ ios: 'Courier', android: 'monospace' }),
-  },
-  debugError: {
-    fontSize: 12,
-    color: colors.error,
-    marginTop: 8,
-    fontFamily: Platform.select({ ios: 'Courier', android: 'monospace' }),
-  },
-  debugInfo: {
-    marginTop: 16,
-    padding: 12,
-    backgroundColor: colors.backgroundSecondary,
-    borderRadius: 8,
   },
   errorCard: {
     backgroundColor: colors.card,
