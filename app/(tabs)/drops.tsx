@@ -31,6 +31,11 @@ interface Drop {
   start_time: string;
   end_time: string;
   status: string;
+  current_bookings?: number;
+  bookings_count?: number;
+  target_bookings?: number;
+  discount_tiers?: { bookings_required: number; discount_percentage: number }[];
+  final_discount_percentage?: number;
   pickup_points: {
     name: string;
     city: string;

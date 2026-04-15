@@ -6,6 +6,11 @@ import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from './IconSymbol';
 import * as Haptics from 'expo-haptics';
 
+interface DiscountTier {
+  bookings_required: number;
+  discount_percentage: number;
+}
+
 interface DropCardProps {
   drop: {
     id: string;
@@ -16,6 +21,11 @@ interface DropCardProps {
     start_time: string;
     end_time: string;
     status: string;
+    current_bookings?: number;
+    bookings_count?: number;
+    target_bookings?: number;
+    discount_tiers?: DiscountTier[];
+    final_discount_percentage?: number;
     pickup_points: {
       name: string;
       city: string;
@@ -139,6 +149,31 @@ export default function DropCard({ drop }: DropCardProps) {
   const isNonActive = drop.status === 'approved' || drop.status === 'pending_approval' || drop.status === 'inactive';
   const isCompleted = drop.status === 'completed';
 
+  // Completed drop stats
+  const finalBookings = drop.current_bookings ?? drop.bookings_count ?? null;
+  const targetBookings = drop.target_bookings ?? null;
+
+  const achievedDiscount = (() => {
+    if (drop.final_discount_percentage != null) return Number(drop.final_discount_percentage);
+    if (!drop.discount_tiers || drop.discount_tiers.length === 0) return null;
+    if (finalBookings == null) return null;
+    const sorted = [...drop.discount_tiers].sort((a, b) => b.bookings_required - a.bookings_required);
+    const tier = sorted.find(t => t.bookings_required <= finalBookings);
+    return tier ? tier.discount_percentage : null;
+  })();
+
+  const bookingProgress = (finalBookings != null && targetBookings != null && targetBookings > 0)
+    ? Math.min((finalBookings / targetBookings) * 100, 100)
+    : null;
+
+  const bookingProgressText = (finalBookings != null && targetBookings != null)
+    ? `${finalBookings}/${targetBookings} prenotazioni`
+    : finalBookings != null
+      ? `${finalBookings} prenotazioni`
+      : null;
+
+  const achievedDiscountText = achievedDiscount != null ? `Sconto finale: ${Math.floor(achievedDiscount)}%` : null;
+
   const statusBadgeMap: Record<string, { text: string; color: string }> = {
     active: { text: 'Attivo', color: '#16A34A' },
     approved: { text: 'Potrebbero Attivarsi', color: '#2563EB' },
@@ -230,6 +265,43 @@ export default function DropCard({ drop }: DropCardProps) {
           <Text style={styles.progressText}>€{maxReservationValue.toFixed(0)}</Text>
         </View>
       </View>
+
+      {isCompleted && (bookingProgressText != null || achievedDiscountText != null) && (
+        <View style={styles.completedStats}>
+          <View style={styles.completedStatsRow}>
+            {bookingProgressText != null && (
+              <View style={styles.completedStatItem}>
+                <IconSymbol
+                  ios_icon_name="person.3.fill"
+                  android_material_icon_name="group"
+                  size={13}
+                  color="#6B7280"
+                />
+                <Text style={styles.completedStatText}>{bookingProgressText}</Text>
+              </View>
+            )}
+            {achievedDiscountText != null && (
+              <View style={styles.completedStatItem}>
+                <IconSymbol
+                  ios_icon_name="tag.fill"
+                  android_material_icon_name="local_offer"
+                  size={13}
+                  color="#6B7280"
+                />
+                <Text style={styles.completedStatText}>{achievedDiscountText}</Text>
+              </View>
+            )}
+          </View>
+          {bookingProgress != null && (
+            <View style={styles.completedProgressWrapper}>
+              <View style={styles.completedProgressBar}>
+                <View style={[styles.completedProgressFill, { width: `${bookingProgress}%` as any }]} />
+              </View>
+              <Text style={styles.completedProgressPct}>{Math.floor(bookingProgress)}%</Text>
+            </View>
+          )}
+        </View>
+      )}
 
       {!isCompleted && (
         <View style={styles.shareCallout}>
@@ -539,5 +611,53 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontWeight: '700',
     fontFamily: 'System',
+  },
+  completedStats: {
+    backgroundColor: '#F3F4F6',
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 12,
+    gap: 10,
+  },
+  completedStatsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  completedStatItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  completedStatText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#4B5563',
+    fontFamily: 'System',
+  },
+  completedProgressWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  completedProgressBar: {
+    flex: 1,
+    height: 6,
+    backgroundColor: '#D1D5DB',
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  completedProgressFill: {
+    height: '100%',
+    backgroundColor: '#9CA3AF',
+    borderRadius: 3,
+  },
+  completedProgressPct: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#6B7280',
+    fontFamily: 'System',
+    minWidth: 30,
+    textAlign: 'right',
   },
 });
