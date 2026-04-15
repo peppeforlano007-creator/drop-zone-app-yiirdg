@@ -4,7 +4,7 @@ import { supabase } from '@/app/integrations/supabase/client';
 import DropCard from '@/components/DropCard';
 import { Stack } from 'expo-router';
 import { colors, layout } from '@/styles/commonStyles';
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   View,
@@ -14,7 +14,11 @@ import {
   RefreshControl,
   ActivityIndicator,
   Platform,
+  TouchableOpacity,
+  Animated,
+  useColorScheme,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { IconSymbol } from '@/components/IconSymbol';
 import { useRealtimeDrops } from '@/hooks/useRealtimeDrop';
 
@@ -39,6 +43,149 @@ interface Drop {
     max_reservation_value: number;
   };
 }
+
+const INFO_POINTS = [
+  {
+    emoji: '📍',
+    title: 'Solo per città selezionate',
+    description: 'I drop sono attivi in città specifiche. Controlla se la tua città è disponibile.',
+  },
+  {
+    emoji: '💰',
+    title: 'Più prenotazioni = più sconto',
+    description: 'Più persone prenotano, maggiore sarà lo sconto finale per tutti.',
+  },
+  {
+    emoji: '🛍️',
+    title: 'Paghi al ritiro',
+    description: "Non paghi subito. Al momento del ritiro pagherai l'importo scontato dell'articolo.",
+  },
+];
+
+function DropsInfoBanner() {
+  const [expanded, setExpanded] = useState(false);
+  const animProgress = useRef(new Animated.Value(0)).current;
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
+
+  const bannerBg = isDark ? '#1C1C1E' : '#F5F5F7';
+  const bannerBorder = isDark ? '#3A3A3C' : '#E0E0E0';
+  const titleColor = isDark ? '#ECECEC' : '#1C1C1E';
+  const descColor = isDark ? '#AEAEB2' : '#555555';
+
+  const toggle = () => {
+    console.log('[DropsInfoBanner] toggled, expanding:', !expanded);
+    const toValue = expanded ? 0 : 1;
+    Animated.timing(animProgress, {
+      toValue,
+      duration: 260,
+      useNativeDriver: false,
+    }).start();
+    setExpanded(prev => !prev);
+  };
+
+  const chevronRotation = animProgress.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '180deg'],
+  });
+
+  const panelOpacity = animProgress.interpolate({
+    inputRange: [0, 0.4, 1],
+    outputRange: [0, 0, 1],
+  });
+
+  const panelMaxHeight = animProgress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 300],
+  });
+
+  return (
+    <View style={[infoBannerStyles.wrapper, { backgroundColor: bannerBg, borderColor: bannerBorder }]}>
+      <TouchableOpacity
+        style={infoBannerStyles.header}
+        onPress={toggle}
+        activeOpacity={0.7}
+        accessibilityRole="button"
+        accessibilityLabel="Come funziona il servizio"
+      >
+        <Ionicons name="information-circle-outline" size={20} color={isDark ? '#AEAEB2' : '#555555'} />
+        <Text style={[infoBannerStyles.headerText, { color: titleColor }]}>Come funziona il servizio?</Text>
+        <Animated.View style={{ transform: [{ rotate: chevronRotation }] }}>
+          <Ionicons name="chevron-down" size={18} color={isDark ? '#AEAEB2' : '#555555'} />
+        </Animated.View>
+      </TouchableOpacity>
+
+      <Animated.View style={[infoBannerStyles.panel, { opacity: panelOpacity, maxHeight: panelMaxHeight }]}>
+        <View style={[infoBannerStyles.divider, { backgroundColor: bannerBorder }]} />
+        {INFO_POINTS.map((point, index) => (
+          <View key={index} style={infoBannerStyles.infoRow}>
+            <Text style={infoBannerStyles.infoEmoji}>{point.emoji}</Text>
+            <View style={infoBannerStyles.infoTextBlock}>
+              <Text style={[infoBannerStyles.infoTitle, { color: titleColor }]}>{point.title}</Text>
+              <Text style={[infoBannerStyles.infoDesc, { color: descColor }]}>{point.description}</Text>
+            </View>
+          </View>
+        ))}
+      </Animated.View>
+    </View>
+  );
+}
+
+const infoBannerStyles = StyleSheet.create({
+  wrapper: {
+    borderRadius: 14,
+    borderWidth: 1,
+    marginBottom: 20,
+    overflow: 'hidden',
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  headerText: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '600',
+    fontFamily: 'System',
+  },
+  panel: {
+    overflow: 'hidden',
+  },
+  divider: {
+    height: 1,
+    marginHorizontal: 14,
+    marginBottom: 12,
+  },
+  infoRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    paddingHorizontal: 14,
+    paddingBottom: 12,
+  },
+  infoEmoji: {
+    fontSize: 20,
+    lineHeight: 24,
+    marginTop: 1,
+  },
+  infoTextBlock: {
+    flex: 1,
+  },
+  infoTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    fontFamily: 'System',
+    marginBottom: 2,
+  },
+  infoDesc: {
+    fontSize: 12,
+    lineHeight: 17,
+    fontFamily: 'System',
+  },
+});
 
 export default function DropsScreen() {
   const [drops, setDrops] = useState<Drop[]>([]);
@@ -204,44 +351,7 @@ export default function DropsScreen() {
 
   const renderHeader = () => (
     <View style={styles.headerContainer}>
-      <View style={styles.infoCard}>
-        <IconSymbol 
-          ios_icon_name="info.circle.fill" 
-          android_material_icon_name="info" 
-          size={20} 
-          color={colors.primary} 
-        />
-        <Text style={styles.infoText}>
-          I drop sono attivi per città specifiche. Ritiro solo presso il punto indicato.
-        </Text>
-      </View>
-
-      <View style={styles.discountCard}>
-        <View style={styles.discountHeader}>
-          <IconSymbol 
-            ios_icon_name="chart.line.uptrend.xyaxis" 
-            android_material_icon_name="trending_up" 
-            size={20} 
-            color={colors.success} 
-          />
-          <Text style={styles.discountTitle}>Più Prenotazioni = Più Sconto</Text>
-        </View>
-        <Text style={styles.discountText}>
-          Più persone prenotano, più lo sconto cresce fino al massimo. Condividi con amici per raggiungere lo sconto massimo più velocemente!
-        </Text>
-      </View>
-
-      <View style={styles.paymentReminderCard}>
-        <IconSymbol 
-          ios_icon_name="creditcard.fill" 
-          android_material_icon_name="payment" 
-          size={20} 
-          color={colors.warning} 
-        />
-        <Text style={styles.paymentReminderText}>
-          Al momento del ritiro pagherai l&apos;importo dell&apos;articolo scontato della percentuale di sconto raggiunta a chiusura drop.
-        </Text>
-      </View>
+      <DropsInfoBanner />
     </View>
   );
 
@@ -349,68 +459,7 @@ const styles = StyleSheet.create({
     fontFamily: 'System',
   },
   headerContainer: {
-    marginBottom: 20,
-    gap: 12,
-  },
-  infoCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    backgroundColor: colors.primary + '15',
-    borderRadius: 12,
-    padding: 12,
-    borderLeftWidth: 3,
-    borderLeftColor: colors.primary,
-  },
-  infoText: {
-    flex: 1,
-    fontSize: 13,
-    lineHeight: 18,
-    color: colors.text,
-    fontFamily: 'System',
-  },
-  discountCard: {
-    backgroundColor: colors.success + '10',
-    borderRadius: 12,
-    padding: 12,
-    borderLeftWidth: 3,
-    borderLeftColor: colors.success,
-  },
-  discountHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 8,
-  },
-  discountTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: colors.text,
-    fontFamily: 'System',
-  },
-  discountText: {
-    fontSize: 13,
-    lineHeight: 18,
-    color: colors.text,
-    fontFamily: 'System',
-  },
-  paymentReminderCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    backgroundColor: colors.warning + '15',
-    borderRadius: 12,
-    padding: 12,
-    borderLeftWidth: 3,
-    borderLeftColor: colors.warning,
-  },
-  paymentReminderText: {
-    flex: 1,
-    fontSize: 13,
-    lineHeight: 18,
-    color: colors.text,
-    fontFamily: 'System',
-    fontWeight: '600',
+    marginBottom: 4,
   },
   listContent: {
     paddingHorizontal: 20,
