@@ -45,6 +45,7 @@ interface DropData {
   status: string;
   supplier_list_id: string;
   pickup_point_id: string;
+  final_discount_percentage?: number | null;
   pickup_points: {
     name: string;
     city: string;
@@ -128,7 +129,18 @@ export default function DropDetailsScreen() {
       const { data: dropData, error: dropError } = await supabase
         .from('drops')
         .select(`
-          *,
+          id,
+          name,
+          current_discount,
+          current_value,
+          target_value,
+          start_time,
+          end_time,
+          status,
+          supplier_list_id,
+          pickup_point_id,
+          final_discount_percentage,
+          updated_at,
           pickup_points (
             name,
             city
@@ -866,6 +878,35 @@ export default function DropDetailsScreen() {
   const minDiscount = Number(drop.supplier_lists?.min_discount ?? 0);
   const maxDiscount = Number(drop.supplier_lists?.max_discount ?? 0);
 
+  // Completed drop stats
+  const completedValueFormatted = '€ ' + Math.round(currentValue).toLocaleString('it-IT');
+  const completedTargetFormatted = '€ ' + Math.round(maxReservationValue).toLocaleString('it-IT');
+  const completedProgressPct = maxReservationValue > 0
+    ? Math.min(Math.floor((currentValue / maxReservationValue) * 100), 100)
+    : 0;
+
+  // Achieved discount: prefer final_discount_percentage, then linear interpolation
+  let achievedDiscount: number | null = null;
+  const finalDiscPct = Number(drop.final_discount_percentage ?? 0);
+  if (drop.final_discount_percentage != null && finalDiscPct > 0) {
+    achievedDiscount = Math.floor(finalDiscPct);
+  } else if (isDropCompleted) {
+    if (currentValue > 0 && maxReservationValue > minReservationValue) {
+      if (currentValue <= minReservationValue) {
+        achievedDiscount = Math.floor(minDiscount);
+      } else if (currentValue >= maxReservationValue) {
+        achievedDiscount = Math.floor(maxDiscount);
+      } else {
+        const valueRange = maxReservationValue - minReservationValue;
+        const discountRange = maxDiscount - minDiscount;
+        const progress = (currentValue - minReservationValue) / valueRange;
+        achievedDiscount = Math.floor(minDiscount + discountRange * progress);
+      }
+    } else if (currentDiscount > 0) {
+      achievedDiscount = Math.floor(currentDiscount);
+    }
+  }
+
   const valueProgress = maxReservationValue > 0 
     ? Math.min((currentValue / maxReservationValue) * 100, 100) 
     : 0;
@@ -960,20 +1001,43 @@ export default function DropDetailsScreen() {
             </View>
           </View>
           
-          <View style={styles.progressBarContainer}>
-            <View style={styles.progressBarWrapper}>
-              <Text style={styles.progressBarLabel}>{Math.floor(minDiscount)}%</Text>
-              <View style={styles.progressBarTrack}>
-                <View style={styles.progressBarBackground}>
-                  <View style={[styles.progressBarFill, { width: `${discountProgress}%` }]} />
+          {isDropCompleted ? (
+            <View style={styles.completedStatsOverlay}>
+              <View style={styles.completedStatsRow}>
+                <View style={styles.completedStatChip}>
+                  <Text style={styles.completedStatChipLabel}>Prenotato</Text>
+                  <Text style={styles.completedStatChipValue}>{completedValueFormatted}</Text>
+                  <Text style={styles.completedStatChipSub}>su {completedTargetFormatted}</Text>
                 </View>
-                <View style={[styles.currentDiscountIndicator, { left: `${discountProgress}%` }]}>
-                  <Text style={styles.currentDiscountText}>{Math.floor(currentDiscount)}%</Text>
+                <View style={styles.completedStatDivider} />
+                <View style={styles.completedStatChip}>
+                  <Text style={styles.completedStatChipLabel}>Sconto finale</Text>
+                  <Text style={styles.completedStatChipValue}>
+                    {achievedDiscount != null ? achievedDiscount + '%' : '—'}
+                  </Text>
+                  <Text style={styles.completedStatChipSub}>{completedProgressPct}% obiettivo</Text>
                 </View>
               </View>
-              <Text style={styles.progressBarLabel}>{Math.floor(maxDiscount)}%</Text>
+              <View style={styles.completedOverlayBar}>
+                <View style={[styles.completedOverlayBarFill, { width: `${completedProgressPct}%` as any }]} />
+              </View>
             </View>
-          </View>
+          ) : (
+            <View style={styles.progressBarContainer}>
+              <View style={styles.progressBarWrapper}>
+                <Text style={styles.progressBarLabel}>{Math.floor(minDiscount)}%</Text>
+                <View style={styles.progressBarTrack}>
+                  <View style={styles.progressBarBackground}>
+                    <View style={[styles.progressBarFill, { width: `${discountProgress}%` }]} />
+                  </View>
+                  <View style={[styles.currentDiscountIndicator, { left: `${discountProgress}%` }]}>
+                    <Text style={styles.currentDiscountText}>{Math.floor(currentDiscount)}%</Text>
+                  </View>
+                </View>
+                <Text style={styles.progressBarLabel}>{Math.floor(maxDiscount)}%</Text>
+              </View>
+            </View>
+          )}
         </SafeAreaView>
       </View>
 
@@ -1309,5 +1373,61 @@ const styles = StyleSheet.create({
   },
   completedBannerContent: {
     backgroundColor: 'rgba(55, 65, 81, 0.92)',
+  },
+  completedStatsOverlay: {
+    marginHorizontal: 32,
+    marginTop: 8,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    gap: 8,
+  },
+  completedStatsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+  },
+  completedStatChip: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 2,
+  },
+  completedStatDivider: {
+    width: 1,
+    height: 36,
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    marginHorizontal: 8,
+  },
+  completedStatChipLabel: {
+    fontSize: 9,
+    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.65)',
+    fontFamily: 'System',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  completedStatChipValue: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#FFF',
+    fontFamily: 'System',
+  },
+  completedStatChipSub: {
+    fontSize: 9,
+    fontWeight: '500',
+    color: 'rgba(255, 255, 255, 0.55)',
+    fontFamily: 'System',
+  },
+  completedOverlayBar: {
+    height: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 2,
+    overflow: 'hidden',
+  },
+  completedOverlayBarFill: {
+    height: '100%',
+    backgroundColor: 'rgba(156, 163, 175, 0.9)',
+    borderRadius: 2,
   },
 });

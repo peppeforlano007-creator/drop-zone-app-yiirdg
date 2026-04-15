@@ -6,11 +6,6 @@ import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from './IconSymbol';
 import * as Haptics from 'expo-haptics';
 
-interface DiscountTier {
-  bookings_required: number;
-  discount_percentage: number;
-}
-
 interface DropCardProps {
   drop: {
     id: string;
@@ -21,10 +16,6 @@ interface DropCardProps {
     start_time: string;
     end_time: string;
     status: string;
-    current_bookings?: number;
-    bookings_count?: number;
-    target_bookings?: number;
-    discount_tiers?: DiscountTier[];
     final_discount_percentage?: number;
     pickup_points: {
       name: string;
@@ -38,6 +29,11 @@ interface DropCardProps {
       max_reservation_value: number;
     };
   };
+}
+
+function formatEuro(value: number): string {
+  const rounded = Math.round(value);
+  return '€ ' + rounded.toLocaleString('it-IT');
 }
 
 export default function DropCard({ drop }: DropCardProps) {
@@ -149,30 +145,51 @@ export default function DropCard({ drop }: DropCardProps) {
   const isNonActive = drop.status === 'approved' || drop.status === 'pending_approval' || drop.status === 'inactive';
   const isCompleted = drop.status === 'completed';
 
-  // Completed drop stats
-  const finalBookings = drop.current_bookings ?? drop.bookings_count ?? null;
-  const targetBookings = drop.target_bookings ?? null;
+  // Completed drop stats — euro value based
+  const completedValue = Number(drop.current_value ?? 0);
+  const completedTarget = Number(drop.supplier_lists?.max_reservation_value ?? 0);
+  const completedValueText = formatEuro(completedValue);
+  const completedTargetText = formatEuro(completedTarget);
+  const completedProgress = completedTarget > 0
+    ? Math.min((completedValue / completedTarget) * 100, 100)
+    : 0;
+  const completedProgressPct = Math.floor(completedProgress);
 
-  const achievedDiscount = (() => {
-    if (drop.final_discount_percentage != null) return Number(drop.final_discount_percentage);
-    if (!drop.discount_tiers || drop.discount_tiers.length === 0) return null;
-    if (finalBookings == null) return null;
-    const sorted = [...drop.discount_tiers].sort((a, b) => b.bookings_required - a.bookings_required);
-    const tier = sorted.find(t => t.bookings_required <= finalBookings);
-    return tier ? tier.discount_percentage : null;
-  })();
+  // Achieved discount: prefer final_discount_percentage, then linear interpolation
+  // from supplier_lists fields (same formula as drop-details.tsx), else current_discount.
+  let achievedDiscountRaw: number | null = null;
+  const finalDiscPct = Number(drop.final_discount_percentage ?? 0);
+  if (drop.final_discount_percentage != null && finalDiscPct > 0) {
+    achievedDiscountRaw = finalDiscPct;
+  } else if (isCompleted) {
+    // Linear interpolation between min/max discount based on completed value
+    const cVal = completedValue;
+    const minVal = Number(drop.supplier_lists?.min_reservation_value ?? 0);
+    const maxVal = Number(drop.supplier_lists?.max_reservation_value ?? 0);
+    const minDisc = Number(drop.supplier_lists?.min_discount ?? 0);
+    const maxDisc = Number(drop.supplier_lists?.max_discount ?? 0);
+    if (cVal > 0 && maxVal > minVal) {
+      if (cVal <= minVal) {
+        achievedDiscountRaw = minDisc;
+      } else if (cVal >= maxVal) {
+        achievedDiscountRaw = maxDisc;
+      } else {
+        const valueRange = maxVal - minVal;
+        const discountRange = maxDisc - minDisc;
+        const progress = (cVal - minVal) / valueRange;
+        achievedDiscountRaw = Math.round((minDisc + discountRange * progress) * 100) / 100;
+      }
+    } else {
+      // Fall back to current_discount
+      const fallback = Number(drop.current_discount ?? 0);
+      achievedDiscountRaw = fallback > 0 ? fallback : null;
+    }
+  }
+  const achievedDiscountFloor = achievedDiscountRaw != null ? Math.floor(achievedDiscountRaw) : null;
 
-  const bookingProgress = (finalBookings != null && targetBookings != null && targetBookings > 0)
-    ? Math.min((finalBookings / targetBookings) * 100, 100)
-    : null;
-
-  const bookingProgressText = (finalBookings != null && targetBookings != null)
-    ? `${finalBookings}/${targetBookings} prenotazioni`
-    : finalBookings != null
-      ? `${finalBookings} prenotazioni`
-      : null;
-
-  const achievedDiscountText = achievedDiscount != null ? `Sconto finale: ${Math.floor(achievedDiscount)}%` : null;
+  // Always show the stats block for completed drops — even if value data is zero
+  const hasValueData = true;
+  const hasDiscountData = achievedDiscountFloor != null;
 
   const statusBadgeMap: Record<string, { text: string; color: string }> = {
     active: { text: 'Attivo', color: '#16A34A' },
@@ -235,52 +252,72 @@ export default function DropCard({ drop }: DropCardProps) {
         </View>
       </View>
 
-      <View style={styles.statsRow}>
-        <View style={styles.statItem}>
-          <Text style={styles.statLabel}>Sconto Attuale</Text>
-          <Text style={styles.statValue}>{Math.floor(currentDiscount)}%</Text>
-        </View>
-        <View style={styles.statDivider} />
-        <View style={styles.statItem}>
-          <Text style={styles.statLabel}>Sconto Max</Text>
-          <Text style={styles.statValue}>{Math.floor(maxDiscount)}%</Text>
-        </View>
-        <View style={styles.statDivider} />
-        <View style={styles.statItem}>
-          <Text style={styles.statLabel}>Valore Attuale</Text>
-          <Text style={styles.statValue}>€{currentValue.toFixed(0)}</Text>
-        </View>
-      </View>
+      {!isCompleted && (
+        <>
+          <View style={styles.statsRow}>
+            <View style={styles.statItem}>
+              <Text style={styles.statLabel}>Sconto Attuale</Text>
+              <Text style={styles.statValue}>{Math.floor(currentDiscount)}%</Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statItem}>
+              <Text style={styles.statLabel}>Sconto Max</Text>
+              <Text style={styles.statValue}>{Math.floor(maxDiscount)}%</Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statItem}>
+              <Text style={styles.statLabel}>Valore Attuale</Text>
+              <Text style={styles.statValue}>{formatEuro(currentValue)}</Text>
+            </View>
+          </View>
 
-      <View style={styles.progressSection}>
-        <View style={styles.progressHeader}>
-          <Text style={styles.progressLabel}>Progresso Obiettivo</Text>
-          <Text style={styles.progressPercentage}>{Math.floor(valueProgress)}%</Text>
-        </View>
-        <View style={styles.progressBarContainer}>
-          <View style={[styles.progressBarFill, { width: `${valueProgress}%` }]} />
-        </View>
-        <View style={styles.progressFooter}>
-          <Text style={styles.progressText}>€{currentValue.toFixed(0)}</Text>
-          <Text style={styles.progressText}>€{maxReservationValue.toFixed(0)}</Text>
-        </View>
-      </View>
+          <View style={styles.progressSection}>
+            <View style={styles.progressHeader}>
+              <Text style={styles.progressLabel}>Progresso Obiettivo</Text>
+              <Text style={styles.progressPercentage}>{Math.floor(valueProgress)}%</Text>
+            </View>
+            <View style={styles.progressBarContainer}>
+              <View style={[styles.progressBarFill, { width: `${valueProgress}%` }]} />
+            </View>
+            <View style={styles.progressFooter}>
+              <Text style={styles.progressText}>{formatEuro(currentValue)}</Text>
+              <Text style={styles.progressText}>{formatEuro(maxReservationValue)}</Text>
+            </View>
+          </View>
+        </>
+      )}
 
-      {isCompleted && (bookingProgressText != null || achievedDiscountText != null) && (
+      {isCompleted && (
         <View style={styles.completedStats}>
-          <View style={styles.completedStatsRow}>
-            {bookingProgressText != null && (
-              <View style={styles.completedStatItem}>
-                <IconSymbol
-                  ios_icon_name="person.3.fill"
-                  android_material_icon_name="group"
-                  size={13}
-                  color="#6B7280"
-                />
-                <Text style={styles.completedStatText}>{bookingProgressText}</Text>
-              </View>
-            )}
-            {achievedDiscountText != null && (
+          <View style={styles.completedSectionTitleRow}>
+            <Text style={styles.completedSectionTitle}>📊 Risultati finali</Text>
+          </View>
+
+          <View style={styles.completedProgressSection}>
+            <View style={styles.completedProgressHeader}>
+              <Text style={styles.completedProgressLabel}>
+                {completedValueText}
+              </Text>
+              <Text style={styles.completedProgressSeparator}>/</Text>
+              <Text style={styles.completedProgressTarget}>
+                {completedTargetText}
+              </Text>
+              <Text style={styles.completedProgressPct}>
+                {completedProgressPct}%
+              </Text>
+            </View>
+            <View style={styles.completedProgressBar}>
+              <View
+                style={[
+                  styles.completedProgressFill,
+                  { width: `${completedProgress}%` as any },
+                ]}
+              />
+            </View>
+          </View>
+
+          {hasDiscountData ? (
+            <View style={[styles.completedStatsRow, styles.completedDiscountRow]}>
               <View style={styles.completedStatItem}>
                 <IconSymbol
                   ios_icon_name="tag.fill"
@@ -288,16 +325,21 @@ export default function DropCard({ drop }: DropCardProps) {
                   size={13}
                   color="#6B7280"
                 />
-                <Text style={styles.completedStatText}>{achievedDiscountText}</Text>
+                <Text style={styles.completedStatLabel}>Sconto finale raggiunto</Text>
               </View>
-            )}
-          </View>
-          {bookingProgress != null && (
-            <View style={styles.completedProgressWrapper}>
-              <View style={styles.completedProgressBar}>
-                <View style={[styles.completedProgressFill, { width: `${bookingProgress}%` as any }]} />
+              <Text style={styles.completedDiscountValue}>{achievedDiscountFloor}%</Text>
+            </View>
+          ) : (
+            <View style={[styles.completedStatsRow, styles.completedDiscountRow]}>
+              <View style={styles.completedStatItem}>
+                <IconSymbol
+                  ios_icon_name="tag"
+                  android_material_icon_name="local_offer"
+                  size={13}
+                  color="#9CA3AF"
+                />
+                <Text style={styles.completedStatLabel}>Sconto finale non disponibile</Text>
               </View>
-              <Text style={styles.completedProgressPct}>{Math.floor(bookingProgress)}%</Text>
             </View>
           )}
         </View>
@@ -619,29 +661,75 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     gap: 10,
   },
+  completedSectionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  completedSectionTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#374151',
+    fontFamily: 'System',
+    letterSpacing: 0.2,
+  },
   completedStatsRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  completedDiscountRow: {
+    marginTop: 2,
   },
   completedStatItem: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
   },
-  completedStatText: {
+  completedStatLabel: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#4B5563',
+    color: '#6B7280',
     fontFamily: 'System',
   },
-  completedProgressWrapper: {
+  completedStatValue: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#374151',
+    fontFamily: 'System',
+  },
+  completedDiscountValue: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#374151',
+    fontFamily: 'System',
+  },
+  completedProgressSection: {
+    gap: 6,
+  },
+  completedProgressHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 4,
+  },
+  completedProgressLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#374151',
+    fontFamily: 'System',
+  },
+  completedProgressSeparator: {
+    fontSize: 11,
+    color: '#9CA3AF',
+    fontFamily: 'System',
+  },
+  completedProgressTarget: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: '#9CA3AF',
+    fontFamily: 'System',
+    flex: 1,
   },
   completedProgressBar: {
-    flex: 1,
     height: 6,
     backgroundColor: '#D1D5DB',
     borderRadius: 3,
@@ -660,4 +748,5 @@ const styles = StyleSheet.create({
     minWidth: 30,
     textAlign: 'right',
   },
+
 });

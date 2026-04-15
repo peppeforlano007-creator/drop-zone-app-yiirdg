@@ -31,11 +31,11 @@ interface Drop {
   start_time: string;
   end_time: string;
   status: string;
+  supplier_list_id: string;
   current_bookings?: number;
   bookings_count?: number;
   target_bookings?: number;
-  discount_tiers?: { bookings_required: number; discount_percentage: number }[];
-  final_discount_percentage?: number;
+  final_discount_percentage?: number | null;
   pickup_points: {
     name: string;
     city: string;
@@ -221,7 +221,22 @@ export default function DropsScreen() {
       const { data, error } = await supabase
         .from('drops')
         .select(`
-          *,
+          id,
+          name,
+          current_discount,
+          current_value,
+          target_value,
+          start_time,
+          end_time,
+          status,
+          supplier_list_id,
+          current_bookings,
+          bookings_count,
+          target_bookings,
+          final_discount_percentage,
+          created_at,
+          updated_at,
+          pickup_point_id,
           pickup_points (
             name,
             city
@@ -252,6 +267,18 @@ export default function DropsScreen() {
           list: d.supplier_lists?.name,
           end_time: d.end_time
         })));
+        const firstCompleted = data.find(d => d.status === 'completed');
+        if (firstCompleted) {
+          console.log('[drops] first completed drop stats:', {
+            id: firstCompleted.id,
+            name: firstCompleted.name,
+            current_value: firstCompleted.current_value,
+            final_discount_percentage: firstCompleted.final_discount_percentage,
+            supplier_list_max: firstCompleted.supplier_lists?.max_reservation_value,
+          });
+        } else {
+          console.log('[drops] no completed drops in result set');
+        }
       }
 
       // Sort: active first, then approved, then completed
@@ -301,14 +328,16 @@ export default function DropsScreen() {
         return prevDrops;
       }
 
-      // Update existing drop
+      // Update existing drop — preserve all fields, only overwrite what the realtime payload provides
       const newDrops = [...prevDrops];
       newDrops[dropIndex] = {
         ...newDrops[dropIndex],
-        current_discount: updatedDrop.current_discount,
-        current_value: updatedDrop.current_value,
-        status: updatedDrop.status,
-        updated_at: updatedDrop.updated_at,
+        ...(updatedDrop.current_discount != null && { current_discount: updatedDrop.current_discount }),
+        ...(updatedDrop.current_value != null && { current_value: updatedDrop.current_value }),
+        ...(updatedDrop.target_value != null && { target_value: updatedDrop.target_value }),
+        ...(updatedDrop.final_discount_percentage != null && { final_discount_percentage: updatedDrop.final_discount_percentage }),
+        ...(updatedDrop.status != null && { status: updatedDrop.status }),
+        ...(updatedDrop.updated_at != null && { updated_at: updatedDrop.updated_at }),
       };
 
       return newDrops;
