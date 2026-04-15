@@ -293,6 +293,44 @@ export default function ManageDropsScreen() {
     );
   };
 
+  const handleDeleteDrop = (dropId: string, dropName: string) => {
+    console.log('[admin] delete drop pressed:', dropId, dropName);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    Alert.alert(
+      'Elimina Drop',
+      `Sei sicuro di voler eliminare il drop "${dropName}"? L'operazione non può essere annullata.`,
+      [
+        { text: 'Annulla', style: 'cancel' },
+        {
+          text: 'Elimina',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              console.log('[admin] confirming delete for drop:', dropId);
+              const { error } = await supabase
+                .from('drops')
+                .delete()
+                .eq('id', dropId);
+
+              if (error) {
+                console.error('[admin] error deleting drop:', error);
+                Alert.alert('Errore', 'Impossibile eliminare il drop: ' + error.message);
+                return;
+              }
+
+              console.log('[admin] drop deleted successfully:', dropId);
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              loadDrops();
+            } catch (error) {
+              console.error('[admin] exception deleting drop:', error);
+              Alert.alert('Errore', 'Si è verificato un errore durante l\'eliminazione');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const handleCompleteDrop = (dropId: string, dropName: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     router.push({
@@ -580,6 +618,23 @@ export default function ManageDropsScreen() {
               <Text style={styles.actionButtonText}>Completa</Text>
             </Pressable>
           )}
+
+          <Pressable
+            style={({ pressed }) => [
+              styles.actionButton,
+              styles.deleteButton,
+              pressed && styles.actionButtonPressed,
+            ]}
+            onPress={() => handleDeleteDrop(drop.id, drop.name)}
+          >
+            <IconSymbol
+              ios_icon_name="trash.fill"
+              android_material_icon_name="delete"
+              size={18}
+              color="#fff"
+            />
+            <Text style={styles.actionButtonText}>Elimina</Text>
+          </Pressable>
         </View>
       </View>
     );
@@ -952,6 +1007,9 @@ const styles = StyleSheet.create({
   },
   completeButton: {
     backgroundColor: '#4CAF50',
+  },
+  deleteButton: {
+    backgroundColor: '#DC2626',
   },
   actionButtonText: {
     fontSize: 14,

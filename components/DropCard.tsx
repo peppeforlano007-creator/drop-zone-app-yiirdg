@@ -41,6 +41,11 @@ export default function DropCard({ drop }: DropCardProps) {
         return;
       }
 
+      if (drop.status === 'completed') {
+        setTimeRemaining('Terminato');
+        return;
+      }
+
       if (!drop.end_time) {
         setTimeRemaining('—');
         return;
@@ -132,6 +137,7 @@ export default function DropCard({ drop }: DropCardProps) {
   const cityName = drop.pickup_points?.city ?? 'N/A';
 
   const isNonActive = drop.status === 'approved' || drop.status === 'pending_approval' || drop.status === 'inactive';
+  const isCompleted = drop.status === 'completed';
 
   const statusBadgeMap: Record<string, { text: string; color: string }> = {
     active: { text: 'Attivo', color: '#16A34A' },
@@ -151,11 +157,14 @@ export default function DropCard({ drop }: DropCardProps) {
   const badgeText = statusBadge?.text ?? '';
   const badgeColor = statusBadge?.color ?? '#6B7280';
 
+  const timerBadgeStyle = isCompleted ? styles.timerBadgeCompleted : styles.timerBadge;
+
   return (
     <Pressable
       style={({ pressed }) => [
         styles.card,
-        isNonActive && styles.cardDimmed,
+        (isNonActive || isCompleted) && styles.cardDimmed,
+        isCompleted && styles.cardCompleted,
         pressed && styles.cardPressed,
       ]}
       onPress={handlePress}
@@ -168,12 +177,12 @@ export default function DropCard({ drop }: DropCardProps) {
               ios_icon_name="mappin.circle.fill" 
               android_material_icon_name="location_on" 
               size={16} 
-              color={colors.primary} 
+              color={isCompleted ? colors.textSecondary : colors.primary} 
             />
             <Text style={styles.locationText}>{cityName}</Text>
           </View>
         </View>
-        <View style={styles.timerBadge}>
+        <View style={timerBadgeStyle}>
           <IconSymbol 
             ios_icon_name="clock.fill" 
             android_material_icon_name="schedule" 
@@ -222,15 +231,17 @@ export default function DropCard({ drop }: DropCardProps) {
         </View>
       </View>
 
-      <View style={styles.shareCallout}>
-        <IconSymbol 
-          ios_icon_name="person.3.fill" 
-          android_material_icon_name="group" 
-          size={16} 
-          color={colors.success} 
-        />
-        <Text style={styles.shareCalloutText}>{discountRemainingText}</Text>
-      </View>
+      {!isCompleted && (
+        <View style={styles.shareCallout}>
+          <IconSymbol 
+            ios_icon_name="person.3.fill" 
+            android_material_icon_name="group" 
+            size={16} 
+            color={colors.success} 
+          />
+          <Text style={styles.shareCalloutText}>{discountRemainingText}</Text>
+        </View>
+      )}
 
       <View style={styles.footer}>
         <View style={styles.supplierInfo}>
@@ -245,7 +256,7 @@ export default function DropCard({ drop }: DropCardProps) {
           </Text>
         </View>
         <View style={styles.footerButtons}>
-          {!isNonActive && (
+          {!isNonActive && !isCompleted && (
             <Pressable 
               style={styles.shareButton}
               onPress={handleShare}
@@ -259,8 +270,8 @@ export default function DropCard({ drop }: DropCardProps) {
               <Text style={styles.shareButtonText}>Raggiungi {Math.floor(maxDiscount)}%</Text>
             </Pressable>
           )}
-          <View style={[styles.viewButton, isNonActive && styles.viewButtonFull]}>
-            <Text style={styles.viewButtonText}>Visualizza</Text>
+          <View style={[styles.viewButton, (isNonActive || isCompleted) && styles.viewButtonFull, isCompleted && styles.viewButtonCompleted]}>
+            <Text style={styles.viewButtonText}>Sfoglia</Text>
             <IconSymbol 
               ios_icon_name="chevron.right" 
               android_material_icon_name="chevron_right" 
@@ -292,6 +303,20 @@ const styles = StyleSheet.create({
   cardDimmed: {
     opacity: 0.85,
     borderColor: colors.border,
+  },
+  cardCompleted: {
+    opacity: 0.7,
+    borderColor: '#9CA3AF',
+    backgroundColor: colors.backgroundSecondary,
+  },
+  timerBadgeCompleted: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#6B7280',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
   },
   cardPressed: {
     opacity: 0.8,
@@ -505,6 +530,9 @@ const styles = StyleSheet.create({
   },
   viewButtonFull: {
     flex: 1,
+  },
+  viewButtonCompleted: {
+    backgroundColor: '#6B7280',
   },
   viewButtonText: {
     fontSize: 13,

@@ -65,7 +65,7 @@ export default function DropsScreen() {
         }
       }
 
-      // Fetch only active and approved drops
+      // Fetch active, approved, and completed drops
       const { data, error } = await supabase
         .from('drops')
         .select(`
@@ -82,7 +82,7 @@ export default function DropsScreen() {
             max_reservation_value
           )
         `)
-        .in('status', ['active', 'approved'])
+        .in('status', ['active', 'approved', 'completed'])
         .order('created_at', { ascending: false });
 
       console.log('[drops] raw statuses returned:', data?.map(d => ({ name: d.name, status: d.status })));
@@ -102,10 +102,11 @@ export default function DropsScreen() {
         })));
       }
 
-      // Sort: active first, then approved
+      // Sort: active first, then approved, then completed
       const statusOrder: Record<string, number> = {
         active: 0,
         approved: 1,
+        completed: 2,
       };
 
       const sorted = (data || []).slice().sort((a, b) => {
@@ -134,9 +135,10 @@ export default function DropsScreen() {
     setDrops(prevDrops => {
       const dropIndex = prevDrops.findIndex(d => d.id === updatedDrop.id);
       
-      // Only remove drops that have truly ended (completed, expired, cancelled, underfunded)
-      const terminalStatuses = ['completed', 'expired', 'cancelled', 'underfunded'];
-      if (updatedDrop.status && terminalStatuses.includes(updatedDrop.status)) {
+      // Only remove drops that are truly gone (expired, cancelled, underfunded)
+      // completed drops stay visible in the feed
+      const removeStatuses = ['expired', 'cancelled', 'underfunded'];
+      if (updatedDrop.status && removeStatuses.includes(updatedDrop.status)) {
         console.log('Drop status changed to', updatedDrop.status, '- removing from list');
         return prevDrops.filter(d => d.id !== updatedDrop.id);
       }
@@ -173,9 +175,32 @@ export default function DropsScreen() {
     loadDrops();
   };
 
+  const activeDrops = drops.filter(d => d.status !== 'completed');
+  const completedDrops = drops.filter(d => d.status === 'completed');
+
   const renderDrop = ({ item }: { item: Drop }) => (
     <DropCard drop={item} />
   );
+
+  const renderCompletedSection = () => {
+    if (completedDrops.length === 0) return null;
+    return (
+      <View style={styles.completedSection}>
+        <View style={styles.completedSectionHeader}>
+          <IconSymbol
+            ios_icon_name="checkmark.circle.fill"
+            android_material_icon_name="check_circle"
+            size={18}
+            color={colors.textSecondary}
+          />
+          <Text style={styles.completedSectionTitle}>Terminati</Text>
+        </View>
+        {completedDrops.map(drop => (
+          <DropCard key={drop.id} drop={drop} />
+        ))}
+      </View>
+    );
+  };
 
   const renderHeader = () => (
     <View style={styles.headerContainer}>
@@ -264,10 +289,11 @@ export default function DropsScreen() {
       ) : (
         <View style={styles.listWrapper}>
           <FlatList
-            data={drops}
+            data={activeDrops}
             renderItem={renderDrop}
             keyExtractor={(item) => item.id}
             ListHeaderComponent={renderHeader}
+            ListFooterComponent={renderCompletedSection}
             contentContainerStyle={styles.listContent}
             showsVerticalScrollIndicator={false}
             refreshControl={
@@ -415,5 +441,25 @@ const styles = StyleSheet.create({
   },
   listWrapper: {
     flex: 1,
+  },
+  completedSection: {
+    marginTop: 8,
+  },
+  completedSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  completedSectionTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: colors.textSecondary,
+    fontFamily: 'System',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
 });

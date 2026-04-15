@@ -114,6 +114,7 @@ export default function DropDetailsScreen() {
 
   // Derived: drop is viewable but booking is disabled
   const isDropBookingDisabled = drop?.status === 'approved' || drop?.status === 'pending_approval' || drop?.status === 'inactive';
+  const isDropCompleted = drop?.status === 'completed';
 
   const loadDropDetails = useCallback(async () => {
     if (!dropId) {
@@ -160,9 +161,9 @@ export default function DropDetailsScreen() {
       });
 
       // Check if drop is truly expired/terminated (not just non-active)
-      // pending_approval, inactive and approved drops are visible but not bookable — never treat them as expired
-      const terminalStatuses = ['completed', 'expired', 'cancelled', 'underfunded'];
-      const nonActiveStatuses = ['pending_approval', 'inactive', 'approved'];
+      // pending_approval, inactive, approved and completed drops are visible but not bookable — never treat them as expired
+      const terminalStatuses = ['expired', 'cancelled', 'underfunded'];
+      const nonActiveStatuses = ['pending_approval', 'inactive', 'approved', 'completed'];
       const isTerminal = terminalStatuses.includes(dropData.status);
       const isNonActiveStatus = nonActiveStatuses.includes(dropData.status);
       // Only use end_time expiry check for active drops that have a valid end_time
@@ -367,8 +368,8 @@ export default function DropDetailsScreen() {
       updated_at: updatedDrop.updated_at,
     });
     
-    // Only mark as expired for truly terminal statuses
-    const terminalStatuses = ['completed', 'expired', 'cancelled', 'underfunded'];
+    // Only mark as expired for truly terminal statuses (not completed — those stay browsable)
+    const terminalStatuses = ['expired', 'cancelled', 'underfunded'];
     if (updatedDrop.status && terminalStatuses.includes(updatedDrop.status)) {
       console.log('⚠️ Drop status changed to', updatedDrop.status);
       setIsExpired(true);
@@ -431,6 +432,11 @@ export default function DropDetailsScreen() {
       const nonActiveStatuses = ['pending_approval', 'inactive', 'approved'];
       if (nonActiveStatuses.includes(drop.status)) {
         setTimeRemaining('Non ancora attivo');
+        return;
+      }
+
+      if (drop.status === 'completed') {
+        setTimeRemaining('Terminato');
         return;
       }
 
@@ -519,8 +525,8 @@ export default function DropDetailsScreen() {
     }
 
     // Check if drop is expired or not bookable
-    const bookableStatuses = ['active', 'approved'];
-    if (isExpired || !bookableStatuses.includes(drop.status)) {
+    const bookableStatuses = ['active'];
+    if (isExpired || isDropCompleted || !bookableStatuses.includes(drop.status)) {
       console.log('❌ Drop is not bookable, status:', drop.status);
       Alert.alert(
         'Drop Non Attivo',
@@ -693,7 +699,7 @@ export default function DropDetailsScreen() {
         );
       }
     }
-  }, [user, drop, products, loadDropDetails, isExpired]);
+  }, [user, drop, products, loadDropDetails, isExpired, isDropCompleted]);
 
   const handlePressIn = () => {
     Animated.spring(bounceAnim, {
@@ -875,7 +881,25 @@ export default function DropDetailsScreen() {
     <View style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
       
-      {isDropBookingDisabled && (
+      {isDropCompleted && (
+        <View style={styles.bookingDisabledBanner} pointerEvents="none">
+          <SafeAreaView edges={['bottom']} style={styles.bookingDisabledSafeArea}>
+            <View style={[styles.bookingDisabledContent, styles.completedBannerContent]}>
+              <IconSymbol
+                ios_icon_name="checkmark.circle.fill"
+                android_material_icon_name="check_circle"
+                size={18}
+                color="#FFF"
+              />
+              <Text style={styles.bookingDisabledText}>
+                Questo drop è terminato — puoi sfogliare gli articoli ma non effettuare ordini.
+              </Text>
+            </View>
+          </SafeAreaView>
+        </View>
+      )}
+
+      {isDropBookingDisabled && !isDropCompleted && (
         <View style={styles.bookingDisabledBanner} pointerEvents="none">
           <SafeAreaView edges={['bottom']} style={styles.bookingDisabledSafeArea}>
             <View style={styles.bookingDisabledContent}>
@@ -1282,5 +1306,8 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontFamily: 'System',
     lineHeight: 18,
+  },
+  completedBannerContent: {
+    backgroundColor: 'rgba(55, 65, 81, 0.92)',
   },
 });
