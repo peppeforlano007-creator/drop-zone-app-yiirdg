@@ -3,6 +3,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '@/app/integrations/supabase/client';
 import { IconSymbol } from '@/components/IconSymbol';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, router } from 'expo-router';
 import { useRealtimeDrop } from '@/hooks/useRealtimeDrop';
 import { colors } from '@/styles/commonStyles';
@@ -1014,7 +1015,12 @@ export default function DropDetailsScreen() {
                   <Text style={styles.completedStatChipValue}>
                     {achievedDiscount != null ? achievedDiscount + '%' : '—'}
                   </Text>
-                  <Text style={styles.completedStatChipSub}>{completedProgressPct}% obiettivo</Text>
+                  <Text style={styles.completedStatChipSub}>
+                    {completedProgressPct}% obiettivo
+                  </Text>
+                  <Text style={styles.completedStatChipMax}>
+                    max: {Math.floor(maxDiscount)}%
+                  </Text>
                 </View>
               </View>
               <View style={styles.completedOverlayBar}>
@@ -1071,12 +1077,7 @@ export default function DropDetailsScreen() {
 
         <View style={styles.iconButton}>
           <View style={styles.iconCircle}>
-            <IconSymbol 
-              ios_icon_name="list.bullet.rectangle" 
-              android_material_icon_name="list" 
-              size={20} 
-              color="#FFF" 
-            />
+            <MaterialCommunityIcons name="bullseye-arrow" size={22} color="#FFF" />
           </View>
           <Text style={styles.iconLabel} numberOfLines={2}>
             {listName}
@@ -1417,6 +1418,13 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: 'rgba(255, 255, 255, 0.55)',
     fontFamily: 'System',
+  },
+  completedStatChipMax: {
+    fontSize: 9,
+    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.4)',
+    fontFamily: 'System',
+    letterSpacing: 0.2,
   },
   completedOverlayBar: {
     height: 4,

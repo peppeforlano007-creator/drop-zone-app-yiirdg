@@ -4,6 +4,7 @@ import { View, Text, StyleSheet, Pressable, Linking, Alert } from 'react-native'
 import { router } from 'expo-router';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from './IconSymbol';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 
 interface DropCardProps {
@@ -319,27 +320,21 @@ export default function DropCard({ drop }: DropCardProps) {
           {hasDiscountData ? (
             <View style={[styles.completedStatsRow, styles.completedDiscountRow]}>
               <View style={styles.completedStatItem}>
-                <IconSymbol
-                  ios_icon_name="tag.fill"
-                  android_material_icon_name="local_offer"
-                  size={13}
-                  color="#6B7280"
-                />
-                <Text style={styles.completedStatLabel}>Sconto finale raggiunto</Text>
+                <MaterialCommunityIcons name="bullseye-arrow" size={14} color="#6B7280" />
+                <Text style={styles.completedStatLabel}>Sconto raggiunto</Text>
               </View>
-              <Text style={styles.completedDiscountValue}>{achievedDiscountFloor}%</Text>
+              <View style={styles.completedDiscountValueRow}>
+                <Text style={styles.completedDiscountValue}>{achievedDiscountFloor}%</Text>
+                <Text style={styles.completedDiscountMax}>(max: {Math.floor(maxDiscount)}%)</Text>
+              </View>
             </View>
           ) : (
             <View style={[styles.completedStatsRow, styles.completedDiscountRow]}>
               <View style={styles.completedStatItem}>
-                <IconSymbol
-                  ios_icon_name="tag"
-                  android_material_icon_name="local_offer"
-                  size={13}
-                  color="#9CA3AF"
-                />
+                <MaterialCommunityIcons name="bullseye-arrow" size={14} color="#9CA3AF" />
                 <Text style={styles.completedStatLabel}>Sconto finale non disponibile</Text>
               </View>
+              <Text style={styles.completedDiscountMax}>(max: {Math.floor(maxDiscount)}%)</Text>
             </View>
           )}
         </View>
@@ -359,12 +354,7 @@ export default function DropCard({ drop }: DropCardProps) {
 
       <View style={styles.footer}>
         <View style={styles.supplierInfo}>
-          <IconSymbol 
-            ios_icon_name="list.bullet.rectangle" 
-            android_material_icon_name="list" 
-            size={14} 
-            color={colors.textSecondary} 
-          />
+          <MaterialCommunityIcons name="bullseye-arrow" size={14} color={colors.textSecondary} />
           <Text style={styles.supplierText} numberOfLines={1}>
             {supplierListName}
           </Text>
@@ -697,10 +687,21 @@ const styles = StyleSheet.create({
     color: '#374151',
     fontFamily: 'System',
   },
+  completedDiscountValueRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
   completedDiscountValue: {
     fontSize: 14,
     fontWeight: '800',
     color: '#374151',
+    fontFamily: 'System',
+  },
+  completedDiscountMax: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: '#9CA3AF',
     fontFamily: 'System',
   },
   completedProgressSection: {
