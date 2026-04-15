@@ -24,6 +24,8 @@ interface EnhancedProductCardProps {
   isInDrop?: boolean;
   currentDiscount?: number;
   maxDiscount?: number;
+  /** Override discount to display — replaces product's static discount_percentage */
+  dropDiscount?: number;
   onInterest?: (productId: string) => void;
   onBook?: (productId: string, variantId?: string) => void;
   isInterested?: boolean;
@@ -36,6 +38,7 @@ export default function EnhancedProductCard({
   isInDrop = false,
   currentDiscount,
   maxDiscount,
+  dropDiscount,
   onInterest,
   onBook,
   isInterested = false,
@@ -172,9 +175,11 @@ export default function EnhancedProductCard({
   // Safe value extraction with defaults
   const originalPrice = product.originalPrice ?? 0;
   const minDiscount = product.minDiscount ?? 0;
-  const discount = currentDiscount ?? minDiscount;
+  // dropDiscount overrides everything — it is the drop's computed/final discount
+  const discount = dropDiscount ?? currentDiscount ?? minDiscount;
   const maxDiscountValue = maxDiscount ?? product.maxDiscount ?? 0;
   const discountedPrice = originalPrice * (1 - discount / 100);
+  console.log('[EnhancedProductCard] discount resolution:', { productId: product.id, dropDiscount, currentDiscount, minDiscount, resolvedDiscount: discount });
 
   // Safely construct image URLs array with validation and standardization
   const imageUrls = React.useMemo(() => {

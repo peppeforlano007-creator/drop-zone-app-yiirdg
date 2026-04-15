@@ -12,6 +12,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import EnhancedProductCard from '@/components/EnhancedProductCard';
 import * as Haptics from 'expo-haptics';
 import * as Network from 'expo-network';
+import { computeDropDiscount } from '@/utils/dropHelpers';
 
 const { width, height } = Dimensions.get('window');
 
@@ -758,6 +759,20 @@ export default function DropDetailsScreen() {
 
   const renderProduct = useCallback(({ item }: { item: ProductData }) => {
     const isBooked = userBookings.has(item.id);
+
+    // Compute the drop's current/final discount via linear interpolation
+    const supplierLists = drop?.supplier_lists;
+    let computedDropDiscount: number | undefined;
+    if (drop && supplierLists) {
+      computedDropDiscount = computeDropDiscount({
+        current_value: Number(drop.current_value ?? 0),
+        min_reservation_value: Number(supplierLists.min_reservation_value ?? 0),
+        max_reservation_value: Number(supplierLists.max_reservation_value ?? 0),
+        min_discount: Number(supplierLists.min_discount ?? 0),
+        max_discount: Number(supplierLists.max_discount ?? 0),
+      });
+      console.log('[drop-details] computedDropDiscount for product', item.id, ':', computedDropDiscount, '(status:', drop.status, ')');
+    }
     
     const productForCard = {
       id: item.id,
@@ -768,8 +783,8 @@ export default function DropDetailsScreen() {
       imageUrl: item.image_url,
       imageUrls: item.additional_images || [item.image_url],
       originalPrice: Number(item.original_price),
-      minDiscount: drop?.supplier_lists?.min_discount ?? 0,
-      maxDiscount: drop?.supplier_lists?.max_discount ?? 0,
+      minDiscount: supplierLists?.min_discount ?? 0,
+      maxDiscount: supplierLists?.max_discount ?? 0,
       sizes: item.available_sizes?.join(', ') || '',
       colors: item.available_colors?.join(', ') || '',
       availableSizes: item.available_sizes || [],
@@ -777,7 +792,7 @@ export default function DropDetailsScreen() {
       condition: item.condition || 'nuovo',
       category: item.category || '',
       stock: item.stock,
-      supplierName: drop?.supplier_lists?.name || 'Fornitore',
+      supplierName: supplierLists?.name || 'Fornitore',
       hasVariants: item.hasVariants || false,
       variants: (item.variants || []).map(v => ({
         id: v.id,
@@ -795,7 +810,8 @@ export default function DropDetailsScreen() {
           product={productForCard}
           isInDrop={true}
           currentDiscount={drop?.current_discount}
-          maxDiscount={drop?.supplier_lists?.max_discount}
+          maxDiscount={supplierLists?.max_discount}
+          dropDiscount={computedDropDiscount}
           onBook={handleBook}
           isInterested={isBooked}
           dropId={dropId}

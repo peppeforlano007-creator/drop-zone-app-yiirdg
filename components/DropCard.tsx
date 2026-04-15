@@ -6,6 +6,7 @@ import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from './IconSymbol';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import { computeDropDiscount } from '@/utils/dropHelpers';
 
 interface DropCardProps {
   drop: {
@@ -156,32 +157,25 @@ export default function DropCard({ drop }: DropCardProps) {
     : 0;
   const completedProgressPct = Math.floor(completedProgress);
 
-  // Achieved discount: prefer final_discount_percentage, then linear interpolation
-  // from supplier_lists fields (same formula as drop-details.tsx), else current_discount.
+  // Achieved discount: prefer final_discount_percentage, then shared computeDropDiscount helper
   let achievedDiscountRaw: number | null = null;
   const finalDiscPct = Number(drop.final_discount_percentage ?? 0);
   if (drop.final_discount_percentage != null && finalDiscPct > 0) {
     achievedDiscountRaw = finalDiscPct;
   } else if (isCompleted) {
-    // Linear interpolation between min/max discount based on completed value
-    const cVal = completedValue;
     const minVal = Number(drop.supplier_lists?.min_reservation_value ?? 0);
     const maxVal = Number(drop.supplier_lists?.max_reservation_value ?? 0);
     const minDisc = Number(drop.supplier_lists?.min_discount ?? 0);
     const maxDisc = Number(drop.supplier_lists?.max_discount ?? 0);
-    if (cVal > 0 && maxVal > minVal) {
-      if (cVal <= minVal) {
-        achievedDiscountRaw = minDisc;
-      } else if (cVal >= maxVal) {
-        achievedDiscountRaw = maxDisc;
-      } else {
-        const valueRange = maxVal - minVal;
-        const discountRange = maxDisc - minDisc;
-        const progress = (cVal - minVal) / valueRange;
-        achievedDiscountRaw = Math.round((minDisc + discountRange * progress) * 100) / 100;
-      }
+    if (completedValue > 0 && maxVal > minVal) {
+      achievedDiscountRaw = computeDropDiscount({
+        current_value: completedValue,
+        min_reservation_value: minVal,
+        max_reservation_value: maxVal,
+        min_discount: minDisc,
+        max_discount: maxDisc,
+      });
     } else {
-      // Fall back to current_discount
       const fallback = Number(drop.current_discount ?? 0);
       achievedDiscountRaw = fallback > 0 ? fallback : null;
     }

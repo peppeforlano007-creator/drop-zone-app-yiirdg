@@ -2,6 +2,24 @@
 import { supabase } from '@/app/integrations/supabase/client';
 
 /**
+ * Compute the current/final discount for a drop using linear interpolation.
+ * Works for both active (real-time) and completed drops.
+ */
+export function computeDropDiscount(drop: {
+  current_value: number;
+  min_reservation_value: number;
+  max_reservation_value: number;
+  min_discount: number;
+  max_discount: number;
+}): number {
+  const { current_value, min_reservation_value, max_reservation_value, min_discount, max_discount } = drop;
+  if (current_value <= min_reservation_value) return min_discount;
+  if (current_value >= max_reservation_value) return max_discount;
+  const ratio = (current_value - min_reservation_value) / (max_reservation_value - min_reservation_value);
+  return Math.round(min_discount + ratio * (max_discount - min_discount));
+}
+
+/**
  * Get platform settings from the database
  */
 export async function getPlatformSettings(): Promise<{

@@ -7,6 +7,7 @@ import * as Haptics from 'expo-haptics';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
+import { computeDropDiscount } from '@/utils/dropHelpers';
 import {
   View,
   Text,
@@ -38,11 +39,15 @@ interface Booking {
   drops: {
     name: string;
     current_discount: number;
+    current_value: number;
     end_time: string;
     status: string;
     supplier_lists: {
       name: string;
       max_discount: number;
+      min_discount: number;
+      min_reservation_value: number;
+      max_reservation_value: number;
     } | null;
   } | null;
 }
@@ -74,11 +79,15 @@ export default function MyBookingsScreen() {
           drops (
             name,
             current_discount,
+            current_value,
             end_time,
             status,
             supplier_lists (
               name,
-              max_discount
+              max_discount,
+              min_discount,
+              min_reservation_value,
+              max_reservation_value
             )
           )
         `)
@@ -322,11 +331,31 @@ export default function MyBookingsScreen() {
             const currentDiscount = booking.drops?.current_discount ?? 0;
             const maxDiscount = booking.drops?.supplier_lists?.max_discount ?? 100;
             const dropStatus = booking.drops?.status || 'unknown';
+            const isDropCompleted = dropStatus === 'completed';
+
+            // For completed drops, compute the final achieved discount via interpolation
+            let displayDiscountPercentage = typeof booking.discount_percentage === 'number' ? booking.discount_percentage : 0;
+            if (isDropCompleted && booking.drops?.supplier_lists) {
+              const sl = booking.drops.supplier_lists;
+              const cv = Number(booking.drops.current_value ?? 0);
+              const minVal = Number(sl.min_reservation_value ?? 0);
+              const maxVal = Number(sl.max_reservation_value ?? 0);
+              if (cv > 0 && maxVal > minVal) {
+                displayDiscountPercentage = computeDropDiscount({
+                  current_value: cv,
+                  min_reservation_value: minVal,
+                  max_reservation_value: maxVal,
+                  min_discount: Number(sl.min_discount ?? 0),
+                  max_discount: Number(sl.max_discount ?? 0),
+                });
+                console.log('[my-bookings] computed final discount for completed drop booking', booking.id, ':', displayDiscountPercentage);
+              }
+            }
             
             // Safe number handling with fallbacks
             const originalPrice = typeof booking.original_price === 'number' ? booking.original_price : 0;
             const authorizedAmount = typeof booking.authorized_amount === 'number' ? booking.authorized_amount : 0;
-            const discountPercentage = typeof booking.discount_percentage === 'number' ? booking.discount_percentage : 0;
+            const discountPercentage = displayDiscountPercentage;
             const finalPrice = typeof booking.final_price === 'number' ? booking.final_price : 0;
 
             return (
