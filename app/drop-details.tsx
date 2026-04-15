@@ -139,7 +139,6 @@ export default function DropDetailsScreen() {
           status,
           supplier_list_id,
           pickup_point_id,
-          final_discount_percentage,
           updated_at,
           pickup_points (
             name,

@@ -32,10 +32,7 @@ interface Drop {
   end_time: string;
   status: string;
   supplier_list_id: string;
-  current_bookings?: number;
-  bookings_count?: number;
-  target_bookings?: number;
-  final_discount_percentage?: number | null;
+
   pickup_points: {
     name: string;
     city: string;
@@ -230,10 +227,6 @@ export default function DropsScreen() {
           end_time,
           status,
           supplier_list_id,
-          current_bookings,
-          bookings_count,
-          target_bookings,
-          final_discount_percentage,
           created_at,
           updated_at,
           pickup_point_id,
@@ -273,7 +266,6 @@ export default function DropsScreen() {
             id: firstCompleted.id,
             name: firstCompleted.name,
             current_value: firstCompleted.current_value,
-            final_discount_percentage: firstCompleted.final_discount_percentage,
             supplier_list_max: firstCompleted.supplier_lists?.max_reservation_value,
           });
         } else {
