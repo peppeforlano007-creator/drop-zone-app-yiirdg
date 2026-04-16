@@ -88,40 +88,83 @@ const getLogServerUrl = (): string | null => {
   return cachedLogServerUrl;
 };
 
-// Track if we've logged fetch errors to avoid spam
-let fetchErrorLogged = false;
+// Track if we've confirmed the log server is reachable
+let logServerReachable: boolean | null = null; // null = untested, true = ok, false = unreachable
+let reachabilityCheckInFlight = false;
+
+// Probe the log server once; on native platforms with a local-IP URL this
+// will fail quickly and we permanently disable forwarding for this session,
+// preventing a flood of "Network request failed" errors in Expo Go.
+const checkLogServerReachability = async (url: string): Promise<boolean> => {
+  if (reachabilityCheckInFlight) return false;
+  reachabilityCheckInFlight = true;
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 2000);
+    const res = await fetch(url, {
+      method: 'OPTIONS',
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+    logServerReachable = res.ok || res.status < 500;
+  } catch {
+    logServerReachable = false;
+  } finally {
+    reachabilityCheckInFlight = false;
+  }
+  return logServerReachable === true;
+};
 
 // Flush the log queue to server
 const flushLogs = async () => {
   if (logQueue.length === 0) return;
 
+  const url = getLogServerUrl();
+  if (!url) {
+    // URL not available, silently skip
+    logQueue = [];
+    flushTimeout = null;
+    return;
+  }
+
+  // On native, skip forwarding if we already know the server is unreachable
+  if (Platform.OS !== 'web' && logServerReachable === false) {
+    logQueue = [];
+    flushTimeout = null;
+    return;
+  }
+
+  // On native, probe reachability before the first real send
+  if (Platform.OS !== 'web' && logServerReachable === null) {
+    const reachable = await checkLogServerReachability(url);
+    if (!reachable) {
+      logQueue = [];
+      flushTimeout = null;
+      return;
+    }
+  }
+
   const logsToSend = [...logQueue];
   logQueue = [];
   flushTimeout = null;
 
-  const url = getLogServerUrl();
-  if (!url) {
-    // URL not available, silently skip
-    return;
-  }
-
   for (const log of logsToSend) {
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3000);
       fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(log),
-      }).catch((e) => {
-        // Log fetch errors only once to avoid spam
-        if (!fetchErrorLogged) {
-          fetchErrorLogged = true;
-          // Use a different method to avoid recursion - write directly without going through our intercept
-          if (typeof window !== 'undefined' && window.console) {
-            (window.console as any).__proto__.log.call(console, '[Newly] Fetch error (will not repeat):', e.message || e);
-          }
-        }
-      });
-    } catch (e) {
+        signal: controller.signal,
+      })
+        .then(() => { clearTimeout(timeoutId); })
+        .catch(() => {
+          clearTimeout(timeoutId);
+          // Mark server as unreachable so we stop trying for this session
+          logServerReachable = false;
+        });
+    } catch {
       // Silently ignore sync errors
     }
   }
