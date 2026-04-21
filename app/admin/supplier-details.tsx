@@ -120,6 +120,15 @@ export default function SupplierDetailsScreen() {
     });
   };
 
+  const handleEditList = (listId: string) => {
+    console.log('[SupplierDetails] Edit list pressed:', listId);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push({
+      pathname: '/admin/edit-list',
+      params: { listId },
+    });
+  };
+
   const handleDeleteList = async (list: SupplierList) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     
@@ -276,8 +285,23 @@ export default function SupplierDetailsScreen() {
           </View>
         </Pressable>
 
-        {/* Delete button outside the pressable area */}
+        {/* Action buttons outside the pressable area */}
         <View style={styles.listActions}>
+          <Pressable
+            style={({ pressed }) => [
+              styles.editListButton,
+              pressed && styles.editListButtonPressed,
+            ]}
+            onPress={() => handleEditList(list.id)}
+          >
+            <IconSymbol
+              ios_icon_name="pencil"
+              android_material_icon_name="edit"
+              size={18}
+              color="#007AFF"
+            />
+            <Text style={styles.editListButtonText}>Modifica</Text>
+          </Pressable>
           <Pressable
             style={({ pressed }) => [
               styles.deleteListButton,
@@ -641,6 +665,29 @@ const styles = StyleSheet.create({
     borderTopColor: colors.border,
     padding: 12,
     backgroundColor: colors.backgroundSecondary,
+    flexDirection: 'row',
+    gap: 10,
+  },
+  editListButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'transparent',
+    borderWidth: 1.5,
+    borderColor: '#007AFF',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    gap: 8,
+  },
+  editListButtonPressed: {
+    opacity: 0.7,
+  },
+  editListButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#007AFF',
   },
   deleteListButton: {
     flexDirection: 'row',
