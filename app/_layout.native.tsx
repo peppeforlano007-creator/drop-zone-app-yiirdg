@@ -337,6 +337,10 @@ export default function RootLayout() {
                   {/* Drop Details */}
                   <Stack.Screen name="drop-details" options={{ headerShown: false }} />
 
+                  {/* Chat Screens */}
+                  <Stack.Screen name="chat-create-group" options={{ headerShown: false }} />
+                  <Stack.Screen name="chat-group-settings" options={{ headerShown: false }} />
+
                   {/* Profile Screens */}
                   <Stack.Screen name="edit-profile" options={{ headerShown: false }} />
 

@@ -28,9 +28,10 @@ export default function TabLayout() {
       icon: 'storefront.fill',
     },
     {
-      route: '/(tabs)/(home)',
-      label: 'Punti',
-      icon: 'star.fill',
+      route: '/(tabs)/chat',
+      label: 'Chat',
+      icon: 'message.fill',
+      androidIcon: 'chat',
     },
     {
       route: '/(tabs)/profile',
