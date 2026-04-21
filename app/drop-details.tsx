@@ -599,9 +599,16 @@ export default function DropDetailsScreen() {
       
       console.log('✅ Session valid, user:', sessionData.session.user.id);
 
-      const currentDiscount = drop.current_discount ?? 0;
+      const bookingDiscount = computeDropDiscount({
+        current_value: Number(drop.current_value ?? 0),
+        min_reservation_value: Number(drop.supplier_lists?.min_reservation_value ?? 0),
+        max_reservation_value: Number(drop.supplier_lists?.max_reservation_value ?? 0),
+        min_discount: Number(drop.supplier_lists?.min_discount ?? 0),
+        max_discount: Number(drop.supplier_lists?.max_discount ?? 0),
+      });
+      console.log('[drop-details] handleBook computeDropDiscount:', bookingDiscount);
       const originalPrice = product.original_price ?? 0;
-      const currentDiscountedPrice = originalPrice * (1 - currentDiscount / 100);
+      const currentDiscountedPrice = originalPrice * (1 - bookingDiscount / 100);
 
       const bookingPayload = {
         user_id: user.id,
@@ -610,7 +617,7 @@ export default function DropDetailsScreen() {
         drop_id: drop.id,
         pickup_point_id: drop.pickup_point_id,
         original_price: originalPrice,
-        discount_percentage: currentDiscount,
+        discount_percentage: bookingDiscount,
         final_price: currentDiscountedPrice,
         payment_method: 'cod',
         payment_status: 'pending',
@@ -671,11 +678,11 @@ export default function DropDetailsScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       
       const maxDiscount = Math.floor(drop.supplier_lists?.max_discount ?? 0);
-      const discountRemaining = maxDiscount - Math.floor(currentDiscount);
+      const discountRemaining = maxDiscount - Math.floor(bookingDiscount);
       
       Alert.alert(
         '✅ Prenotazione confermata!',
-        `Hai prenotato ${product.name} con sconto del ${Math.floor(currentDiscount)}%.\n\n${discountRemaining > 0 ? `💡 Lo sconto può ancora aumentare! Mancano ${discountRemaining}% per raggiungere il massimo.\n\n` : '🎉 Hai già lo sconto massimo!\n\n'}👥 Condividi il drop con amici e parenti per raggiungere insieme il ${maxDiscount}% di sconto!`,
+        `Hai prenotato ${product.name} con sconto del ${Math.floor(bookingDiscount)}%.\n\n${discountRemaining > 0 ? `💡 Lo sconto può ancora aumentare! Mancano ${discountRemaining}% per raggiungere il massimo.\n\n` : '🎉 Hai già lo sconto massimo!\n\n'}👥 Condividi il drop con amici e parenti per raggiungere insieme il ${maxDiscount}% di sconto!`,
         [{ text: 'OK' }]
       );
     } catch (error: any) {
@@ -735,7 +742,14 @@ export default function DropDetailsScreen() {
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
-    const currentDiscount = Math.floor(drop.current_discount ?? 0);
+    const currentDiscount = Math.floor(computeDropDiscount({
+      current_value: Number(drop.current_value ?? 0),
+      min_reservation_value: Number(drop.supplier_lists?.min_reservation_value ?? 0),
+      max_reservation_value: Number(drop.supplier_lists?.max_reservation_value ?? 0),
+      min_discount: Number(drop.supplier_lists?.min_discount ?? 0),
+      max_discount: Number(drop.supplier_lists?.max_discount ?? 0),
+    }));
+    console.log('[drop-details] handleShareWhatsApp computeDropDiscount:', currentDiscount);
     const maxDiscount = Math.floor(drop.supplier_lists?.max_discount ?? 0);
     const discountRemaining = maxDiscount - currentDiscount;
     const valueRemaining = maxReservationValue - currentValue;
@@ -888,11 +902,18 @@ export default function DropDetailsScreen() {
 
   const currentValue = Number(drop.current_value ?? 0);
   const targetValue = Number(drop.target_value ?? 0);
-  const currentDiscount = Number(drop.current_discount ?? 0);
   const minReservationValue = Number(drop.supplier_lists?.min_reservation_value ?? 0);
   const maxReservationValue = Number(drop.supplier_lists?.max_reservation_value ?? 0);
   const minDiscount = Number(drop.supplier_lists?.min_discount ?? 0);
   const maxDiscount = Number(drop.supplier_lists?.max_discount ?? 0);
+  const currentDiscount = computeDropDiscount({
+    current_value: currentValue,
+    min_reservation_value: minReservationValue,
+    max_reservation_value: maxReservationValue,
+    min_discount: minDiscount,
+    max_discount: maxDiscount,
+  });
+  console.log('[drop-details] computeDropDiscount result:', currentDiscount, '(current_value:', currentValue, ')');
 
   // Completed drop stats
   const completedValueFormatted = '€ ' + Math.round(currentValue).toLocaleString('it-IT');
@@ -928,7 +949,7 @@ export default function DropDetailsScreen() {
     : 0;
   
   const discountProgress = maxDiscount > minDiscount
-    ? ((currentDiscount - minDiscount) / (maxDiscount - minDiscount)) * 100
+    ? Math.min(((currentDiscount - minDiscount) / (maxDiscount - minDiscount)) * 100, 100)
     : 0;
 
   const cityName = drop.pickup_points?.city ?? 'N/A';
