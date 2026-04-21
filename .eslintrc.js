@@ -49,6 +49,12 @@ module.exports = {
       rules: {
         'import/no-unresolved': 'off'
       }
+    },
+    {
+      files: ['utils/polyfills/fetch.ts'],
+      rules: {
+        'import/no-unresolved': 'off'
+      }
     }
   ]
 };

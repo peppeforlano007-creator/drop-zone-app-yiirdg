@@ -52,6 +52,8 @@ interface ListDetails {
   max_discount: number;
   min_reservation_value: number;
   max_reservation_value: number;
+  delivery_min_days: number | null;
+  delivery_max_days: number | null;
   status: string;
   created_at: string;
   supplier_id: string;
@@ -662,6 +664,24 @@ export default function ListDetailsScreen() {
                 </Text>
                 <Text style={styles.listStatLabel}>Valore Ordine</Text>
               </View>
+              {(list.delivery_min_days != null || list.delivery_max_days != null) && (
+                <View style={styles.listStatItem}>
+                  <IconSymbol
+                    ios_icon_name="shippingbox"
+                    android_material_icon_name="local_shipping"
+                    size={20}
+                    color={colors.textSecondary}
+                  />
+                  <Text style={styles.listStatValue}>
+                    {list.delivery_min_days != null && list.delivery_max_days != null
+                      ? `${list.delivery_min_days}–${list.delivery_max_days} gg`
+                      : list.delivery_min_days != null
+                      ? `da ${list.delivery_min_days} gg`
+                      : `entro ${list.delivery_max_days} gg`}
+                  </Text>
+                  <Text style={styles.listStatLabel}>Consegna</Text>
+                </View>
+              )}
             </View>
 
             {productsWithVariants > 0 && (

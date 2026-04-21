@@ -74,6 +74,8 @@ export default function CreateListScreen() {
   const [maxDiscount, setMaxDiscount] = useState('80');
   const [minReservationValue, setMinReservationValue] = useState('5000');
   const [maxReservationValue, setMaxReservationValue] = useState('30000');
+  const [deliveryMinDays, setDeliveryMinDays] = useState('');
+  const [deliveryMaxDays, setDeliveryMaxDays] = useState('');
   const [loading, setLoading] = useState(false);
   const [loadingSuppliers, setLoadingSuppliers] = useState(true);
   const [importMode, setImportMode] = useState<'manual' | 'excel'>('manual');
@@ -335,6 +337,7 @@ export default function CreateListScreen() {
     try {
       console.log('Creating supplier list...');
       
+      console.log('[CreateList] creating list with delivery days:', { deliveryMinDays, deliveryMaxDays });
       const { data, error } = await supabase
         .from('supplier_lists')
         .insert({
@@ -344,6 +347,8 @@ export default function CreateListScreen() {
           max_discount: maxDiscountNum,
           min_reservation_value: minValueNum,
           max_reservation_value: maxValueNum,
+          delivery_min_days: deliveryMinDays ? parseInt(deliveryMinDays) : null,
+          delivery_max_days: deliveryMaxDays ? parseInt(deliveryMaxDays) : null,
           status: 'active',
         })
         .select()
@@ -1014,6 +1019,44 @@ export default function CreateListScreen() {
                     placeholderTextColor={colors.textTertiary}
                     value={maxReservationValue}
                     onChangeText={setMaxReservationValue}
+                    keyboardType="numeric"
+                    editable={!loading}
+                    contextMenuHidden={false}
+                    selectTextOnFocus={false}
+                  />
+                </View>
+              </View>
+
+              <View style={styles.row}>
+                <View style={[styles.inputContainer, styles.halfWidth]}>
+                  <Text style={styles.inputLabel}>Consegna Da (giorni)</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Es. 3"
+                    placeholderTextColor={colors.textTertiary}
+                    value={deliveryMinDays}
+                    onChangeText={(v) => {
+                      console.log('[CreateList] deliveryMinDays changed:', v);
+                      setDeliveryMinDays(v);
+                    }}
+                    keyboardType="numeric"
+                    editable={!loading}
+                    contextMenuHidden={false}
+                    selectTextOnFocus={false}
+                  />
+                </View>
+
+                <View style={[styles.inputContainer, styles.halfWidth]}>
+                  <Text style={styles.inputLabel}>Consegna A (giorni)</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Es. 5"
+                    placeholderTextColor={colors.textTertiary}
+                    value={deliveryMaxDays}
+                    onChangeText={(v) => {
+                      console.log('[CreateList] deliveryMaxDays changed:', v);
+                      setDeliveryMaxDays(v);
+                    }}
                     keyboardType="numeric"
                     editable={!loading}
                     contextMenuHidden={false}

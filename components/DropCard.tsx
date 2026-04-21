@@ -4,7 +4,7 @@ import { View, Text, StyleSheet, Pressable, Linking, Alert } from 'react-native'
 import { router } from 'expo-router';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from './IconSymbol';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { computeDropDiscount } from '@/utils/dropHelpers';
 
@@ -31,6 +31,8 @@ interface DropCardProps {
       max_reservation_value: number;
     };
   };
+  deliveryMinDays?: number | null;
+  deliveryMaxDays?: number | null;
 }
 
 function formatEuro(value: number): string {
@@ -38,7 +40,7 @@ function formatEuro(value: number): string {
   return '€ ' + rounded.toLocaleString('it-IT');
 }
 
-export default function DropCard({ drop }: DropCardProps) {
+export default function DropCard({ drop, deliveryMinDays, deliveryMaxDays }: DropCardProps) {
   const [timeRemaining, setTimeRemaining] = useState('');
 
   useEffect(() => {
@@ -343,6 +345,19 @@ export default function DropCard({ drop }: DropCardProps) {
             color={colors.success} 
           />
           <Text style={styles.shareCalloutText}>{discountRemainingText}</Text>
+        </View>
+      )}
+
+      {drop.status === 'active' && (deliveryMinDays != null || deliveryMaxDays != null) && (
+        <View style={styles.deliveryRow}>
+          <Ionicons name="car-outline" size={14} color="#666" />
+          <Text style={styles.deliveryText}>
+            {deliveryMinDays != null && deliveryMaxDays != null
+              ? `Consegna: ${deliveryMinDays}–${deliveryMaxDays} giorni`
+              : deliveryMinDays != null
+              ? `Consegna: da ${deliveryMinDays} giorni`
+              : `Consegna: entro ${deliveryMaxDays} giorni`}
+          </Text>
         </View>
       )}
 
@@ -742,6 +757,17 @@ const styles = StyleSheet.create({
     fontFamily: 'System',
     minWidth: 30,
     textAlign: 'right',
+  },
+  deliveryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 12,
+  },
+  deliveryText: {
+    fontSize: 12,
+    color: '#666',
+    fontFamily: 'System',
   },
 
 });

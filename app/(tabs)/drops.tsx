@@ -43,6 +43,8 @@ interface Drop {
     max_discount: number;
     min_reservation_value: number;
     max_reservation_value: number;
+    delivery_min_days: number | null;
+    delivery_max_days: number | null;
   };
 }
 
@@ -239,7 +241,9 @@ export default function DropsScreen() {
             min_discount,
             max_discount,
             min_reservation_value,
-            max_reservation_value
+            max_reservation_value,
+            delivery_min_days,
+            delivery_max_days
           )
         `)
         .in('status', ['active', 'approved', 'completed'])
@@ -352,7 +356,11 @@ export default function DropsScreen() {
   const completedDrops = drops.filter(d => d.status === 'completed');
 
   const renderDrop = ({ item }: { item: Drop }) => (
-    <DropCard drop={item} />
+    <DropCard
+      drop={item}
+      deliveryMinDays={item.supplier_lists?.delivery_min_days ?? null}
+      deliveryMaxDays={item.supplier_lists?.delivery_max_days ?? null}
+    />
   );
 
   const renderCompletedSection = () => {
@@ -369,7 +377,12 @@ export default function DropsScreen() {
           <Text style={styles.completedSectionTitle}>Terminati</Text>
         </View>
         {completedDrops.map(drop => (
-          <DropCard key={drop.id} drop={drop} />
+          <DropCard
+            key={drop.id}
+            drop={drop}
+            deliveryMinDays={drop.supplier_lists?.delivery_min_days ?? null}
+            deliveryMaxDays={drop.supplier_lists?.delivery_max_days ?? null}
+          />
         ))}
       </View>
     );
