@@ -2,7 +2,7 @@
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '@/app/integrations/supabase/client';
 import DropCard from '@/components/DropCard';
-import { Stack } from 'expo-router';
+import { Stack, router, useFocusEffect } from 'expo-router';
 import { colors, layout } from '@/styles/commonStyles';
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
@@ -21,6 +21,9 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { IconSymbol } from '@/components/IconSymbol';
 import { useRealtimeDrops } from '@/hooks/useRealtimeDrop';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const LOYALTY_ONBOARDING_SEEN_KEY = 'loyalty_onboarding_seen';
 
 interface Drop {
   id: string;
@@ -197,6 +200,27 @@ export default function DropsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const { user } = useAuth();
   const [userPickupPointId, setUserPickupPointId] = useState<string | null>(null);
+
+  // Show loyalty onboarding only once
+  useFocusEffect(
+    useCallback(() => {
+      const checkLoyaltyOnboarding = async () => {
+        try {
+          const seen = await AsyncStorage.getItem(LOYALTY_ONBOARDING_SEEN_KEY);
+          if (!seen) {
+            console.log('[Drops] Loyalty onboarding not yet seen, showing for first time');
+            await AsyncStorage.setItem(LOYALTY_ONBOARDING_SEEN_KEY, 'true');
+            router.push('/loyalty-program');
+          } else {
+            console.log('[Drops] Loyalty onboarding already seen, skipping');
+          }
+        } catch (err) {
+          console.error('[Drops] Error checking loyalty onboarding flag:', err);
+        }
+      };
+      checkLoyaltyOnboarding();
+    }, [])
+  );
 
   const loadDrops = useCallback(async () => {
     try {

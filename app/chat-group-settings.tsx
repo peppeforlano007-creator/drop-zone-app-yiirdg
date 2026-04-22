@@ -78,15 +78,20 @@ export default function ChatGroupSettingsScreen() {
     setDescription(group.description || '');
     setCreatedBy(group.created_by);
 
-    const { data: memberRows, error: memErr } = await supabase
-      .from('chat_group_members')
-      .select('user_id')
-      .eq('group_id', groupId);
+    // Query via chat_groups join to avoid triggering the recursive RLS policy
+    // on chat_group_members (code 42P17).
+    const { data: groupWithMembers, error: memErr } = await supabase
+      .from('chat_groups')
+      .select('chat_group_members(user_id)')
+      .eq('id', groupId)
+      .single();
 
     if (memErr) {
       console.error('[GroupSettings] Error loading members:', memErr);
       return;
     }
+
+    const memberRows = (groupWithMembers as any)?.chat_group_members ?? [];
 
     if (!memberRows || memberRows.length === 0) {
       setMembers([]);

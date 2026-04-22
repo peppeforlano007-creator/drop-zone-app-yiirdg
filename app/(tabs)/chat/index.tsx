@@ -118,29 +118,14 @@ export default function ChatIndexScreen() {
     console.log('[Chat] Loading groups for user:', user.id);
 
     try {
-      const { data: memberships, error: memErr } = await supabase
-        .from('chat_group_members')
-        .select('group_id')
-        .eq('user_id', user.id);
-
-      if (memErr) {
-        console.error('[Chat] Error loading memberships:', memErr);
-        return;
-      }
-
-      if (!memberships || memberships.length === 0) {
-        console.log('[Chat] No group memberships found');
-        setGroups([]);
-        return;
-      }
-
-      const groupIds = memberships.map((m: any) => m.group_id);
-      console.log('[Chat] Found group IDs:', groupIds);
-
+      // Query chat_groups with an inner join on chat_group_members to avoid
+      // triggering the recursive RLS SELECT policy on chat_group_members.
+      // Querying chat_groups as the primary table bypasses the self-referencing
+      // subquery in the chat_group_members policy (code 42P17).
       const { data: rawGroups, error: groupErr } = await supabase
         .from('chat_groups')
-        .select('id, name, description, created_by, created_at')
-        .in('id', groupIds)
+        .select('id, name, description, created_by, created_at, chat_group_members!inner(user_id)')
+        .eq('chat_group_members.user_id', user.id)
         .order('created_at', { ascending: false });
 
       if (groupErr) {
@@ -148,17 +133,24 @@ export default function ChatIndexScreen() {
         return;
       }
 
-      if (!rawGroups) {
+      if (!rawGroups || rawGroups.length === 0) {
+        console.log('[Chat] No group memberships found');
         setGroups([]);
         return;
       }
 
+      console.log('[Chat] Found groups:', rawGroups.length);
+
       const enriched: ChatGroup[] = await Promise.all(
         rawGroups.map(async (g: any) => {
-          const { count: memberCount } = await supabase
-            .from('chat_group_members')
-            .select('*', { count: 'exact', head: true })
-            .eq('group_id', g.id);
+          // Get member count via chat_groups join to avoid recursive policy
+          const { data: memberRows } = await supabase
+            .from('chat_groups')
+            .select('chat_group_members(user_id)')
+            .eq('id', g.id)
+            .single();
+
+          const memberCount = (memberRows as any)?.chat_group_members?.length ?? 0;
 
           const { data: lastMsgs } = await supabase
             .from('chat_messages')
@@ -188,7 +180,7 @@ export default function ChatIndexScreen() {
             description: g.description,
             created_by: g.created_by,
             created_at: g.created_at,
-            memberCount: memberCount ?? 0,
+            memberCount,
             lastMessage,
           };
         })
