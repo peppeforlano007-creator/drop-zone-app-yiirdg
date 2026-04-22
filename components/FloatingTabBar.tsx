@@ -66,8 +66,8 @@ export default function FloatingTabBar({
   };
 
   const currentIndex = tabs.findIndex((tab) => {
-    if (pathname === '/' || pathname === '/(tabs)' || pathname === '/(tabs)/(home)') {
-      return tab.route === '/(tabs)/(home)';
+    if (pathname === '/' || pathname === '/(tabs)') {
+      return tab.route === '/(tabs)/drops';
     }
     return pathname.includes(tab.route);
   });
