@@ -53,7 +53,6 @@ interface Challenge {
   locked: boolean;
 }
 
-const WELCOME_MODAL_KEY = 'game_welcome_shown';
 const GAME_STATS_KEY = 'game_stats_v2';
 const WEEKLY_CHALLENGES_KEY = 'weekly_challenges';
 const CURRENT_CHALLENGE_INDEX_KEY = 'current_challenge_index';
@@ -100,7 +99,6 @@ export default function GameFeedScreen() {
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [showRewardAnimation, setShowRewardAnimation] = useState(false);
   const [rewardAmount, setRewardAmount] = useState(0);
-  const [showWelcome, setShowWelcome] = useState(false);
   const [showMissedWeekModal, setShowMissedWeekModal] = useState(false);
   const [missedWeeksCount, setMissedWeeksCount] = useState(0);
   const [previousStreak, setPreviousStreak] = useState(0);
@@ -112,7 +110,6 @@ export default function GameFeedScreen() {
   useEffect(() => {
     loadGameData();
     loadUnreadNotifications();
-    checkWelcomeScreen();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -175,26 +172,6 @@ export default function GameFeedScreen() {
       }
     } catch (error) {
       console.error('Error reloading challenges:', error);
-    }
-  };
-
-  const checkWelcomeScreen = async () => {
-    try {
-      const hasShown = await AsyncStorage.getItem(WELCOME_MODAL_KEY);
-      if (!hasShown) {
-        setShowWelcome(true);
-      }
-    } catch (error) {
-      console.error('Error checking welcome screen:', error);
-    }
-  };
-
-  const closeWelcome = async () => {
-    try {
-      await AsyncStorage.setItem(WELCOME_MODAL_KEY, 'true');
-      setShowWelcome(false);
-    } catch (error) {
-      console.error('Error saving welcome state:', error);
     }
   };
 
@@ -1131,89 +1108,6 @@ export default function GameFeedScreen() {
         <View style={[styles.container, styles.centerContent]}>
           <ActivityIndicator size="large" color={colors.primary} />
           <Text style={styles.loadingText}>Caricamento gioco...</Text>
-        </View>
-      </>
-    );
-  }
-
-  if (showWelcome) {
-    return (
-      <>
-        <Stack.Screen options={{ headerShown: false }} />
-        <View style={styles.container}>
-          <ScrollView contentContainerStyle={styles.welcomeContainer}>
-            <View style={styles.welcomeIcon}>
-              <IconSymbol
-                ios_icon_name="gamecontroller.fill"
-                android_material_icon_name="sports_esports"
-                size={80}
-                color={colors.primary}
-              />
-            </View>
-            
-            <Text style={styles.welcomeTitle}>Benvenuto al Gioco delle Liste!</Text>
-            <Text style={styles.welcomeSubtitle}>
-              Completa le sfide settimanali, guadagna punti e sblocca ricompense
-            </Text>
-
-            <View style={styles.welcomeSection}>
-              <View style={styles.welcomeFeature}>
-                <IconSymbol
-                  ios_icon_name="star.fill"
-                  android_material_icon_name="star"
-                  size={32}
-                  color="#FFD700"
-                />
-                <Text style={styles.welcomeFeatureTitle}>Sfide Settimanali</Text>
-                <Text style={styles.welcomeFeatureText}>
-                  Completa le sfide una alla volta per guadagnare punti
-                </Text>
-              </View>
-
-              <View style={styles.welcomeFeature}>
-                <IconSymbol
-                  ios_icon_name="flame.fill"
-                  android_material_icon_name="local_fire_department"
-                  size={32}
-                  color="#FF6B35"
-                />
-                <Text style={styles.welcomeFeatureTitle}>Striscia Settimanale</Text>
-                <Text style={styles.welcomeFeatureText}>
-                  Gioca ogni settimana per mantenere la tua striscia attiva
-                </Text>
-              </View>
-
-              <View style={styles.welcomeFeature}>
-                <IconSymbol
-                  ios_icon_name="trophy.fill"
-                  android_material_icon_name="emoji_events"
-                  size={32}
-                  color={colors.primary}
-                />
-                <Text style={styles.welcomeFeatureTitle}>Programma Fedeltà</Text>
-                <Text style={styles.welcomeFeatureText}>
-                  A fine mese i punti vengono trasferiti al programma fedeltà per riscattare coupon
-                </Text>
-              </View>
-
-              <View style={styles.welcomeFeature}>
-                <IconSymbol
-                  ios_icon_name="gift.fill"
-                  android_material_icon_name="card_giftcard"
-                  size={32}
-                  color="#4CAF50"
-                />
-                <Text style={styles.welcomeFeatureTitle}>Condividi e Guadagna</Text>
-                <Text style={styles.welcomeFeatureText}>
-                  Condividi le liste con amici per aumentare le possibilità di attivare drop nella tua città
-                </Text>
-              </View>
-            </View>
-
-            <Pressable style={styles.welcomeButton} onPress={closeWelcome}>
-              <Text style={styles.welcomeButtonText}>Inizia a Giocare!</Text>
-            </Pressable>
-          </ScrollView>
         </View>
       </>
     );
