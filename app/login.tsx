@@ -42,7 +42,7 @@ export default function LoginScreen() {
     if (user && !authLoading) {
       console.log('User already logged in, redirecting...', user.role);
       if (user.role === 'consumer') {
-        router.replace('/(tabs)/(home)');
+        router.replace('/(tabs)/drops');
       } else if (user.role === 'supplier') {
         // Suppliers no longer have access to the app
         Alert.alert(

@@ -32,7 +32,7 @@ export default function AdminLoginScreen() {
     if (user && !authLoading) {
       console.log('User already logged in, redirecting...', user.role);
       if (user.role === 'consumer') {
-        router.replace('/(tabs)/(home)');
+        router.replace('/(tabs)/drops');
       } else if (user.role === 'pickup_point') {
         router.replace('/pickup-point/dashboard');
       } else if (user.role === 'admin') {
