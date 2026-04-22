@@ -54,30 +54,42 @@ export default function ChatCreateGroupScreen() {
         setSearchResults([]);
         return;
       }
-      console.log('[CreateGroup] Searching profiles:', q);
+      console.log('[CreateGroup] Searching consumer profiles for query:', q);
       setSearching(true);
 
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('user_id, full_name, phone')
-        .or(`full_name.ilike.%${q}%,phone.ilike.%${q}%`)
-        .neq('user_id', user?.id ?? '')
-        .limit(20);
+      try {
+        // Use a SECURITY DEFINER RPC function to bypass the RLS policy on profiles.
+        // A direct .from('profiles').select() with ilike filters hangs indefinitely
+        // because the default RLS policy (user_id = auth.uid()) blocks cross-user reads.
+        const { data, error } = await supabase.rpc('search_consumer_profiles', {
+          p_query: q.trim(),
+          p_exclude_user_id: user?.id ?? '',
+        });
 
-      if (error) {
-        console.error('[CreateGroup] Search error:', error);
-      } else {
-        const results: ProfileResult[] = (data || []).map((p: any) => ({
-          id: p.user_id,
-          full_name: p.full_name,
-          phone: p.phone,
-        }));
-        const filtered = results.filter(
-          (r) => !selectedMembers.some((m) => m.id === r.id)
-        );
-        setSearchResults(filtered);
+        console.log('[CreateGroup] RPC search_consumer_profiles — data count:', data?.length ?? 0, 'error:', error);
+
+        if (error) {
+          console.error('[CreateGroup] RPC error code:', error.code, 'message:', error.message, 'details:', error.details);
+          Alert.alert('Errore ricerca', `Impossibile cercare utenti: ${error.message}`);
+        } else {
+          console.log('[CreateGroup] Search returned', data?.length ?? 0, 'results');
+          const results: ProfileResult[] = (data || []).map((p: any) => ({
+            id: p.user_id,
+            full_name: p.full_name,
+            phone: p.phone,
+          }));
+          const filtered = results.filter(
+            (r) => !selectedMembers.some((m) => m.id === r.id)
+          );
+          console.log('[CreateGroup] After filtering already-selected members:', filtered.length, 'results');
+          setSearchResults(filtered);
+        }
+      } catch (err: any) {
+        console.error('[CreateGroup] Search exception:', err?.message ?? err);
+        Alert.alert('Errore ricerca', 'Si è verificato un errore durante la ricerca.');
+      } finally {
+        setSearching(false);
       }
-      setSearching(false);
     },
     [user?.id, selectedMembers]
   );
