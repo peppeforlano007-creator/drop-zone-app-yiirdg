@@ -11,23 +11,16 @@ import {
   Platform,
   ActivityIndicator,
   Modal,
-  Image,
   Alert,
   useColorScheme,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { supabase } from '@/app/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { colors } from '@/styles/commonStyles';
-import type { ImageSourcePropType } from 'react-native';
-
-function resolveImageSource(source: string | number | ImageSourcePropType | undefined): ImageSourcePropType {
-  if (!source) return { uri: '' };
-  if (typeof source === 'string') return { uri: source };
-  return source as ImageSourcePropType;
-}
 
 interface Profile {
   full_name: string | null;
@@ -36,12 +29,10 @@ interface Profile {
 
 interface Drop {
   id: string;
-  name?: string;
-  title?: string;
-  image_url: string | null;
+  name: string;
   current_discount: number | null;
   current_value?: number | null;
-  status: string;
+  status: string | null;
 }
 
 interface ChatMessage {
@@ -62,7 +53,7 @@ function formatMsgTime(dateStr: string): string {
 }
 
 function getDropDisplayName(drop: Drop): string {
-  return drop.title || drop.name || 'Drop';
+  return drop.name || 'Drop';
 }
 
 function DropShareCard({
@@ -87,7 +78,8 @@ function DropShareCard({
     completed: { text: 'Completato', color: '#6B7280' },
     expired: { text: 'Scaduto', color: '#EF4444' },
   };
-  const badge = statusMap[drop.status] ?? { text: drop.status, color: '#6B7280' };
+  const statusKey = drop.status ?? '';
+  const badge = statusMap[statusKey] ?? { text: statusKey, color: '#6B7280' };
 
   const handlePress = () => {
     console.log('[Chat] Drop card pressed, navigating to drop:', drop.id);
@@ -100,17 +92,9 @@ function DropShareCard({
       onPress={handlePress}
       activeOpacity={0.8}
     >
-      {drop.image_url ? (
-        <Image
-          source={resolveImageSource(drop.image_url)}
-          style={styles.dropCardImage}
-          resizeMode="cover"
-        />
-      ) : (
-        <View style={[styles.dropCardImagePlaceholder, { backgroundColor: isDark ? '#3A3A3C' : '#E5E5E5' }]}>
-          <Ionicons name="cube-outline" size={28} color={subColor} />
-        </View>
-      )}
+      <View style={[styles.dropCardImagePlaceholder, { backgroundColor: isDark ? '#3A3A3C' : '#E5E5E5' }]}>
+        <Ionicons name="cube-outline" size={28} color={subColor} />
+      </View>
       <View style={styles.dropCardInfo}>
         <Text style={[styles.dropCardName, { color: textColor }]} numberOfLines={2}>
           {dropName}
@@ -194,8 +178,8 @@ function DropPickerModal({
     setLoading(true);
     supabase
       .from('drops')
-      .select('id, name, image_url, current_discount, current_value, status')
-      .in('status', ['active', 'pending'])
+      .select('id, name, current_discount, current_value, status')
+      .eq('status', 'active')
       .order('created_at', { ascending: false })
       .limit(20)
       .then(({ data, error }) => {
@@ -248,17 +232,9 @@ function DropPickerModal({
                   }}
                   activeOpacity={0.7}
                 >
-                  {item.image_url ? (
-                    <Image
-                      source={resolveImageSource(item.image_url)}
-                      style={styles.dropPickerImage}
-                      resizeMode="cover"
-                    />
-                  ) : (
-                    <View style={[styles.dropPickerImagePlaceholder, { backgroundColor: isDark ? '#2C2C2E' : '#F0F0F0' }]}>
-                      <Ionicons name="cube-outline" size={22} color={subColor} />
-                    </View>
-                  )}
+                  <View style={[styles.dropPickerImagePlaceholder, { backgroundColor: isDark ? '#2C2C2E' : '#F0F0F0' }]}>
+                    <Ionicons name="cube-outline" size={22} color={subColor} />
+                  </View>
                   <View style={styles.dropPickerInfo}>
                     <Text style={[styles.dropPickerName, { color: titleColor }]} numberOfLines={2}>
                       {dropName}
@@ -292,6 +268,8 @@ export default function GroupChatScreen() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
 
+  const tabBarHeight = useBottomTabBarHeight();
+
   const bgColor = isDark ? '#000000' : '#F8F8F8';
   const headerBg = isDark ? '#1C1C1E' : '#FFFFFF';
   const headerBorder = isDark ? '#2C2C2E' : '#E5E5E5';
@@ -317,7 +295,7 @@ export default function GroupChatScreen() {
       if (raw.message_type === 'drop' && raw.drop_id) {
         const { data: dropData } = await supabase
           .from('drops')
-          .select('id, name, image_url, current_discount, current_value, status')
+          .select('id, name, current_discount, current_value, status')
           .eq('id', raw.drop_id)
           .single();
         drop = dropData as Drop | null;
@@ -470,7 +448,7 @@ export default function GroupChatScreen() {
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={0}
+        keyboardVerticalOffset={tabBarHeight}
       >
         {loading ? (
           <View style={styles.centered}>
@@ -502,7 +480,7 @@ export default function GroupChatScreen() {
         )}
 
         {/* Input bar */}
-        <SafeAreaView edges={['bottom']} style={[styles.inputBar, { backgroundColor: inputBarBg, borderTopColor: inputBorder }]}>
+        <View style={[styles.inputBar, { backgroundColor: inputBarBg, borderTopColor: inputBorder, paddingBottom: tabBarHeight + 10 }]}>
           <TouchableOpacity
             style={[styles.dropShareButton, { borderColor: inputBorder }]}
             onPress={() => {
@@ -534,7 +512,7 @@ export default function GroupChatScreen() {
               <Ionicons name="send" size={18} color="#FFFFFF" />
             )}
           </TouchableOpacity>
-        </SafeAreaView>
+        </View>
       </KeyboardAvoidingView>
 
       <DropPickerModal
