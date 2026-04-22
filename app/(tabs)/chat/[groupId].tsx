@@ -14,10 +14,9 @@ import {
   Alert,
   useColorScheme,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { supabase } from '@/app/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { colors } from '@/styles/commonStyles';
@@ -268,7 +267,7 @@ export default function GroupChatScreen() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
 
-  const tabBarHeight = useBottomTabBarHeight();
+  const insets = useSafeAreaInsets();
 
   const bgColor = isDark ? '#000000' : '#F8F8F8';
   const headerBg = isDark ? '#1C1C1E' : '#FFFFFF';
@@ -448,7 +447,7 @@ export default function GroupChatScreen() {
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={tabBarHeight}
+        keyboardVerticalOffset={60}
       >
         {loading ? (
           <View style={styles.centered}>
@@ -480,7 +479,7 @@ export default function GroupChatScreen() {
         )}
 
         {/* Input bar */}
-        <View style={[styles.inputBar, { backgroundColor: inputBarBg, borderTopColor: inputBorder, paddingBottom: tabBarHeight + 10 }]}>
+        <View style={[styles.inputBar, { backgroundColor: inputBarBg, borderTopColor: inputBorder, paddingBottom: (insets.bottom || 0) + 10 }]}>
           <TouchableOpacity
             style={[styles.dropShareButton, { borderColor: inputBorder }]}
             onPress={() => {
