@@ -10,6 +10,54 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      chat_groups: {
+        Row: {
+          id: string
+          name: string
+          description: string | null
+          created_by: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          description?: string | null
+          created_by: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          description?: string | null
+          created_by?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      chat_group_members: {
+        Row: {
+          id: string
+          group_id: string
+          user_id: string
+          joined_at: string
+        }
+        Insert: {
+          id?: string
+          group_id: string
+          user_id: string
+          joined_at?: string
+        }
+        Update: {
+          id?: string
+          group_id?: string
+          user_id?: string
+          joined_at?: string
+        }
+        Relationships: []
+      }
       activity_logs: {
         Row: {
           action: string
