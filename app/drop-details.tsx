@@ -1241,13 +1241,13 @@ const styles = StyleSheet.create({
   },
   progressBarBackground: {
     height: 6,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: 'rgba(255, 255, 255, 0.4)',
     borderRadius: 3,
     overflow: 'hidden',
   },
   progressBarFill: {
     height: '100%',
-    backgroundColor: 'rgba(76, 175, 80, 0.9)',
+    backgroundColor: '#4ADE80',
     borderRadius: 3,
   },
   currentDiscountIndicator: {
