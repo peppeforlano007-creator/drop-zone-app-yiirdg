@@ -544,14 +544,14 @@ const styles = StyleSheet.create({
   },
   progressBarContainer: {
     height: 8,
-    backgroundColor: colors.backgroundSecondary,
+    backgroundColor: '#D1D5DB',
     borderRadius: 4,
     overflow: 'hidden',
     marginBottom: 6,
   },
   progressBarFill: {
     height: '100%',
-    backgroundColor: colors.primary,
+    backgroundColor: '#111827',
     borderRadius: 4,
   },
   progressFooter: {

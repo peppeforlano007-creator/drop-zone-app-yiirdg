@@ -1176,7 +1176,7 @@ const styles = StyleSheet.create({
     color: '#FFF',
   },
   bookButtonWrapper: {
-    marginTop: 2,
+    marginTop: 14,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
