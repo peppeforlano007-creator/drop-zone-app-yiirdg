@@ -1,12 +1,13 @@
 
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Pressable, Linking, Alert } from 'react-native';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { router } from 'expo-router';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from './IconSymbol';
 import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { computeDropDiscount } from '@/utils/dropHelpers';
+import ShareToGroupModal from '@/components/ShareToGroupModal';
 
 interface DropCardProps {
   drop: {
@@ -42,6 +43,7 @@ function formatEuro(value: number): string {
 
 export default function DropCard({ drop, deliveryMinDays, deliveryMaxDays }: DropCardProps) {
   const [timeRemaining, setTimeRemaining] = useState('');
+  const [showShareModal, setShowShareModal] = useState(false);
 
   useEffect(() => {
     const updateTimer = () => {
@@ -101,30 +103,11 @@ export default function DropCard({ drop, deliveryMinDays, deliveryMaxDays }: Dro
     });
   };
 
-  const handleShare = async (e: any) => {
+  const handleShare = (e: any) => {
     e.stopPropagation();
+    console.log('[DropCard] Share button pressed for drop:', drop.id, 'name:', drop.supplier_lists?.name ?? drop.name);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-
-    const maxDiscount = Math.floor(drop.supplier_lists?.max_discount ?? 0);
-    const currentDiscount = Math.floor(drop.current_discount ?? 0);
-    const discountRemaining = maxDiscount - currentDiscount;
-    const supplierListName = drop.supplier_lists?.name ?? 'N/A';
-    
-    const message = `🔥 Drop attivo: ${supplierListName}!\n\n💰 Sconto attuale: ${currentDiscount}%\n🎯 Sconto massimo: ${maxDiscount}%\n📍 Città: ${drop.pickup_points?.city}\n⏰ Tempo rimanente: ${timeRemaining}\n\n✨ Più persone prenotano, più lo sconto cresce!\n\n👉 Aiutami a raggiungere il ${maxDiscount}% di sconto! Mancano solo ${discountRemaining}% per lo sconto massimo!`;
-
-    const url = `whatsapp://send?text=${encodeURIComponent(message)}`;
-
-    try {
-      const canOpen = await Linking.canOpenURL(url);
-      if (canOpen) {
-        await Linking.openURL(url);
-      } else {
-        Alert.alert('Errore', 'WhatsApp non è installato sul dispositivo');
-      }
-    } catch (error) {
-      console.error('Error opening WhatsApp:', error);
-      Alert.alert('Errore', 'Impossibile aprire WhatsApp');
-    }
+    setShowShareModal(true);
   };
 
   const currentDiscount = Number(drop.current_discount ?? 0);
@@ -394,6 +377,11 @@ export default function DropCard({ drop, deliveryMinDays, deliveryMaxDays }: Dro
           </View>
         </View>
       </View>
+      <ShareToGroupModal
+        visible={showShareModal}
+        onClose={() => setShowShareModal(false)}
+        drop={{ id: drop.id, name: drop.supplier_lists?.name ?? drop.name ?? 'Drop' }}
+      />
     </Pressable>
   );
 }

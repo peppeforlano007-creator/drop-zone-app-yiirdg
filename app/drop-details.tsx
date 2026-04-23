@@ -7,7 +7,8 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, router } from 'expo-router';
 import { useRealtimeDrop } from '@/hooks/useRealtimeDrop';
 import { colors } from '@/styles/commonStyles';
-import { View, Text, StyleSheet, FlatList, Dimensions, Pressable, Alert, Linking, Animated, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, FlatList, Dimensions, Pressable, Alert, Animated, ActivityIndicator } from 'react-native';
+import ShareToGroupModal from '@/components/ShareToGroupModal';
 import { useAuth } from '@/contexts/AuthContext';
 import EnhancedProductCard from '@/components/EnhancedProductCard';
 import * as Haptics from 'expo-haptics';
@@ -111,6 +112,7 @@ export default function DropDetailsScreen() {
   const [userBookings, setUserBookings] = useState<Set<string>>(new Set());
   const [timeRemaining, setTimeRemaining] = useState('');
   const [isExpired, setIsExpired] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
   const bounceAnim = useRef(new Animated.Value(1)).current;
   const { user } = useAuth();
   const flatListRef = useRef<FlatList>(null);
@@ -737,38 +739,11 @@ export default function DropDetailsScreen() {
     }).start();
   };
 
-  const handleShareWhatsApp = async () => {
+  const handleShare = () => {
     if (!drop) return;
-
+    console.log('[drop-details] Share button pressed for drop:', drop.id, 'name:', drop.supplier_lists?.name ?? drop.name);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-
-    const currentDiscount = Math.floor(computeDropDiscount({
-      current_value: Number(drop.current_value ?? 0),
-      min_reservation_value: Number(drop.supplier_lists?.min_reservation_value ?? 0),
-      max_reservation_value: Number(drop.supplier_lists?.max_reservation_value ?? 0),
-      min_discount: Number(drop.supplier_lists?.min_discount ?? 0),
-      max_discount: Number(drop.supplier_lists?.max_discount ?? 0),
-    }));
-    console.log('[drop-details] handleShareWhatsApp computeDropDiscount:', currentDiscount);
-    const maxDiscount = Math.floor(drop.supplier_lists?.max_discount ?? 0);
-    const discountRemaining = maxDiscount - currentDiscount;
-    const valueRemaining = maxReservationValue - currentValue;
-    
-    const message = `🔥 Drop attivo: ${drop.name}!\n\n💰 Sconto attuale: ${currentDiscount}%\n🎯 Sconto massimo: ${maxDiscount}%\n📍 Città: ${drop.pickup_points?.city}\n⏰ Tempo rimanente: ${timeRemaining}\n\n✨ Più persone prenotano, più lo sconto cresce!\n\n👉 Aiutami a raggiungere il ${maxDiscount}% di sconto!\n${discountRemaining > 0 ? `Mancano solo ${discountRemaining}% per lo sconto massimo!` : 'Sconto massimo raggiunto! 🎉'}\n\nCondividi con amici e parenti!`;
-
-    const url = `whatsapp://send?text=${encodeURIComponent(message)}`;
-
-    try {
-      const canOpen = await Linking.canOpenURL(url);
-      if (canOpen) {
-        await Linking.openURL(url);
-      } else {
-        Alert.alert('Errore', 'WhatsApp non è installato sul dispositivo');
-      }
-    } catch (error) {
-      console.error('Error opening WhatsApp:', error);
-      Alert.alert('Errore', 'Impossibile aprire WhatsApp');
-    }
+    setShowShareModal(true);
   };
 
   const renderProduct = useCallback(({ item }: { item: ProductData }) => {
@@ -1123,7 +1098,7 @@ export default function DropDetailsScreen() {
 
         <Pressable 
           style={styles.iconButton}
-          onPress={handleShareWhatsApp}
+          onPress={handleShare}
           onPressIn={handlePressIn}
           onPressOut={handlePressOut}
         >
@@ -1145,6 +1120,12 @@ export default function DropDetailsScreen() {
           <Text style={styles.realtimeText}>Live</Text>
         </View>
       )}
+
+      <ShareToGroupModal
+        visible={showShareModal}
+        onClose={() => setShowShareModal(false)}
+        drop={drop ? { id: drop.id, name: drop.supplier_lists?.name ?? drop.name } : null}
+      />
     </View>
   );
 }
