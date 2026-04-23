@@ -25,10 +25,11 @@ interface ChatGroup {
 interface ShareToGroupModalProps {
   visible: boolean;
   onClose: () => void;
-  drop: { id: string; name: string } | null;
+  drop?: { id: string; name: string } | null;
+  product?: { id: string; name: string } | null;
 }
 
-export default function ShareToGroupModal({ visible, onClose, drop }: ShareToGroupModalProps) {
+export default function ShareToGroupModal({ visible, onClose, drop, product }: ShareToGroupModalProps) {
   const { user } = useAuth();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
@@ -66,22 +67,35 @@ export default function ShareToGroupModal({ visible, onClose, drop }: ShareToGro
   }, [visible, user, loadGroups]);
 
   const handleSend = async (groupId: string, groupName: string) => {
-    if (!user || !drop) return;
-    console.log('[ShareToGroupModal] Sending drop', drop.id, 'to group', groupId, '(', groupName, ')');
+    if (!user || (!drop && !product)) return;
+    if (product) {
+      console.log('[ShareToGroupModal] Sending product', product.id, 'to group', groupId, '(', groupName, ')');
+    } else {
+      console.log('[ShareToGroupModal] Sending drop', drop!.id, 'to group', groupId, '(', groupName, ')');
+    }
     setSendingGroupId(groupId);
     try {
-      const { error } = await supabase.from('chat_messages').insert({
-        group_id: groupId,
-        sender_id: user.id,
-        content: `Ho condiviso il drop: ${drop.name}`,
-        message_type: 'drop',
-        drop_id: drop.id,
-      });
+      const messagePayload = product
+        ? {
+            group_id: groupId,
+            sender_id: user.id,
+            content: `Ho condiviso l'articolo: ${product.name}`,
+            message_type: 'product',
+            product_id: product.id,
+          }
+        : {
+            group_id: groupId,
+            sender_id: user.id,
+            content: `Ho condiviso il drop: ${drop!.name}`,
+            message_type: 'drop',
+            drop_id: drop!.id,
+          };
+      const { error } = await supabase.from('chat_messages').insert(messagePayload);
 
       if (error) {
         console.error('[ShareToGroupModal] Error sending message:', error);
       } else {
-        console.log('[ShareToGroupModal] Drop shared successfully to group:', groupId);
+        console.log('[ShareToGroupModal]', product ? 'Product' : 'Drop', 'shared successfully to group:', groupId);
         setSuccessGroupId(groupId);
         setTimeout(() => {
           setSuccessGroupId(null);
@@ -171,11 +185,11 @@ export default function ShareToGroupModal({ visible, onClose, drop }: ShareToGro
           </Pressable>
         </View>
 
-        {drop && (
+        {(product || drop) && (
           <View style={[styles.dropChip, { backgroundColor: '#2563EB15', borderColor: '#2563EB44' }]}>
-            <Ionicons name="pricetag" size={14} color="#2563EB" />
+            <Ionicons name={product ? 'shirt-outline' : 'pricetag'} size={14} color="#2563EB" />
             <Text style={[styles.dropChipText, { color: '#2563EB' }]} numberOfLines={1}>
-              {drop.name}
+              {product ? product.name : drop!.name}
             </Text>
           </View>
         )}

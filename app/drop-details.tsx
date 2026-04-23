@@ -113,6 +113,8 @@ export default function DropDetailsScreen() {
   const [timeRemaining, setTimeRemaining] = useState('');
   const [isExpired, setIsExpired] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
+  const [shareProduct, setShareProduct] = useState<{ id: string; name: string } | null>(null);
+  const [currentProductIndex, setCurrentProductIndex] = useState(0);
   const bounceAnim = useRef(new Animated.Value(1)).current;
   const { user } = useAuth();
   const flatListRef = useRef<FlatList>(null);
@@ -739,10 +741,21 @@ export default function DropDetailsScreen() {
     }).start();
   };
 
+  const onViewableItemsChanged = useCallback(({ viewableItems }: any) => {
+    if (viewableItems.length > 0) {
+      setCurrentProductIndex(viewableItems[0].index ?? 0);
+    }
+  }, []);
+  const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 50 }).current;
+
   const handleShare = () => {
     if (!drop) return;
-    console.log('[drop-details] Share button pressed for drop:', drop.id, 'name:', drop.supplier_lists?.name ?? drop.name);
+    const currentProduct = products[currentProductIndex];
+    console.log('[drop-details] Share button pressed — currentProductIndex:', currentProductIndex, 'product:', currentProduct?.id, currentProduct?.name);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (currentProduct) {
+      setShareProduct({ id: currentProduct.id, name: currentProduct.name });
+    }
     setShowShareModal(true);
   };
 
@@ -997,6 +1010,8 @@ export default function DropDetailsScreen() {
             });
           }, 100);
         }}
+        onViewableItemsChanged={onViewableItemsChanged}
+        viewabilityConfig={viewabilityConfig}
       />
 
       <View style={styles.timerOverlay} pointerEvents="box-none">
@@ -1123,8 +1138,8 @@ export default function DropDetailsScreen() {
 
       <ShareToGroupModal
         visible={showShareModal}
-        onClose={() => setShowShareModal(false)}
-        drop={drop ? { id: drop.id, name: drop.supplier_lists?.name ?? drop.name } : null}
+        onClose={() => { setShowShareModal(false); setShareProduct(null); }}
+        product={shareProduct}
       />
     </View>
   );
