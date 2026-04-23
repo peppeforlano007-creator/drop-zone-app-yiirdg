@@ -1247,7 +1247,7 @@ const styles = StyleSheet.create({
   },
   progressBarFill: {
     height: '100%',
-    backgroundColor: 'rgba(76, 175, 80, 0.9)',
+    backgroundColor: '#4ADE80',
     borderRadius: 3,
   },
   currentDiscountIndicator: {
