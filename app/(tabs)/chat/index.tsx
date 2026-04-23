@@ -17,7 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/app/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { colors, layout } from '@/styles/commonStyles';
-import IconSymbol from '@/components/IconSymbol';
+import { IconSymbol } from '@/components/IconSymbol';
 
 interface ChatGroup {
   id: string;
