@@ -321,7 +321,7 @@ export default function MyBookingsScreen() {
         >
           {bookings.map((booking) => {
             const dropStatusMessage = getDropStatusMessage(booking.drops);
-            const canCancel = booking.status === 'active' && booking.payment_status === 'authorized';
+            const canCancel = booking.status === 'active' && booking.drops?.status === 'active';
             const isRefunded = booking.payment_status === 'refunded';
             
             // Safe access to nested properties with null checks and fallbacks

@@ -1091,7 +1091,7 @@ export default function DropDetailsScreen() {
           <View style={styles.iconCircle}>
             <MaterialCommunityIcons name="bullseye-arrow" size={22} color="#FFF" />
           </View>
-          <Text style={styles.iconLabel} numberOfLines={2}>
+          <Text style={styles.iconLabel} numberOfLines={1}>
             {listName}
           </Text>
         </View>
@@ -1110,7 +1110,7 @@ export default function DropDetailsScreen() {
               color="#FFF" 
             />
           </Animated.View>
-          <Text style={styles.iconLabel}>Condividi</Text>
+          <Text style={styles.iconLabel} numberOfLines={1}>Condividi</Text>
         </Pressable>
       </View>
 
@@ -1323,7 +1323,8 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#FFF',
     textAlign: 'center',
-    maxWidth: 70,
+    maxWidth: 80,
+    flexShrink: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.75)',
     paddingHorizontal: 8,
     paddingVertical: 4,
