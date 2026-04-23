@@ -9,6 +9,7 @@ import {
   RefreshControl,
   ActivityIndicator,
   useColorScheme,
+  Share,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -16,6 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/app/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { colors, layout } from '@/styles/commonStyles';
+import IconSymbol from '@/components/IconSymbol';
 
 interface ChatGroup {
   id: string;
@@ -210,6 +212,39 @@ export default function ChatIndexScreen() {
     router.push('/chat-create-group');
   };
 
+  const handleInviteFriends = async () => {
+    console.log('[Chat] Invite friends button pressed');
+    try {
+      const result = await Share.share({
+        message: 'Scarica Drop Zone e unisciti ai miei gruppi! 🔥 Prenota articoli scontati con amici e parenti.',
+        url: 'https://dropzone.app',
+      });
+      console.log('[Chat] Share result:', result.action);
+    } catch (err) {
+      console.error('[Chat] Share error:', err);
+    }
+  };
+
+  const inviteBannerBg = isDark ? '#1A1A1A' : '#000000';
+  const inviteBannerBorder = isDark ? '#2C2C2E' : '#222222';
+
+  const InviteBanner = (
+    <TouchableOpacity
+      style={[styles.inviteBanner, { backgroundColor: inviteBannerBg, borderColor: inviteBannerBorder }]}
+      onPress={handleInviteFriends}
+      activeOpacity={0.8}
+    >
+      <View style={styles.inviteIconWrap}>
+        <IconSymbol name="person.badge.plus" size={26} color="#FFFFFF" />
+      </View>
+      <View style={styles.inviteTextWrap}>
+        <Text style={styles.inviteTitle}>Invita amici e parenti</Text>
+        <Text style={styles.inviteSubtitle}>Aggiungi persone ai tuoi gruppi</Text>
+      </View>
+      <Ionicons name="chevron-forward" size={18} color="#8E8E93" />
+    </TouchableOpacity>
+  );
+
   const handleGroupPress = (groupId: string, groupName: string) => {
     console.log('[Chat] Group pressed:', groupId, groupName);
     router.push({ pathname: '/(tabs)/chat/[groupId]', params: { groupId, groupName } });
@@ -218,7 +253,7 @@ export default function ChatIndexScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: bgColor }]} edges={['top']}>
       <View style={[styles.header, { backgroundColor: headerBg, borderBottomColor: headerBorder }]}>
-        <Text style={[styles.headerTitle, { color: titleColor }]}>Chat</Text>
+        <Text style={[styles.headerTitle, { color: titleColor }]}>Gruppi</Text>
         <TouchableOpacity style={styles.addButton} onPress={handleCreateGroup}>
           <Ionicons name="add" size={26} color={titleColor} />
         </TouchableOpacity>
@@ -238,6 +273,7 @@ export default function ChatIndexScreen() {
               onPress={() => handleGroupPress(item.id, item.name)}
             />
           )}
+          ListHeaderComponent={InviteBanner}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
           }
@@ -384,6 +420,40 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '700',
+    fontFamily: 'System',
+  },
+  inviteBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: 16,
+    marginTop: 16,
+    marginBottom: 8,
+    borderRadius: 14,
+    padding: 16,
+    borderWidth: 1,
+    gap: 12,
+  },
+  inviteIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  inviteTextWrap: {
+    flex: 1,
+    gap: 3,
+  },
+  inviteTitle: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '700',
+    fontFamily: 'System',
+  },
+  inviteSubtitle: {
+    color: '#AEAEB2',
+    fontSize: 13,
     fontFamily: 'System',
   },
 });

@@ -29,7 +29,7 @@ export default function TabLayout() {
     },
     {
       route: '/(tabs)/chat',
-      label: 'Chat',
+      label: 'Gruppi',
       icon: 'message.fill',
       androidIcon: 'chat',
     },
