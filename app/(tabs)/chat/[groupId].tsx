@@ -479,7 +479,7 @@ export default function GroupChatScreen() {
         )}
 
         {/* Input bar */}
-        <View style={[styles.inputBar, { backgroundColor: inputBarBg, borderTopColor: inputBorder, paddingBottom: (insets.bottom || 0) + 80 }]}>
+        <View style={[styles.inputBar, { backgroundColor: inputBarBg, borderTopColor: inputBorder, paddingBottom: (insets.bottom || 0) + 120 }]}>
           <TouchableOpacity
             style={[styles.dropShareButton, { borderColor: inputBorder }]}
             onPress={() => {
