@@ -965,14 +965,14 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    height: '46%',
+    maxHeight: SCREEN_HEIGHT * 0.50,
     backgroundColor: 'rgba(255, 255, 255, 0.97)',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
   },
   content: {
     padding: 14,
-    paddingBottom: 80,
+    paddingBottom: 20,
   },
   productName: {
     fontSize: 17,
