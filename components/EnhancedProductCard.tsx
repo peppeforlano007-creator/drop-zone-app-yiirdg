@@ -841,7 +841,8 @@ const styles = StyleSheet.create({
   },
   imageWrapper: {
     width: '100%',
-    height: '60%',
+    height: '55%',
+    marginTop: SCREEN_HEIGHT * 0.06,
     position: 'relative',
     backgroundColor: colors.backgroundSecondary,
   },
@@ -878,7 +879,7 @@ const styles = StyleSheet.create({
   },
   imageIndicator: {
     position: 'absolute',
-    top: 60,
+    top: 16,
     left: 20,
     backgroundColor: 'rgba(0, 0, 0, 0.75)',
     paddingHorizontal: 8,
@@ -964,14 +965,14 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    height: '42%',
+    height: '46%',
     backgroundColor: 'rgba(255, 255, 255, 0.97)',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
   },
   content: {
     padding: 14,
-    paddingBottom: 110,
+    paddingBottom: 80,
   },
   productName: {
     fontSize: 17,
