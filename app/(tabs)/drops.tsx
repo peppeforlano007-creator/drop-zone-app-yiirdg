@@ -323,6 +323,11 @@ export default function DropsScreen() {
     }
   }, [user]);
 
+  const loadDropsRef = useRef<() => void>(loadDrops);
+  useEffect(() => {
+    loadDropsRef.current = loadDrops;
+  }, [loadDrops]);
+
   useEffect(() => {
     loadDrops();
   }, [loadDrops]);
@@ -344,7 +349,7 @@ export default function DropsScreen() {
       
       if (dropIndex === -1) {
         // New drop - reload the list
-        loadDrops();
+        loadDropsRef.current();
         return prevDrops;
       }
 
@@ -362,7 +367,7 @@ export default function DropsScreen() {
 
       return newDrops;
     });
-  }, [loadDrops]);
+  }, []);
 
   // Do NOT filter by pickupPointId — inactive/pending drops may have no pickup point yet
   // and would be missed by the realtime subscription filter.
