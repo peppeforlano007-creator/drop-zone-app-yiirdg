@@ -61,7 +61,6 @@ export default function EnhancedProductCard({
   // Animation values
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const heartScaleAnim = useRef(new Animated.Value(1)).current;
-  const pulseAnim = useRef(new Animated.Value(1)).current;
 
   // Check if product has variants
   const hasVariants = product.hasVariants && product.variants && product.variants.length > 0;
@@ -100,28 +99,6 @@ export default function EnhancedProductCard({
   console.log('Requires Color Selection:', requiresColorSelection);
   console.log('Requires Variant Selection:', requiresVariantSelection);
   console.log('Has All Required Selections:', hasAllRequiredSelections);
-
-  // Pulse animation for selection container when selections are missing
-  useEffect(() => {
-    if (isInDrop && requiresVariantSelection && !hasAllRequiredSelections) {
-      const pulse = Animated.loop(
-        Animated.sequence([
-          Animated.timing(pulseAnim, {
-            toValue: 1.02,
-            duration: 1000,
-            useNativeDriver: true,
-          }),
-          Animated.timing(pulseAnim, {
-            toValue: 1,
-            duration: 1000,
-            useNativeDriver: true,
-          }),
-        ])
-      );
-      pulse.start();
-      return () => pulse.stop();
-    }
-  }, [isInDrop, requiresVariantSelection, hasAllRequiredSelections, pulseAnim]);
 
   // Update selected variant when size or color changes
   useEffect(() => {
@@ -619,20 +596,14 @@ export default function EnhancedProductCard({
 
           {/* CRITICAL FIX: Only show selection container if product actually has variants */}
           {requiresVariantSelection && (
-            <Animated.View 
-              style={[
-                styles.selectionContainer,
-                isInDrop && !hasAllRequiredSelections && styles.selectionContainerRequired,
-                isInDrop && { transform: [{ scale: pulseAnim }] }
-              ]}
-            >
+            <View style={styles.selectionContainer}>
               {isInDrop && !hasAllRequiredSelections && (
                 <View style={styles.selectionWarningBanner}>
                   <IconSymbol 
                     ios_icon_name="exclamationmark.triangle.fill" 
                     android_material_icon_name="warning" 
-                    size={16} 
-                    color="#FFF" 
+                    size={13} 
+                    color="#333" 
                   />
                   <Text style={styles.selectionWarningText}>
                     SELEZIONE OBBLIGATORIA PER PRENOTARE
@@ -643,13 +614,8 @@ export default function EnhancedProductCard({
               {requiresSizeSelection && (
                 <View style={styles.inlineSelection}>
                   <View style={styles.selectionLabelContainer}>
-                    <Text style={styles.selectionLabel}>Taglia:</Text>
+                    <Text style={styles.selectionLabel}>TAGLIA</Text>
                     {isInDrop && <Text style={styles.requiredIndicator}>*</Text>}
-                    {isInDrop && !selectedSize && (
-                      <View style={styles.missingBadge}>
-                        <Text style={styles.missingBadgeText}>RICHIESTA</Text>
-                      </View>
-                    )}
                   </View>
                   <View style={styles.optionsRow}>
                     {availableSizes.slice(0, 6).map((size, index) => (
@@ -678,13 +644,8 @@ export default function EnhancedProductCard({
               {requiresColorSelection && (
                 <View style={styles.inlineSelection}>
                   <View style={styles.selectionLabelContainer}>
-                    <Text style={styles.selectionLabel}>Colore:</Text>
+                    <Text style={styles.selectionLabel}>COLORE</Text>
                     {isInDrop && <Text style={styles.requiredIndicator}>*</Text>}
-                    {isInDrop && !selectedColor && (
-                      <View style={styles.missingBadge}>
-                        <Text style={styles.missingBadgeText}>RICHIESTO</Text>
-                      </View>
-                    )}
                   </View>
                   <View style={styles.optionsRow}>
                     {availableColors.slice(0, 6).map((color, index) => (
@@ -709,7 +670,7 @@ export default function EnhancedProductCard({
                   </View>
                 </View>
               )}
-            </Animated.View>
+            </View>
           )}
 
           {/* CRITICAL: Enhanced booking button with clear disabled state (ONLY IN DROP) */}
@@ -762,10 +723,7 @@ export default function EnhancedProductCard({
                     </View>
                     <View style={styles.bookButtonTextContainer}>
                       <Text style={[styles.bookButtonTitle, styles.bookButtonTitleWarning]}>
-                        SELEZIONA {!selectedSize && !selectedColor ? 'TAGLIA E COLORE' : !selectedSize ? 'TAGLIA' : 'COLORE'}
-                      </Text>
-                      <Text style={styles.bookButtonSubtitleWarning}>
-                        ⚠️ Selezione obbligatoria per prenotare
+                        SELEZIONA OPZIONI
                       </Text>
                     </View>
                   </>
@@ -1052,101 +1010,76 @@ const styles = StyleSheet.create({
   },
   selectionContainer: {
     marginBottom: 8,
-    gap: 6,
-    backgroundColor: colors.backgroundSecondary + '40',
-    padding: 8,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  selectionContainerRequired: {
-    backgroundColor: '#FFF9F0',
-    borderWidth: 2,
-    borderColor: '#E0E0E0',
+    gap: 10,
+    backgroundColor: '#FFF',
+    padding: 12,
+    borderRadius: 14,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
     shadowRadius: 4,
     elevation: 2,
   },
   selectionWarningBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    backgroundColor: '#666',
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 6,
-    marginBottom: 4,
+    gap: 6,
+    backgroundColor: '#F5F5F5',
+    paddingVertical: 5,
+    paddingHorizontal: 8,
+    borderRadius: 8,
   },
   selectionWarningText: {
     fontSize: 10,
-    fontWeight: '800',
-    color: '#FFF',
+    fontWeight: '700',
+    color: '#333',
     letterSpacing: 0.5,
     flex: 1,
   },
   inlineSelection: {
+    flexDirection: 'column',
+    gap: 6,
+  },
+  selectionLabelContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+  },
+  selectionLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#888',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  requiredIndicator: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#999',
+  },
+  optionsRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
     flexWrap: 'wrap',
   },
-  selectionLabelContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    minWidth: 60,
-    gap: 4,
-  },
-  selectionLabel: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: colors.text,
-    textTransform: 'uppercase',
-    letterSpacing: 0.3,
-  },
-  requiredIndicator: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.error,
-  },
-  missingBadge: {
-    backgroundColor: '#666',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-    marginLeft: 4,
-  },
-  missingBadgeText: {
-    fontSize: 8,
-    fontWeight: '800',
-    color: '#FFF',
-    letterSpacing: 0.3,
-  },
-  optionsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    flexWrap: 'wrap',
-    flex: 1,
-  },
   sizeOption: {
-    minWidth: 30,
-    height: 28,
-    paddingHorizontal: 8,
+    minWidth: 38,
+    height: 34,
+    paddingHorizontal: 10,
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#FFF',
-    borderRadius: 6,
-    borderWidth: 2,
+    borderRadius: 10,
+    borderWidth: 1.5,
     borderColor: '#E0E0E0',
   },
   sizeOptionSelected: {
-    backgroundColor: '#333',
-    borderColor: '#333',
+    backgroundColor: '#111',
+    borderColor: '#111',
   },
   sizeOptionText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: '700',
     color: '#333',
   },
@@ -1154,21 +1087,22 @@ const styles = StyleSheet.create({
     color: '#FFF',
   },
   colorOption: {
-    paddingHorizontal: 8,
-    height: 28,
+    minWidth: 38,
+    height: 34,
+    paddingHorizontal: 10,
     justifyContent: 'center',
     alignItems: 'center',
-    borderRadius: 6,
-    borderWidth: 2,
+    borderRadius: 10,
+    borderWidth: 1.5,
     borderColor: '#E0E0E0',
     backgroundColor: '#FFF',
   },
   colorOptionSelected: {
-    backgroundColor: '#333',
-    borderColor: '#333',
+    backgroundColor: '#111',
+    borderColor: '#111',
   },
   colorOptionText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: '700',
     color: '#333',
   },
@@ -1234,12 +1168,6 @@ const styles = StyleSheet.create({
     color: '#666',
     fontSize: 9,
     fontWeight: '500',
-    letterSpacing: 0.1,
-  },
-  bookButtonSubtitleWarning: {
-    color: '#666',
-    fontSize: 9,
-    fontWeight: '700',
     letterSpacing: 0.1,
   },
   bookButtonArrow: {
