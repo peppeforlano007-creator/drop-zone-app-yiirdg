@@ -13,6 +13,7 @@ import {
   Modal,
   Alert,
   useColorScheme,
+  Image,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
@@ -34,6 +35,12 @@ interface Drop {
   status: string | null;
 }
 
+interface Product {
+  id: string;
+  name: string;
+  image_url?: string | null;
+}
+
 interface ChatMessage {
   id: string;
   group_id: string;
@@ -41,9 +48,11 @@ interface ChatMessage {
   content: string;
   message_type: string;
   drop_id: string | null;
+  product_id: string | null;
   created_at: string;
   senderName: string;
   drop?: Drop | null;
+  product?: Product | null;
 }
 
 function formatMsgTime(dateStr: string): string {
@@ -114,6 +123,83 @@ function DropShareCard({
   );
 }
 
+function ProductShareCard({
+  product,
+  isOwn,
+  isDark,
+}: {
+  product: Product;
+  isOwn: boolean;
+  isDark: boolean;
+}) {
+  const cardBg = isDark ? '#2C2C2E' : '#F0F0F0';
+  const textColor = isDark ? '#FFFFFF' : '#000000';
+  const subColor = isDark ? '#8E8E93' : '#666666';
+  const [navigating, setNavigating] = useState(false);
+
+  const handlePress = async () => {
+    if (navigating) return;
+    console.log('[Chat] Product card pressed, product_id:', product.id);
+    setNavigating(true);
+    try {
+      const { data: productRow } = await supabase
+        .from('products')
+        .select('supplier_list_id')
+        .eq('id', product.id)
+        .single();
+      if (productRow?.supplier_list_id) {
+        const { data: drop } = await supabase
+          .from('drops')
+          .select('id')
+          .eq('supplier_list_id', productRow.supplier_list_id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single();
+        if (drop?.id) {
+          console.log('[Chat] Navigating to drop for product:', product.id, 'drop_id:', drop.id);
+          router.push({ pathname: '/drop-details', params: { dropId: drop.id } });
+          return;
+        }
+      }
+      console.warn('[Chat] No drop found for product:', product.id);
+      Alert.alert('Articolo non disponibile', 'Non è stato possibile trovare il drop associato a questo articolo.');
+    } catch (err) {
+      console.error('[Chat] Error navigating to product drop:', err);
+    } finally {
+      setNavigating(false);
+    }
+  };
+
+  const hasImage = !!product.image_url;
+
+  return (
+    <TouchableOpacity
+      style={[styles.dropCard, { backgroundColor: cardBg }]}
+      onPress={handlePress}
+      activeOpacity={0.8}
+      disabled={navigating}
+    >
+      {hasImage ? (
+        <Image
+          source={{ uri: product.image_url! }}
+          style={styles.dropCardImage}
+          resizeMode="cover"
+        />
+      ) : (
+        <View style={[styles.dropCardImagePlaceholder, { backgroundColor: isDark ? '#3A3A3C' : '#E5E5E5' }]}>
+          <Ionicons name="shirt-outline" size={28} color={subColor} />
+        </View>
+      )}
+      <View style={styles.dropCardInfo}>
+        <Text style={[styles.dropCardName, { color: textColor }]} numberOfLines={2}>
+          {product.name}
+        </Text>
+        <Text style={[styles.dropCardCta, { color: colors.info }]}>Vedi articolo →</Text>
+      </View>
+    </TouchableOpacity>
+  );
+}
+
 function MessageBubble({
   message,
   isOwn,
@@ -130,6 +216,8 @@ function MessageBubble({
   const senderColor = isDark ? '#8E8E93' : '#666666';
   const timeColor = isOwn ? 'rgba(255,255,255,0.6)' : isDark ? '#636366' : '#999999';
 
+  const isCardType = (message.message_type === 'drop' && !!message.drop) || (message.message_type === 'product' && !!message.product);
+
   return (
     <View style={[styles.bubbleWrapper, isOwn ? styles.bubbleWrapperOwn : styles.bubbleWrapperOther]}>
       {!isOwn && (
@@ -139,11 +227,13 @@ function MessageBubble({
         style={[
           styles.bubble,
           isOwn ? [styles.bubbleOwn, { backgroundColor: ownBg }] : [styles.bubbleOther, { backgroundColor: otherBg }],
-          message.message_type === 'drop' && styles.bubbleDrop,
+          isCardType && styles.bubbleDrop,
         ]}
       >
         {message.message_type === 'drop' && message.drop ? (
           <DropShareCard drop={message.drop} isOwn={isOwn} isDark={isDark} />
+        ) : message.message_type === 'product' && message.product ? (
+          <ProductShareCard product={message.product} isOwn={isOwn} isDark={isDark} />
         ) : (
           <Text style={[styles.bubbleText, { color: isOwn ? ownText : otherText }]}>
             {message.content}
@@ -300,6 +390,17 @@ export default function GroupChatScreen() {
         drop = dropData as Drop | null;
       }
 
+      let product: Product | null = null;
+      if (raw.message_type === 'product' && raw.product_id) {
+        console.log('[Chat] Fetching product data for message, product_id:', raw.product_id);
+        const { data: productData } = await supabase
+          .from('products')
+          .select('id, name, image_url')
+          .eq('id', raw.product_id)
+          .single();
+        product = productData as Product | null;
+      }
+
       return {
         id: raw.id,
         group_id: raw.group_id,
@@ -307,9 +408,11 @@ export default function GroupChatScreen() {
         content: raw.content,
         message_type: raw.message_type,
         drop_id: raw.drop_id,
+        product_id: raw.product_id ?? null,
         created_at: raw.created_at,
         senderName,
         drop,
+        product,
       };
     },
     []
@@ -321,7 +424,7 @@ export default function GroupChatScreen() {
 
     const { data: rawMessages, error } = await supabase
       .from('chat_messages')
-      .select('id, group_id, sender_id, content, message_type, drop_id, created_at')
+      .select('id, group_id, sender_id, content, message_type, drop_id, product_id, created_at')
       .eq('group_id', groupId)
       .order('created_at', { ascending: true })
       .limit(50);
