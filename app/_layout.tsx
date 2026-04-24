@@ -6,7 +6,8 @@ import { Stack, router } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { SystemBars } from "react-native-edge-to-edge";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { useColorScheme, Alert, StyleSheet, Animated } from "react-native";
+import { useColorScheme, Alert, StyleSheet, Animated, AppState } from "react-native";
+import * as Updates from "expo-updates";
 import { useNetworkState } from "expo-network";
 import * as Linking from "expo-linking";
 import {
@@ -183,6 +184,21 @@ export default function RootLayout() {
     SpaceMono: SpaceMonoFont,
   });
   const [showCustomSplash, setShowCustomSplash] = useState(true);
+
+  // Force clean reload on background→active transition in dev to fix HMR disconnection errors
+  useEffect(() => {
+    if (!__DEV__) return;
+    let previousState = AppState.currentState;
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      console.log('[AppState] transition:', previousState, '->', nextState);
+      if (previousState === 'background' && nextState === 'active') {
+        console.log('[AppState] Resuming from background in dev — triggering Updates.reloadAsync()');
+        Updates.reloadAsync();
+      }
+      previousState = nextState;
+    });
+    return () => subscription.remove();
+  }, []);
 
   // Handle deep links for email confirmation and password reset
   useEffect(() => {
