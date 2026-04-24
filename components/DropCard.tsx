@@ -131,6 +131,7 @@ export default function DropCard({ drop, deliveryMinDays, deliveryMaxDays }: Dro
 
   const isNonActive = drop.status === 'approved' || drop.status === 'pending_approval' || drop.status === 'inactive';
   const isCompleted = drop.status === 'completed';
+  const canParticipate = drop.status === 'approved' || drop.status === 'inactive';
 
   // Completed drop stats — euro value based
   const completedValue = Number(drop.current_value ?? 0);
@@ -366,7 +367,25 @@ export default function DropCard({ drop, deliveryMinDays, deliveryMaxDays }: Dro
               <Text style={styles.shareButtonText}>Raggiungi {Math.floor(maxDiscount)}%</Text>
             </Pressable>
           )}
-          <View style={[styles.viewButton, (isNonActive || isCompleted) && styles.viewButtonFull, isCompleted && styles.viewButtonCompleted]}>
+          {canParticipate && (
+            <Pressable
+              style={styles.participateButton}
+              onPress={() => {
+                console.log('[DropCard] Partecipa pressed for drop:', drop.id, 'status:', drop.status);
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                router.push({ pathname: '/drop-details', params: { dropId: drop.id } });
+              }}
+            >
+              <IconSymbol
+                ios_icon_name="person.badge.plus"
+                android_material_icon_name="person_add"
+                size={14}
+                color="#FFF"
+              />
+              <Text style={styles.participateButtonText}>Partecipa</Text>
+            </Pressable>
+          )}
+          <View style={[styles.viewButton, (!canParticipate && (isNonActive || isCompleted)) && styles.viewButtonFull, isCompleted && styles.viewButtonCompleted]}>
             <Text style={styles.viewButtonText}>Sfoglia</Text>
             <IconSymbol 
               ios_icon_name="chevron.right" 
@@ -636,6 +655,23 @@ const styles = StyleSheet.create({
     backgroundColor: '#6B7280',
   },
   viewButtonText: {
+    fontSize: 13,
+    color: '#FFF',
+    fontWeight: '700',
+    fontFamily: 'System',
+  },
+  participateButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: '#2563EB',
+    borderRadius: 8,
+  },
+  participateButtonText: {
     fontSize: 13,
     color: '#FFF',
     fontWeight: '700',
