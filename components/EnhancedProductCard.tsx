@@ -597,20 +597,6 @@ export default function EnhancedProductCard({
           {/* CRITICAL FIX: Only show selection container if product actually has variants */}
           {requiresVariantSelection && (
             <View style={styles.selectionContainer}>
-              {isInDrop && !hasAllRequiredSelections && (
-                <View style={styles.selectionWarningBanner}>
-                  <IconSymbol 
-                    ios_icon_name="exclamationmark.triangle.fill" 
-                    android_material_icon_name="warning" 
-                    size={13} 
-                    color="#333" 
-                  />
-                  <Text style={styles.selectionWarningText}>
-                    SELEZIONE OBBLIGATORIA PER PRENOTARE
-                  </Text>
-                </View>
-              )}
-
               {requiresSizeSelection && (
                 <View style={styles.inlineSelection}>
                   <View style={styles.selectionLabelContainer}>
