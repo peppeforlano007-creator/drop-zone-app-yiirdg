@@ -157,7 +157,7 @@ function ProductShareCard({
           .single();
         if (drop?.id) {
           console.log('[Chat] Navigating to drop for product:', product.id, 'drop_id:', drop.id);
-          router.push({ pathname: '/drop-details', params: { dropId: drop.id } });
+          router.push({ pathname: '/drop-details', params: { dropId: drop.id, scrollToProductId: product.id } });
           return;
         }
       }
