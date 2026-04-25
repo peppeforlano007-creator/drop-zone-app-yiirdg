@@ -117,6 +117,8 @@ export default function DropDetailsScreen() {
   const [currentProductIndex, setCurrentProductIndex] = useState(0);
   const bounceAnim = useRef(new Animated.Value(1)).current;
   const { user } = useAuth();
+  const [isInterested, setIsInterested] = useState(false);
+  const [interestLoading, setInterestLoading] = useState(false);
   const flatListRef = useRef<FlatList>(null);
 
   // Derived: drop is viewable but booking is disabled
@@ -295,6 +297,65 @@ export default function DropDetailsScreen() {
     loadDropDetails();
     loadUserBookings();
   }, [dropId, loadDropDetails, loadUserBookings]);
+
+  useEffect(() => {
+    if (!dropId || !user) return;
+    const checkInterest = async () => {
+      const { data } = await supabase
+        .from('drop_interests')
+        .select('id')
+        .eq('drop_id', dropId)
+        .eq('user_id', user.id)
+        .maybeSingle();
+      setIsInterested(!!data);
+    };
+    checkInterest();
+  }, [dropId, user]);
+
+  const handleInterestToggle = async () => {
+    if (!user) {
+      console.log('[drop-details] Interest pressed but user not logged in, drop:', dropId);
+      Alert.alert('Accesso richiesto', 'Devi effettuare l\'accesso per mostrare interesse.');
+      return;
+    }
+    console.log('[drop-details] Interest toggle pressed — drop:', dropId, 'currently interested:', isInterested);
+    setInterestLoading(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    try {
+      if (isInterested) {
+        const { error } = await supabase
+          .from('drop_interests')
+          .delete()
+          .eq('drop_id', dropId)
+          .eq('user_id', user.id);
+        if (error) throw error;
+        console.log('[drop-details] Interest removed for drop:', dropId);
+        setIsInterested(false);
+      } else {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('pickup_point_id')
+          .eq('user_id', user.id)
+          .maybeSingle();
+        const { error } = await supabase
+          .from('drop_interests')
+          .insert({
+            drop_id: dropId,
+            user_id: user.id,
+            pickup_point_id: profile?.pickup_point_id ?? null,
+          });
+        if (error) throw error;
+        console.log('[drop-details] Interest added for drop:', dropId, 'pickup_point_id:', profile?.pickup_point_id);
+        setIsInterested(true);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+    } catch (err: any) {
+      console.error('[drop-details] Error toggling interest:', err?.message);
+      Alert.alert('Errore', 'Impossibile aggiornare l\'interesse. Riprova.');
+    } finally {
+      setInterestLoading(false);
+    }
+  };
 
   // Scroll to specific product if coming from wishlist
   useEffect(() => {
@@ -965,7 +1026,7 @@ export default function DropDetailsScreen() {
         </View>
       )}
 
-      {isDropBookingDisabled && !isDropCompleted && (
+      {isDropBookingDisabled && !isDropCompleted && drop?.status !== 'approved' && (
         <View style={styles.bookingDisabledBanner} pointerEvents="none">
           <SafeAreaView edges={['bottom']} style={styles.bookingDisabledSafeArea}>
             <View style={styles.bookingDisabledContent}>
@@ -978,6 +1039,39 @@ export default function DropDetailsScreen() {
               <Text style={styles.bookingDisabledText}>
                 Questo drop non è ancora attivo. Potrai prenotare quando l&apos;amministratore lo attiverà.
               </Text>
+            </View>
+          </SafeAreaView>
+        </View>
+      )}
+
+      {drop?.status === 'approved' && (
+        <View style={styles.bookingDisabledBanner}>
+          <SafeAreaView edges={['bottom']} style={styles.bookingDisabledSafeArea}>
+            <View style={styles.approvedBannerContent}>
+              <IconSymbol
+                ios_icon_name="heart.circle.fill"
+                android_material_icon_name="favorite"
+                size={18}
+                color="#FFF"
+              />
+              <Text style={styles.approvedBannerText}>
+                Non ancora attivo — lascia il tuo Mi Interessa per aumentare le probabilità di attivarlo per il tuo punto di ritiro.
+              </Text>
+              <Pressable
+                style={[styles.bannerInterestButton, isInterested && styles.bannerInterestButtonActive]}
+                onPress={handleInterestToggle}
+                disabled={interestLoading}
+              >
+                <IconSymbol
+                  ios_icon_name={isInterested ? 'heart.fill' : 'heart'}
+                  android_material_icon_name={isInterested ? 'favorite' : 'favorite_border'}
+                  size={14}
+                  color={isInterested ? '#E11D48' : '#E11D48'}
+                />
+                <Text style={[styles.bannerInterestText, isInterested && styles.bannerInterestTextActive]}>
+                  {isInterested ? 'Parteciperò!' : 'Mi Interessa'}
+                </Text>
+              </Pressable>
             </View>
           </SafeAreaView>
         </View>
@@ -1407,6 +1501,50 @@ const styles = StyleSheet.create({
   },
   completedBannerContent: {
     backgroundColor: 'rgba(55, 65, 81, 0.92)',
+  },
+  approvedBannerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: 'rgba(225, 29, 72, 0.88)',
+    marginHorizontal: 16,
+    marginBottom: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
+  },
+  approvedBannerText: {
+    flex: 1,
+    fontSize: 12,
+    color: '#FFF',
+    fontWeight: '600',
+    fontFamily: 'System',
+    lineHeight: 17,
+  },
+  bannerInterestButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: '#FFF',
+    backgroundColor: 'transparent',
+    flexShrink: 0,
+  },
+  bannerInterestButtonActive: {
+    backgroundColor: '#FFF',
+    borderColor: '#FFF',
+  },
+  bannerInterestText: {
+    fontSize: 12,
+    color: '#FFF',
+    fontWeight: '700',
+    fontFamily: 'System',
+  },
+  bannerInterestTextActive: {
+    color: '#E11D48',
   },
   completedStatsOverlay: {
     marginHorizontal: 32,

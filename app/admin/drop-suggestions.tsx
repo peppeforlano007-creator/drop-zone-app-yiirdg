@@ -1,6 +1,6 @@
 
 import { supabase } from '@/app/integrations/supabase/client';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { IconSymbol } from '@/components/IconSymbol';
 import { colors } from '@/styles/commonStyles';
 import * as Haptics from 'expo-haptics';
@@ -17,6 +17,17 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+interface DropInterestRow {
+  drop_id: string;
+  drop_name: string;
+  pickup_point_id: string | null;
+  pickup_point_name: string;
+  pickup_point_city: string;
+  interest_count: number;
+}
+
 interface DropSuggestion {
   supplier_list_id: string;
   supplier_list_name: string;
@@ -31,37 +42,166 @@ interface DropSuggestion {
   product_count: number;
 }
 
+// ─── Main Screen ──────────────────────────────────────────────────────────────
+
 export default function DropSuggestionsScreen() {
+  const [activeTab, setActiveTab] = useState<'interests' | 'suggestions'>('interests');
+
+  // Tab 1 state
+  const [dropInterests, setDropInterests] = useState<DropInterestRow[]>([]);
+  const [interestsLoading, setInterestsLoading] = useState(true);
+  const [interestsRefreshing, setInterestsRefreshing] = useState(false);
+
+  // Tab 2 state
   const [suggestions, setSuggestions] = useState<DropSuggestion[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [minInterests, setMinInterests] = useState(5); // Minimum number of interests to suggest a drop
+  const [suggestionsLoading, setSuggestionsLoading] = useState(true);
+  const [suggestionsRefreshing, setSuggestionsRefreshing] = useState(false);
+  const [minInterests, setMinInterests] = useState(5);
 
   useEffect(() => {
+    loadDropInterests();
     loadSuggestions();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const loadSuggestions = async () => {
-    try {
-      console.log('Loading drop suggestions based on user interests...');
-      setLoading(true);
+  // ─── Tab 1: Drop Interests ─────────────────────────────────────────────────
 
-      // Load the minimum users threshold from settings
+  const loadDropInterests = useCallback(async () => {
+    console.log('[drop-suggestions] Loading drop interests from drop_interests table...');
+    setInterestsLoading(true);
+    try {
+      // Query drop_interests joined with drops (approved only) and pickup_points
+      const { data, error } = await supabase
+        .from('drop_interests')
+        .select(`
+          drop_id,
+          pickup_point_id,
+          drops!inner (
+            id,
+            name,
+            status,
+            supplier_lists (
+              name
+            )
+          ),
+          pickup_points (
+            id,
+            name,
+            city
+          )
+        `)
+        .eq('drops.status', 'approved');
+
+      if (error) {
+        // Table may not exist yet — show empty state gracefully
+        if (error.code === '42P01' || error.message?.includes('does not exist')) {
+          console.warn('[drop-suggestions] drop_interests table does not exist yet — showing empty state');
+          setDropInterests([]);
+          return;
+        }
+        console.error('[drop-suggestions] Error loading drop interests:', error);
+        setDropInterests([]);
+        return;
+      }
+
+      console.log('[drop-suggestions] Raw drop_interests rows:', data?.length ?? 0);
+
+      // Group by drop_id + pickup_point_id
+      const grouped = new Map<string, DropInterestRow>();
+      (data ?? []).forEach((row: any) => {
+        const drop = row.drops;
+        const pp = row.pickup_points;
+        const key = `${row.drop_id}_${row.pickup_point_id ?? 'null'}`;
+        if (!grouped.has(key)) {
+          grouped.set(key, {
+            drop_id: row.drop_id,
+            drop_name: drop?.supplier_lists?.name ?? drop?.name ?? 'Drop',
+            pickup_point_id: row.pickup_point_id ?? null,
+            pickup_point_name: pp?.name ?? 'Punto sconosciuto',
+            pickup_point_city: pp?.city ?? 'Città sconosciuta',
+            interest_count: 0,
+          });
+        }
+        grouped.get(key)!.interest_count += 1;
+      });
+
+      const result = Array.from(grouped.values()).sort(
+        (a, b) => b.interest_count - a.interest_count
+      );
+
+      console.log('[drop-suggestions] Grouped drop interest rows:', result.length);
+      setDropInterests(result);
+    } catch (err: any) {
+      console.error('[drop-suggestions] Exception loading drop interests:', err?.message);
+      setDropInterests([]);
+    } finally {
+      setInterestsLoading(false);
+      setInterestsRefreshing(false);
+    }
+  }, []);
+
+  const handleActivateDrop = async (dropId: string, dropName: string, pickupPointId: string | null) => {
+    console.log('[drop-suggestions] Admin tapping Attiva Drop — dropId:', dropId, 'name:', dropName);
+    Alert.alert(
+      'Attiva Drop',
+      `Vuoi attivare il drop "${dropName}"?\n\nIl drop diventerà immediatamente prenotabile dagli utenti.`,
+      [
+        { text: 'Annulla', style: 'cancel' },
+        {
+          text: 'Attiva',
+          style: 'default',
+          onPress: async () => {
+            try {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              console.log('[drop-suggestions] Activating drop:', dropId);
+              const { error } = await supabase
+                .from('drops')
+                .update({
+                  status: 'active',
+                  activated_at: new Date().toISOString(),
+                })
+                .eq('id', dropId);
+
+              if (error) {
+                console.error('[drop-suggestions] Error activating drop:', error);
+                Alert.alert('Errore', 'Impossibile attivare il drop: ' + error.message);
+                return;
+              }
+
+              console.log('[drop-suggestions] Drop activated successfully:', dropId);
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              Alert.alert(
+                'Drop Attivato!',
+                `Il drop "${dropName}" è ora attivo e prenotabile dagli utenti.`,
+                [{ text: 'OK', onPress: () => loadDropInterests() }]
+              );
+            } catch (err: any) {
+              console.error('[drop-suggestions] Exception activating drop:', err?.message);
+              Alert.alert('Errore', 'Si è verificato un errore durante l\'attivazione.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  // ─── Tab 2: Suggestions (legacy) ──────────────────────────────────────────
+
+  const loadSuggestions = useCallback(async () => {
+    console.log('[drop-suggestions] Loading list-based suggestions...');
+    setSuggestionsLoading(true);
+    try {
       const { data: settingsData } = await supabase
         .from('app_settings')
         .select('setting_value')
         .eq('setting_key', 'min_users_for_drop_suggestion')
         .maybeSingle();
 
-      const minUsersThreshold = settingsData?.setting_value 
-        ? parseInt(settingsData.setting_value) 
-        : 5; // Default to 5 if not set
-
+      const minUsersThreshold = settingsData?.setting_value
+        ? parseInt(settingsData.setting_value)
+        : 5;
       setMinInterests(minUsersThreshold);
-      console.log(`Using minimum users threshold: ${minUsersThreshold}`);
 
-      // Query to get suggestions based on user interests grouped by supplier list and pickup point
       const { data: interestData, error: interestError } = await supabase
         .from('user_interests')
         .select(`
@@ -87,13 +227,11 @@ export default function DropSuggestionsScreen() {
         .eq('pickup_points.status', 'active');
 
       if (interestError) {
-        console.error('Error loading user interests:', interestError);
-        throw interestError;
+        console.error('[drop-suggestions] Error loading user interests:', interestError);
+        setSuggestions([]);
+        return;
       }
 
-      console.log(`Loaded ${interestData?.length || 0} user interests`);
-
-      // Group by supplier_list_id and pickup_point_id
       const groupedInterests = new Map<string, {
         supplier_list_id: string;
         supplier_list_name: string;
@@ -108,7 +246,6 @@ export default function DropSuggestionsScreen() {
 
       interestData?.forEach((interest: any) => {
         const key = `${interest.supplier_list_id}_${interest.pickup_point_id}`;
-        
         if (!groupedInterests.has(key)) {
           groupedInterests.set(key, {
             supplier_list_id: interest.supplier_list_id,
@@ -122,13 +259,9 @@ export default function DropSuggestionsScreen() {
             users: new Set(),
           });
         }
-
         groupedInterests.get(key)!.users.add(interest.user_id);
       });
 
-      console.log(`Grouped into ${groupedInterests.size} unique list-city combinations`);
-
-      // Check for existing active/pending drops to avoid duplicates
       const { data: existingDrops } = await supabase
         .from('drops')
         .select('supplier_list_id, pickup_point_id')
@@ -138,9 +271,6 @@ export default function DropSuggestionsScreen() {
         existingDrops?.map(d => `${d.supplier_list_id}_${d.pickup_point_id}`) || []
       );
 
-      console.log(`Found ${existingDropKeys.size} existing active/pending drops`);
-
-      // Get supplier names
       const supplierIds = Array.from(new Set(
         Array.from(groupedInterests.values()).map(g => g.supplier_id)
       ));
@@ -154,7 +284,6 @@ export default function DropSuggestionsScreen() {
         suppliers?.map(s => [s.user_id, s.full_name]) || []
       );
 
-      // Get product counts for each list
       const listIds = Array.from(new Set(
         Array.from(groupedInterests.values()).map(g => g.supplier_list_id)
       ));
@@ -172,16 +301,10 @@ export default function DropSuggestionsScreen() {
         productCountMap.set(p.supplier_list_id, count + 1);
       });
 
-      // Convert to suggestions array and filter
       const suggestionsArray: DropSuggestion[] = [];
-
       groupedInterests.forEach((group, key) => {
         const uniqueUsers = group.users.size;
-        
-        // Only suggest if:
-        // 1. Meets minimum interest threshold
-        // 2. No existing drop for this combination
-        if (uniqueUsers >= minInterests && !existingDropKeys.has(key)) {
+        if (uniqueUsers >= minUsersThreshold && !existingDropKeys.has(key)) {
           suggestionsArray.push({
             supplier_list_id: group.supplier_list_id,
             supplier_list_name: group.supplier_list_name,
@@ -198,29 +321,20 @@ export default function DropSuggestionsScreen() {
         }
       });
 
-      // Sort by interest count (descending)
       suggestionsArray.sort((a, b) => b.interest_count - a.interest_count);
-
-      console.log(`Generated ${suggestionsArray.length} drop suggestions`);
+      console.log('[drop-suggestions] Generated', suggestionsArray.length, 'list-based suggestions');
       setSuggestions(suggestionsArray);
-
     } catch (error) {
-      console.error('Error loading suggestions:', error);
-      Alert.alert('Errore', 'Impossibile caricare i suggerimenti');
+      console.error('[drop-suggestions] Error loading suggestions:', error);
+      setSuggestions([]);
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      setSuggestionsLoading(false);
+      setSuggestionsRefreshing(false);
     }
-  };
-
-  const handleRefresh = () => {
-    setRefreshing(true);
-    loadSuggestions();
-  };
+  }, []);
 
   const handleCreateDrop = async (suggestion: DropSuggestion) => {
-    console.log('Admin creating drop from suggestion:', suggestion);
-    
+    console.log('[drop-suggestions] Admin creating drop from suggestion:', suggestion.supplier_list_name, suggestion.pickup_point_city);
     Alert.alert(
       'Crea Drop',
       `Vuoi creare un drop per "${suggestion.supplier_list_name}" a ${suggestion.pickup_point_city}?\n\n${suggestion.unique_users} utenti hanno mostrato interesse.`,
@@ -232,8 +346,6 @@ export default function DropSuggestionsScreen() {
           onPress: async () => {
             try {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-
-              // Get platform settings for drop duration
               const { data: settings } = await supabase
                 .from('app_settings')
                 .select('setting_key, setting_value')
@@ -242,15 +354,12 @@ export default function DropSuggestionsScreen() {
               const settingsMap = new Map(
                 settings?.map(s => [s.setting_key, s.setting_value]) || []
               );
-
               const dropDurationDays = parseInt(settingsMap.get('drop_duration_days') || '5');
               const maxDropValue = parseInt(settingsMap.get('max_drop_value') || '30000');
 
-              // Calculate end time
               const endTime = new Date();
               endTime.setDate(endTime.getDate() + dropDurationDays);
 
-              // Create the drop
               const { data: newDrop, error: dropError } = await supabase
                 .from('drops')
                 .insert({
@@ -268,45 +377,80 @@ export default function DropSuggestionsScreen() {
                 .single();
 
               if (dropError) {
-                console.error('Error creating drop:', dropError);
+                console.error('[drop-suggestions] Error creating drop:', dropError);
                 Alert.alert('Errore', 'Impossibile creare il drop');
                 return;
               }
 
-              console.log('Drop created successfully:', newDrop.id);
-
+              console.log('[drop-suggestions] Drop created:', newDrop.id);
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
               Alert.alert(
                 'Drop Creato!',
-                `Il drop "${newDrop.name}" è stato creato con successo e è in attesa di approvazione.`,
+                `Il drop "${newDrop.name}" è stato creato con successo ed è in attesa di approvazione.`,
                 [
                   {
                     text: 'Visualizza',
-                    onPress: () => {
-                      router.push({
-                        pathname: '/admin/drop-analytics',
-                        params: { dropId: newDrop.id },
-                      });
-                    },
+                    onPress: () => router.push({ pathname: '/admin/drop-analytics', params: { dropId: newDrop.id } }),
                   },
-                  {
-                    text: 'OK',
-                    style: 'cancel',
-                    onPress: () => {
-                      // Reload suggestions to remove this one
-                      loadSuggestions();
-                    },
-                  },
+                  { text: 'OK', style: 'cancel', onPress: () => loadSuggestions() },
                 ]
               );
-
             } catch (error) {
-              console.error('Exception creating drop:', error);
+              console.error('[drop-suggestions] Exception creating drop:', error);
               Alert.alert('Errore', 'Si è verificato un errore');
             }
           },
         },
       ]
+    );
+  };
+
+  // ─── Render helpers ────────────────────────────────────────────────────────
+
+  const renderDropInterestRow = (row: DropInterestRow) => {
+    const key = `${row.drop_id}_${row.pickup_point_id ?? 'null'}`;
+    return (
+      <View key={key} style={styles.interestCard}>
+        <View style={styles.interestCardHeader}>
+          <View style={styles.interestCountBadge}>
+            <IconSymbol
+              ios_icon_name="heart.fill"
+              android_material_icon_name="favorite"
+              size={18}
+              color="#E11D48"
+            />
+            <Text style={styles.interestCountText}>{row.interest_count}</Text>
+          </View>
+          <View style={styles.interestCardInfo}>
+            <Text style={styles.interestCardTitle} numberOfLines={1}>{row.drop_name}</Text>
+            <View style={styles.interestCardLocation}>
+              <IconSymbol
+                ios_icon_name="mappin.circle.fill"
+                android_material_icon_name="location_on"
+                size={13}
+                color={colors.textSecondary}
+              />
+              <Text style={styles.interestCardCity}>
+                {row.pickup_point_city}
+              </Text>
+              <Text style={styles.interestCardPpSep}>·</Text>
+              <Text style={styles.interestCardPp} numberOfLines={1}>{row.pickup_point_name}</Text>
+            </View>
+          </View>
+        </View>
+        <Pressable
+          style={({ pressed }) => [styles.activateButton, pressed && styles.activateButtonPressed]}
+          onPress={() => handleActivateDrop(row.drop_id, row.drop_name, row.pickup_point_id)}
+        >
+          <IconSymbol
+            ios_icon_name="bolt.fill"
+            android_material_icon_name="flash_on"
+            size={16}
+            color="#FFF"
+          />
+          <Text style={styles.activateButtonText}>Attiva Drop</Text>
+        </Pressable>
+      </View>
     );
   };
 
@@ -341,7 +485,6 @@ export default function DropSuggestionsScreen() {
               {suggestion.pickup_point_city} - {suggestion.pickup_point_name}
             </Text>
           </View>
-
           <View style={styles.detailRow}>
             <IconSymbol
               ios_icon_name="person.2.fill"
@@ -349,11 +492,8 @@ export default function DropSuggestionsScreen() {
               size={16}
               color={colors.textSecondary}
             />
-            <Text style={styles.detailText}>
-              {suggestion.unique_users} utenti interessati
-            </Text>
+            <Text style={styles.detailText}>{suggestion.unique_users} utenti interessati</Text>
           </View>
-
           <View style={styles.detailRow}>
             <IconSymbol
               ios_icon_name="tag.fill"
@@ -365,7 +505,6 @@ export default function DropSuggestionsScreen() {
               Sconto: {suggestion.min_discount}% - {suggestion.max_discount}%
             </Text>
           </View>
-
           <View style={styles.detailRow}>
             <IconSymbol
               ios_icon_name="cube.box.fill"
@@ -373,17 +512,12 @@ export default function DropSuggestionsScreen() {
               size={16}
               color={colors.textSecondary}
             />
-            <Text style={styles.detailText}>
-              {suggestion.product_count} prodotti disponibili
-            </Text>
+            <Text style={styles.detailText}>{suggestion.product_count} prodotti disponibili</Text>
           </View>
         </View>
 
         <Pressable
-          style={({ pressed }) => [
-            styles.createButton,
-            pressed && styles.createButtonPressed,
-          ]}
+          style={({ pressed }) => [styles.createButton, pressed && styles.createButtonPressed]}
           onPress={() => handleCreateDrop(suggestion)}
         >
           <IconSymbol
@@ -398,105 +532,189 @@ export default function DropSuggestionsScreen() {
     );
   };
 
-  if (loading) {
-    return (
-      <>
-        <Stack.Screen
-          options={{
-            title: 'Suggerimenti Drop',
-          }}
-        />
-        <SafeAreaView style={styles.safeArea} edges={['bottom']}>
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={colors.primary} />
-            <Text style={styles.loadingText}>Caricamento suggerimenti...</Text>
-          </View>
-        </SafeAreaView>
-      </>
-    );
-  }
+  // ─── Render ────────────────────────────────────────────────────────────────
+
+  const isLoading = activeTab === 'interests' ? interestsLoading : suggestionsLoading;
 
   return (
     <>
-      <Stack.Screen
-        options={{
-          title: 'Suggerimenti Drop',
-        }}
-      />
+      <Stack.Screen options={{ title: 'Suggerimenti & Interessi Drop' }} />
       <SafeAreaView style={styles.safeArea} edges={['bottom']}>
-        <ScrollView
-          style={styles.container}
-          contentContainerStyle={styles.contentContainer}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={handleRefresh}
-              tintColor={colors.primary}
+
+        {/* Tab switcher */}
+        <View style={styles.tabBar}>
+          <Pressable
+            style={[styles.tabItem, activeTab === 'interests' && styles.tabItemActive]}
+            onPress={() => {
+              console.log('[drop-suggestions] Switched to tab: Interessi Drop');
+              setActiveTab('interests');
+            }}
+          >
+            <IconSymbol
+              ios_icon_name="heart.fill"
+              android_material_icon_name="favorite"
+              size={15}
+              color={activeTab === 'interests' ? '#E11D48' : colors.textSecondary}
             />
-          }
-        >
-          <View style={styles.infoCard}>
+            <Text style={[styles.tabLabel, activeTab === 'interests' && styles.tabLabelActive]}>
+              Interessi Drop
+            </Text>
+          </Pressable>
+          <Pressable
+            style={[styles.tabItem, activeTab === 'suggestions' && styles.tabItemActive]}
+            onPress={() => {
+              console.log('[drop-suggestions] Switched to tab: Suggerimenti Lista');
+              setActiveTab('suggestions');
+            }}
+          >
             <IconSymbol
               ios_icon_name="lightbulb.fill"
               android_material_icon_name="lightbulb"
-              size={32}
-              color="#FF9800"
+              size={15}
+              color={activeTab === 'suggestions' ? colors.primary : colors.textSecondary}
             />
-            <View style={styles.infoContent}>
-              <Text style={styles.infoTitle}>Sistema di Suggerimenti Basato su Interessi</Text>
-              <Text style={styles.infoText}>
-                I drop vengono suggeriti in base al numero di utenti che hanno mostrato interesse per una lista in una specifica città.
-                {'\n\n'}
-                <Text style={styles.infoBold}>Soglia minima attuale:</Text> {minInterests} utenti interessati
-                {'\n'}
-                <Text style={styles.infoSecondary}>(Modificabile in Impostazioni → Suggerimenti Drop)</Text>
-                {'\n\n'}
-                <Text style={styles.infoBold}>Come funziona:</Text>
-                {'\n'}• Gli utenti mostrano interesse per le liste tramite il pulsante "Mi Interessa"
-                {'\n'}• Il sistema conta quanti utenti della stessa città sono interessati
-                {'\n'}• Quando si raggiunge la soglia minima, appare un suggerimento qui
-                {'\n'}• Puoi creare il drop con un click!
-              </Text>
-            </View>
-          </View>
+            <Text style={[styles.tabLabel, activeTab === 'suggestions' && styles.tabLabelActive]}>
+              Suggerimenti Lista
+            </Text>
+          </Pressable>
+        </View>
 
-          {suggestions.length > 0 ? (
-            <>
-              <View style={styles.sectionHeader}>
-                <IconSymbol
-                  ios_icon_name="star.fill"
-                  android_material_icon_name="star"
-                  size={24}
-                  color="#FFD700"
-                />
-                <Text style={styles.sectionTitle}>
-                  {suggestions.length} Suggeriment{suggestions.length === 1 ? 'o' : 'i'} Disponibil{suggestions.length === 1 ? 'e' : 'i'}
+        {isLoading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={colors.primary} />
+            <Text style={styles.loadingText}>Caricamento...</Text>
+          </View>
+        ) : activeTab === 'interests' ? (
+          /* ── Tab 1: Drop Interests ── */
+          <ScrollView
+            style={styles.container}
+            contentContainerStyle={styles.contentContainer}
+            refreshControl={
+              <RefreshControl
+                refreshing={interestsRefreshing}
+                onRefresh={() => { setInterestsRefreshing(true); loadDropInterests(); }}
+                tintColor={colors.primary}
+              />
+            }
+          >
+            <View style={styles.sectionInfoCard}>
+              <IconSymbol
+                ios_icon_name="heart.circle.fill"
+                android_material_icon_name="favorite"
+                size={28}
+                color="#E11D48"
+              />
+              <View style={styles.sectionInfoContent}>
+                <Text style={styles.sectionInfoTitle}>Drop Approvati — Interesse per Città</Text>
+                <Text style={styles.sectionInfoText}>
+                  Mostra quanti utenti hanno premuto "Mi Interessa" su ciascun drop approvato, raggruppati per punto di ritiro. Usa questi dati per decidere quali drop attivare.
                 </Text>
               </View>
-
-              {suggestions.map(renderSuggestion)}
-            </>
-          ) : (
-            <View style={styles.emptyState}>
-              <IconSymbol
-                ios_icon_name="tray"
-                android_material_icon_name="inbox"
-                size={64}
-                color={colors.textTertiary}
-              />
-              <Text style={styles.emptyTitle}>Nessun Suggerimento</Text>
-              <Text style={styles.emptyText}>
-                Al momento non ci sono liste con abbastanza utenti interessati per suggerire un drop.
-                {'\n\n'}
-                Incoraggia gli utenti a esplorare le liste e mostrare interesse!
-              </Text>
             </View>
-          )}
-        </ScrollView>
+
+            {dropInterests.length > 0 ? (
+              <>
+                <View style={styles.sectionHeader}>
+                  <IconSymbol
+                    ios_icon_name="chart.bar.fill"
+                    android_material_icon_name="bar_chart"
+                    size={22}
+                    color="#E11D48"
+                  />
+                  <Text style={styles.sectionTitle}>
+                    {dropInterests.length} combinazion{dropInterests.length === 1 ? 'e' : 'i'} drop-città
+                  </Text>
+                </View>
+                {dropInterests.map(renderDropInterestRow)}
+              </>
+            ) : (
+              <View style={styles.emptyState}>
+                <IconSymbol
+                  ios_icon_name="heart.slash"
+                  android_material_icon_name="heart_broken"
+                  size={64}
+                  color={colors.textTertiary}
+                />
+                <Text style={styles.emptyTitle}>Nessun Interesse Registrato</Text>
+                <Text style={styles.emptyText}>
+                  Nessun utente ha ancora premuto "Mi Interessa" su drop approvati.
+                  {'\n\n'}
+                  Assicurati che la tabella drop_interests sia stata creata nel database.
+                </Text>
+              </View>
+            )}
+          </ScrollView>
+        ) : (
+          /* ── Tab 2: Legacy Suggestions ── */
+          <ScrollView
+            style={styles.container}
+            contentContainerStyle={styles.contentContainer}
+            refreshControl={
+              <RefreshControl
+                refreshing={suggestionsRefreshing}
+                onRefresh={() => { setSuggestionsRefreshing(true); loadSuggestions(); }}
+                tintColor={colors.primary}
+              />
+            }
+          >
+            <View style={styles.infoCard}>
+              <IconSymbol
+                ios_icon_name="lightbulb.fill"
+                android_material_icon_name="lightbulb"
+                size={32}
+                color="#FF9800"
+              />
+              <View style={styles.infoContent}>
+                <Text style={styles.infoTitle}>Suggerimenti da Interessi Lista</Text>
+                <Text style={styles.infoText}>
+                  Segnale secondario: drop suggeriti in base agli utenti che hanno mostrato interesse per una lista in una specifica città.
+                  {'\n\n'}
+                  <Text style={styles.infoBold}>Soglia minima attuale:</Text> {minInterests} utenti interessati
+                  {'\n'}
+                  <Text style={styles.infoSecondary}>(Modificabile in Impostazioni → Suggerimenti Drop)</Text>
+                </Text>
+              </View>
+            </View>
+
+            {suggestions.length > 0 ? (
+              <>
+                <View style={styles.sectionHeader}>
+                  <IconSymbol
+                    ios_icon_name="star.fill"
+                    android_material_icon_name="star"
+                    size={24}
+                    color="#FFD700"
+                  />
+                  <Text style={styles.sectionTitle}>
+                    {suggestions.length} Suggeriment{suggestions.length === 1 ? 'o' : 'i'} Disponibil{suggestions.length === 1 ? 'e' : 'i'}
+                  </Text>
+                </View>
+                {suggestions.map(renderSuggestion)}
+              </>
+            ) : (
+              <View style={styles.emptyState}>
+                <IconSymbol
+                  ios_icon_name="tray"
+                  android_material_icon_name="inbox"
+                  size={64}
+                  color={colors.textTertiary}
+                />
+                <Text style={styles.emptyTitle}>Nessun Suggerimento</Text>
+                <Text style={styles.emptyText}>
+                  Al momento non ci sono liste con abbastanza utenti interessati per suggerire un drop.
+                  {'\n\n'}
+                  Incoraggia gli utenti a esplorare le liste e mostrare interesse!
+                </Text>
+              </View>
+            )}
+          </ScrollView>
+        )}
       </SafeAreaView>
     </>
   );
 }
+
+// ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
   safeArea: {
@@ -519,7 +737,183 @@ const styles = StyleSheet.create({
   loadingText: {
     fontSize: 16,
     color: colors.textSecondary,
+    fontFamily: 'System',
   },
+
+  // Tab bar
+  tabBar: {
+    flexDirection: 'row',
+    marginHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 4,
+    backgroundColor: colors.backgroundSecondary,
+    borderRadius: 12,
+    padding: 4,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  tabItem: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: 9,
+  },
+  tabItemActive: {
+    backgroundColor: colors.card,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  tabLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.textSecondary,
+    fontFamily: 'System',
+  },
+  tabLabelActive: {
+    color: colors.text,
+    fontWeight: '700',
+  },
+
+  // Section info cards
+  sectionInfoCard: {
+    flexDirection: 'row',
+    backgroundColor: '#FFF1F2',
+    borderRadius: 14,
+    padding: 16,
+    marginBottom: 20,
+    borderWidth: 1.5,
+    borderColor: '#FECDD3',
+    gap: 14,
+  },
+  sectionInfoContent: {
+    flex: 1,
+  },
+  sectionInfoTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: 6,
+    fontFamily: 'System',
+  },
+  sectionInfoText: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    lineHeight: 19,
+    fontFamily: 'System',
+  },
+
+  // Interest cards (Tab 1)
+  interestCard: {
+    backgroundColor: colors.card,
+    borderRadius: 14,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1.5,
+    borderColor: '#FECDD3',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.07,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  interestCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    marginBottom: 14,
+  },
+  interestCountBadge: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#FFF1F2',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 2,
+    borderWidth: 1.5,
+    borderColor: '#FECDD3',
+    flexShrink: 0,
+  },
+  interestCountText: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#E11D48',
+    fontFamily: 'System',
+  },
+  interestCardInfo: {
+    flex: 1,
+  },
+  interestCardTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: 5,
+    fontFamily: 'System',
+  },
+  interestCardLocation: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    flexWrap: 'wrap',
+  },
+  interestCardCity: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.textSecondary,
+    fontFamily: 'System',
+  },
+  interestCardPpSep: {
+    fontSize: 13,
+    color: colors.textTertiary,
+    fontFamily: 'System',
+  },
+  interestCardPp: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    fontFamily: 'System',
+    flex: 1,
+  },
+  activateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#E11D48',
+    paddingVertical: 13,
+    borderRadius: 10,
+    gap: 8,
+  },
+  activateButtonPressed: {
+    opacity: 0.75,
+    transform: [{ scale: 0.98 }],
+  },
+  activateButtonText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#FFF',
+    fontFamily: 'System',
+  },
+
+  // Section header
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 14,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.text,
+    fontFamily: 'System',
+  },
+
+  // Legacy suggestion cards (Tab 2)
   infoCard: {
     flexDirection: 'row',
     backgroundColor: '#FFF9E6',
@@ -534,15 +928,17 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   infoTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '700',
     color: colors.text,
-    marginBottom: 12,
+    marginBottom: 10,
+    fontFamily: 'System',
   },
   infoText: {
-    fontSize: 14,
+    fontSize: 13,
     color: colors.textSecondary,
-    lineHeight: 22,
+    lineHeight: 20,
+    fontFamily: 'System',
   },
   infoBold: {
     fontWeight: '700',
@@ -552,17 +948,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.textSecondary,
     fontStyle: 'italic',
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginBottom: 16,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: colors.text,
   },
   suggestionCard: {
     backgroundColor: colors.card,
@@ -596,6 +981,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '800',
     color: '#FF3B30',
+    fontFamily: 'System',
   },
   suggestionInfo: {
     flex: 1,
@@ -605,10 +991,12 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.text,
     marginBottom: 4,
+    fontFamily: 'System',
   },
   suggestionSupplier: {
     fontSize: 14,
     color: colors.textSecondary,
+    fontFamily: 'System',
   },
   suggestionDetails: {
     gap: 12,
@@ -626,6 +1014,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.text,
     flex: 1,
+    fontFamily: 'System',
   },
   createButton: {
     flexDirection: 'row',
@@ -644,7 +1033,10 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: '#fff',
+    fontFamily: 'System',
   },
+
+  // Empty state
   emptyState: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -656,6 +1048,7 @@ const styles = StyleSheet.create({
     color: colors.text,
     marginTop: 16,
     marginBottom: 8,
+    fontFamily: 'System',
   },
   emptyText: {
     fontSize: 14,
@@ -663,5 +1056,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 22,
     paddingHorizontal: 20,
+    fontFamily: 'System',
   },
 });

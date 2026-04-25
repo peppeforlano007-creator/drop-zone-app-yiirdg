@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Alert } from 'react-native';
 import { router } from 'expo-router';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from './IconSymbol';
@@ -8,6 +8,8 @@ import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { computeDropDiscount } from '@/utils/dropHelpers';
 import ShareToGroupModal from '@/components/ShareToGroupModal';
+import { supabase } from '@/app/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface DropCardProps {
   drop: {
@@ -44,6 +46,69 @@ function formatEuro(value: number): string {
 export default function DropCard({ drop, deliveryMinDays, deliveryMaxDays }: DropCardProps) {
   const [timeRemaining, setTimeRemaining] = useState('');
   const [showShareModal, setShowShareModal] = useState(false);
+  const [isInterested, setIsInterested] = useState(false);
+  const [interestLoading, setInterestLoading] = useState(false);
+  const { user } = useAuth();
+
+  useEffect(() => {
+    if (drop.status !== 'approved' || !user) return;
+    const checkInterest = async () => {
+      const { data } = await supabase
+        .from('drop_interests')
+        .select('id')
+        .eq('drop_id', drop.id)
+        .eq('user_id', user.id)
+        .maybeSingle();
+      setIsInterested(!!data);
+    };
+    checkInterest();
+  }, [drop.id, drop.status, user]);
+
+  const handleInterest = async (e: any) => {
+    e.stopPropagation();
+    if (!user) {
+      console.log('[DropCard] Interest pressed but user not logged in, drop:', drop.id);
+      Alert.alert('Accesso richiesto', 'Devi effettuare l\'accesso per mostrare interesse.');
+      return;
+    }
+    console.log('[DropCard] Interest button pressed — drop:', drop.id, 'currently interested:', isInterested);
+    setInterestLoading(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    try {
+      if (isInterested) {
+        const { error } = await supabase
+          .from('drop_interests')
+          .delete()
+          .eq('drop_id', drop.id)
+          .eq('user_id', user.id);
+        if (error) throw error;
+        console.log('[DropCard] Interest removed for drop:', drop.id);
+        setIsInterested(false);
+      } else {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('pickup_point_id')
+          .eq('user_id', user.id)
+          .maybeSingle();
+        const { error } = await supabase
+          .from('drop_interests')
+          .insert({
+            drop_id: drop.id,
+            user_id: user.id,
+            pickup_point_id: profile?.pickup_point_id ?? null,
+          });
+        if (error) throw error;
+        console.log('[DropCard] Interest added for drop:', drop.id, 'pickup_point_id:', profile?.pickup_point_id);
+        setIsInterested(true);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+    } catch (err: any) {
+      console.error('[DropCard] Error toggling interest:', err?.message);
+      Alert.alert('Errore', 'Impossibile aggiornare l\'interesse. Riprova.');
+    } finally {
+      setInterestLoading(false);
+    }
+  };
 
   useEffect(() => {
     const updateTimer = () => {
@@ -364,6 +429,23 @@ export default function DropCard({ drop, deliveryMinDays, deliveryMaxDays }: Dro
                 color="#FFF" 
               />
               <Text style={styles.shareButtonText}>Raggiungi {Math.floor(maxDiscount)}%</Text>
+            </Pressable>
+          )}
+          {drop.status === 'approved' && (
+            <Pressable
+              style={[styles.interestButton, isInterested && styles.interestButtonActive]}
+              onPress={handleInterest}
+              disabled={interestLoading}
+            >
+              <IconSymbol
+                ios_icon_name={isInterested ? 'heart.fill' : 'heart'}
+                android_material_icon_name={isInterested ? 'favorite' : 'favorite_border'}
+                size={14}
+                color={isInterested ? '#E11D48' : '#E11D48'}
+              />
+              <Text style={[styles.interestButtonText, isInterested && styles.interestButtonTextActive]}>
+                {isInterested ? 'Parteciperò!' : 'Mi Interessa'}
+              </Text>
             </Pressable>
           )}
           <View style={[styles.viewButton, (isNonActive || isCompleted) && styles.viewButtonFull, isCompleted && styles.viewButtonCompleted]}>
@@ -757,5 +839,30 @@ const styles = StyleSheet.create({
     color: '#666',
     fontFamily: 'System',
   },
-
+  interestButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: '#E11D48',
+    backgroundColor: 'transparent',
+  },
+  interestButtonActive: {
+    backgroundColor: '#FFF1F2',
+    borderColor: '#E11D48',
+  },
+  interestButtonText: {
+    fontSize: 13,
+    color: '#E11D48',
+    fontWeight: '700',
+    fontFamily: 'System',
+  },
+  interestButtonTextActive: {
+    color: '#E11D48',
+  },
 });
