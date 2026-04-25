@@ -10,6 +10,7 @@ import { colors } from '@/styles/commonStyles';
 import { View, Text, StyleSheet, FlatList, Dimensions, Pressable, Alert, Animated, ActivityIndicator } from 'react-native';
 import ShareToGroupModal from '@/components/ShareToGroupModal';
 import { useAuth } from '@/contexts/AuthContext';
+import { useDropInterest } from '@/contexts/DropInterestContext';
 import EnhancedProductCard from '@/components/EnhancedProductCard';
 import * as Haptics from 'expo-haptics';
 import * as Network from 'expo-network';
@@ -117,8 +118,7 @@ export default function DropDetailsScreen() {
   const [currentProductIndex, setCurrentProductIndex] = useState(0);
   const bounceAnim = useRef(new Animated.Value(1)).current;
   const { user } = useAuth();
-  const [isInterested, setIsInterested] = useState(false);
-  const [interestLoading, setInterestLoading] = useState(false);
+  const { isInterested, isLoading: isInterestLoading, loadInterest, toggleInterest } = useDropInterest();
   const flatListRef = useRef<FlatList>(null);
 
   // Derived: drop is viewable but booking is disabled
@@ -298,19 +298,11 @@ export default function DropDetailsScreen() {
     loadUserBookings();
   }, [dropId, loadDropDetails, loadUserBookings]);
 
+  const dropStatus = drop?.status;
   useEffect(() => {
-    if (!dropId || !user) return;
-    const checkInterest = async () => {
-      const { data } = await supabase
-        .from('drop_interests')
-        .select('id')
-        .eq('drop_id', dropId)
-        .eq('user_id', user.id)
-        .maybeSingle();
-      setIsInterested(!!data);
-    };
-    checkInterest();
-  }, [dropId, user]);
+    if (!dropId || dropStatus !== 'approved') return;
+    loadInterest(dropId);
+  }, [dropId, dropStatus, loadInterest]);
 
   const handleInterestToggle = async () => {
     if (!user) {
@@ -318,42 +310,11 @@ export default function DropDetailsScreen() {
       Alert.alert('Accesso richiesto', 'Devi effettuare l\'accesso per mostrare interesse.');
       return;
     }
-    console.log('[drop-details] Interest toggle pressed — drop:', dropId, 'currently interested:', isInterested);
-    setInterestLoading(true);
+    console.log('[drop-details] Interest toggle pressed — drop:', dropId, 'currently interested:', isInterested(dropId));
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    try {
-      if (isInterested) {
-        const { error } = await supabase
-          .from('drop_interests')
-          .delete()
-          .eq('drop_id', dropId)
-          .eq('user_id', user.id);
-        if (error) throw error;
-        console.log('[drop-details] Interest removed for drop:', dropId);
-        setIsInterested(false);
-      } else {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('pickup_point_id')
-          .eq('user_id', user.id)
-          .maybeSingle();
-        const { error } = await supabase
-          .from('drop_interests')
-          .insert({
-            drop_id: dropId,
-            user_id: user.id,
-            pickup_point_id: profile?.pickup_point_id ?? null,
-          });
-        if (error) throw error;
-        console.log('[drop-details] Interest added for drop:', dropId, 'pickup_point_id:', profile?.pickup_point_id);
-        setIsInterested(true);
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      }
-    } catch (err: any) {
-      console.error('[drop-details] Error toggling interest:', err?.message);
-      Alert.alert('Errore', 'Impossibile aggiornare l\'interesse. Riprova.');
-    } finally {
-      setInterestLoading(false);
+    await toggleInterest(dropId);
+    if (!isInterested(dropId)) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     }
   };
 
@@ -1058,18 +1019,18 @@ export default function DropDetailsScreen() {
                 Non ancora attivo — lascia il tuo Mi Interessa per aumentare le probabilità di attivarlo per il tuo punto di ritiro.
               </Text>
               <Pressable
-                style={[styles.bannerInterestButton, isInterested && styles.bannerInterestButtonActive]}
+                style={[styles.bannerInterestButton, isInterested(dropId) && styles.bannerInterestButtonActive]}
                 onPress={handleInterestToggle}
-                disabled={interestLoading}
+                disabled={isInterestLoading(dropId)}
               >
                 <IconSymbol
-                  ios_icon_name={isInterested ? 'heart.fill' : 'heart'}
-                  android_material_icon_name={isInterested ? 'favorite' : 'favorite_border'}
+                  ios_icon_name={isInterested(dropId) ? 'heart.fill' : 'heart'}
+                  android_material_icon_name={isInterested(dropId) ? 'favorite' : 'favorite_border'}
                   size={14}
-                  color={isInterested ? '#E11D48' : '#E11D48'}
+                  color="#E11D48"
                 />
-                <Text style={[styles.bannerInterestText, isInterested && styles.bannerInterestTextActive]}>
-                  {isInterested ? 'Parteciperò!' : 'Mi Interessa'}
+                <Text style={[styles.bannerInterestText, isInterested(dropId) && styles.bannerInterestTextActive]}>
+                  {isInterested(dropId) ? 'Parteciperò!' : 'Mi Interessa'}
                 </Text>
               </Pressable>
             </View>

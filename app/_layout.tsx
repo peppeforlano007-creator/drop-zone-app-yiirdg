@@ -20,6 +20,7 @@ import { StatusBar } from "expo-status-bar";
 import { WidgetProvider } from "@/contexts/WidgetContext";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { SubscriptionProvider } from "@/contexts/SubscriptionContext";
+import { DropInterestProvider } from "@/contexts/DropInterestContext";
 import { supabase } from "@/app/integrations/supabase/client";
 
 // Import font
@@ -325,6 +326,7 @@ export default function RootLayout() {
         value={colorScheme === "dark" ? CustomDarkTheme : CustomDefaultTheme}
       >
         <AuthProvider>
+          <DropInterestProvider>
           <SubscriptionProvider>
             <WidgetProvider>
               <GestureHandlerRootView>
@@ -389,6 +391,7 @@ export default function RootLayout() {
               </GestureHandlerRootView>
             </WidgetProvider>
           </SubscriptionProvider>
+          </DropInterestProvider>
         </AuthProvider>
       </ThemeProvider>
     </>
