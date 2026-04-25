@@ -196,6 +196,7 @@ export default function DropCard({ drop, deliveryMinDays, deliveryMaxDays }: Dro
 
   const isNonActive = drop.status === 'approved' || drop.status === 'pending_approval' || drop.status === 'inactive';
   const isCompleted = drop.status === 'completed';
+  const canParticipate = drop.status === 'approved' || drop.status === 'inactive';
 
   // Completed drop stats — euro value based
   const completedValue = Number(drop.current_value ?? 0);
@@ -718,6 +719,23 @@ const styles = StyleSheet.create({
     backgroundColor: '#6B7280',
   },
   viewButtonText: {
+    fontSize: 13,
+    color: '#FFF',
+    fontWeight: '700',
+    fontFamily: 'System',
+  },
+  participateButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: '#2563EB',
+    borderRadius: 8,
+  },
+  participateButtonText: {
     fontSize: 13,
     color: '#FFF',
     fontWeight: '700',

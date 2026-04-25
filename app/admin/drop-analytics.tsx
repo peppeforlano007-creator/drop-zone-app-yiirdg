@@ -63,6 +63,7 @@ export default function DropAnalyticsScreen() {
   const [analytics, setAnalytics] = useState<DropAnalytics | null>(null);
   const [bookings, setBookings] = useState<BookingData[]>([]);
   const [timeRemaining, setTimeRemaining] = useState('');
+  const [cityBreakdown, setCityBreakdown] = useState<{ city: string; count: number; percentage: number }[]>([]);
 
   const loadAnalytics = useCallback(async () => {
     if (!dropId) return;
@@ -169,6 +170,47 @@ export default function DropAnalyticsScreen() {
       });
 
       setBookings(enrichedBookings);
+
+      // City breakdown
+      if (enrichedBookings.length > 0) {
+        console.log('[DropAnalytics] Fetching city breakdown for', enrichedBookings.length, 'bookings');
+        const userIds = [...new Set(enrichedBookings.map(b => b.user_id))];
+
+        const { data: profilesData } = await supabase
+          .from('profiles')
+          .select('user_id, pickup_point_id')
+          .in('user_id', userIds);
+
+        const pickupPointIds = [...new Set((profilesData || []).map(p => p.pickup_point_id).filter(Boolean))];
+
+        const { data: pickupPointsData } = await supabase
+          .from('pickup_points')
+          .select('id, city, name')
+          .in('id', pickupPointIds);
+
+        const pickupMap = new Map((pickupPointsData || []).map(pp => [pp.id, pp.city]));
+        const userCityMap = new Map((profilesData || []).map(p => [p.user_id, pickupMap.get(p.pickup_point_id) || 'N/A']));
+
+        const cityCounts: Record<string, number> = {};
+        for (const booking of enrichedBookings) {
+          const city = userCityMap.get(booking.user_id) || 'N/A';
+          cityCounts[city] = (cityCounts[city] || 0) + 1;
+        }
+
+        const totalBookingsCount = enrichedBookings.length;
+        const breakdown = Object.entries(cityCounts)
+          .map(([city, count]) => ({
+            city,
+            count,
+            percentage: totalBookingsCount > 0 ? (count / totalBookingsCount) * 100 : 0,
+          }))
+          .sort((a, b) => b.count - a.count);
+
+        console.log('[DropAnalytics] City breakdown:', breakdown);
+        setCityBreakdown(breakdown);
+      } else {
+        setCityBreakdown([]);
+      }
     } catch (error) {
       console.error('Error loading analytics:', error);
     } finally {
@@ -316,6 +358,45 @@ export default function DropAnalyticsScreen() {
                 <Text style={styles.metricLabel}>Conversione</Text>
               </View>
             </View>
+          </View>
+
+          {/* City Breakdown */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>📍 Partecipazioni per Città</Text>
+            {cityBreakdown.length > 0 ? (
+              cityBreakdown.map((item, index) => {
+                const topCount = cityBreakdown[0].count;
+                const barWidth = topCount > 0 ? (item.count / topCount) * 100 : 0;
+                const countLabel = item.count === 1 ? '1 prenotazione' : `${item.count} prenotazioni`;
+                const pctLabel = item.percentage.toFixed(1) + '%';
+                return (
+                  <View key={item.city + index} style={styles.cityCard}>
+                    <View style={styles.cityCardHeader}>
+                      <Text style={styles.cityName}>{item.city}</Text>
+                      <View style={styles.cityCountBadge}>
+                        <Text style={styles.cityCountText}>{countLabel}</Text>
+                      </View>
+                    </View>
+                    <View style={styles.cityBarRow}>
+                      <View style={styles.cityBarContainer}>
+                        <View style={[styles.cityBarFill, { width: `${barWidth}%` as any }]} />
+                      </View>
+                      <Text style={styles.cityPctText}>{pctLabel}</Text>
+                    </View>
+                  </View>
+                );
+              })
+            ) : (
+              <View style={styles.emptyState}>
+                <IconSymbol
+                  ios_icon_name="mappin.slash"
+                  android_material_icon_name="location_off"
+                  size={40}
+                  color={colors.textTertiary}
+                />
+                <Text style={styles.emptyText}>Nessuna prenotazione ancora</Text>
+              </View>
+            )}
           </View>
 
           {/* Progress Bars */}
@@ -684,5 +765,60 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#fff',
+  },
+  cityCard: {
+    backgroundColor: colors.card,
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  cityCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  cityName: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: colors.text,
+    flex: 1,
+  },
+  cityCountBadge: {
+    backgroundColor: colors.primary + '18',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 20,
+  },
+  cityCountText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.primary,
+  },
+  cityBarRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  cityBarContainer: {
+    flex: 1,
+    height: 8,
+    backgroundColor: colors.backgroundSecondary,
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  cityBarFill: {
+    height: '100%',
+    backgroundColor: '#2563EB',
+    borderRadius: 4,
+  },
+  cityPctText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.textSecondary,
+    minWidth: 42,
+    textAlign: 'right',
   },
 });
