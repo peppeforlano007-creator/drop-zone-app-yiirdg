@@ -456,7 +456,7 @@ export default function DropsScreen() {
         </View>
       )}
 
-      {drops.length === 0 ? (
+      {activeDrops.length === 0 && completedDrops.length === 0 ? (
         <View style={styles.emptyContainer}>
           <IconSymbol ios_icon_name="tray" android_material_icon_name="inbox" size={64} color={colors.textSecondary} />
           <Text style={styles.emptyTitle}>Nessun drop attivo</Text>
