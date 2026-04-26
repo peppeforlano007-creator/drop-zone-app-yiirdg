@@ -76,7 +76,7 @@ export default function LoyaltyProgramScreen() {
                 <Text style={styles.cardTitle}>Guadagna Punti</Text>
               </View>
               <Text style={styles.cardText}>
-                Per ogni €1 speso guadagni 1 punto. Il tuo saldo determina il tuo livello e lo sconto automatico applicato su ogni ordine.
+                Per ogni €1 speso guadagni 1 punto. I punti crescono ad ogni ordine completato e ritirato — non scendono mai. Il tuo saldo determina il tuo livello e lo sconto automatico applicato su ogni ordine.
               </Text>
               <View style={styles.exampleBox}>
                 <Text style={styles.exampleText}>Spendi €50 → +50 punti</Text>
@@ -95,7 +95,7 @@ export default function LoyaltyProgramScreen() {
                 <Text style={styles.cardTitle}>Sali di Livello</Text>
               </View>
               <Text style={styles.cardText}>
-                Il tuo livello dipende dal tuo saldo punti attuale. Più punti hai, più alto è il livello e maggiore lo sconto automatico.
+                Il tuo livello dipende dal totale punti accumulati. Più punti hai, più alto è il livello e maggiore lo sconto automatico su ogni ordine.
               </Text>
               <View style={styles.levelsTable}>
                 {LEVELS.map((level) => {
@@ -153,10 +153,10 @@ export default function LoyaltyProgramScreen() {
                   size={24}
                   color={colors.error}
                 />
-                <Text style={styles.cardTitle}>Ordine Non Ritirato</Text>
+                <Text style={styles.cardTitle}>Penalità e Warning</Text>
               </View>
               <Text style={styles.cardText}>
-                −50 punti. Dopo 5 ordini non ritirati l&apos;account viene bloccato.
+                Le penalità non toccano i tuoi punti. Ordini non ritirati generano warning sul profilo. Dopo 3 no-show puoi avere solo 1 prenotazione attiva alla volta. Dopo 5 no-show l&apos;account viene bloccato.
               </Text>
             </View>
 
@@ -166,12 +166,12 @@ export default function LoyaltyProgramScreen() {
                   ios_icon_name="arrow.uturn.backward"
                   android_material_icon_name="undo"
                   size={24}
-                  color={colors.error}
+                  color={colors.textSecondary}
                 />
-                <Text style={styles.cardTitle}>Penalità Reso</Text>
+                <Text style={styles.cardTitle}>Resi</Text>
               </View>
               <Text style={styles.cardText}>
-                −20 punti fissi + i punti guadagnati sull&apos;ordine restituito.
+                I resi vengono registrati sul profilo ma non riducono i tuoi punti. I punti accumulati rimangono invariati.
               </Text>
             </View>
           </View>

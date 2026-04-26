@@ -8,7 +8,6 @@ import {
   Pressable,
   Alert,
   ActivityIndicator,
-  TextInput,
   RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -28,107 +27,60 @@ interface BlockedUser {
   items_returned: number;
   blocked_reason: string;
   blocked_at: string;
-  rating_stars: number;
 }
 
-interface Coupon {
-  id: string;
-  name: string;
-  description: string | null;
-  discount_percentage: number;
-  points_required: number;
-  is_active: boolean;
-}
+const LEVELS = [
+  { name: 'Nuovo', range: '0–99 punti', discount: '0%', color: '#9E9E9E' },
+  { name: 'Fedele', range: '100–299 punti', discount: '−3%', color: '#2196F3' },
+  { name: 'VIP', range: '300–699 punti', discount: '−6%', color: '#9C27B0' },
+  { name: 'Top', range: '700+ punti', discount: '−10%', color: '#FFD700' },
+];
 
 export default function LoyaltyProgramManagementScreen() {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [blockedUsers, setBlockedUsers] = useState<BlockedUser[]>([]);
-  const [coupons, setCoupons] = useState<Coupon[]>([]);
-  const [selectedTab, setSelectedTab] = useState<'users' | 'coupons'>('users');
   const [unblocking, setUnblocking] = useState<string | null>(null);
-  const [editingCoupon, setEditingCoupon] = useState<string | null>(null);
-  const [editValues, setEditValues] = useState<{ [key: string]: { discount: string; points: string } }>({});
-  const [savingCoupon, setSavingCoupon] = useState<string | null>(null);
-  const [refreshKey, setRefreshKey] = useState(0);
 
   const loadData = useCallback(async () => {
+    console.log('AdminLoyalty: Loading blocked users');
     try {
       setLoading(true);
 
-      // Load blocked users
       const { data: usersData, error: usersError } = await supabase
         .from('profiles')
-        .select('user_id, full_name, email, phone, orders_returned, items_returned, blocked_reason, blocked_at, rating_stars')
+        .select('user_id, full_name, email, phone, orders_returned, items_returned, blocked_reason, blocked_at')
         .eq('account_blocked', true)
         .order('blocked_at', { ascending: false });
 
       if (usersError) {
-        console.error('Error loading blocked users:', usersError);
+        console.error('AdminLoyalty: Error loading blocked users:', usersError);
       } else {
         setBlockedUsers(usersData || []);
-      }
-
-      // Load coupons with cache-busting timestamp
-      const timestamp = new Date().getTime();
-      console.log('=== LOADING COUPONS ===');
-      console.log('Timestamp:', timestamp);
-      console.log('Refresh key:', refreshKey);
-      
-      const { data: couponsData, error: couponsError } = await supabase
-        .from('coupons')
-        .select('*')
-        .order('points_required', { ascending: true });
-
-      if (couponsError) {
-        console.error('Error loading coupons:', couponsError);
-      } else {
-        console.log('Loaded coupons from database:', couponsData);
-        
-        // Create completely new objects to force React to detect changes
-        const freshCoupons = couponsData?.map(coupon => ({
-          id: coupon.id,
-          name: coupon.name,
-          description: coupon.description,
-          discount_percentage: coupon.discount_percentage,
-          points_required: coupon.points_required,
-          is_active: coupon.is_active,
-        })) || [];
-        
-        console.log('Setting fresh coupons:', freshCoupons);
-        setCoupons(freshCoupons);
-        
-        // Initialize edit values with fresh data
-        const initialValues: { [key: string]: { discount: string; points: string } } = {};
-        freshCoupons.forEach(coupon => {
-          initialValues[coupon.id] = {
-            discount: coupon.discount_percentage.toString(),
-            points: coupon.points_required.toString(),
-          };
-        });
-        console.log('Setting edit values:', initialValues);
-        setEditValues(initialValues);
+        console.log('AdminLoyalty: Loaded', usersData?.length ?? 0, 'blocked users');
       }
     } catch (error) {
-      console.error('Error loading data:', error);
+      console.error('AdminLoyalty: Error loading data:', error);
       Alert.alert('Errore', 'Si è verificato un errore durante il caricamento dei dati');
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [refreshKey]);
+  }, []);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
 
   const handleRefresh = () => {
+    console.log('AdminLoyalty: User triggered refresh');
     setRefreshing(true);
-    setRefreshKey(prev => prev + 1);
+    loadData();
   };
 
   const handleUnblockUser = async (userId: string, userName: string) => {
+    console.log('AdminLoyalty: User tapped Sblocca for', userName, userId);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     Alert.alert(
@@ -141,23 +93,25 @@ export default function LoyaltyProgramManagementScreen() {
           onPress: async () => {
             try {
               setUnblocking(userId);
+              console.log('AdminLoyalty: Unblocking user', userId);
 
-              const { data, error } = await supabase.rpc('admin_unblock_user', {
+              const { error } = await supabase.rpc('admin_unblock_user', {
                 p_user_id: userId,
                 p_admin_id: user?.id,
               });
 
               if (error) {
-                console.error('Error unblocking user:', error);
+                console.error('AdminLoyalty: Error unblocking user:', error);
                 Alert.alert('Errore', 'Impossibile sbloccare l\'utente');
                 return;
               }
 
+              console.log('AdminLoyalty: User unblocked successfully', userId);
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
               Alert.alert('Successo', 'Utente sbloccato con successo');
               loadData();
             } catch (error: any) {
-              console.error('Error unblocking user:', error);
+              console.error('AdminLoyalty: Error unblocking user:', error);
               Alert.alert('Errore', 'Si è verificato un errore');
             } finally {
               setUnblocking(null);
@@ -166,113 +120,6 @@ export default function LoyaltyProgramManagementScreen() {
         },
       ]
     );
-  };
-
-  const handleUpdateCoupon = async (couponId: string) => {
-    const values = editValues[couponId];
-    if (!values) {
-      Alert.alert('Errore', 'Valori non trovati');
-      return;
-    }
-
-    const discount = parseInt(values.discount);
-    const points = parseInt(values.points);
-
-    if (isNaN(discount) || discount <= 0 || discount > 100) {
-      Alert.alert('Errore', 'La percentuale di sconto deve essere tra 1 e 100');
-      return;
-    }
-
-    if (isNaN(points) || points <= 0) {
-      Alert.alert('Errore', 'I punti richiesti devono essere maggiori di 0');
-      return;
-    }
-
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-
-    try {
-      setSavingCoupon(couponId);
-      console.log('=== UPDATING COUPON ===');
-      console.log('Coupon ID:', couponId);
-      console.log('New values to save:', { discount, points });
-
-      // CRITICAL FIX: Use a transaction-like approach with RPC function
-      // This ensures atomicity and immediate consistency
-      const { data: rpcResult, error: rpcError } = await supabase.rpc('update_coupon_admin', {
-        p_coupon_id: couponId,
-        p_discount_percentage: discount,
-        p_points_required: points
-      });
-
-      // If RPC doesn't exist, fall back to direct update
-      if (rpcError && rpcError.code === '42883') {
-        console.log('RPC function not found, using direct update method');
-        
-        // Direct update with explicit transaction
-        const { error: updateError } = await supabase
-          .from('coupons')
-          .update({
-            discount_percentage: discount,
-            points_required: points,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', couponId);
-
-        if (updateError) {
-          console.error('Error updating coupon:', updateError);
-          Alert.alert('Errore', `Impossibile aggiornare il coupon: ${updateError.message}`);
-          return;
-        }
-
-        console.log('✅ Direct update successful');
-      } else if (rpcError) {
-        console.error('Error calling RPC:', rpcError);
-        Alert.alert('Errore', `Impossibile aggiornare il coupon: ${rpcError.message}`);
-        return;
-      } else {
-        console.log('✅ RPC update successful:', rpcResult);
-      }
-
-      // CRITICAL FIX: Immediately update local state with the new values
-      // This ensures UI reflects changes instantly without waiting for database
-      setCoupons(prevCoupons => 
-        prevCoupons.map(coupon => 
-          coupon.id === couponId 
-            ? { ...coupon, discount_percentage: discount, points_required: points }
-            : coupon
-        )
-      );
-
-      // Update edit values to match
-      setEditValues(prev => ({
-        ...prev,
-        [couponId]: {
-          discount: discount.toString(),
-          points: points.toString(),
-        }
-      }));
-
-      // Clear editing state immediately
-      setEditingCoupon(null);
-      console.log('→ Cleared editing state and updated local state');
-
-      // Show success message
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert('Successo', 'Coupon aggiornato con successo. Le modifiche sono ora visibili nell\'app utente.');
-      
-      // Refresh data in background to ensure consistency
-      console.log('→ Refreshing data in background...');
-      setTimeout(() => {
-        setRefreshKey(prev => prev + 1);
-      }, 500);
-
-      console.log('=== COUPON UPDATE COMPLETE ===');
-    } catch (error: any) {
-      console.error('Error updating coupon:', error);
-      Alert.alert('Errore', `Si è verificato un errore: ${error.message || 'Errore sconosciuto'}`);
-    } finally {
-      setSavingCoupon(null);
-    }
   };
 
   if (loading) {
@@ -301,32 +148,6 @@ export default function LoyaltyProgramManagementScreen() {
         }}
       />
       <SafeAreaView style={styles.container} edges={['bottom']}>
-        {/* Tabs */}
-        <View style={styles.tabsContainer}>
-          <Pressable
-            style={[styles.tab, selectedTab === 'users' && styles.tabActive]}
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              setSelectedTab('users');
-            }}
-          >
-            <Text style={[styles.tabText, selectedTab === 'users' && styles.tabTextActive]}>
-              Utenti Bloccati ({blockedUsers.length})
-            </Text>
-          </Pressable>
-          <Pressable
-            style={[styles.tab, selectedTab === 'coupons' && styles.tabActive]}
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              setSelectedTab('coupons');
-            }}
-          >
-            <Text style={[styles.tabText, selectedTab === 'coupons' && styles.tabTextActive]}>
-              Gestione Coupon ({coupons.length})
-            </Text>
-          </Pressable>
-        </View>
-
         <ScrollView
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
@@ -335,258 +156,124 @@ export default function LoyaltyProgramManagementScreen() {
             <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
           }
         >
-          {selectedTab === 'users' ? (
-            <React.Fragment>
-              {/* Info Card */}
-              <View style={styles.infoCard}>
-                <IconSymbol 
-                  ios_icon_name="info.circle.fill" 
-                  android_material_icon_name="info"
-                  size={20} 
-                  color={colors.info} 
-                />
-                <Text style={styles.infoText}>
-                  Utenti bloccati per 5 ordini rispediti al fornitore o molti articoli restituiti. 
-                  Puoi sbloccare manualmente gli account.
-                </Text>
+          {/* Levels Info Table */}
+          <View style={styles.levelsCard}>
+            <View style={styles.levelsHeader}>
+              <IconSymbol
+                ios_icon_name="star.circle.fill"
+                android_material_icon_name="stars"
+                size={20}
+                color="#FFD700"
+              />
+              <Text style={styles.levelsTitle}>Livelli e Sconti Automatici</Text>
+            </View>
+            <Text style={styles.levelsSubtitle}>
+              I punti crescono sempre — non scendono mai. Lo sconto è applicato automaticamente su ogni ordine.
+            </Text>
+            {LEVELS.map((level) => (
+              <View key={level.name} style={styles.levelRow}>
+                <View style={[styles.levelBadge, { backgroundColor: level.color }]}>
+                  <Text style={styles.levelBadgeText}>{level.name}</Text>
+                </View>
+                <Text style={styles.levelRange}>{level.range}</Text>
+                <Text style={styles.levelDiscount}>{level.discount}</Text>
               </View>
+            ))}
+          </View>
 
-              {/* Blocked Users List */}
-              {blockedUsers.length > 0 ? (
-                blockedUsers.map((blockedUser, index) => (
-                  <View key={index} style={styles.userCard}>
-                    <View style={styles.userHeader}>
-                      <View style={styles.userInfo}>
-                        <Text style={styles.userName}>{blockedUser.full_name || 'Utente'}</Text>
-                        <Text style={styles.userEmail}>{blockedUser.email}</Text>
-                        {blockedUser.phone && (
-                          <Text style={styles.userPhone}>{blockedUser.phone}</Text>
-                        )}
-                      </View>
-                      <View style={styles.ratingBadge}>
-                        <IconSymbol 
-                          ios_icon_name="star.fill" 
-                          android_material_icon_name="star"
-                          size={16} 
-                          color="#FFD700" 
-                        />
-                        <Text style={styles.ratingText}>{blockedUser.rating_stars}</Text>
-                      </View>
-                    </View>
+          {/* Blocked Users Section */}
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>
+              Utenti Bloccati
+            </Text>
+            <View style={styles.countBadge}>
+              <Text style={styles.countBadgeText}>{blockedUsers.length}</Text>
+            </View>
+          </View>
 
-                    <View style={styles.statsRow}>
-                      <View style={styles.statItem}>
-                        <Text style={styles.statLabel}>Ordini Rispediti</Text>
-                        <Text style={styles.statValue}>{blockedUser.orders_returned}</Text>
-                      </View>
-                      <View style={styles.statItem}>
-                        <Text style={styles.statLabel}>Articoli Resi</Text>
-                        <Text style={styles.statValue}>{blockedUser.items_returned}</Text>
-                      </View>
-                    </View>
+          <View style={styles.infoCard}>
+            <IconSymbol
+              ios_icon_name="info.circle.fill"
+              android_material_icon_name="info"
+              size={20}
+              color={colors.info}
+            />
+            <Text style={styles.infoText}>
+              Utenti bloccati per 5 o più ordini non ritirati (no-show). Puoi sbloccare manualmente gli account.
+            </Text>
+          </View>
 
-                    <View style={styles.blockInfo}>
-                      <Text style={styles.blockReason}>{blockedUser.blocked_reason}</Text>
-                      <Text style={styles.blockDate}>
-                        Bloccato il {new Date(blockedUser.blocked_at).toLocaleDateString('it-IT')}
-                      </Text>
-                    </View>
-
-                    <Pressable
-                      style={({ pressed }) => [
-                        styles.unblockButton,
-                        pressed && styles.unblockButtonPressed,
-                        unblocking === blockedUser.user_id && styles.unblockButtonDisabled,
-                      ]}
-                      onPress={() => handleUnblockUser(blockedUser.user_id, blockedUser.full_name)}
-                      disabled={unblocking === blockedUser.user_id}
-                    >
-                      {unblocking === blockedUser.user_id ? (
-                        <ActivityIndicator size="small" color={colors.background} />
-                      ) : (
-                        <React.Fragment>
-                          <IconSymbol 
-                            ios_icon_name="lock.open.fill" 
-                            android_material_icon_name="lock_open"
-                            size={20} 
-                            color={colors.background} 
-                          />
-                          <Text style={styles.unblockButtonText}>Sblocca Utente</Text>
-                        </React.Fragment>
-                      )}
-                    </Pressable>
+          {blockedUsers.length > 0 ? (
+            blockedUsers.map((blockedUser, index) => (
+              <View key={index} style={styles.userCard}>
+                <View style={styles.userHeader}>
+                  <View style={styles.userInfo}>
+                    <Text style={styles.userName}>{blockedUser.full_name || 'Utente'}</Text>
+                    <Text style={styles.userEmail}>{blockedUser.email}</Text>
+                    {blockedUser.phone ? (
+                      <Text style={styles.userPhone}>{blockedUser.phone}</Text>
+                    ) : null}
                   </View>
-                ))
-              ) : (
-                <View style={styles.emptyState}>
-                  <IconSymbol 
-                    ios_icon_name="checkmark.circle" 
-                    android_material_icon_name="check_circle"
-                    size={64} 
-                    color={colors.textTertiary} 
-                  />
-                  <Text style={styles.emptyStateText}>
-                    Nessun utente bloccato
-                  </Text>
-                  <Text style={styles.emptyStateSubtext}>
-                    Tutti gli utenti hanno un buon comportamento
+                </View>
+
+                <View style={styles.statsRow}>
+                  <View style={styles.statItem}>
+                    <Text style={styles.statLabel}>Ordini Rispediti</Text>
+                    <Text style={styles.statValue}>{blockedUser.orders_returned}</Text>
+                  </View>
+                  <View style={styles.statItem}>
+                    <Text style={styles.statLabel}>Articoli Resi</Text>
+                    <Text style={styles.statValue}>{blockedUser.items_returned}</Text>
+                  </View>
+                </View>
+
+                <View style={styles.blockInfo}>
+                  <Text style={styles.blockReason}>{blockedUser.blocked_reason}</Text>
+                  <Text style={styles.blockDate}>
+                    Bloccato il {new Date(blockedUser.blocked_at).toLocaleDateString('it-IT')}
                   </Text>
                 </View>
-              )}
-            </React.Fragment>
-          ) : (
-            <React.Fragment>
-              {/* Info Card */}
-              <View style={styles.infoCard}>
-                <IconSymbol 
-                  ios_icon_name="info.circle.fill" 
-                  android_material_icon_name="info"
-                  size={20} 
-                  color={colors.info} 
-                />
-                <Text style={styles.infoText}>
-                  Modifica le percentuali di sconto e i punti richiesti per ogni coupon. 
-                  Le modifiche si rifletteranno immediatamente nell&apos;app utente.
-                </Text>
-              </View>
 
-              {/* Coupons List */}
-              {coupons.map((coupon) => (
-                <View key={`${coupon.id}-${refreshKey}`} style={styles.couponCard}>
-                  <View style={styles.couponHeader}>
-                    <View style={styles.couponBadge}>
-                      <Text style={styles.couponDiscount}>{coupon.discount_percentage}%</Text>
-                    </View>
-                    <View style={styles.couponInfo}>
-                      <Text style={styles.couponName}>{coupon.name}</Text>
-                      {coupon.description && (
-                        <Text style={styles.couponDescription}>{coupon.description}</Text>
-                      )}
-                    </View>
-                  </View>
-
-                  {editingCoupon === coupon.id ? (
-                    <View style={styles.editSection}>
-                      <View style={styles.inputRow}>
-                        <View style={styles.inputGroup}>
-                          <Text style={styles.inputLabel}>Sconto %</Text>
-                          <TextInput
-                            style={styles.input}
-                            value={editValues[coupon.id]?.discount || ''}
-                            onChangeText={(text) => {
-                              setEditValues({
-                                ...editValues,
-                                [coupon.id]: {
-                                  ...editValues[coupon.id],
-                                  discount: text,
-                                },
-                              });
-                            }}
-                            keyboardType="numeric"
-                            placeholder="10"
-                            placeholderTextColor={colors.textTertiary}
-                          />
-                        </View>
-                        <View style={styles.inputGroup}>
-                          <Text style={styles.inputLabel}>Punti Richiesti</Text>
-                          <TextInput
-                            style={styles.input}
-                            value={editValues[coupon.id]?.points || ''}
-                            onChangeText={(text) => {
-                              setEditValues({
-                                ...editValues,
-                                [coupon.id]: {
-                                  ...editValues[coupon.id],
-                                  points: text,
-                                },
-                              });
-                            }}
-                            keyboardType="numeric"
-                            placeholder="1000"
-                            placeholderTextColor={colors.textTertiary}
-                          />
-                        </View>
-                      </View>
-                      <View style={styles.editActions}>
-                        <Pressable
-                          style={({ pressed }) => [
-                            styles.cancelButton,
-                            pressed && styles.cancelButtonPressed,
-                          ]}
-                          onPress={() => {
-                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                            setEditingCoupon(null);
-                            // Reset values
-                            setEditValues({
-                              ...editValues,
-                              [coupon.id]: {
-                                discount: coupon.discount_percentage.toString(),
-                                points: coupon.points_required.toString(),
-                              },
-                            });
-                          }}
-                          disabled={savingCoupon === coupon.id}
-                        >
-                          <Text style={styles.cancelButtonText}>Annulla</Text>
-                        </Pressable>
-                        <Pressable
-                          style={({ pressed }) => [
-                            styles.saveButton,
-                            pressed && styles.saveButtonPressed,
-                            savingCoupon === coupon.id && styles.saveButtonDisabled,
-                          ]}
-                          onPress={() => handleUpdateCoupon(coupon.id)}
-                          disabled={savingCoupon === coupon.id}
-                        >
-                          {savingCoupon === coupon.id ? (
-                            <ActivityIndicator size="small" color={colors.background} />
-                          ) : (
-                            <React.Fragment>
-                              <IconSymbol 
-                                ios_icon_name="checkmark" 
-                                android_material_icon_name="check"
-                                size={20} 
-                                color={colors.background} 
-                              />
-                              <Text style={styles.saveButtonText}>Salva</Text>
-                            </React.Fragment>
-                          )}
-                        </Pressable>
-                      </View>
-                    </View>
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.unblockButton,
+                    pressed && styles.unblockButtonPressed,
+                    unblocking === blockedUser.user_id && styles.unblockButtonDisabled,
+                  ]}
+                  onPress={() => handleUnblockUser(blockedUser.user_id, blockedUser.full_name)}
+                  disabled={unblocking === blockedUser.user_id}
+                >
+                  {unblocking === blockedUser.user_id ? (
+                    <ActivityIndicator size="small" color={colors.background} />
                   ) : (
-                    <View style={styles.couponDetails}>
-                      <View style={styles.detailRow}>
-                        <Text style={styles.detailLabel}>Sconto:</Text>
-                        <Text style={styles.detailValue}>{coupon.discount_percentage}%</Text>
-                      </View>
-                      <View style={styles.detailRow}>
-                        <Text style={styles.detailLabel}>Punti Richiesti:</Text>
-                        <Text style={styles.detailValue}>{coupon.points_required}</Text>
-                      </View>
-                      <Pressable
-                        style={({ pressed }) => [
-                          styles.editButton,
-                          pressed && styles.editButtonPressed,
-                        ]}
-                        onPress={() => {
-                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                          setEditingCoupon(coupon.id);
-                        }}
-                      >
-                        <IconSymbol 
-                          ios_icon_name="pencil" 
-                          android_material_icon_name="edit"
-                          size={20} 
-                          color={colors.text} 
-                        />
-                        <Text style={styles.editButtonText}>Modifica</Text>
-                      </Pressable>
-                    </View>
+                    <React.Fragment>
+                      <IconSymbol
+                        ios_icon_name="lock.open.fill"
+                        android_material_icon_name="lock_open"
+                        size={20}
+                        color={colors.background}
+                      />
+                      <Text style={styles.unblockButtonText}>Sblocca Utente</Text>
+                    </React.Fragment>
                   )}
-                </View>
-              ))}
-            </React.Fragment>
+                </Pressable>
+              </View>
+            ))
+          ) : (
+            <View style={styles.emptyState}>
+              <IconSymbol
+                ios_icon_name="checkmark.circle"
+                android_material_icon_name="check_circle"
+                size={64}
+                color={colors.textTertiary}
+              />
+              <Text style={styles.emptyStateText}>
+                Nessun utente bloccato
+              </Text>
+              <Text style={styles.emptyStateSubtext}>
+                Tutti gli utenti hanno un buon comportamento
+              </Text>
+            </View>
           )}
         </ScrollView>
       </SafeAreaView>
@@ -609,38 +296,92 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.textSecondary,
   },
-  tabsContainer: {
-    flexDirection: 'row',
-    padding: 12,
-    gap: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  tab: {
-    flex: 1,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    backgroundColor: colors.card,
-    alignItems: 'center',
-  },
-  tabActive: {
-    backgroundColor: colors.text,
-  },
-  tabText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  tabTextActive: {
-    color: colors.background,
-  },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
     padding: 12,
     paddingBottom: 40,
+  },
+  levelsCard: {
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 20,
+  },
+  levelsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  levelsTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  levelsSubtitle: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    lineHeight: 18,
+    marginBottom: 14,
+  },
+  levelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 6,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  levelBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    minWidth: 60,
+    alignItems: 'center',
+  },
+  levelBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  levelRange: {
+    flex: 1,
+    fontSize: 13,
+    color: colors.textSecondary,
+  },
+  levelDiscount: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  countBadge: {
+    backgroundColor: colors.text,
+    borderRadius: 10,
+    minWidth: 24,
+    height: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+  },
+  countBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.background,
   },
   infoCard: {
     flexDirection: 'row',
@@ -689,20 +430,6 @@ const styles = StyleSheet.create({
   userPhone: {
     fontSize: 13,
     color: colors.textSecondary,
-  },
-  ratingBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#FFF9E6',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 12,
-  },
-  ratingText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: colors.text,
   },
   statsRow: {
     flexDirection: 'row',
@@ -757,149 +484,6 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   unblockButtonText: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: colors.background,
-  },
-  couponCard: {
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-  },
-  couponHeader: {
-    flexDirection: 'row',
-    gap: 16,
-    marginBottom: 12,
-  },
-  couponBadge: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: colors.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  couponDiscount: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-  couponInfo: {
-    flex: 1,
-    justifyContent: 'center',
-  },
-  couponName: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.text,
-    marginBottom: 4,
-  },
-  couponDescription: {
-    fontSize: 13,
-    color: colors.textSecondary,
-  },
-  couponDetails: {
-    gap: 12,
-  },
-  detailRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  detailLabel: {
-    fontSize: 14,
-    color: colors.textSecondary,
-  },
-  detailValue: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.text,
-  },
-  editButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: colors.backgroundSecondary,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 8,
-    paddingVertical: 10,
-  },
-  editButtonPressed: {
-    opacity: 0.7,
-  },
-  editButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  editSection: {
-    gap: 12,
-  },
-  inputRow: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  inputGroup: {
-    flex: 1,
-  },
-  inputLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.text,
-    marginBottom: 6,
-  },
-  input: {
-    backgroundColor: colors.backgroundSecondary,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
-    color: colors.text,
-  },
-  editActions: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  cancelButton: {
-    flex: 1,
-    backgroundColor: colors.backgroundSecondary,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 8,
-    paddingVertical: 12,
-    alignItems: 'center',
-  },
-  cancelButtonPressed: {
-    opacity: 0.7,
-  },
-  cancelButtonText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  saveButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: colors.success,
-    borderRadius: 8,
-    paddingVertical: 12,
-  },
-  saveButtonPressed: {
-    opacity: 0.7,
-  },
-  saveButtonDisabled: {
-    opacity: 0.5,
-  },
-  saveButtonText: {
     fontSize: 15,
     fontWeight: '700',
     color: colors.background,

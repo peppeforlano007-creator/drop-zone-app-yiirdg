@@ -143,9 +143,11 @@ export default function ReturnsScreen() {
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
+    console.log('[Returns] Conferma reso richiesta per articolo:', item.id, 'prodotto:', item.product_name, 'utente:', item.user_id);
+
     Alert.alert(
       'Conferma Reso',
-      `Confermi il reso di "${item.product_name}" per ${item.customer_name}?\n\nQuesta azione:\n- Abbasserà il rating del cliente\n- Dopo 100 articoli restituiti, l'account verrà bloccato`,
+      `Confermi il reso di "${item.product_name}" per ${item.customer_name}?\n\nQuesta azione:\n- Scalerà i punti fedeltà guadagnati su questo articolo\n- Registrerà il reso nel profilo del cliente`,
       [
         { text: 'Annulla', style: 'cancel' },
         {
@@ -156,11 +158,13 @@ export default function ReturnsScreen() {
               setProcessing(item.id);
 
               // Call the handle_item_return function
+              console.log('[Returns] Chiamata RPC handle_item_return per articolo:', item.id, 'prezzo:', item.final_price);
               const { data, error } = await supabase.rpc('handle_item_return', {
                 p_user_id: item.user_id,
                 p_order_item_id: item.id,
                 p_return_reason: 'Reso al punto di ritiro',
               });
+              console.log('[Returns] Risposta RPC handle_item_return:', data, 'errore:', error);
 
               if (error) {
                 console.error('Error processing return:', error);
@@ -231,8 +235,7 @@ export default function ReturnsScreen() {
               color={colors.info} 
             />
             <Text style={styles.infoText}>
-              Gestisci i resi dei singoli articoli. Ogni reso abbasserà il rating del cliente. 
-              Dopo 100 articoli restituiti, l&apos;account verrà bloccato temporaneamente.
+              Gestisci i resi dei singoli articoli. Ogni reso scala i punti fedeltà guadagnati sull&apos;articolo restituito.
             </Text>
           </View>
 

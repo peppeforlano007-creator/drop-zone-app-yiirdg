@@ -53,6 +53,20 @@ interface UserNotificationData {
   totalSavings: number;
 }
 
+function getLoyaltyDiscount(points: number): number {
+  if (points >= 700) return 10;
+  if (points >= 300) return 6;
+  if (points >= 100) return 3;
+  return 0;
+}
+
+function getLoyaltyLevel(points: number): string {
+  if (points >= 700) return 'Top';
+  if (points >= 300) return 'VIP';
+  if (points >= 100) return 'Fedele';
+  return 'Nuovo';
+}
+
 /**
  * Calculate the final discount percentage based on current value and supplier list settings
  */
@@ -229,7 +243,7 @@ serve(async (req) => {
       // Get user profile info
       const { data: profile } = await supabase
         .from('profiles')
-        .select('full_name, email')
+        .select('full_name, email, points_total, loyalty_points')
         .eq('user_id', booking.user_id)
         .single();
 
@@ -239,6 +253,7 @@ serve(async (req) => {
         supplier_id: product?.supplier_id || null,
         user_full_name: profile?.full_name || 'Unknown',
         user_email: profile?.email || 'Unknown',
+        user_points: profile?.points_total ?? profile?.loyalty_points ?? 0,
       });
     }
 
@@ -292,12 +307,21 @@ serve(async (req) => {
       try {
         // Calculate final price based on FINAL DISCOUNT (same for all bookings)
         const originalPrice = Number(booking.original_price);
-        const finalPrice = originalPrice * (1 - finalDiscount / 100);
-        const savings = originalPrice - finalPrice;
+        const groupFinalPrice = originalPrice * (1 - finalDiscount / 100);
         const oldDiscount = Number(booking.discount_percentage);
 
+        // Apply loyalty discount on top of group discount
+        const userPoints = Number((booking as any).user_points ?? 0);
+        const loyaltyDiscount = getLoyaltyDiscount(userPoints);
+        const loyaltyLevel = getLoyaltyLevel(userPoints);
+        const loyaltyFinalPrice = groupFinalPrice * (1 - loyaltyDiscount / 100);
+        const savings = originalPrice - loyaltyFinalPrice;
+
+        // Earn 1 point per euro of final price after all discounts
+        const pointsEarned = Math.floor(loyaltyFinalPrice);
+
         totalOriginal += originalPrice;
-        totalFinal += finalPrice;
+        totalFinal += loyaltyFinalPrice;
         totalSavings += savings;
 
         console.log(`💰 Booking ${booking.id}:`, {
@@ -306,16 +330,18 @@ serve(async (req) => {
           originalPrice: originalPrice.toFixed(2),
           oldDiscount: oldDiscount.toFixed(1) + '%',
           newDiscount: finalDiscount.toFixed(1) + '%',
-          finalPrice: finalPrice.toFixed(2),
+          loyaltyLevel,
+          loyaltyDiscount: loyaltyDiscount + '%',
+          loyaltyFinalPrice: loyaltyFinalPrice.toFixed(2),
           savings: savings.toFixed(2),
-          savingsPercentage: ((savings / originalPrice) * 100).toFixed(1) + '%'
+          pointsEarned,
         });
         
-        // Update booking in database with FINAL DISCOUNT
+        // Update booking in database with FINAL DISCOUNT (including loyalty)
         const { error: updateError } = await supabase
           .from('bookings')
           .update({
-            final_price: finalPrice,
+            final_price: loyaltyFinalPrice,
             discount_percentage: finalDiscount,
             payment_status: 'pending',
             status: 'confirmed',
@@ -332,7 +358,20 @@ serve(async (req) => {
             error: updateError.message,
           });
         } else {
-          console.log(`✅ Successfully confirmed booking ${booking.id} with final discount ${finalDiscount.toFixed(1)}%`);
+          console.log(`✅ Successfully confirmed booking ${booking.id} with final discount ${finalDiscount.toFixed(1)}% + loyalty ${loyaltyDiscount}%`);
+
+          // Update user loyalty points
+          const newPoints = userPoints + pointsEarned;
+          const { error: pointsError } = await supabase
+            .from('profiles')
+            .update({ points_total: newPoints })
+            .eq('user_id', booking.user_id);
+
+          if (pointsError) {
+            console.warn(`⚠️ Error updating points for user ${booking.user_id}:`, pointsError);
+          } else {
+            console.log(`🌟 User ${booking.user_id}: +${pointsEarned} points (total: ${newPoints})`);
+          }
           
           // Aggregate booking data by user for notifications
           if (!userNotifications.has(booking.user_id)) {
@@ -344,18 +383,20 @@ serve(async (req) => {
               totalOriginal: 0,
               totalFinal: 0,
               totalSavings: 0,
-            });
+              loyaltyDiscount,
+              loyaltyLevel,
+            } as any);
           }
           
           const userData = userNotifications.get(booking.user_id)!;
           userData.bookings.push({
             productName: booking.product_name,
             originalPrice: originalPrice,
-            finalPrice: finalPrice,
+            finalPrice: loyaltyFinalPrice,
             savings: savings,
           });
           userData.totalOriginal += originalPrice;
-          userData.totalFinal += finalPrice;
+          userData.totalFinal += loyaltyFinalPrice;
           userData.totalSavings += savings;
           
           confirmResults.push({
@@ -366,9 +407,12 @@ serve(async (req) => {
             originalPrice: originalPrice.toFixed(2),
             oldDiscount: oldDiscount.toFixed(1) + '%',
             newDiscount: finalDiscount.toFixed(1) + '%',
-            finalPrice: finalPrice.toFixed(2),
+            loyaltyLevel,
+            loyaltyDiscount: loyaltyDiscount + '%',
+            finalPrice: loyaltyFinalPrice.toFixed(2),
             savings: savings.toFixed(2),
             savingsPercentage: ((savings / originalPrice) * 100).toFixed(1) + '%',
+            pointsEarned,
           });
         }
       } catch (error: any) {
@@ -392,6 +436,9 @@ serve(async (req) => {
         console.log(`📧 Preparing notification for user ${userId} (${userData.userName} - ${userData.userEmail})`);
         
         // Build notification message with all products
+        const userLoyaltyDiscount: number = (userData as any).loyaltyDiscount ?? 0;
+        const userLoyaltyLevel: string = (userData as any).loyaltyLevel ?? 'Nuovo';
+
         let message = `Il drop è terminato con uno sconto finale del ${Math.floor(finalDiscount)}%!\n\n`;
         message += `🎉 Tutti i tuoi articoli prenotati beneficiano dello sconto finale raggiunto!\n\n`;
         message += `Hai prenotato ${userData.bookings.length} prodotto${userData.bookings.length > 1 ? 'i' : ''}:\n\n`;
@@ -413,6 +460,9 @@ serve(async (req) => {
         message += `━━━━━━━━━━━━━━━━━━━━━━\n`;
         message += `Prezzo originale totale: €${userData.totalOriginal.toFixed(2)}\n`;
         message += `Sconto finale applicato: ${Math.floor(finalDiscount)}%\n`;
+        if (userLoyaltyDiscount > 0) {
+          message += `🌟 Sconto fedeltà livello ${userLoyaltyLevel}: −${userLoyaltyDiscount}%\n`;
+        }
         message += `Risparmio totale: €${userData.totalSavings.toFixed(2)}\n\n`;
         message += `💰 TOTALE DA PAGARE: €${userData.totalFinal.toFixed(2)}\n`;
         message += `━━━━━━━━━━━━━━━━━━━━━━\n\n`;
@@ -493,8 +543,11 @@ serve(async (req) => {
       const confirmResult = confirmResults.find(r => r.bookingId === booking.id);
       if (confirmResult?.success) {
         ordersBySupplier[key].bookings.push(booking);
-        const finalPrice = Number(booking.original_price) * (1 - finalDiscount / 100);
-        ordersBySupplier[key].total_value += finalPrice;
+        // Use the loyalty-adjusted final price stored in confirmResult
+        const effectiveFinalPrice = confirmResult.finalPrice
+          ? Number(confirmResult.finalPrice)
+          : Number(booking.original_price) * (1 - finalDiscount / 100);
+        ordersBySupplier[key].total_value += effectiveFinalPrice;
       }
     }
 
@@ -531,9 +584,12 @@ serve(async (req) => {
 
         console.log(`✅ Order created: ${order.id}`);
 
-        // Create order items with user_id and FINAL DISCOUNT
+        // Create order items with user_id and FINAL DISCOUNT (including loyalty)
         const orderItems = orderData.bookings.map(booking => {
-          const finalPrice = Number(booking.original_price) * (1 - finalDiscount / 100);
+          const confirmResult = confirmResults.find(r => r.bookingId === booking.id);
+          const effectiveFinalPrice = confirmResult?.finalPrice
+            ? Number(confirmResult.finalPrice)
+            : Number(booking.original_price) * (1 - finalDiscount / 100);
           return {
             order_id: order.id,
             booking_id: booking.id,
@@ -541,7 +597,7 @@ serve(async (req) => {
             product_name: booking.product_name,
             user_id: booking.user_id,
             original_price: booking.original_price,
-            final_price: finalPrice,
+            final_price: effectiveFinalPrice,
             discount_percentage: finalDiscount,
             selected_size: booking.selected_size,
             selected_color: booking.selected_color,
