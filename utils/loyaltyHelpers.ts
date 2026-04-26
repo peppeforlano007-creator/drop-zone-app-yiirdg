@@ -23,3 +23,12 @@ export function getNextLevelInfo(points: number): { nextLevel: string; pointsNee
   if (points < 700) return { nextLevel: 'Top', pointsNeeded: 700 - points };
   return null;
 }
+
+export function getLoyaltyDiscount(level: LoyaltyLevel): number {
+  switch (level) {
+    case 'Top': return 10;
+    case 'VIP': return 6;
+    case 'Fedele': return 3;
+    default: return 0;
+  }
+}

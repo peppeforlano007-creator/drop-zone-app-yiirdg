@@ -7,7 +7,6 @@ import {
   ScrollView,
   Platform,
   Pressable,
-  Alert,
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -17,47 +16,25 @@ import { IconSymbol } from '@/components/IconSymbol';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/app/integrations/supabase/client';
 import * as Haptics from 'expo-haptics';
-import { getLoyaltyLevel, getLoyaltyLevelColor } from '@/utils/loyaltyHelpers';
+import {
+  getLoyaltyLevel,
+  getLoyaltyLevelColor,
+  getLoyaltyDiscount,
+  getNextLevelInfo,
+} from '@/utils/loyaltyHelpers';
 
-interface Coupon {
-  id: string;
-  name: string;
-  description: string | null;
-  discount_percentage: number;
-  points_required: number;
-  is_active: boolean;
-}
-
-interface UserCoupon {
-  id: string;
-  coupon_code: string;
-  discount_percentage: number;
-  is_used: boolean;
-  used_at: string | null;
-  created_at: string;
-  expires_at: string | null;
-  coupons: {
-    name: string;
-    description: string | null;
-  };
-}
-
-export default function MyCouponsScreen() {
+export default function MyPointsScreen() {
   const { user } = useAuth();
-  const [availableCoupons, setAvailableCoupons] = useState<Coupon[]>([]);
-  const [userCoupons, setUserCoupons] = useState<UserCoupon[]>([]);
   const [loyaltyPoints, setLoyaltyPoints] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [redeeming, setRedeeming] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     if (!user) return;
 
-    console.log('MyCoupons: Loading data for user', user.id);
+    console.log('MyPoints: Loading points for user', user.id);
     try {
       setLoading(true);
 
-      // Load user's loyalty points
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
         .select('loyalty_points, points_balance')
@@ -65,48 +42,14 @@ export default function MyCouponsScreen() {
         .maybeSingle();
 
       if (profileError) {
-        console.error('MyCoupons: Error loading profile:', profileError);
+        console.error('MyPoints: Error loading profile:', profileError);
       } else {
         const balance = (profileData as any)?.points_balance ?? profileData?.loyalty_points ?? 0;
         setLoyaltyPoints(balance);
-        console.log('MyCoupons: points_balance:', balance);
-      }
-
-      // Load available coupons
-      const { data: couponsData, error: couponsError } = await supabase
-        .from('coupons')
-        .select('*')
-        .eq('is_active', true)
-        .order('points_required', { ascending: true });
-
-      if (couponsError) {
-        console.error('MyCoupons: Error loading coupons:', couponsError);
-      } else {
-        console.log('MyCoupons: Loaded', couponsData?.length ?? 0, 'available coupons');
-        setAvailableCoupons(couponsData || []);
-      }
-
-      // Load user's redeemed coupons
-      const { data: userCouponsData, error: userCouponsError } = await supabase
-        .from('user_coupons')
-        .select(`
-          *,
-          coupons (
-            name,
-            description
-          )
-        `)
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
-
-      if (userCouponsError) {
-        console.error('MyCoupons: Error loading user coupons:', userCouponsError);
-      } else {
-        console.log('MyCoupons: Loaded', userCouponsData?.length ?? 0, 'user coupons');
-        setUserCoupons(userCouponsData || []);
+        console.log('MyPoints: points_balance:', balance);
       }
     } catch (error) {
-      console.error('MyCoupons: Exception loading data:', error);
+      console.error('MyPoints: Exception loading data:', error);
     } finally {
       setLoading(false);
     }
@@ -116,97 +59,34 @@ export default function MyCouponsScreen() {
     loadData();
   }, [loadData]);
 
-  const handleRedeemCoupon = async (coupon: Coupon) => {
-    if (!user) return;
-
-    console.log('MyCoupons: User tapped Riscatta for coupon:', coupon.name, '(', coupon.points_required, 'pts)');
-
-    if (loyaltyPoints < coupon.points_required) {
-      Alert.alert(
-        'Punti Insufficienti',
-        `Ti servono ${coupon.points_required} punti per riscattare questo coupon. Hai solo ${loyaltyPoints} punti.`
-      );
-      return;
-    }
-
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-
-    Alert.alert(
-      'Riscatta Coupon',
-      `Vuoi riscattare "${coupon.name}" per ${coupon.points_required} punti?`,
-      [
-        { text: 'Annulla', style: 'cancel' },
-        {
-          text: 'Riscatta',
-          onPress: async () => {
-            try {
-              setRedeeming(coupon.id);
-              console.log('MyCoupons: Redeeming coupon', coupon.id);
-
-              // Generate unique coupon code
-              const couponCode = `COUPON-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
-
-              // Create user coupon
-              const { error: insertError } = await supabase
-                .from('user_coupons')
-                .insert({
-                  user_id: user.id,
-                  coupon_id: coupon.id,
-                  coupon_code: couponCode,
-                  discount_percentage: coupon.discount_percentage,
-                  expires_at: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString(), // 90 days
-                });
-
-              if (insertError) {
-                console.error('MyCoupons: Error creating coupon:', insertError);
-                Alert.alert('Errore', 'Impossibile riscattare il coupon');
-                return;
-              }
-
-              // Deduct points from balance (loyalty_points / points_balance)
-              const { error: updateError } = await supabase
-                .from('profiles')
-                .update({
-                  loyalty_points: loyaltyPoints - coupon.points_required,
-                })
-                .eq('user_id', user.id);
-
-              if (updateError) {
-                console.error('MyCoupons: Error updating points:', updateError);
-                Alert.alert('Errore', 'Impossibile aggiornare i punti');
-                return;
-              }
-
-              console.log('MyCoupons: Coupon redeemed successfully, code:', couponCode);
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-              Alert.alert(
-                'Coupon Riscattato!',
-                `Hai riscattato "${coupon.name}". Il codice coupon è: ${couponCode}`
-              );
-
-              // Reload data
-              loadData();
-            } catch (error) {
-              console.error('MyCoupons: Exception redeeming coupon:', error);
-              Alert.alert('Errore', 'Si è verificato un errore');
-            } finally {
-              setRedeeming(null);
-            }
-          },
-        },
-      ]
-    );
-  };
-
   const loyaltyLevel = getLoyaltyLevel(loyaltyPoints);
   const loyaltyLevelColor = getLoyaltyLevelColor(loyaltyLevel);
+  const discount = getLoyaltyDiscount(loyaltyLevel);
+  const nextLevelInfo = getNextLevelInfo(loyaltyPoints);
+
+  const progressMax = loyaltyLevel === 'Nuovo' ? 100 : loyaltyLevel === 'Fedele' ? 200 : loyaltyLevel === 'VIP' ? 400 : 700;
+  const progressBase = loyaltyLevel === 'Nuovo' ? 0 : loyaltyLevel === 'Fedele' ? 100 : loyaltyLevel === 'VIP' ? 300 : 700;
+  const progressValue = nextLevelInfo
+    ? Math.min((loyaltyPoints - progressBase) / (progressMax - progressBase), 1)
+    : 1;
+  const progressPercent = `${Math.round(progressValue * 100)}%`;
+
+  const discountLabel = discount > 0 ? `Sconto attivo: −${discount}% su ogni ordine` : 'Nessuno sconto attivo';
+
+  const levelExplanation = discount > 0
+    ? `Sei al livello ${loyaltyLevel}. Ogni ordine che effettui ha uno sconto automatico del ${discount}% applicato alla chiusura del drop. Non devi fare nulla.`
+    : `Sei al livello Nuovo. Raggiungi 100 punti per ottenere il 3% di sconto automatico su ogni ordine.`;
+
+  const nextLevelDiscount = nextLevelInfo
+    ? getLoyaltyDiscount(getLoyaltyLevel(loyaltyPoints + (nextLevelInfo?.pointsNeeded ?? 0)))
+    : 0;
 
   if (loading) {
     return (
       <SafeAreaView style={styles.safeArea} edges={['bottom']}>
         <Stack.Screen
           options={{
-            title: 'I Miei Coupon',
+            title: 'I Miei Punti',
             headerStyle: { backgroundColor: colors.background },
             headerTintColor: colors.text,
           }}
@@ -223,7 +103,7 @@ export default function MyCouponsScreen() {
     <>
       <Stack.Screen
         options={{
-          title: 'I Miei Coupon',
+          title: 'I Miei Punti',
           headerStyle: { backgroundColor: colors.background },
           headerTintColor: colors.text,
         }}
@@ -236,7 +116,7 @@ export default function MyCouponsScreen() {
             Platform.OS !== 'ios' && styles.contentContainerWithTabBar,
           ]}
         >
-          {/* Points Balance */}
+          {/* Points Balance Card */}
           <View style={styles.pointsCard}>
             <View style={styles.pointsHeader}>
               <IconSymbol
@@ -246,7 +126,7 @@ export default function MyCouponsScreen() {
                 color="#FFD700"
               />
               <View style={styles.pointsInfo}>
-                <Text style={styles.pointsBalanceLabel}>Saldo Spendibile</Text>
+                <Text style={styles.pointsBalanceLabel}>Saldo Punti</Text>
                 <Text style={styles.pointsValue}>{loyaltyPoints}</Text>
                 <View style={styles.levelRow}>
                   <Text style={styles.levelPrefix}>Livello:</Text>
@@ -254,13 +134,13 @@ export default function MyCouponsScreen() {
                     <Text style={styles.levelBadgeText}>{loyaltyLevel}</Text>
                   </View>
                 </View>
-
+                <Text style={styles.discountLabel}>{discountLabel}</Text>
               </View>
             </View>
             <Pressable
               style={styles.learnMoreButton}
               onPress={() => {
-                console.log('MyCoupons: User tapped Scopri come funziona il programma fedeltà');
+                console.log('MyPoints: User tapped Scopri come funziona il programma fedeltà');
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                 router.push('/loyalty-program');
               }}
@@ -275,127 +155,75 @@ export default function MyCouponsScreen() {
             </Pressable>
           </View>
 
-          {/* Available Coupons */}
+          {/* Il Tuo Livello */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Riscatta Coupon</Text>
-            {availableCoupons.length > 0 ? (
-              availableCoupons.map((coupon) => {
-                const canRedeem = loyaltyPoints >= coupon.points_required;
-                const isRedeeming = redeeming === coupon.id;
+            <Text style={styles.sectionTitle}>Il Tuo Livello</Text>
+            <View style={styles.card}>
+              <View style={styles.cardIconRow}>
+                <View style={[styles.levelBadgeLarge, { backgroundColor: loyaltyLevelColor }]}>
+                  <Text style={styles.levelBadgeLargeText}>{loyaltyLevel}</Text>
+                </View>
+              </View>
+              <Text style={styles.cardText}>{levelExplanation}</Text>
+            </View>
+          </View>
 
-                return (
-                  <View key={coupon.id} style={styles.couponCard}>
-                    <View style={styles.couponHeader}>
-                      <View style={styles.couponBadge}>
-                        <Text style={styles.couponDiscount}>{coupon.discount_percentage}%</Text>
-                      </View>
-                      <View style={styles.couponInfo}>
-                        <Text style={styles.couponName}>{coupon.name}</Text>
-                        <Text style={styles.couponDescription}>
-                          {coupon.description || 'Sconto sul prossimo ordine'}
-                        </Text>
-                        <Text style={styles.couponPoints}>
-                          {coupon.points_required} punti
-                        </Text>
-                      </View>
-                    </View>
-                    <Pressable
-                      style={[
-                        styles.redeemButton,
-                        !canRedeem && styles.redeemButtonDisabled,
-                      ]}
-                      onPress={() => handleRedeemCoupon(coupon)}
-                      disabled={!canRedeem || isRedeeming}
-                    >
-                      {isRedeeming ? (
-                        <ActivityIndicator size="small" color="#FFFFFF" />
-                      ) : (
-                        <>
-                          <IconSymbol
-                            ios_icon_name="ticket.fill"
-                            android_material_icon_name="local_offer"
-                            size={20}
-                            color="#FFFFFF"
-                          />
-                          <Text style={styles.redeemButtonText}>
-                            {canRedeem ? 'Riscatta' : 'Punti Insufficienti'}
-                          </Text>
-                        </>
-                      )}
-                    </Pressable>
-                  </View>
-                );
-              })
+          {/* Prossimo Livello */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Prossimo Livello</Text>
+            {nextLevelInfo ? (
+              <View style={styles.card}>
+                <View style={styles.progressBar}>
+                  <View
+                    style={[
+                      styles.progressFill,
+                      { width: progressPercent as any, backgroundColor: loyaltyLevelColor },
+                    ]}
+                  />
+                </View>
+                <Text style={styles.progressLabel}>
+                  Ti mancano
+                  <Text style={styles.progressHighlight}> {nextLevelInfo.pointsNeeded} punti </Text>
+                  per raggiungere
+                  <Text style={styles.progressHighlight}> {nextLevelInfo.nextLevel} </Text>
+                  e ottenere lo sconto del
+                  <Text style={styles.progressHighlight}> {nextLevelDiscount}%</Text>
+                </Text>
+              </View>
             ) : (
-              <View style={styles.emptyState}>
+              <View style={[styles.card, styles.topCard]}>
                 <IconSymbol
-                  ios_icon_name="ticket"
-                  android_material_icon_name="local_offer"
-                  size={48}
-                  color={colors.textTertiary}
+                  ios_icon_name="star.circle.fill"
+                  android_material_icon_name="stars"
+                  size={32}
+                  color="#FFD700"
                 />
-                <Text style={styles.emptyText}>Nessun coupon disponibile</Text>
+                <Text style={styles.topCardText}>
+                  Hai raggiunto il livello massimo! Goditi il 10% di sconto su ogni ordine.
+                </Text>
               </View>
             )}
           </View>
 
-          {/* User's Coupons */}
+          {/* Come Guadagni Punti */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>I Tuoi Coupon Riscattati</Text>
-            {userCoupons.length > 0 ? (
-              userCoupons.map((userCoupon) => (
-                <View
-                  key={userCoupon.id}
-                  style={[
-                    styles.userCouponCard,
-                    userCoupon.is_used && styles.userCouponCardUsed,
-                  ]}
-                >
-                  <View style={styles.userCouponHeader}>
-                    <View style={styles.userCouponBadge}>
-                      <Text style={styles.userCouponDiscount}>
-                        {userCoupon.discount_percentage}%
-                      </Text>
-                    </View>
-                    <View style={styles.userCouponInfo}>
-                      <Text style={styles.userCouponName}>
-                        {userCoupon.coupons.name}
-                      </Text>
-                      <Text style={styles.userCouponCode}>
-                        Codice: {userCoupon.coupon_code}
-                      </Text>
-                      {userCoupon.is_used ? (
-                        <Text style={styles.userCouponStatus}>
-                          ✓ Utilizzato il{' '}
-                          {new Date(userCoupon.used_at!).toLocaleDateString('it-IT')}
-                        </Text>
-                      ) : (
-                        <Text style={styles.userCouponStatusActive}>
-                          ✓ Attivo - Usa al prossimo ordine
-                        </Text>
-                      )}
-                    </View>
-                  </View>
-                  {!userCoupon.is_used && userCoupon.expires_at && (
-                    <Text style={styles.expiryText}>
-                      Scade il {new Date(userCoupon.expires_at).toLocaleDateString('it-IT')}
-                    </Text>
-                  )}
-                </View>
-              ))
-            ) : (
-              <View style={styles.emptyState}>
-                <IconSymbol
-                  ios_icon_name="ticket"
-                  android_material_icon_name="local_offer"
-                  size={48}
-                  color={colors.textTertiary}
-                />
-                <Text style={styles.emptyText}>
-                  Non hai ancora riscattato nessun coupon
-                </Text>
+            <Text style={styles.sectionTitle}>Come Guadagni Punti</Text>
+            <View style={styles.card}>
+              <View style={styles.ruleRow}>
+                <Text style={styles.ruleIcon}>✓</Text>
+                <Text style={styles.ruleText}>€1 speso = 1 punto</Text>
               </View>
-            )}
+              <View style={styles.ruleDivider} />
+              <View style={styles.ruleRow}>
+                <Text style={styles.ruleIconNeg}>✗</Text>
+                <Text style={styles.ruleText}>Ordine non ritirato = −50 punti</Text>
+              </View>
+              <View style={styles.ruleDivider} />
+              <View style={styles.ruleRow}>
+                <Text style={styles.ruleIconNeg}>✗</Text>
+                <Text style={styles.ruleText}>Reso = −20 punti + punti ordine</Text>
+              </View>
+            </View>
           </View>
         </ScrollView>
       </SafeAreaView>
@@ -451,7 +279,7 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   pointsValue: {
-    fontSize: 32,
+    fontSize: 40,
     fontWeight: '800',
     color: colors.text,
     marginBottom: 6,
@@ -460,7 +288,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginBottom: 4,
+    marginBottom: 6,
   },
   levelPrefix: {
     fontSize: 13,
@@ -476,9 +304,10 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FFFFFF',
   },
-  totalPointsSmall: {
-    fontSize: 12,
-    color: colors.textSecondary,
+  discountLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.text,
   },
   learnMoreButton: {
     flexDirection: 'row',
@@ -495,15 +324,16 @@ const styles = StyleSheet.create({
     color: colors.primary,
   },
   section: {
-    padding: 20,
+    paddingHorizontal: 20,
+    paddingBottom: 4,
   },
   sectionTitle: {
     fontSize: 20,
     fontWeight: '700',
     color: colors.text,
-    marginBottom: 16,
+    marginBottom: 12,
   },
-  couponCard: {
+  card: {
     backgroundColor: colors.card,
     borderRadius: 12,
     padding: 20,
@@ -511,129 +341,85 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
-  couponHeader: {
-    flexDirection: 'row',
-    gap: 16,
-    marginBottom: 16,
+  cardIconRow: {
+    marginBottom: 12,
   },
-  couponBadge: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: colors.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  couponDiscount: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-  couponInfo: {
-    flex: 1,
-  },
-  couponName: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: colors.text,
+  levelBadgeLarge: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    borderRadius: 10,
     marginBottom: 4,
   },
-  couponDescription: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    marginBottom: 8,
-  },
-  couponPoints: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.primary,
-  },
-  redeemButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: colors.primary,
-    borderRadius: 8,
-    paddingVertical: 12,
-  },
-  redeemButtonDisabled: {
-    backgroundColor: colors.textTertiary,
-    opacity: 0.5,
-  },
-  redeemButtonText: {
+  levelBadgeLargeText: {
     fontSize: 16,
     fontWeight: '700',
     color: '#FFFFFF',
   },
-  userCouponCard: {
-    backgroundColor: colors.card,
-    borderRadius: 12,
-    padding: 20,
-    marginBottom: 16,
-    borderWidth: 2,
-    borderColor: colors.success,
+  cardText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    lineHeight: 22,
   },
-  userCouponCardUsed: {
-    borderColor: colors.border,
-    opacity: 0.6,
+  progressBar: {
+    height: 10,
+    backgroundColor: colors.backgroundSecondary,
+    borderRadius: 5,
+    overflow: 'hidden',
+    marginBottom: 12,
   },
-  userCouponHeader: {
-    flexDirection: 'row',
-    gap: 16,
+  progressFill: {
+    height: '100%',
+    borderRadius: 5,
   },
-  userCouponBadge: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: colors.success,
-    justifyContent: 'center',
-    alignItems: 'center',
+  progressLabel: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    lineHeight: 22,
   },
-  userCouponDiscount: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-  userCouponInfo: {
-    flex: 1,
-  },
-  userCouponName: {
-    fontSize: 16,
+  progressHighlight: {
     fontWeight: '700',
     color: colors.text,
-    marginBottom: 4,
   },
-  userCouponCode: {
-    fontSize: 12,
-    fontFamily: 'monospace',
-    color: colors.textSecondary,
-    marginBottom: 8,
+  topCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
   },
-  userCouponStatus: {
-    fontSize: 12,
-    color: colors.textSecondary,
-  },
-  userCouponStatusActive: {
-    fontSize: 12,
+  topCardText: {
+    flex: 1,
+    fontSize: 14,
+    color: colors.text,
+    lineHeight: 22,
     fontWeight: '600',
+  },
+  ruleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 8,
+  },
+  ruleIcon: {
+    fontSize: 18,
+    fontWeight: '700',
     color: colors.success,
-  },
-  expiryText: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    marginTop: 12,
+    width: 24,
     textAlign: 'center',
   },
-  emptyState: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 60,
-  },
-  emptyText: {
-    fontSize: 16,
-    color: colors.textSecondary,
-    marginTop: 16,
+  ruleIconNeg: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.error,
+    width: 24,
     textAlign: 'center',
+  },
+  ruleText: {
+    fontSize: 14,
+    color: colors.text,
+    flex: 1,
+  },
+  ruleDivider: {
+    height: 1,
+    backgroundColor: colors.border,
   },
 });

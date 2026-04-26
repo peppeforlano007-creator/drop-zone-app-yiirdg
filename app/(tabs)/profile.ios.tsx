@@ -264,7 +264,7 @@ export default function ProfileScreen() {
   };
 
   const handleViewCoupons = () => {
-    console.log('Profile (iOS): User tapped I Miei Coupon');
+    console.log('Profile (iOS): User tapped I Miei Punti');
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push('/my-coupons');
   };
@@ -414,11 +414,11 @@ export default function ProfileScreen() {
                   </View>
                 </View>
                 <Text style={styles.loyaltyDescription}>
-                  Guadagni 1 punto per ogni euro speso. Usa il saldo per riscattare coupon sconto.
+                  Guadagni 1 punto per ogni euro speso. Il tuo livello determina lo sconto automatico applicato su ogni ordine.
                 </Text>
                 <Pressable style={styles.couponsButton} onPress={handleViewCoupons}>
-                  <IconSymbol ios_icon_name="ticket.fill" android_material_icon_name="local-offer" size={20} color={colors.background} />
-                  <Text style={styles.couponsButtonText}>I Miei Coupon</Text>
+                  <IconSymbol ios_icon_name="star.circle.fill" android_material_icon_name="stars" size={20} color={colors.background} />
+                  <Text style={styles.couponsButtonText}>I Miei Punti</Text>
                 </Pressable>
               </View>
             </View>
