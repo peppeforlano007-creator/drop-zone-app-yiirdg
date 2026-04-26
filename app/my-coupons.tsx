@@ -35,18 +35,18 @@ export default function MyPointsScreen() {
     try {
       setLoading(true);
 
-      const { data: profileData, error: profileError } = await supabase
+      const { data, error } = await supabase
         .from('profiles')
-        .select('loyalty_points, points_balance')
+        .select('points_total, loyalty_points')
         .eq('user_id', user.id)
         .maybeSingle();
 
-      if (profileError) {
-        console.error('MyPoints: Error loading profile:', profileError);
+      if (error) {
+        console.error('MyPoints: Error loading profile:', error);
       } else {
-        const balance = (profileData as any)?.points_balance ?? profileData?.loyalty_points ?? 0;
-        setLoyaltyPoints(balance);
-        console.log('MyPoints: points_balance:', balance);
+        const points = (data as any)?.points_total ?? data?.loyalty_points ?? 0;
+        setLoyaltyPoints(points);
+        console.log('MyPoints: points_total:', points);
       }
     } catch (error) {
       console.error('MyPoints: Exception loading data:', error);
@@ -64,8 +64,8 @@ export default function MyPointsScreen() {
   const discount = getLoyaltyDiscount(loyaltyLevel);
   const nextLevelInfo = getNextLevelInfo(loyaltyPoints);
 
-  const progressMax = loyaltyLevel === 'Nuovo' ? 100 : loyaltyLevel === 'Fedele' ? 200 : loyaltyLevel === 'VIP' ? 400 : 700;
   const progressBase = loyaltyLevel === 'Nuovo' ? 0 : loyaltyLevel === 'Fedele' ? 100 : loyaltyLevel === 'VIP' ? 300 : 700;
+  const progressMax = loyaltyLevel === 'Nuovo' ? 100 : loyaltyLevel === 'Fedele' ? 300 : loyaltyLevel === 'VIP' ? 700 : 700;
   const progressValue = nextLevelInfo
     ? Math.min((loyaltyPoints - progressBase) / (progressMax - progressBase), 1)
     : 1;
@@ -126,7 +126,7 @@ export default function MyPointsScreen() {
                 color="#FFD700"
               />
               <View style={styles.pointsInfo}>
-                <Text style={styles.pointsBalanceLabel}>Saldo Punti</Text>
+                <Text style={styles.pointsBalanceLabel}>Punti Totali</Text>
                 <Text style={styles.pointsValue}>{loyaltyPoints}</Text>
                 <View style={styles.levelRow}>
                   <Text style={styles.levelPrefix}>Livello:</Text>
@@ -215,13 +215,13 @@ export default function MyPointsScreen() {
               </View>
               <View style={styles.ruleDivider} />
               <View style={styles.ruleRow}>
-                <Text style={styles.ruleIconNeg}>✗</Text>
-                <Text style={styles.ruleText}>Ordine non ritirato = −50 punti</Text>
+                <Text style={styles.ruleIcon}>✓</Text>
+                <Text style={styles.ruleText}>Solo acquisti completati e ritirati</Text>
               </View>
               <View style={styles.ruleDivider} />
               <View style={styles.ruleRow}>
-                <Text style={styles.ruleIconNeg}>✗</Text>
-                <Text style={styles.ruleText}>Reso = −20 punti + punti ordine</Text>
+                <Text style={styles.ruleIcon}>↑</Text>
+                <Text style={styles.ruleText}>I punti crescono sempre — non scendono mai</Text>
               </View>
             </View>
           </View>
@@ -403,13 +403,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     color: colors.success,
-    width: 24,
-    textAlign: 'center',
-  },
-  ruleIconNeg: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: colors.error,
     width: 24,
     textAlign: 'center',
   },

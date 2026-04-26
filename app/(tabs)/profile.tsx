@@ -35,7 +35,7 @@ export default function ProfileScreen() {
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('loyalty_points, points_balance, account_blocked')
+        .select('points_total, loyalty_points, account_blocked')
         .eq('user_id', user.id)
         .maybeSingle();
 
@@ -47,11 +47,11 @@ export default function ProfileScreen() {
       }
 
       if (data) {
-        const balance = (data as any).points_balance ?? data.loyalty_points ?? 0;
-        setPointsBalance(balance);
+        const pts = (data as any).points_total ?? data.loyalty_points ?? 0;
+        setPointsBalance(pts);
         setAccountBlocked((data as any).account_blocked ?? false);
         setProfileError(null);
-        console.log('Profile: Loaded points_balance:', balance);
+        console.log('Profile: Loaded points_total:', pts);
       } else {
         setProfileError('Profilo non trovato');
       }
@@ -409,7 +409,7 @@ export default function ProfileScreen() {
                 <View style={styles.loyaltyHeader}>
                   <IconSymbol ios_icon_name="star.circle.fill" android_material_icon_name="stars" size={32} color="#FFD700" />
                   <View style={styles.loyaltyInfo}>
-                    <Text style={styles.loyaltyTitle}>Saldo Spendibile</Text>
+                    <Text style={styles.loyaltyTitle}>Punti Totali</Text>
                     <Text style={styles.loyaltyPoints}>{pointsBalance} punti</Text>
                   </View>
                 </View>
