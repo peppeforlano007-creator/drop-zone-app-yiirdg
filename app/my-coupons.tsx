@@ -47,7 +47,6 @@ export default function MyCouponsScreen() {
   const [availableCoupons, setAvailableCoupons] = useState<Coupon[]>([]);
   const [userCoupons, setUserCoupons] = useState<UserCoupon[]>([]);
   const [loyaltyPoints, setLoyaltyPoints] = useState(0);
-  const [pointsTotal, setPointsTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [redeeming, setRedeeming] = useState<string | null>(null);
 
@@ -61,7 +60,7 @@ export default function MyCouponsScreen() {
       // Load user's loyalty points
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
-        .select('loyalty_points, points_balance, points_total')
+        .select('loyalty_points, points_balance')
         .eq('user_id', user.id)
         .maybeSingle();
 
@@ -69,10 +68,8 @@ export default function MyCouponsScreen() {
         console.error('MyCoupons: Error loading profile:', profileError);
       } else {
         const balance = (profileData as any)?.points_balance ?? profileData?.loyalty_points ?? 0;
-        const total = (profileData as any)?.points_total ?? profileData?.loyalty_points ?? 0;
         setLoyaltyPoints(balance);
-        setPointsTotal(total);
-        console.log('MyCoupons: points_balance:', balance, 'points_total:', total);
+        console.log('MyCoupons: points_balance:', balance);
       }
 
       // Load available coupons
@@ -201,7 +198,7 @@ export default function MyCouponsScreen() {
     );
   };
 
-  const loyaltyLevel = getLoyaltyLevel(pointsTotal);
+  const loyaltyLevel = getLoyaltyLevel(loyaltyPoints);
   const loyaltyLevelColor = getLoyaltyLevelColor(loyaltyLevel);
 
   if (loading) {
@@ -257,7 +254,7 @@ export default function MyCouponsScreen() {
                     <Text style={styles.levelBadgeText}>{loyaltyLevel}</Text>
                   </View>
                 </View>
-                <Text style={styles.totalPointsSmall}>Punti totali: {pointsTotal}</Text>
+
               </View>
             </View>
             <Pressable

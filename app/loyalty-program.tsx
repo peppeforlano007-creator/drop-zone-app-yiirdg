@@ -158,7 +158,7 @@ export default function LoyaltyProgramScreen() {
                 <Text style={styles.cardTitle}>Sali di Livello</Text>
               </View>
               <Text style={styles.cardText}>
-                Il tuo livello dipende dai punti totali storici e non scende mai.
+                Il tuo livello dipende dal tuo saldo punti attuale. Più punti hai, più alto è il tuo livello.
               </Text>
               <View style={styles.levelsTable}>
                 {LEVELS.map((level) => (
@@ -254,25 +254,11 @@ export default function LoyaltyProgramScreen() {
                 <Text style={styles.cardTitle}>Penalità Reso</Text>
               </View>
               <Text style={styles.cardText}>
-                Ogni reso comporta la perdita di 20 punti fissi più i punti guadagnati sull&apos;ordine. Gli utenti VIP pagano solo 10 punti fissi, i Top non pagano penalità fisse.
+                Ogni reso comporta la perdita di 20 punti fissi più i punti guadagnati sull&apos;ordine restituito.
               </Text>
             </View>
 
-            {/* Il Livello Non Scende Mai */}
-            <View style={styles.card}>
-              <View style={styles.cardHeader}>
-                <IconSymbol
-                  ios_icon_name="shield.fill"
-                  android_material_icon_name="shield"
-                  size={24}
-                  color={colors.success}
-                />
-                <Text style={styles.cardTitle}>Il Livello Non Scende Mai</Text>
-              </View>
-              <Text style={styles.cardText}>
-                Il tuo livello si basa sui punti totali storici e non può mai scendere. Solo il saldo spendibile varia.
-              </Text>
-            </View>
+
           </View>
         </ScrollView>
       </SafeAreaView>

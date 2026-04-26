@@ -19,7 +19,6 @@ export default function ProfileScreen() {
   const [whatsappNumber, setWhatsappNumber] = useState('393123456789');
   const [loadingWhatsapp, setLoadingWhatsapp] = useState(true);
   const [pointsBalance, setPointsBalance] = useState(0);
-  const [pointsTotal, setPointsTotal] = useState(0);
   const [accountBlocked, setAccountBlocked] = useState(false);
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [wishlistCount, setWishlistCount] = useState(0);
@@ -36,7 +35,7 @@ export default function ProfileScreen() {
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('loyalty_points, points_balance, points_total, account_blocked')
+        .select('loyalty_points, points_balance, account_blocked')
         .eq('user_id', user.id)
         .maybeSingle();
 
@@ -49,12 +48,10 @@ export default function ProfileScreen() {
 
       if (data) {
         const balance = (data as any).points_balance ?? data.loyalty_points ?? 0;
-        const total = (data as any).points_total ?? data.loyalty_points ?? 0;
         setPointsBalance(balance);
-        setPointsTotal(total);
         setAccountBlocked((data as any).account_blocked ?? false);
         setProfileError(null);
-        console.log('Profile (iOS): Loaded points_balance:', balance, 'points_total:', total);
+        console.log('Profile (iOS): Loaded points_balance:', balance);
       } else {
         setProfileError('Profilo non trovato');
       }
@@ -329,12 +326,12 @@ export default function ProfileScreen() {
     );
   }
 
-  const loyaltyLevel = getLoyaltyLevel(pointsTotal);
+  const loyaltyLevel = getLoyaltyLevel(pointsBalance);
   const loyaltyLevelColor = getLoyaltyLevelColor(loyaltyLevel);
-  const nextLevelInfo = getNextLevelInfo(pointsTotal);
+  const nextLevelInfo = getNextLevelInfo(pointsBalance);
   const progressMax = loyaltyLevel === 'Nuovo' ? 100 : loyaltyLevel === 'Fedele' ? 200 : loyaltyLevel === 'VIP' ? 400 : 700;
   const progressBase = loyaltyLevel === 'Nuovo' ? 0 : loyaltyLevel === 'Fedele' ? 100 : loyaltyLevel === 'VIP' ? 300 : 700;
-  const progressValue = nextLevelInfo ? Math.min((pointsTotal - progressBase) / (progressMax - progressBase), 1) : 1;
+  const progressValue = nextLevelInfo ? Math.min((pointsBalance - progressBase) / (progressMax - progressBase), 1) : 1;
 
   return (
     <>
@@ -387,7 +384,6 @@ export default function ProfileScreen() {
                   </View>
                   <View style={styles.levelDetails}>
                     <Text style={styles.levelLabel}>Livello attuale</Text>
-                    <Text style={styles.totalPointsText}>{pointsTotal} punti totali</Text>
                   </View>
                 </View>
 
