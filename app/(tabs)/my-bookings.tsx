@@ -357,6 +357,7 @@ export default function MyBookingsScreen() {
             const authorizedAmount = typeof booking.authorized_amount === 'number' ? booking.authorized_amount : 0;
             const discountPercentage = displayDiscountPercentage;
             const finalPrice = typeof booking.final_price === 'number' ? booking.final_price : 0;
+            const loyaltyDiscount = Number((booking as any).loyalty_discount ?? 0);
 
             return (
               <View key={booking.id} style={styles.bookingCard}>
@@ -401,9 +402,15 @@ export default function MyBookingsScreen() {
                     <Text style={styles.priceValue}>€{originalPrice.toFixed(2)}</Text>
                   </View>
                   <View style={styles.priceRow}>
-                    <Text style={styles.priceLabel}>Sconto prenotazione:</Text>
+                    <Text style={styles.priceLabel}>{isDropCompleted && finalPrice > 0 ? 'Sconto drop:' : 'Sconto prenotazione:'}</Text>
                     <Text style={styles.discountValue}>{discountPercentage.toFixed(1)}%</Text>
                   </View>
+                  {isDropCompleted && finalPrice > 0 && loyaltyDiscount > 0 && (
+                    <View style={styles.priceRow}>
+                      <Text style={styles.priceLabel}>Sconto fedeltà:</Text>
+                      <Text style={styles.loyaltyDiscountValue}>−{loyaltyDiscount.toFixed(1)}%</Text>
+                    </View>
+                  )}
                   <View style={styles.priceRow}>
                     <Text style={styles.priceLabel}>Importo bloccato:</Text>
                     <Text style={[styles.priceValue, isRefunded && styles.refundedAmount]}>
@@ -411,7 +418,16 @@ export default function MyBookingsScreen() {
                       {isRefunded && ' (Rilasciato)'}
                     </Text>
                   </View>
-                  {finalPrice > 0 && (
+                  {isDropCompleted && finalPrice > 0 && (
+                    <>
+                      <View style={[styles.priceRow, styles.finalPriceRow]}>
+                        <Text style={styles.finalPriceLabel}>Da pagare al ritiro:</Text>
+                        <Text style={styles.finalPriceValue}>€{finalPrice.toFixed(2)}</Text>
+                      </View>
+                      <Text style={styles.cashPaymentHint}>ℹ️ Paga in contanti al momento del ritiro</Text>
+                    </>
+                  )}
+                  {!isDropCompleted && finalPrice > 0 && (
                     <View style={[styles.priceRow, styles.finalPriceRow]}>
                       <Text style={styles.finalPriceLabel}>Importo finale:</Text>
                       <Text style={styles.finalPriceValue}>€{finalPrice.toFixed(2)}</Text>
@@ -419,7 +435,13 @@ export default function MyBookingsScreen() {
                   )}
                 </View>
 
-                {dropStatus === 'active' && (
+                {isDropCompleted ? (
+                  <View style={styles.completedDropSummary}>
+                    <Text style={styles.completedDropSummaryText}>
+                      ✅ Drop completato — Sconto finale: {discountPercentage.toFixed(1)}%{loyaltyDiscount > 0 ? ` + ${loyaltyDiscount.toFixed(1)}% fedeltà` : ''}
+                    </Text>
+                  </View>
+                ) : dropStatus === 'active' ? (
                   <View style={styles.discountProgress}>
                     <Text style={styles.discountProgressLabel}>
                       Sconto attuale: {currentDiscount.toFixed(1)}% 
@@ -437,7 +459,7 @@ export default function MyBookingsScreen() {
                       💡 Condividi il drop per aumentare lo sconto!
                     </Text>
                   </View>
-                )}
+                ) : null}
 
                 {canCancel && (
                   <Pressable
@@ -666,6 +688,34 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.textSecondary,
     fontStyle: 'italic',
+    fontFamily: 'System',
+  },
+  loyaltyDiscountValue: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.success,
+    fontFamily: 'System',
+  },
+  cashPaymentHint: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    marginTop: 6,
+    fontFamily: 'System',
+  },
+  completedDropSummary: {
+    backgroundColor: colors.success + '18',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: colors.success + '40',
+  },
+  completedDropSummaryText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.success,
+    textAlign: 'center',
     fontFamily: 'System',
   },
   cancelButton: {
