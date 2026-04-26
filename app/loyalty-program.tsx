@@ -5,7 +5,6 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  Platform,
   Pressable,
   ActivityIndicator,
 } from 'react-native';
@@ -24,6 +23,20 @@ interface Coupon {
   points_required: number;
 }
 
+const LEVELS = [
+  { name: 'Nuovo', range: '0–99', benefit: 'Nessun beneficio extra' },
+  { name: 'Fedele', range: '100–299', benefit: 'Coupon 5% ogni 100 punti' },
+  { name: 'VIP', range: '300–699', benefit: 'Coupon 10% + penalità reso ridotta' },
+  { name: 'Top', range: '700+', benefit: 'Coupon 15% + penalità azzerata + priorità lista d\'attesa' },
+];
+
+const LEVEL_COLORS: Record<string, string> = {
+  Nuovo: '#9E9E9E',
+  Fedele: '#2196F3',
+  VIP: '#9C27B0',
+  Top: '#FFD700',
+};
+
 export default function LoyaltyProgramScreen() {
   const [loading, setLoading] = useState(true);
   const [coupons, setCoupons] = useState<Coupon[]>([]);
@@ -33,6 +46,7 @@ export default function LoyaltyProgramScreen() {
   }, []);
 
   const loadCoupons = async () => {
+    console.log('LoyaltyProgram: Loading available coupons');
     try {
       const { data, error } = await supabase
         .from('coupons')
@@ -41,12 +55,13 @@ export default function LoyaltyProgramScreen() {
         .order('points_required', { ascending: true });
 
       if (error) {
-        console.error('Error loading coupons:', error);
+        console.error('LoyaltyProgram: Error loading coupons:', error);
       } else {
+        console.log('LoyaltyProgram: Loaded', data?.length ?? 0, 'coupons');
         setCoupons(data || []);
       }
     } catch (error) {
-      console.error('Error loading coupons:', error);
+      console.error('LoyaltyProgram: Exception loading coupons:', error);
     } finally {
       setLoading(false);
     }
@@ -58,7 +73,7 @@ export default function LoyaltyProgramScreen() {
   };
 
   const handleRedeemCoupons = () => {
-    console.log('User tapped Riscatta i Miei Coupon button');
+    console.log('LoyaltyProgram: User tapped Riscatta i Miei Coupon');
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     router.push('/my-coupons');
   };
@@ -68,9 +83,7 @@ export default function LoyaltyProgramScreen() {
       <Stack.Screen
         options={{
           title: 'Programma Fedeltà',
-          headerStyle: {
-            backgroundColor: colors.background,
-          },
+          headerStyle: { backgroundColor: colors.background },
           headerTintColor: colors.text,
         }}
       />
@@ -91,16 +104,13 @@ export default function LoyaltyProgramScreen() {
             </View>
             <Text style={styles.heroTitle}>Programma Fedeltà</Text>
             <Text style={styles.heroSubtitle}>
-              Guadagna punti e riscatta coupon esclusivi
+              Guadagna punti e sali di livello per ottenere coupon esclusivi
             </Text>
           </View>
 
-          {/* CTA Button - Positioned prominently at the top */}
+          {/* CTA Button */}
           <View style={styles.ctaButtonContainer}>
-            <Pressable
-              style={styles.ctaButton}
-              onPress={handleRedeemCoupons}
-            >
+            <Pressable style={styles.ctaButton} onPress={handleRedeemCoupons}>
               <IconSymbol
                 ios_icon_name="ticket.fill"
                 android_material_icon_name="local_offer"
@@ -111,26 +121,11 @@ export default function LoyaltyProgramScreen() {
             </Pressable>
           </View>
 
-          {/* How it works */}
+          {/* Come Funziona */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Come Funziona</Text>
-            
-            <View style={styles.card}>
-              <View style={styles.cardHeader}>
-                <IconSymbol
-                  ios_icon_name="star.fill"
-                  android_material_icon_name="star"
-                  size={24}
-                  color="#FFD700"
-                />
-                <Text style={styles.cardTitle}>Mantieni 5 Stelle</Text>
-              </View>
-              <Text style={styles.cardText}>
-                Solo gli utenti con rating a 5 stelle possono guadagnare punti fedeltà. 
-                Ritira sempre i tuoi ordini per mantenere il rating massimo!
-              </Text>
-            </View>
 
+            {/* Card 1: Guadagna Punti */}
             <View style={styles.card}>
               <View style={styles.cardHeader}>
                 <IconSymbol
@@ -142,7 +137,7 @@ export default function LoyaltyProgramScreen() {
                 <Text style={styles.cardTitle}>Guadagna Punti</Text>
               </View>
               <Text style={styles.cardText}>
-                Per ogni euro speso, guadagni 1 punto fedeltà. Più acquisti, più punti accumuli!
+                Per ogni €1 speso guadagni 1 punto sul tuo saldo. I punti accumulati nel tempo determinano il tuo livello.
               </Text>
               <View style={styles.exampleBox}>
                 <Text style={styles.exampleText}>
@@ -151,6 +146,36 @@ export default function LoyaltyProgramScreen() {
               </View>
             </View>
 
+            {/* Card 2: Sali di Livello */}
+            <View style={styles.card}>
+              <View style={styles.cardHeader}>
+                <IconSymbol
+                  ios_icon_name="chart.bar.fill"
+                  android_material_icon_name="bar_chart"
+                  size={24}
+                  color="#9C27B0"
+                />
+                <Text style={styles.cardTitle}>Sali di Livello</Text>
+              </View>
+              <Text style={styles.cardText}>
+                Il tuo livello dipende dai punti totali storici e non scende mai.
+              </Text>
+              <View style={styles.levelsTable}>
+                {LEVELS.map((level) => (
+                  <View key={level.name} style={styles.levelRow}>
+                    <View style={[styles.levelBadge, { backgroundColor: LEVEL_COLORS[level.name] }]}>
+                      <Text style={styles.levelBadgeText}>{level.name}</Text>
+                    </View>
+                    <View style={styles.levelInfo}>
+                      <Text style={styles.levelRange}>{level.range} punti</Text>
+                      <Text style={styles.levelBenefit}>{level.benefit}</Text>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            </View>
+
+            {/* Card 3: Riscatta Coupon */}
             <View style={styles.card}>
               <View style={styles.cardHeader}>
                 <IconSymbol
@@ -162,15 +187,15 @@ export default function LoyaltyProgramScreen() {
                 <Text style={styles.cardTitle}>Riscatta Coupon</Text>
               </View>
               <Text style={styles.cardText}>
-                Usa i tuoi punti per riscattare coupon sconto da utilizzare sui prossimi acquisti.
+                Usa il tuo saldo punti per riscattare coupon sconto da utilizzare sui prossimi acquisti.
               </Text>
             </View>
           </View>
 
-          {/* Coupon Tiers */}
+          {/* Coupon Disponibili */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Coupon Disponibili</Text>
-            
+
             {loading ? (
               <View style={styles.loadingContainer}>
                 <ActivityIndicator size="large" color={colors.primary} />
@@ -197,234 +222,55 @@ export default function LoyaltyProgramScreen() {
             )}
           </View>
 
-          {/* Additional Points */}
+          {/* Regole Importanti */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Altri Modi per Guadagnare Punti</Text>
-            
+            <Text style={styles.sectionTitle}>Regole Importanti</Text>
+
+            {/* Ordine Non Ritirato */}
             <View style={styles.card}>
               <View style={styles.cardHeader}>
-                <IconSymbol
-                  ios_icon_name="gamecontroller.fill"
-                  android_material_icon_name="sports_esports"
-                  size={24}
-                  color="#FF6B35"
-                />
-                <Text style={styles.cardTitle}>Il Gioco delle Liste</Text>
-              </View>
-              <Text style={styles.cardText}>
-                Completa 4 sfide settimanali nella sezione Punti per guadagnare punti extra. Le sfide si sbloccano progressivamente:
-              </Text>
-              
-              {/* Challenge 1: COLLEZIONISTA */}
-              <View style={styles.challengeCard}>
-                <View style={styles.challengeHeader}>
-                  <View style={styles.challengeNumberBadge}>
-                    <Text style={styles.challengeNumberText}>1</Text>
-                  </View>
-                  <View style={styles.challengeContent}>
-                    <Text style={styles.challengeTitle}>COLLEZIONISTA</Text>
-                    <Text style={styles.challengeDescription}>
-                      Esplora i prodotti di tutte le liste disponibili
-                    </Text>
-                    <View style={styles.challengeReward}>
-                      <IconSymbol
-                        ios_icon_name="star.fill"
-                        android_material_icon_name="star"
-                        size={14}
-                        color="#FFD700"
-                      />
-                      <Text style={styles.challengeRewardText}>100 punti</Text>
-                    </View>
-                  </View>
-                </View>
-              </View>
-
-              {/* Challenge 2: NAVIGATORE */}
-              <View style={styles.challengeCard}>
-                <View style={styles.challengeHeader}>
-                  <View style={styles.challengeNumberBadge}>
-                    <Text style={styles.challengeNumberText}>2</Text>
-                  </View>
-                  <View style={styles.challengeContent}>
-                    <Text style={styles.challengeTitle}>NAVIGATORE</Text>
-                    <Text style={styles.challengeDescription}>
-                      Naviga fino in fondo per scoprire tutti i prodotti di una lista
-                    </Text>
-                    <View style={styles.challengeReward}>
-                      <IconSymbol
-                        ios_icon_name="star.fill"
-                        android_material_icon_name="star"
-                        size={14}
-                        color="#FFD700"
-                      />
-                      <Text style={styles.challengeRewardText}>150 punti</Text>
-                    </View>
-                    <Text style={styles.challengeUnlock}>
-                      Sblocca: CACCIATORE DI OFFERTE
-                    </Text>
-                  </View>
-                </View>
-              </View>
-
-              {/* Challenge 3: CACCIATORE DI OFFERTE */}
-              <View style={styles.challengeCard}>
-                <View style={styles.challengeHeader}>
-                  <View style={styles.challengeNumberBadge}>
-                    <Text style={styles.challengeNumberText}>3</Text>
-                  </View>
-                  <View style={styles.challengeContent}>
-                    <Text style={styles.challengeTitle}>CACCIATORE DI OFFERTE</Text>
-                    <Text style={styles.challengeDescription}>
-                      Mostra interesse per una lista
-                    </Text>
-                    <View style={styles.challengeReward}>
-                      <IconSymbol
-                        ios_icon_name="star.fill"
-                        android_material_icon_name="star"
-                        size={14}
-                        color="#FFD700"
-                      />
-                      <Text style={styles.challengeRewardText}>100 punti</Text>
-                    </View>
-                    <Text style={styles.challengeUnlock}>
-                      Sblocca: AMBASCIATORE
-                    </Text>
-                  </View>
-                </View>
-              </View>
-
-              {/* Challenge 4: AMBASCIATORE */}
-              <View style={styles.challengeCard}>
-                <View style={styles.challengeHeader}>
-                  <View style={styles.challengeNumberBadge}>
-                    <Text style={styles.challengeNumberText}>4</Text>
-                  </View>
-                  <View style={styles.challengeContent}>
-                    <Text style={styles.challengeTitle}>AMBASCIATORE</Text>
-                    <Text style={styles.challengeDescription}>
-                      Condividi una lista con amici e parenti e potrai attivare un drop su quella lista con ritiro nella tua città
-                    </Text>
-                    <View style={styles.challengeReward}>
-                      <IconSymbol
-                        ios_icon_name="star.fill"
-                        android_material_icon_name="star"
-                        size={14}
-                        color="#FFD700"
-                      />
-                      <Text style={styles.challengeRewardText}>200 punti</Text>
-                    </View>
-                    <Text style={styles.challengeFinal}>
-                      Sfida finale - Nessuna sfida successiva
-                    </Text>
-                  </View>
-                </View>
-              </View>
-            </View>
-
-            <View style={styles.activityCard}>
-              <IconSymbol
-                ios_icon_name="cart.fill"
-                android_material_icon_name="shopping_cart"
-                size={20}
-                color={colors.text}
-              />
-              <Text style={styles.activityText}>
-                Prenota articoli nei drop attivi e completa gli acquisti
-              </Text>
-            </View>
-
-            <View style={styles.activityCard}>
-              <IconSymbol
-                ios_icon_name="checkmark.circle.fill"
-                android_material_icon_name="check_circle"
-                size={20}
-                color={colors.text}
-              />
-              <Text style={styles.activityText}>
-                Ritira sempre i tuoi ordini per mantenere il rating a 5 stelle
-              </Text>
-            </View>
-          </View>
-
-          {/* Rating System */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Sistema di Rating</Text>
-            
-            <View style={styles.card}>
-              <View style={styles.cardHeader}>
-                <IconSymbol
-                  ios_icon_name="arrow.down.circle.fill"
-                  android_material_icon_name="remove_circle"
-                  size={24}
-                  color={colors.error}
-                />
-                <Text style={styles.cardTitle}>Penalità per Resi</Text>
-              </View>
-              <Text style={styles.cardText}>
-                Ogni ordine rispedito al mittente riduce il tuo rating di 1 stella. I punti guadagnati dall&apos;ordine vengono sottratti dal tuo saldo.
-              </Text>
-              <View style={styles.exampleBox}>
-                <Text style={styles.exampleText}>
-                  Esempio: Ordine da €50 non ritirato → Perdi 1 stella e 50 punti
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.card}>
-              <View style={styles.cardHeader}>
-                <IconSymbol
-                  ios_icon_name="exclamationmark.shield.fill"
-                  android_material_icon_name="block"
-                  size={24}
-                  color={colors.error}
-                />
-                <Text style={styles.cardTitle}>Soglia di Blocco</Text>
-              </View>
-              <Text style={styles.cardText}>
-                Se accumuli 5 o più ordini rispediti al mittente, il tuo account verrà bloccato e non potrai più effettuare prenotazioni.
-              </Text>
-              <View style={styles.warningBox}>
                 <IconSymbol
                   ios_icon_name="exclamationmark.triangle.fill"
                   android_material_icon_name="warning"
-                  size={16}
-                  color="#FF6B35"
+                  size={24}
+                  color={colors.error}
                 />
-                <Text style={styles.warningBoxText}>
-                  Ritira sempre i tuoi ordini per evitare il blocco dell&apos;account!
-                </Text>
+                <Text style={styles.cardTitle}>Ordine Non Ritirato</Text>
               </View>
+              <Text style={styles.cardText}>
+                Se non ritiri un ordine perdi 50 punti dal saldo. Dopo 5 ordini non ritirati l&apos;account viene bloccato.
+              </Text>
             </View>
 
+            {/* Penalità Reso */}
             <View style={styles.card}>
               <View style={styles.cardHeader}>
                 <IconSymbol
-                  ios_icon_name="arrow.up.circle.fill"
-                  android_material_icon_name="add_circle"
+                  ios_icon_name="arrow.uturn.backward"
+                  android_material_icon_name="undo"
+                  size={24}
+                  color={colors.error}
+                />
+                <Text style={styles.cardTitle}>Penalità Reso</Text>
+              </View>
+              <Text style={styles.cardText}>
+                Ogni reso comporta la perdita di 20 punti fissi più i punti guadagnati sull&apos;ordine. Gli utenti VIP pagano solo 10 punti fissi, i Top non pagano penalità fisse.
+              </Text>
+            </View>
+
+            {/* Il Livello Non Scende Mai */}
+            <View style={styles.card}>
+              <View style={styles.cardHeader}>
+                <IconSymbol
+                  ios_icon_name="shield.fill"
+                  android_material_icon_name="shield"
                   size={24}
                   color={colors.success}
                 />
-                <Text style={styles.cardTitle}>Recupera il Tuo Rating</Text>
+                <Text style={styles.cardTitle}>Il Livello Non Scende Mai</Text>
               </View>
               <Text style={styles.cardText}>
-                Ogni ordine ritirato con successo aumenta il tuo rating di 1 stella, fino a un massimo di 5 stelle. Continua a ritirare i tuoi ordini per tornare al rating massimo!
-              </Text>
-            </View>
-          </View>
-
-          {/* Warning */}
-          <View style={styles.warningCard}>
-            <IconSymbol
-              ios_icon_name="exclamationmark.triangle.fill"
-              android_material_icon_name="warning"
-              size={24}
-              color="#FF6B35"
-            />
-            <View style={styles.warningContent}>
-              <Text style={styles.warningTitle}>Attenzione</Text>
-              <Text style={styles.warningText}>
-                Se il tuo rating scende sotto le 5 stelle, non potrai più guadagnare punti fedeltà 
-                fino a quando non tornerai al rating massimo. Ritira sempre i tuoi ordini!
+                Il tuo livello si basa sui punti totali storici e non può mai scendere. Solo il saldo spendibile varia.
               </Text>
             </View>
           </View>
@@ -467,6 +313,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: colors.textSecondary,
     textAlign: 'center',
+    lineHeight: 22,
   },
   ctaButtonContainer: {
     paddingHorizontal: 24,
@@ -531,6 +378,40 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: colors.text,
   },
+  levelsTable: {
+    marginTop: 16,
+    gap: 10,
+  },
+  levelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  levelBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    minWidth: 64,
+    alignItems: 'center',
+  },
+  levelBadgeText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  levelInfo: {
+    flex: 1,
+  },
+  levelRange: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  levelBenefit: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    lineHeight: 16,
+  },
   tierCard: {
     backgroundColor: colors.card,
     borderRadius: 12,
@@ -574,127 +455,6 @@ const styles = StyleSheet.create({
   tierDescription: {
     fontSize: 14,
     color: colors.textSecondary,
-    lineHeight: 20,
-  },
-  challengeCard: {
-    backgroundColor: colors.backgroundSecondary,
-    borderRadius: 10,
-    padding: 16,
-    marginTop: 12,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  challengeHeader: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  challengeNumberBadge: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: colors.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  challengeNumberText: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-  challengeContent: {
-    flex: 1,
-  },
-  challengeTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: colors.text,
-    marginBottom: 6,
-  },
-  challengeDescription: {
-    fontSize: 13,
-    color: colors.textSecondary,
-    lineHeight: 18,
-    marginBottom: 8,
-  },
-  challengeReward: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginBottom: 4,
-  },
-  challengeRewardText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#8B6914',
-  },
-  challengeUnlock: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: colors.primary,
-    fontStyle: 'italic',
-  },
-  challengeFinal: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: colors.textSecondary,
-    fontStyle: 'italic',
-  },
-  activityCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    backgroundColor: colors.card,
-    borderRadius: 8,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  activityText: {
-    fontSize: 14,
-    color: colors.text,
-    flex: 1,
-  },
-  warningBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: '#FFF3E0',
-    borderRadius: 8,
-    padding: 12,
-    marginTop: 12,
-    borderWidth: 1,
-    borderColor: '#FF6B35',
-  },
-  warningBoxText: {
-    flex: 1,
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#D84315',
-  },
-  warningCard: {
-    flexDirection: 'row',
-    backgroundColor: '#FFF3E0',
-    borderRadius: 12,
-    padding: 20,
-    marginHorizontal: 24,
-    marginBottom: 24,
-    borderWidth: 1,
-    borderColor: '#FF6B35',
-    gap: 16,
-  },
-  warningContent: {
-    flex: 1,
-  },
-  warningTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#FF6B35',
-    marginBottom: 8,
-  },
-  warningText: {
-    fontSize: 14,
-    color: '#D84315',
     lineHeight: 20,
   },
   loadingContainer: {

@@ -17,6 +17,7 @@ import { IconSymbol } from '@/components/IconSymbol';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/app/integrations/supabase/client';
 import * as Haptics from 'expo-haptics';
+import { getLoyaltyLevel, getLoyaltyLevelColor } from '@/utils/loyaltyHelpers';
 
 interface Coupon {
   id: string;
@@ -46,26 +47,32 @@ export default function MyCouponsScreen() {
   const [availableCoupons, setAvailableCoupons] = useState<Coupon[]>([]);
   const [userCoupons, setUserCoupons] = useState<UserCoupon[]>([]);
   const [loyaltyPoints, setLoyaltyPoints] = useState(0);
+  const [pointsTotal, setPointsTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [redeeming, setRedeeming] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     if (!user) return;
 
+    console.log('MyCoupons: Loading data for user', user.id);
     try {
       setLoading(true);
 
       // Load user's loyalty points
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
-        .select('loyalty_points')
+        .select('loyalty_points, points_balance, points_total')
         .eq('user_id', user.id)
-        .single();
+        .maybeSingle();
 
       if (profileError) {
-        console.error('Error loading profile:', profileError);
+        console.error('MyCoupons: Error loading profile:', profileError);
       } else {
-        setLoyaltyPoints(profileData?.loyalty_points ?? 0);
+        const balance = (profileData as any)?.points_balance ?? profileData?.loyalty_points ?? 0;
+        const total = (profileData as any)?.points_total ?? profileData?.loyalty_points ?? 0;
+        setLoyaltyPoints(balance);
+        setPointsTotal(total);
+        console.log('MyCoupons: points_balance:', balance, 'points_total:', total);
       }
 
       // Load available coupons
@@ -76,8 +83,9 @@ export default function MyCouponsScreen() {
         .order('points_required', { ascending: true });
 
       if (couponsError) {
-        console.error('Error loading coupons:', couponsError);
+        console.error('MyCoupons: Error loading coupons:', couponsError);
       } else {
+        console.log('MyCoupons: Loaded', couponsData?.length ?? 0, 'available coupons');
         setAvailableCoupons(couponsData || []);
       }
 
@@ -95,12 +103,13 @@ export default function MyCouponsScreen() {
         .order('created_at', { ascending: false });
 
       if (userCouponsError) {
-        console.error('Error loading user coupons:', userCouponsError);
+        console.error('MyCoupons: Error loading user coupons:', userCouponsError);
       } else {
+        console.log('MyCoupons: Loaded', userCouponsData?.length ?? 0, 'user coupons');
         setUserCoupons(userCouponsData || []);
       }
     } catch (error) {
-      console.error('Exception loading data:', error);
+      console.error('MyCoupons: Exception loading data:', error);
     } finally {
       setLoading(false);
     }
@@ -112,6 +121,8 @@ export default function MyCouponsScreen() {
 
   const handleRedeemCoupon = async (coupon: Coupon) => {
     if (!user) return;
+
+    console.log('MyCoupons: User tapped Riscatta for coupon:', coupon.name, '(', coupon.points_required, 'pts)');
 
     if (loyaltyPoints < coupon.points_required) {
       Alert.alert(
@@ -133,6 +144,7 @@ export default function MyCouponsScreen() {
           onPress: async () => {
             try {
               setRedeeming(coupon.id);
+              console.log('MyCoupons: Redeeming coupon', coupon.id);
 
               // Generate unique coupon code
               const couponCode = `COUPON-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
@@ -149,12 +161,12 @@ export default function MyCouponsScreen() {
                 });
 
               if (insertError) {
-                console.error('Error creating coupon:', insertError);
+                console.error('MyCoupons: Error creating coupon:', insertError);
                 Alert.alert('Errore', 'Impossibile riscattare il coupon');
                 return;
               }
 
-              // Deduct points
+              // Deduct points from balance (loyalty_points / points_balance)
               const { error: updateError } = await supabase
                 .from('profiles')
                 .update({
@@ -163,11 +175,12 @@ export default function MyCouponsScreen() {
                 .eq('user_id', user.id);
 
               if (updateError) {
-                console.error('Error updating points:', updateError);
+                console.error('MyCoupons: Error updating points:', updateError);
                 Alert.alert('Errore', 'Impossibile aggiornare i punti');
                 return;
               }
 
+              console.log('MyCoupons: Coupon redeemed successfully, code:', couponCode);
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
               Alert.alert(
                 'Coupon Riscattato!',
@@ -177,7 +190,7 @@ export default function MyCouponsScreen() {
               // Reload data
               loadData();
             } catch (error) {
-              console.error('Exception redeeming coupon:', error);
+              console.error('MyCoupons: Exception redeeming coupon:', error);
               Alert.alert('Errore', 'Si è verificato un errore');
             } finally {
               setRedeeming(null);
@@ -188,15 +201,16 @@ export default function MyCouponsScreen() {
     );
   };
 
+  const loyaltyLevel = getLoyaltyLevel(pointsTotal);
+  const loyaltyLevelColor = getLoyaltyLevelColor(loyaltyLevel);
+
   if (loading) {
     return (
       <SafeAreaView style={styles.safeArea} edges={['bottom']}>
         <Stack.Screen
           options={{
             title: 'I Miei Coupon',
-            headerStyle: {
-              backgroundColor: colors.background,
-            },
+            headerStyle: { backgroundColor: colors.background },
             headerTintColor: colors.text,
           }}
         />
@@ -213,9 +227,7 @@ export default function MyCouponsScreen() {
       <Stack.Screen
         options={{
           title: 'I Miei Coupon',
-          headerStyle: {
-            backgroundColor: colors.background,
-          },
+          headerStyle: { backgroundColor: colors.background },
           headerTintColor: colors.text,
         }}
       />
@@ -237,18 +249,26 @@ export default function MyCouponsScreen() {
                 color="#FFD700"
               />
               <View style={styles.pointsInfo}>
-                <Text style={styles.pointsLabel}>I Tuoi Punti</Text>
+                <Text style={styles.pointsBalanceLabel}>Saldo Spendibile</Text>
                 <Text style={styles.pointsValue}>{loyaltyPoints}</Text>
+                <View style={styles.levelRow}>
+                  <Text style={styles.levelPrefix}>Livello:</Text>
+                  <View style={[styles.levelBadge, { backgroundColor: loyaltyLevelColor }]}>
+                    <Text style={styles.levelBadgeText}>{loyaltyLevel}</Text>
+                  </View>
+                </View>
+                <Text style={styles.totalPointsSmall}>Punti totali: {pointsTotal}</Text>
               </View>
             </View>
             <Pressable
               style={styles.learnMoreButton}
               onPress={() => {
+                console.log('MyCoupons: User tapped Scopri come funziona il programma fedeltà');
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                 router.push('/loyalty-program');
               }}
             >
-              <Text style={styles.learnMoreText}>Scopri come guadagnare punti</Text>
+              <Text style={styles.learnMoreText}>Scopri come funziona il programma fedeltà</Text>
               <IconSymbol
                 ios_icon_name="chevron.right"
                 android_material_icon_name="chevron_right"
@@ -420,22 +440,48 @@ const styles = StyleSheet.create({
   },
   pointsHeader: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     gap: 16,
     marginBottom: 16,
   },
   pointsInfo: {
     flex: 1,
   },
-  pointsLabel: {
-    fontSize: 14,
+  pointsBalanceLabel: {
+    fontSize: 13,
+    fontWeight: '600',
     color: colors.textSecondary,
-    marginBottom: 4,
+    marginBottom: 2,
   },
   pointsValue: {
     fontSize: 32,
     fontWeight: '800',
     color: colors.text,
+    marginBottom: 6,
+  },
+  levelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
+  },
+  levelPrefix: {
+    fontSize: 13,
+    color: colors.textSecondary,
+  },
+  levelBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  levelBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  totalPointsSmall: {
+    fontSize: 12,
+    color: colors.textSecondary,
   },
   learnMoreButton: {
     flexDirection: 'row',

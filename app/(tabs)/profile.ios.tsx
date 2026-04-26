@@ -8,6 +8,8 @@ import { Stack, router, useFocusEffect } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/app/integrations/supabase/client';
 import * as Haptics from 'expo-haptics';
+import { getLoyaltyLevel, getLoyaltyLevelColor, getNextLevelInfo } from '@/utils/loyaltyHelpers';
+
 export default function ProfileScreen() {
   const { logout, user, session, updatePickupPoint } = useAuth();
   const [selectedPickupPoint, setSelectedPickupPoint] = useState(user?.pickupPoint || '');
@@ -16,10 +18,8 @@ export default function ProfileScreen() {
   const [updatingPoint, setUpdatingPoint] = useState(false);
   const [whatsappNumber, setWhatsappNumber] = useState('393123456789');
   const [loadingWhatsapp, setLoadingWhatsapp] = useState(true);
-  const [ratingStars, setRatingStars] = useState(5);
-  const [loyaltyPoints, setLoyaltyPoints] = useState(0);
-  const [ordersPickedUp, setOrdersPickedUp] = useState(0);
-  const [ordersReturned, setOrdersReturned] = useState(0);
+  const [pointsBalance, setPointsBalance] = useState(0);
+  const [pointsTotal, setPointsTotal] = useState(0);
   const [accountBlocked, setAccountBlocked] = useState(false);
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [wishlistCount, setWishlistCount] = useState(0);
@@ -32,32 +32,34 @@ export default function ProfileScreen() {
       return;
     }
 
+    console.log('Profile (iOS): Loading user profile for', user.id);
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('rating_stars, loyalty_points, orders_picked_up, orders_returned, account_blocked')
+        .select('loyalty_points, points_balance, points_total, account_blocked')
         .eq('user_id', user.id)
-        .single();
+        .maybeSingle();
 
       if (error) {
-        console.error('Profile: Error loading user profile:', error);
+        console.error('Profile (iOS): Error loading user profile:', error);
         setProfileError(`Errore caricamento profilo: ${error.message}`);
         setLoadingProfile(false);
         return;
       }
 
       if (data) {
-        setRatingStars(data.rating_stars ?? 5);
-        setLoyaltyPoints(data.loyalty_points ?? 0);
-        setOrdersPickedUp(data.orders_picked_up ?? 0);
-        setOrdersReturned(data.orders_returned ?? 0);
-        setAccountBlocked(data.account_blocked ?? false);
+        const balance = (data as any).points_balance ?? data.loyalty_points ?? 0;
+        const total = (data as any).points_total ?? data.loyalty_points ?? 0;
+        setPointsBalance(balance);
+        setPointsTotal(total);
+        setAccountBlocked((data as any).account_blocked ?? false);
         setProfileError(null);
+        console.log('Profile (iOS): Loaded points_balance:', balance, 'points_total:', total);
       } else {
         setProfileError('Profilo non trovato');
       }
     } catch (error) {
-      console.error('Profile: Exception loading user profile:', error);
+      console.error('Profile (iOS): Exception loading user profile:', error);
       setProfileError(`Errore imprevisto: ${error}`);
     } finally {
       setLoadingProfile(false);
@@ -74,13 +76,13 @@ export default function ProfileScreen() {
         .eq('user_id', user.id);
 
       if (error) {
-        console.error('Profile: Error loading wishlist count:', error);
+        console.error('Profile (iOS): Error loading wishlist count:', error);
         return;
       }
 
       setWishlistCount(count || 0);
     } catch (error) {
-      console.error('Profile: Exception loading wishlist count:', error);
+      console.error('Profile (iOS): Exception loading wishlist count:', error);
     }
   }, [user]);
 
@@ -94,7 +96,7 @@ export default function ProfileScreen() {
         .maybeSingle();
 
       if (error) {
-        console.error('Profile: Error loading WhatsApp number:', error);
+        console.error('Profile (iOS): Error loading WhatsApp number:', error);
         return;
       }
 
@@ -102,7 +104,7 @@ export default function ProfileScreen() {
         setWhatsappNumber(data.setting_value);
       }
     } catch (error) {
-      console.error('Profile: Exception loading WhatsApp number:', error);
+      console.error('Profile (iOS): Exception loading WhatsApp number:', error);
     } finally {
       setLoadingWhatsapp(false);
     }
@@ -117,14 +119,14 @@ export default function ProfileScreen() {
         .order('city');
 
       if (error) {
-        console.error('Profile: Error loading pickup points:', error);
+        console.error('Profile (iOS): Error loading pickup points:', error);
         Alert.alert('Errore', 'Impossibile caricare i punti di ritiro');
         return;
       }
 
       setPickupPoints(data || []);
     } catch (error) {
-      console.error('Profile: Exception loading pickup points:', error);
+      console.error('Profile (iOS): Exception loading pickup points:', error);
     } finally {
       setLoadingPoints(false);
     }
@@ -152,10 +154,11 @@ export default function ProfileScreen() {
 
   const handlePickupPointChange = async (pointId: string, pointCity: string) => {
     if (!user) return;
-    
+
+    console.log('Profile (iOS): User tapped pickup point:', pointCity);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setUpdatingPoint(true);
-    
+
     try {
       const { error } = await supabase
         .from('profiles')
@@ -163,18 +166,18 @@ export default function ProfileScreen() {
         .eq('user_id', user.id);
 
       if (error) {
-        console.error('Profile: Error updating pickup point:', error);
+        console.error('Profile (iOS): Error updating pickup point:', error);
         Alert.alert('Errore', 'Impossibile aggiornare il punto di ritiro');
         return;
       }
 
       updatePickupPoint(pointId, pointCity);
       setSelectedPickupPoint(pointCity);
-      
-      console.log('Profile: Pickup point updated to:', pointCity);
+
+      console.log('Profile (iOS): Pickup point updated to:', pointCity);
       Alert.alert('Successo', `Punto di ritiro aggiornato a ${pointCity}`);
     } catch (error) {
-      console.error('Profile: Exception updating pickup point:', error);
+      console.error('Profile (iOS): Exception updating pickup point:', error);
       Alert.alert('Errore', 'Errore imprevisto durante l\'aggiornamento');
     } finally {
       setUpdatingPoint(false);
@@ -182,6 +185,7 @@ export default function ProfileScreen() {
   };
 
   const handleLogout = () => {
+    console.log('Profile (iOS): User tapped logout');
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     Alert.alert(
       'Logout',
@@ -201,47 +205,53 @@ export default function ProfileScreen() {
   };
 
   const handleViewBookings = () => {
+    console.log('Profile (iOS): User tapped Le Mie Prenotazioni');
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push('/(tabs)/my-bookings');
   };
 
   const handleNotifications = () => {
+    console.log('Profile (iOS): User tapped Notifiche');
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push('/(tabs)/notifications');
   };
 
   const handleAdminPanel = () => {
+    console.log('Profile (iOS): User tapped Pannello Amministratore');
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push('/admin/dashboard');
   };
 
   const handleEditProfile = () => {
+    console.log('Profile (iOS): User tapped Modifica Profilo');
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push('/edit-profile');
   };
 
   const handleViewWishlist = () => {
+    console.log('Profile (iOS): User tapped La mia wishlist');
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push('/wishlist');
   };
 
   const handleSupport = async () => {
+    console.log('Profile (iOS): User tapped Aiuto e Supporto');
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    
+
     const message = encodeURIComponent('Ciao, ho bisogno di supporto.');
     const whatsappUrl = `whatsapp://send?phone=${whatsappNumber}&text=${message}`;
     const whatsappWebUrl = `https://wa.me/${whatsappNumber}?text=${message}`;
-    
+
     try {
       const canOpen = await Linking.canOpenURL(whatsappUrl);
-      
+
       if (canOpen) {
         await Linking.openURL(whatsappUrl);
       } else {
         await Linking.openURL(whatsappWebUrl);
       }
     } catch (error) {
-      console.error('Profile: Error opening WhatsApp:', error);
+      console.error('Profile (iOS): Error opening WhatsApp:', error);
       Alert.alert(
         'Errore',
         'Impossibile aprire WhatsApp. Assicurati di avere WhatsApp installato sul tuo dispositivo.',
@@ -251,29 +261,15 @@ export default function ProfileScreen() {
   };
 
   const handleViewLoyaltyProgram = () => {
+    console.log('Profile (iOS): User tapped Scopri il Programma Fedeltà');
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push('/loyalty-program');
   };
 
   const handleViewCoupons = () => {
+    console.log('Profile (iOS): User tapped I Miei Coupon');
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push('/my-coupons');
-  };
-
-  const renderStars = (stars: number) => {
-    return (
-      <View style={styles.starsContainer}>
-        {[1, 2, 3, 4, 5].map((star) => (
-          <IconSymbol
-            key={star}
-            ios_icon_name={star <= stars ? 'star.fill' : 'star'}
-            android_material_icon_name={star <= stars ? 'star' : 'star-border'}
-            size={20}
-            color={star <= stars ? '#FFD700' : colors.textTertiary}
-          />
-        ))}
-      </View>
-    );
   };
 
   // Show loading state if user is not loaded yet
@@ -333,6 +329,13 @@ export default function ProfileScreen() {
     );
   }
 
+  const loyaltyLevel = getLoyaltyLevel(pointsTotal);
+  const loyaltyLevelColor = getLoyaltyLevelColor(loyaltyLevel);
+  const nextLevelInfo = getNextLevelInfo(pointsTotal);
+  const progressMax = loyaltyLevel === 'Nuovo' ? 100 : loyaltyLevel === 'Fedele' ? 200 : loyaltyLevel === 'VIP' ? 400 : 700;
+  const progressBase = loyaltyLevel === 'Nuovo' ? 0 : loyaltyLevel === 'Fedele' ? 100 : loyaltyLevel === 'VIP' ? 300 : 700;
+  const progressValue = nextLevelInfo ? Math.min((pointsTotal - progressBase) / (progressMax - progressBase), 1) : 1;
+
   return (
     <>
       <Stack.Screen
@@ -349,8 +352,8 @@ export default function ProfileScreen() {
         }}
       />
       <SafeAreaView style={styles.container} edges={['bottom']}>
-        <ScrollView 
-          style={styles.scrollView} 
+        <ScrollView
+          style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
@@ -371,47 +374,57 @@ export default function ProfileScreen() {
             </View>
           </View>
 
-          {/* Rating & Loyalty Section */}
+          {/* Fedeltà Section */}
           {!loadingProfile && !profileError && (
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Il Tuo Rating</Text>
+              <Text style={styles.sectionTitle}>Fedeltà</Text>
+
+              {/* Level + progress card */}
               <View style={styles.ratingCard}>
-                {renderStars(ratingStars)}
-                <Text style={styles.ratingText}>{ratingStars} / 5 Stelle</Text>
-                <View style={styles.ratingStats}>
-                  <View style={styles.ratingStat}>
-                    <IconSymbol ios_icon_name="checkmark.circle.fill" android_material_icon_name="check-circle" size={20} color={colors.success} />
-                    <Text style={styles.ratingStatText}>{ordersPickedUp} ritirati</Text>
+                <View style={styles.levelRow}>
+                  <View style={[styles.levelBadge, { backgroundColor: loyaltyLevelColor }]}>
+                    <Text style={styles.levelBadgeText}>{loyaltyLevel}</Text>
                   </View>
-                  <View style={styles.ratingStat}>
-                    <IconSymbol ios_icon_name="arrow.uturn.backward.circle.fill" android_material_icon_name="undo" size={20} color={colors.error} />
-                    <Text style={styles.ratingStatText}>{ordersReturned} rispediti</Text>
+                  <View style={styles.levelDetails}>
+                    <Text style={styles.levelLabel}>Livello attuale</Text>
+                    <Text style={styles.totalPointsText}>{pointsTotal} punti totali</Text>
                   </View>
                 </View>
+
+                {nextLevelInfo && (
+                  <View style={styles.progressContainer}>
+                    <View style={styles.progressBar}>
+                      <View style={[styles.progressFill, { width: `${progressValue * 100}%` as any, backgroundColor: loyaltyLevelColor }]} />
+                    </View>
+                    <Text style={styles.progressLabel}>
+                      {nextLevelInfo.pointsNeeded} punti al livello {nextLevelInfo.nextLevel}
+                    </Text>
+                  </View>
+                )}
+
                 <Pressable style={styles.learnMoreButton} onPress={handleViewLoyaltyProgram}>
                   <Text style={styles.learnMoreText}>Scopri il Programma Fedeltà</Text>
                   <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="chevron-right" size={16} color={colors.primary} />
                 </Pressable>
               </View>
 
-              {ratingStars === 5 && (
-                <View style={styles.loyaltyCard}>
-                  <View style={styles.loyaltyHeader}>
-                    <IconSymbol ios_icon_name="star.circle.fill" android_material_icon_name="stars" size={32} color="#FFD700" />
-                    <View style={styles.loyaltyInfo}>
-                      <Text style={styles.loyaltyTitle}>Punti Fedeltà</Text>
-                      <Text style={styles.loyaltyPoints}>{loyaltyPoints} punti</Text>
-                    </View>
+              {/* Loyalty balance card — always visible */}
+              <View style={styles.loyaltyCard}>
+                <View style={styles.loyaltyHeader}>
+                  <IconSymbol ios_icon_name="star.circle.fill" android_material_icon_name="stars" size={32} color="#FFD700" />
+                  <View style={styles.loyaltyInfo}>
+                    <Text style={styles.loyaltyTitle}>Saldo Spendibile</Text>
+                    <Text style={styles.loyaltyPoints}>{pointsBalance} punti</Text>
                   </View>
-                  <Text style={styles.loyaltyDescription}>
-                    🎉 Hai 5 stelle! Guadagni 1 punto per ogni euro speso.
-                  </Text>
-                  <Pressable style={styles.couponsButton} onPress={handleViewCoupons}>
-                    <IconSymbol ios_icon_name="ticket.fill" android_material_icon_name="local-offer" size={20} color={colors.background} />
-                    <Text style={styles.couponsButtonText}>I Miei Coupon</Text>
-                  </Pressable>
                 </View>
-              )}
+                <Text style={styles.loyaltyDescription}>
+                  Guadagni 1 punto per ogni euro speso. Usa il saldo per riscattare coupon sconto.
+                </Text>
+                <Pressable style={styles.couponsButton} onPress={handleViewCoupons}>
+                  <IconSymbol ios_icon_name="ticket.fill" android_material_icon_name="local-offer" size={20} color={colors.background} />
+                  <Text style={styles.couponsButtonText}>I Miei Coupon</Text>
+                </Pressable>
+              </View>
             </View>
           )}
 
@@ -433,7 +446,7 @@ export default function ProfileScreen() {
           {/* Admin Panel Button */}
           {user.role === 'admin' && (
             <View style={styles.section}>
-              <Pressable 
+              <Pressable
                 style={styles.adminButton}
                 onPress={handleAdminPanel}
               >
@@ -455,7 +468,7 @@ export default function ProfileScreen() {
             <Text style={styles.sectionDescription}>
               Seleziona il punto di ritiro più vicino a te
             </Text>
-            
+
             {loadingPoints ? (
               <View style={styles.loadingContainer}>
                 <ActivityIndicator size="small" color={colors.text} />
@@ -490,11 +503,11 @@ export default function ProfileScreen() {
                       </Text>
                     </View>
                     {selectedPickupPoint === point.city && (
-                      <IconSymbol 
-                        ios_icon_name="checkmark.circle.fill" 
-                        android_material_icon_name="check-circle" 
-                        size={24} 
-                        color={colors.background} 
+                      <IconSymbol
+                        ios_icon_name="checkmark.circle.fill"
+                        android_material_icon_name="check-circle"
+                        size={24}
+                        color={colors.background}
                       />
                     )}
                     {updatingPoint && selectedPickupPoint === point.city && (
@@ -509,7 +522,7 @@ export default function ProfileScreen() {
           {/* Settings */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Impostazioni</Text>
-            
+
             <Pressable style={styles.settingItem} onPress={handleEditProfile}>
               <View style={styles.settingContent}>
                 <IconSymbol ios_icon_name="person.crop.circle" android_material_icon_name="edit" size={20} color={colors.text} />
@@ -547,9 +560,10 @@ export default function ProfileScreen() {
               <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="chevron-right" size={20} color={colors.textSecondary} />
             </Pressable>
 
-            <Pressable 
-              style={styles.settingItem} 
+            <Pressable
+              style={styles.settingItem}
               onPress={() => {
+                console.log('Profile (iOS): User tapped I Miei Dati (GDPR)');
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                 router.push('/(tabs)/my-data');
               }}
@@ -561,8 +575,8 @@ export default function ProfileScreen() {
               <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="chevron-right" size={20} color={colors.textSecondary} />
             </Pressable>
 
-            <Pressable 
-              style={styles.settingItem} 
+            <Pressable
+              style={styles.settingItem}
               onPress={handleSupport}
               disabled={loadingWhatsapp}
             >
@@ -683,10 +697,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
     shadowRadius: 12,
     elevation: 4,
@@ -727,41 +738,62 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card,
     borderRadius: 16,
     padding: 20,
-    alignItems: 'center',
     borderWidth: 1,
     borderColor: colors.border,
     marginBottom: 16,
   },
-  starsContainer: {
-    flexDirection: 'row',
-    gap: 4,
-    marginBottom: 12,
-  },
-  ratingText: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: colors.text,
-    marginBottom: 16,
-  },
-  ratingStats: {
-    flexDirection: 'row',
-    gap: 24,
-    marginBottom: 16,
-  },
-  ratingStat: {
+  levelRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 14,
+    marginBottom: 16,
   },
-  ratingStatText: {
-    fontSize: 14,
+  levelBadge: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 10,
+  },
+  levelBadgeText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  levelDetails: {
+    flex: 1,
+  },
+  levelLabel: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginBottom: 2,
+  },
+  totalPointsText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  progressContainer: {
+    marginBottom: 16,
+  },
+  progressBar: {
+    height: 8,
+    backgroundColor: colors.backgroundSecondary,
+    borderRadius: 4,
+    overflow: 'hidden',
+    marginBottom: 6,
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 4,
+  },
+  progressLabel: {
+    fontSize: 12,
     color: colors.textSecondary,
   },
   learnMoreButton: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    paddingVertical: 8,
+    paddingVertical: 4,
   },
   learnMoreText: {
     fontSize: 14,
