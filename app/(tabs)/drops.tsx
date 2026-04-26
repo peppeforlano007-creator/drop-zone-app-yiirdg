@@ -338,15 +338,21 @@ export default function DropsScreen() {
     
     setDrops(prevDrops => {
       const dropIndex = prevDrops.findIndex(d => d.id === updatedDrop.id);
-      
-      // Only remove drops that are truly gone (expired, cancelled, underfunded)
-      // completed drops stay visible in the feed
-      const removeStatuses = ['expired', 'cancelled', 'underfunded'];
-      if (updatedDrop.status && removeStatuses.includes(updatedDrop.status)) {
-        console.log('Drop status changed to', updatedDrop.status, '- removing from list');
-        return prevDrops.filter(d => d.id !== updatedDrop.id);
+
+      // For all terminal statuses, trigger a full reload so joined data
+      // (supplier_lists, pickup_points) is preserved and the drop appears
+      // in the correct section (e.g. Terminati for completed).
+      if (
+        updatedDrop.status === 'completed' ||
+        updatedDrop.status === 'expired' ||
+        updatedDrop.status === 'cancelled' ||
+        updatedDrop.status === 'underfunded'
+      ) {
+        console.log('Drop status changed to', updatedDrop.status, '- triggering full reload');
+        loadDropsRef.current();
+        return prevDrops;
       }
-      
+
       if (dropIndex === -1) {
         // New drop - reload the list
         loadDropsRef.current();
