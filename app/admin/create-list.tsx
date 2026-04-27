@@ -12,6 +12,7 @@ import {
   Platform,
   ActivityIndicator,
   Modal,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
@@ -20,6 +21,8 @@ import { IconSymbol } from '@/components/IconSymbol';
 import * as Haptics from 'expo-haptics';
 import { supabase } from '@/app/integrations/supabase/client';
 import * as DocumentPicker from 'expo-document-picker';
+import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system';
 import * as XLSX from 'xlsx';
 import ExcelFormatGuide from '@/components/ExcelFormatGuide';
 import { getPlatformSettings } from '@/utils/dropHelpers';
@@ -76,7 +79,8 @@ export default function CreateListScreen() {
   const [maxReservationValue, setMaxReservationValue] = useState('30000');
   const [deliveryMinDays, setDeliveryMinDays] = useState('');
   const [deliveryMaxDays, setDeliveryMaxDays] = useState('');
-  const [bannerUrl, setBannerUrl] = useState('');
+  const [bannerLocalUri, setBannerLocalUri] = useState<string | null>(null);
+  const [bannerUploading, setBannerUploading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loadingSuppliers, setLoadingSuppliers] = useState(true);
   const [importMode, setImportMode] = useState<'manual' | 'excel'>('manual');
@@ -284,6 +288,67 @@ export default function CreateListScreen() {
     }
   };
 
+  const handlePickBanner = async () => {
+    try {
+      console.log('[CreateList] handlePickBanner pressed');
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: false,
+        quality: 0.85,
+      });
+      if (result.canceled) {
+        console.log('[CreateList] Banner picker canceled');
+        return;
+      }
+      const asset = result.assets[0];
+      console.log('[CreateList] Banner image selected:', asset.uri);
+      setBannerLocalUri(asset.uri);
+    } catch (err) {
+      console.error('[CreateList] Error picking banner:', err);
+      Alert.alert('Errore', "Impossibile selezionare l'immagine");
+    }
+  };
+
+  const uploadBanner = async (localUri: string): Promise<string | null> => {
+    try {
+      setBannerUploading(true);
+      console.log('[CreateList] Uploading banner:', localUri);
+      const ext = localUri.split('.').pop()?.toLowerCase() || 'jpg';
+      const fileName = `banner_${Date.now()}.${ext}`;
+      const base64 = await FileSystem.readAsStringAsync(localUri, {
+        encoding: 'base64' as any,
+      });
+      const contentType = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
+
+      // Manual base64 to Uint8Array without external lib
+      const binaryStr = atob(base64);
+      const bytes = new Uint8Array(binaryStr.length);
+      for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
+
+      console.log('[CreateList] Uploading to Supabase storage, bucket: banners, file:', fileName);
+      const { data, error } = await supabase.storage
+        .from('banners')
+        .upload(fileName, bytes, { contentType, upsert: false });
+
+      if (error) {
+        console.error('[CreateList] Banner upload error:', error);
+        Alert.alert('Errore', 'Impossibile caricare il banner: ' + error.message);
+        return null;
+      }
+
+      const { data: urlData } = supabase.storage.from('banners').getPublicUrl(data.path);
+      console.log('[CreateList] Banner uploaded successfully, public URL:', urlData.publicUrl);
+      return urlData.publicUrl;
+    } catch (err) {
+      console.error('[CreateList] Banner upload exception:', err);
+      Alert.alert('Errore', 'Errore durante il caricamento del banner');
+      return null;
+    } finally {
+      setBannerUploading(false);
+    }
+  };
+
   const handleCreateList = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     
@@ -337,7 +402,15 @@ export default function CreateListScreen() {
 
     try {
       console.log('Creating supplier list...');
-      
+
+      let finalBannerUrl: string | null = null;
+      if (bannerLocalUri) {
+        console.log('[CreateList] Uploading banner before creating list...');
+        setImportProgress('Caricamento banner...');
+        finalBannerUrl = await uploadBanner(bannerLocalUri);
+        if (!finalBannerUrl) return; // upload failed, error already shown
+      }
+
       console.log('[CreateList] creating list with delivery days:', { deliveryMinDays, deliveryMaxDays });
       const { data, error } = await supabase
         .from('supplier_lists')
@@ -350,7 +423,7 @@ export default function CreateListScreen() {
           max_reservation_value: maxValueNum,
           delivery_min_days: deliveryMinDays ? parseInt(deliveryMinDays) : null,
           delivery_max_days: deliveryMaxDays ? parseInt(deliveryMaxDays) : null,
-          banner_url: bannerUrl.trim() || null,
+          banner_url: finalBannerUrl,
           status: 'active',
         })
         .select()
@@ -1068,22 +1141,59 @@ export default function CreateListScreen() {
               </View>
 
               <View style={styles.inputContainer}>
-                <Text style={styles.inputLabel}>URL Banner (opzionale)</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="https://esempio.com/banner.jpg"
-                  placeholderTextColor={colors.textTertiary}
-                  value={bannerUrl}
-                  onChangeText={(v) => {
-                    console.log('[CreateList] bannerUrl changed:', v);
-                    setBannerUrl(v);
-                  }}
-                  autoCapitalize="none"
-                  keyboardType="url"
-                  editable={!loading}
-                  contextMenuHidden={false}
-                  selectTextOnFocus={false}
-                />
+                <Text style={styles.inputLabel}>Banner (opzionale)</Text>
+
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.bannerPickerButton,
+                    pressed && styles.bannerPickerButtonPressed,
+                  ]}
+                  onPress={handlePickBanner}
+                  disabled={loading}
+                >
+                  <IconSymbol
+                    ios_icon_name="photo.fill"
+                    android_material_icon_name="image"
+                    size={20}
+                    color="#FFFFFF"
+                  />
+                  <Text style={styles.bannerPickerButtonText}>
+                    {bannerLocalUri ? 'Cambia Immagine' : 'Scegli dal Dispositivo'}
+                  </Text>
+                </Pressable>
+
+                {bannerLocalUri && (
+                  <View style={styles.bannerPreviewContainer}>
+                    <Text style={styles.bannerPreviewLabel}>Anteprima banner nella card drop:</Text>
+                    <View style={styles.bannerPreviewCard}>
+                      <Image
+                        source={{ uri: bannerLocalUri }}
+                        style={styles.bannerPreviewImage}
+                        resizeMode="cover"
+                      />
+                      <View style={styles.bannerPreviewOverlay}>
+                        <Text style={styles.bannerPreviewCardTitle}>Nome Lista</Text>
+                        <Text style={styles.bannerPreviewCardSub}>📍 Città</Text>
+                      </View>
+                    </View>
+                    <Pressable
+                      style={styles.bannerRemoveButton}
+                      onPress={() => {
+                        console.log('[CreateList] Banner removed');
+                        setBannerLocalUri(null);
+                      }}
+                      disabled={loading}
+                    >
+                      <IconSymbol
+                        ios_icon_name="xmark.circle.fill"
+                        android_material_icon_name="cancel"
+                        size={16}
+                        color="#DC2626"
+                      />
+                      <Text style={styles.bannerRemoveText}>Rimuovi banner</Text>
+                    </Pressable>
+                  </View>
+                )}
               </View>
 
               <View style={styles.settingsHintBox}>
@@ -1453,5 +1563,72 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.textSecondary,
     lineHeight: 16,
+  },
+  bannerPickerButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: colors.primary,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+  },
+  bannerPickerButtonPressed: {
+    opacity: 0.8,
+  },
+  bannerPickerButtonText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  bannerPreviewContainer: {
+    marginTop: 12,
+    gap: 8,
+  },
+  bannerPreviewLabel: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    fontWeight: '500',
+  },
+  bannerPreviewCard: {
+    borderRadius: 10,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: colors.border,
+    position: 'relative',
+  },
+  bannerPreviewImage: {
+    width: '100%',
+    height: 140,
+  },
+  bannerPreviewOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  bannerPreviewCardTitle: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  bannerPreviewCardSub: {
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: 12,
+  },
+  bannerRemoveButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    alignSelf: 'flex-start',
+  },
+  bannerRemoveText: {
+    fontSize: 13,
+    color: '#DC2626',
+    fontWeight: '500',
   },
 });
