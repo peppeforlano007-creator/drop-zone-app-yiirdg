@@ -76,11 +76,11 @@ export default function LoyaltyProgramScreen() {
                 <Text style={styles.cardTitle}>Guadagna Punti</Text>
               </View>
               <Text style={styles.cardText}>
-                Per ogni €1 speso in un ordine ritirato guadagni 1 punto. Se fai un reso perdi 20 punti. Il tuo saldo determina il tuo livello e lo sconto automatico applicato su ogni ordine — senza dover fare nulla.
+                Per ogni €1 speso in un ordine ritirato guadagni 1 punto. Se fai un reso perdi 5 punti. Il tuo saldo determina il tuo livello e lo sconto automatico applicato su ogni ordine — senza dover fare nulla.
               </Text>
               <View style={styles.exampleBox}>
                 <Text style={styles.exampleText}>Ritiri ordine da €50 → +50 punti</Text>
-                <Text style={styles.exampleText}>Fai un reso → −20 punti</Text>
+                <Text style={styles.exampleText}>Fai un reso → −5 punti</Text>
               </View>
             </View>
 
@@ -157,7 +157,7 @@ export default function LoyaltyProgramScreen() {
                 <Text style={styles.cardTitle}>Penalità e Warning</Text>
               </View>
               <Text style={styles.cardText}>
-                Dopo 5 ordini non ritirati (no-show) l&apos;account viene bloccato. Contatta l&apos;assistenza per sbloccare il profilo.
+                Dopo 5 ordini non ritirati l&apos;account viene bloccato. Contatta l&apos;assistenza per sbloccare il profilo.
               </Text>
             </View>
 
@@ -172,7 +172,7 @@ export default function LoyaltyProgramScreen() {
                 <Text style={styles.cardTitle}>Resi</Text>
               </View>
               <Text style={styles.cardText}>
-                Ogni reso comporta una penalità di −20 punti sul saldo. Se il saldo scende sotto la soglia del tuo livello attuale, il livello viene ridotto automaticamente.
+                Ogni reso comporta una penalità di −5 punti sul saldo. Se il saldo scende sotto la soglia del tuo livello attuale, il livello viene ridotto automaticamente.
               </Text>
             </View>
 

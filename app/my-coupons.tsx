@@ -216,7 +216,7 @@ export default function MyPointsScreen() {
               <View style={styles.ruleDivider} />
               <View style={styles.ruleRow}>
                 <Text style={[styles.ruleIcon, { color: colors.error }]}>−</Text>
-                <Text style={styles.ruleText}>Reso effettuato = −20 punti</Text>
+                <Text style={styles.ruleText}>Reso effettuato = −5 punti</Text>
               </View>
               <View style={styles.ruleDivider} />
               <View style={styles.ruleRow}>
@@ -226,7 +226,7 @@ export default function MyPointsScreen() {
               <View style={styles.ruleDivider} />
               <View style={styles.ruleRow}>
                 <Text style={[styles.ruleIcon, { color: '#FF9800' }]}>⚠</Text>
-                <Text style={styles.ruleText}>Dopo 5 no-show l&apos;account viene bloccato</Text>
+                <Text style={styles.ruleText}>Dopo 5 ordini non ritirati l&apos;account viene bloccato</Text>
               </View>
             </View>
           </View>
