@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Pressable, Alert } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Alert, Image } from 'react-native';
 import { router } from 'expo-router';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from './IconSymbol';
@@ -32,6 +32,7 @@ interface DropCardProps {
       max_discount: number;
       min_reservation_value: number;
       max_reservation_value: number;
+      banner_url?: string | null;
     };
   };
   deliveryMinDays?: number | null;
@@ -226,6 +227,13 @@ export default function DropCard({ drop, deliveryMinDays, deliveryMaxDays }: Dro
       ]}
       onPress={handlePress}
     >
+      {!isCompleted && drop.supplier_lists?.banner_url ? (
+        <Image
+          source={{ uri: drop.supplier_lists.banner_url }}
+          style={styles.banner}
+          resizeMode="cover"
+        />
+      ) : null}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <Text style={styles.dropName} numberOfLines={1}>{supplierListName}</Text>
@@ -804,6 +812,12 @@ const styles = StyleSheet.create({
     fontFamily: 'System',
     minWidth: 30,
     textAlign: 'right',
+  },
+  banner: {
+    width: '100%',
+    height: 140,
+    borderRadius: 10,
+    marginBottom: 12,
   },
   deliveryRow: {
     flexDirection: 'row',

@@ -48,6 +48,7 @@ interface Drop {
     max_reservation_value: number;
     delivery_min_days: number | null;
     delivery_max_days: number | null;
+    banner_url?: string | null;
   };
 }
 
@@ -267,7 +268,8 @@ export default function DropsScreen() {
             min_reservation_value,
             max_reservation_value,
             delivery_min_days,
-            delivery_max_days
+            delivery_max_days,
+            banner_url
           )
         `)
         .in('status', ['active', 'approved', 'completed'])

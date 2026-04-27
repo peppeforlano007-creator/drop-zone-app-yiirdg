@@ -76,6 +76,7 @@ export default function CreateListScreen() {
   const [maxReservationValue, setMaxReservationValue] = useState('30000');
   const [deliveryMinDays, setDeliveryMinDays] = useState('');
   const [deliveryMaxDays, setDeliveryMaxDays] = useState('');
+  const [bannerUrl, setBannerUrl] = useState('');
   const [loading, setLoading] = useState(false);
   const [loadingSuppliers, setLoadingSuppliers] = useState(true);
   const [importMode, setImportMode] = useState<'manual' | 'excel'>('manual');
@@ -349,6 +350,7 @@ export default function CreateListScreen() {
           max_reservation_value: maxValueNum,
           delivery_min_days: deliveryMinDays ? parseInt(deliveryMinDays) : null,
           delivery_max_days: deliveryMaxDays ? parseInt(deliveryMaxDays) : null,
+          banner_url: bannerUrl.trim() || null,
           status: 'active',
         })
         .select()
@@ -1063,6 +1065,25 @@ export default function CreateListScreen() {
                     selectTextOnFocus={false}
                   />
                 </View>
+              </View>
+
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>URL Banner (opzionale)</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="https://esempio.com/banner.jpg"
+                  placeholderTextColor={colors.textTertiary}
+                  value={bannerUrl}
+                  onChangeText={(v) => {
+                    console.log('[CreateList] bannerUrl changed:', v);
+                    setBannerUrl(v);
+                  }}
+                  autoCapitalize="none"
+                  keyboardType="url"
+                  editable={!loading}
+                  contextMenuHidden={false}
+                  selectTextOnFocus={false}
+                />
               </View>
 
               <View style={styles.settingsHintBox}>
