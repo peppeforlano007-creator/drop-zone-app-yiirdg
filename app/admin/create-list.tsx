@@ -291,23 +291,25 @@ export default function CreateListScreen() {
     }
   };
 
+  const gestureStartOffset = useRef({ x: 0, y: 0 });
+
   const bannerPanResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: () => true,
       onPanResponderGrant: () => {
-        bannerOffsetRef.current = { ...bannerOffsetRef.current };
+        gestureStartOffset.current = { ...bannerOffsetRef.current };
       },
       onPanResponderMove: (_, gestureState) => {
-        const newX = Math.max(-40, Math.min(40, bannerOffsetRef.current.x + gestureState.dx));
-        const newY = Math.max(-40, Math.min(40, bannerOffsetRef.current.y + gestureState.dy));
+        const newX = Math.max(-40, Math.min(40, gestureStartOffset.current.x + gestureState.dx));
+        const newY = Math.max(-40, Math.min(40, gestureStartOffset.current.y + gestureState.dy));
         setBannerOffset({ x: newX, y: newY });
       },
       onPanResponderRelease: (_, gestureState) => {
-        bannerOffsetRef.current = {
-          x: Math.max(-40, Math.min(40, bannerOffsetRef.current.x + gestureState.dx)),
-          y: Math.max(-40, Math.min(40, bannerOffsetRef.current.y + gestureState.dy)),
-        };
+        const newX = Math.max(-40, Math.min(40, gestureStartOffset.current.x + gestureState.dx));
+        const newY = Math.max(-40, Math.min(40, gestureStartOffset.current.y + gestureState.dy));
+        bannerOffsetRef.current = { x: newX, y: newY };
+        setBannerOffset({ x: newX, y: newY });
       },
     })
   ).current;
@@ -339,17 +341,40 @@ export default function CreateListScreen() {
   const uploadBanner = async (localUri: string): Promise<string | null> => {
     try {
       setBannerUploading(true);
-      console.log('[CreateList] Uploading banner:', localUri);
       const ext = localUri.split('.').pop()?.toLowerCase()?.split('?')[0] || 'jpg';
       const fileName = `banner_${Date.now()}.${ext}`;
       const contentType = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
 
-      // SDK 54 new FileSystem API — use File class
-      const file = new FileSystem.File(localUri);
-      const arrayBuffer = await file.arrayBuffer();
-      const uint8Array = new Uint8Array(arrayBuffer);
+      // Read file as ArrayBuffer using SDK 54 new FileSystem API
+      const fsFile = new (FileSystem as any).File(localUri);
+      let uint8Array: Uint8Array;
+      try {
+        const arrayBuffer = await fsFile.arrayBuffer();
+        uint8Array = new Uint8Array(arrayBuffer);
+      } catch (fsErr) {
+        // Fallback: use legacy readAsStringAsync if new API unavailable
+        const FileSystemLegacy = require('expo-file-system/legacy');
+        const base64 = await FileSystemLegacy.readAsStringAsync(localUri, {
+          encoding: FileSystemLegacy.EncodingType.Base64,
+        });
+        const binaryStr = atob(base64);
+        const bytes = new Uint8Array(binaryStr.length);
+        for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
+        uint8Array = bytes;
+      }
 
-      console.log('[CreateList] Uploading to Supabase storage, bucket: banners, file:', fileName);
+      // Ensure bucket exists
+      const { data: buckets } = await supabase.storage.listBuckets();
+      const bucketExists = buckets?.some(b => b.name === 'banners');
+      if (!bucketExists) {
+        const { error: bucketErr } = await supabase.storage.createBucket('banners', { public: true });
+        if (bucketErr && !bucketErr.message.includes('already exists')) {
+          console.error('[CreateList] Failed to create banners bucket:', bucketErr);
+          Alert.alert('Errore', 'Impossibile creare il bucket per i banner: ' + bucketErr.message);
+          return null;
+        }
+      }
+
       const { data, error } = await supabase.storage
         .from('banners')
         .upload(fileName, uint8Array, { contentType, upsert: false });
@@ -361,7 +386,6 @@ export default function CreateListScreen() {
       }
 
       const { data: urlData } = supabase.storage.from('banners').getPublicUrl(data.path);
-      console.log('[CreateList] Banner uploaded successfully, public URL:', urlData.publicUrl);
       return urlData.publicUrl;
     } catch (err) {
       console.error('[CreateList] Banner upload exception:', err);
@@ -1627,15 +1651,17 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: colors.border,
-    position: 'relative',
     height: 140,
+    position: 'relative',
   },
   bannerPreviewImageContainer: {
     position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
+    // extend 40px beyond each edge so the image has room to pan without showing white
+    top: -40,
+    left: -40,
+    right: -40,
+    bottom: -40,
+    overflow: 'hidden',
   },
   bannerPreviewImage: {
     width: '100%',
