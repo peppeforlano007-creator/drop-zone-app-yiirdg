@@ -262,6 +262,46 @@ export default function CreateDropScreen() {
               setCreating(true);
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
+              // Check for existing stale drops with same supplier_list + pickup_point
+              const { data: existingDrops } = await supabase
+                .from('drops')
+                .select('id, name, status')
+                .eq('supplier_list_id', selectedList)
+                .eq('pickup_point_id', selectedPickupPoint)
+                .in('status', ['completed', 'expired', 'cancelled', 'underfunded']);
+
+              if (existingDrops && existingDrops.length > 0) {
+                console.log(`🗑️ Found ${existingDrops.length} stale drop(s) for same list+pickup, deleting...`);
+                const staleIds = existingDrops.map(d => d.id);
+                const { error: deleteError } = await supabase
+                  .from('drops')
+                  .delete()
+                  .in('id', staleIds);
+                if (deleteError) {
+                  console.warn('⚠️ Could not delete stale drops:', deleteError.message);
+                  // Non-blocking — continue with creation anyway
+                } else {
+                  console.log(`✅ Deleted ${staleIds.length} stale drop(s)`);
+                }
+              }
+
+              const { data: activeDrops } = await supabase
+                .from('drops')
+                .select('id, name, status')
+                .eq('supplier_list_id', selectedList)
+                .eq('pickup_point_id', selectedPickupPoint)
+                .in('status', ['pending_approval', 'approved', 'active', 'inactive']);
+
+              if (activeDrops && activeDrops.length > 0) {
+                const existing = activeDrops[0];
+                Alert.alert(
+                  'Drop già esistente',
+                  `Esiste già un drop attivo per questa combinazione lista/punto di ritiro:\n\n"${existing.name}"\nStato: ${existing.status}\n\nCompleta o annulla il drop esistente prima di crearne uno nuovo.`
+                );
+                setCreating(false);
+                return;
+              }
+
               // Get current user for approved_by field
               const { data: { user } } = await supabase.auth.getUser();
 
