@@ -37,16 +37,16 @@ export default function MyPointsScreen() {
 
       const { data, error } = await supabase
         .from('profiles')
-        .select('points_total, loyalty_points')
+        .select('points_balance, loyalty_points')
         .eq('user_id', user.id)
         .maybeSingle();
 
       if (error) {
         console.error('MyPoints: Error loading profile:', error);
       } else {
-        const points = (data as any)?.points_total ?? data?.loyalty_points ?? 0;
+        const points = (data as any)?.points_balance ?? data?.loyalty_points ?? 0;
         setLoyaltyPoints(points);
-        console.log('MyPoints: points_total:', points);
+        console.log('MyPoints: points_balance:', points);
       }
     } catch (error) {
       console.error('MyPoints: Exception loading data:', error);
@@ -74,8 +74,8 @@ export default function MyPointsScreen() {
   const discountLabel = discount > 0 ? `Sconto attivo: −${discount}% su ogni ordine` : 'Nessuno sconto attivo';
 
   const levelExplanation = discount > 0
-    ? `Sei al livello ${loyaltyLevel}. Ogni ordine che effettui ha uno sconto automatico del ${discount}% applicato alla chiusura del drop. Non devi fare nulla.`
-    : `Sei al livello Nuovo. Raggiungi 100 punti per ottenere il 3% di sconto automatico su ogni ordine.`;
+    ? `Sei al livello ${loyaltyLevel}. Ogni ordine che effettui ha uno sconto automatico del ${discount}% applicato alla chiusura del drop. Lo sconto non scala i tuoi punti.`
+    : `Sei al livello Nuovo. Raggiungi 100 punti ritirando i tuoi ordini per ottenere il 3% di sconto automatico.`;
 
   const nextLevelDiscount = nextLevelInfo
     ? getLoyaltyDiscount(getLoyaltyLevel(loyaltyPoints + (nextLevelInfo?.pointsNeeded ?? 0)))
@@ -211,17 +211,22 @@ export default function MyPointsScreen() {
             <View style={styles.card}>
               <View style={styles.ruleRow}>
                 <Text style={styles.ruleIcon}>✓</Text>
-                <Text style={styles.ruleText}>€1 speso = 1 punto</Text>
+                <Text style={styles.ruleText}>€1 speso in un ordine ritirato = +1 punto</Text>
+              </View>
+              <View style={styles.ruleDivider} />
+              <View style={styles.ruleRow}>
+                <Text style={[styles.ruleIcon, { color: colors.error }]}>−</Text>
+                <Text style={styles.ruleText}>Reso effettuato = −20 punti</Text>
               </View>
               <View style={styles.ruleDivider} />
               <View style={styles.ruleRow}>
                 <Text style={styles.ruleIcon}>✓</Text>
-                <Text style={styles.ruleText}>Solo acquisti completati e ritirati</Text>
+                <Text style={styles.ruleText}>Lo sconto fedeltà non scala i tuoi punti</Text>
               </View>
               <View style={styles.ruleDivider} />
               <View style={styles.ruleRow}>
-                <Text style={styles.ruleIcon}>↑</Text>
-                <Text style={styles.ruleText}>I punti crescono sempre — non scendono mai</Text>
+                <Text style={[styles.ruleIcon, { color: '#FF9800' }]}>⚠</Text>
+                <Text style={styles.ruleText}>Dopo 5 no-show l&apos;account viene bloccato</Text>
               </View>
             </View>
           </View>

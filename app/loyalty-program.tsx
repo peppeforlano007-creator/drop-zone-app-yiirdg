@@ -76,10 +76,11 @@ export default function LoyaltyProgramScreen() {
                 <Text style={styles.cardTitle}>Guadagna Punti</Text>
               </View>
               <Text style={styles.cardText}>
-                Per ogni €1 speso guadagni 1 punto. I punti crescono ad ogni ordine completato e ritirato — non scendono mai. Il tuo saldo determina il tuo livello e lo sconto automatico applicato su ogni ordine.
+                Per ogni €1 speso in un ordine ritirato guadagni 1 punto. Se fai un reso perdi 20 punti. Il tuo saldo determina il tuo livello e lo sconto automatico applicato su ogni ordine — senza dover fare nulla.
               </Text>
               <View style={styles.exampleBox}>
-                <Text style={styles.exampleText}>Spendi €50 → +50 punti</Text>
+                <Text style={styles.exampleText}>Ritiri ordine da €50 → +50 punti</Text>
+                <Text style={styles.exampleText}>Fai un reso → −20 punti</Text>
               </View>
             </View>
 
@@ -95,7 +96,7 @@ export default function LoyaltyProgramScreen() {
                 <Text style={styles.cardTitle}>Sali di Livello</Text>
               </View>
               <Text style={styles.cardText}>
-                Il tuo livello dipende dal totale punti accumulati. Più punti hai, più alto è il livello e maggiore lo sconto automatico su ogni ordine.
+                Il tuo livello dipende dal saldo punti attuale. Più punti hai, più alto è il livello e maggiore lo sconto automatico. I resi riducono il saldo e possono abbassare il livello.
               </Text>
               <View style={styles.levelsTable}>
                 {LEVELS.map((level) => {
@@ -156,7 +157,7 @@ export default function LoyaltyProgramScreen() {
                 <Text style={styles.cardTitle}>Penalità e Warning</Text>
               </View>
               <Text style={styles.cardText}>
-                Le penalità non toccano i tuoi punti. Ordini non ritirati generano warning sul profilo. Dopo 3 no-show puoi avere solo 1 prenotazione attiva alla volta. Dopo 5 no-show l&apos;account viene bloccato.
+                Dopo 5 ordini non ritirati (no-show) l&apos;account viene bloccato. Contatta l&apos;assistenza per sbloccare il profilo.
               </Text>
             </View>
 
@@ -171,7 +172,22 @@ export default function LoyaltyProgramScreen() {
                 <Text style={styles.cardTitle}>Resi</Text>
               </View>
               <Text style={styles.cardText}>
-                I resi vengono registrati sul profilo ma non riducono i tuoi punti. I punti accumulati rimangono invariati.
+                Ogni reso comporta una penalità di −20 punti sul saldo. Se il saldo scende sotto la soglia del tuo livello attuale, il livello viene ridotto automaticamente.
+              </Text>
+            </View>
+
+            <View style={styles.card}>
+              <View style={styles.cardHeader}>
+                <IconSymbol
+                  ios_icon_name="info.circle.fill"
+                  android_material_icon_name="info"
+                  size={24}
+                  color={colors.primary}
+                />
+                <Text style={styles.cardTitle}>Lo Sconto Non Costa Punti</Text>
+              </View>
+              <Text style={styles.cardText}>
+                Lo sconto fedeltà è un beneficio automatico legato al tuo livello. Non devi spendere o riscattare nulla — viene applicato direttamente alla chiusura di ogni drop.
               </Text>
             </View>
           </View>
