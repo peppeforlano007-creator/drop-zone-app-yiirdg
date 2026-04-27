@@ -338,61 +338,51 @@ export default function CreateListScreen() {
     }
   };
 
-  const uploadBanner = async (localUri: string): Promise<string | null> => {
+  const uploadBanner = async (uri: string): Promise<string | null> => {
     try {
-      setBannerUploading(true);
-      const ext = localUri.split('.').pop()?.toLowerCase()?.split('?')[0] || 'jpg';
-      const fileName = `banner_${Date.now()}.${ext}`;
-      const contentType = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
+      const fileName = `banner_${Date.now()}.jpg`;
+      let uploadData: Uint8Array;
 
-      // Read file as ArrayBuffer using SDK 54 new FileSystem API
-      const fsFile = new (FileSystem as any).File(localUri);
-      let uint8Array: Uint8Array;
       try {
-        const arrayBuffer = await fsFile.arrayBuffer();
-        uint8Array = new Uint8Array(arrayBuffer);
-      } catch (fsErr) {
-        // Fallback: use legacy readAsStringAsync if new API unavailable
-        const FileSystemLegacy = require('expo-file-system/legacy');
-        const base64 = await FileSystemLegacy.readAsStringAsync(localUri, {
+        // SDK 54 new API
+        const file = new FileSystem.File(uri);
+        const buffer = await file.arrayBuffer();
+        uploadData = new Uint8Array(buffer);
+      } catch (e) {
+        // Fallback to legacy API
+        const FileSystemLegacy = await import('expo-file-system/legacy');
+        const base64 = await FileSystemLegacy.readAsStringAsync(uri, {
           encoding: FileSystemLegacy.EncodingType.Base64,
         });
-        const binaryStr = atob(base64);
-        const bytes = new Uint8Array(binaryStr.length);
-        for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
-        uint8Array = bytes;
-      }
-
-      // Ensure bucket exists
-      const { data: buckets } = await supabase.storage.listBuckets();
-      const bucketExists = buckets?.some(b => b.name === 'banners');
-      if (!bucketExists) {
-        const { error: bucketErr } = await supabase.storage.createBucket('banners', { public: true });
-        if (bucketErr && !bucketErr.message.includes('already exists')) {
-          console.error('[CreateList] Failed to create banners bucket:', bucketErr);
-          Alert.alert('Errore', 'Impossibile creare il bucket per i banner: ' + bucketErr.message);
-          return null;
+        const binary = atob(base64);
+        uploadData = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) {
+          uploadData[i] = binary.charCodeAt(i);
         }
       }
 
       const { data, error } = await supabase.storage
         .from('banners')
-        .upload(fileName, uint8Array, { contentType, upsert: false });
+        .upload(fileName, uploadData, {
+          contentType: 'image/jpeg',
+          upsert: true,
+        });
 
       if (error) {
-        console.error('[CreateList] Banner upload error:', error);
-        Alert.alert('Errore', 'Impossibile caricare il banner: ' + error.message);
+        console.error('Banner upload error:', error);
+        Alert.alert('Errore', `Impossibile caricare il banner: ${error.message}`);
         return null;
       }
 
-      const { data: urlData } = supabase.storage.from('banners').getPublicUrl(data.path);
+      const { data: urlData } = supabase.storage
+        .from('banners')
+        .getPublicUrl(data.path);
+
       return urlData.publicUrl;
-    } catch (err) {
-      console.error('[CreateList] Banner upload exception:', err);
-      Alert.alert('Errore', 'Errore durante il caricamento del banner');
+    } catch (e) {
+      console.error('Create list banner upload exception:', e);
+      Alert.alert('Errore', 'Errore durante il caricamento del banner.');
       return null;
-    } finally {
-      setBannerUploading(false);
     }
   };
 
