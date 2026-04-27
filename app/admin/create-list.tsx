@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -13,6 +13,7 @@ import {
   ActivityIndicator,
   Modal,
   Image,
+  PanResponder,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
@@ -81,6 +82,8 @@ export default function CreateListScreen() {
   const [deliveryMaxDays, setDeliveryMaxDays] = useState('');
   const [bannerLocalUri, setBannerLocalUri] = useState<string | null>(null);
   const [bannerUploading, setBannerUploading] = useState(false);
+  const [bannerOffset, setBannerOffset] = useState({ x: 0, y: 0 });
+  const bannerOffsetRef = useRef({ x: 0, y: 0 });
   const [loading, setLoading] = useState(false);
   const [loadingSuppliers, setLoadingSuppliers] = useState(true);
   const [importMode, setImportMode] = useState<'manual' | 'excel'>('manual');
@@ -288,6 +291,27 @@ export default function CreateListScreen() {
     }
   };
 
+  const bannerPanResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderGrant: () => {
+        bannerOffsetRef.current = { ...bannerOffsetRef.current };
+      },
+      onPanResponderMove: (_, gestureState) => {
+        const newX = Math.max(-40, Math.min(40, bannerOffsetRef.current.x + gestureState.dx));
+        const newY = Math.max(-40, Math.min(40, bannerOffsetRef.current.y + gestureState.dy));
+        setBannerOffset({ x: newX, y: newY });
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        bannerOffsetRef.current = {
+          x: Math.max(-40, Math.min(40, bannerOffsetRef.current.x + gestureState.dx)),
+          y: Math.max(-40, Math.min(40, bannerOffsetRef.current.y + gestureState.dy)),
+        };
+      },
+    })
+  ).current;
+
   const handlePickBanner = async () => {
     try {
       console.log('[CreateList] handlePickBanner pressed');
@@ -304,6 +328,8 @@ export default function CreateListScreen() {
       const asset = result.assets[0];
       console.log('[CreateList] Banner image selected:', asset.uri);
       setBannerLocalUri(asset.uri);
+      setBannerOffset({ x: 0, y: 0 });
+      bannerOffsetRef.current = { x: 0, y: 0 };
     } catch (err) {
       console.error('[CreateList] Error picking banner:', err);
       Alert.alert('Errore', "Impossibile selezionare l'immagine");
@@ -314,22 +340,19 @@ export default function CreateListScreen() {
     try {
       setBannerUploading(true);
       console.log('[CreateList] Uploading banner:', localUri);
-      const ext = localUri.split('.').pop()?.toLowerCase() || 'jpg';
+      const ext = localUri.split('.').pop()?.toLowerCase()?.split('?')[0] || 'jpg';
       const fileName = `banner_${Date.now()}.${ext}`;
-      const base64 = await FileSystem.readAsStringAsync(localUri, {
-        encoding: 'base64' as any,
-      });
       const contentType = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
 
-      // Manual base64 to Uint8Array without external lib
-      const binaryStr = atob(base64);
-      const bytes = new Uint8Array(binaryStr.length);
-      for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
+      // SDK 54 new FileSystem API — use File class
+      const file = new FileSystem.File(localUri);
+      const arrayBuffer = await file.arrayBuffer();
+      const uint8Array = new Uint8Array(arrayBuffer);
 
       console.log('[CreateList] Uploading to Supabase storage, bucket: banners, file:', fileName);
       const { data, error } = await supabase.storage
         .from('banners')
-        .upload(fileName, bytes, { contentType, upsert: false });
+        .upload(fileName, uint8Array, { contentType, upsert: false });
 
       if (error) {
         console.error('[CreateList] Banner upload error:', error);
@@ -1166,14 +1189,22 @@ export default function CreateListScreen() {
                   <View style={styles.bannerPreviewContainer}>
                     <Text style={styles.bannerPreviewLabel}>Anteprima banner nella card drop:</Text>
                     <View style={styles.bannerPreviewCard}>
-                      <Image
-                        source={{ uri: bannerLocalUri }}
-                        style={styles.bannerPreviewImage}
-                        resizeMode="cover"
-                      />
+                      <View style={styles.bannerPreviewImageContainer} {...bannerPanResponder.panHandlers}>
+                        <Image
+                          source={{ uri: bannerLocalUri }}
+                          style={[
+                            styles.bannerPreviewImage,
+                            { transform: [{ translateX: bannerOffset.x }, { translateY: bannerOffset.y }] },
+                          ]}
+                          resizeMode="cover"
+                        />
+                      </View>
                       <View style={styles.bannerPreviewOverlay}>
                         <Text style={styles.bannerPreviewCardTitle}>Nome Lista</Text>
                         <Text style={styles.bannerPreviewCardSub}>📍 Città</Text>
+                      </View>
+                      <View style={styles.bannerDragHint}>
+                        <Text style={styles.bannerDragHintText}>✋ Trascina per riposizionare</Text>
                       </View>
                     </View>
                     <Pressable
@@ -1597,10 +1628,32 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     position: 'relative',
+    height: 140,
+  },
+  bannerPreviewImageContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
   },
   bannerPreviewImage: {
     width: '100%',
-    height: 140,
+    height: '100%',
+  },
+  bannerDragHint: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  bannerDragHintText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontFamily: 'System',
   },
   bannerPreviewOverlay: {
     position: 'absolute',
