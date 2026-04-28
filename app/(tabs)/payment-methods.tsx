@@ -330,15 +330,16 @@ export default function PickupPointsScreen() {
             <View style={styles.infoContent}>
               <Text style={styles.infoTitle}>Importante</Text>
               <Text style={styles.infoText}>
-                Assicurati di ritirare i tuoi ordini entro i tempi stabiliti. 
-                Dopo 5 ordini non ritirati e rispediti al fornitore, l&apos;account verrà bloccato definitivamente.
+                Ritira sempre i tuoi ordini: dopo 5 ordini non ritirati l&apos;account viene bloccato definitivamente.
                 {'\n\n'}
-                Al punto di ritiro sarà possibile effettuare resi dei singoli articoli, ma dopo molti articoli restituiti il profilo sarà bloccato momentaneamente.
+                I resi sono possibili al punto di ritiro, ma ogni reso comporta una penalità di −5 punti fedeltà.
+                {'\n\n'}
+                Il pagamento avviene in contanti al momento del ritiro.
               </Text>
             </View>
           </View>
 
-          {/* Rating info - MOVED TO BOTTOM */}
+          {/* Loyalty program info - MOVED TO BOTTOM */}
           <View style={styles.ratingCard}>
             <IconSymbol
               ios_icon_name="star.fill"
@@ -347,11 +348,40 @@ export default function PickupPointsScreen() {
               color="#FFD700"
             />
             <View style={styles.infoContent}>
-              <Text style={styles.infoTitle}>Sistema di Rating</Text>
+              <Text style={styles.infoTitle}>Programma Fedeltà</Text>
               <Text style={styles.infoText}>
-                Il tuo rating aumenta quando ritiri gli ordini e diminuisce quando vengono rispediti al mittente. 
-                Mantieni un rating alto per accedere al programma fedeltà e guadagnare punti!
+                Guadagni 1 punto per ogni €1 speso su ordini ritirati. I punti determinano il tuo livello e lo sconto automatico applicato alla chiusura del drop. Lo sconto non scala i punti accumulati.
               </Text>
+              <View style={styles.loyaltyTable}>
+                <View style={styles.loyaltyRow}>
+                  <View style={[styles.loyaltyBadge, { backgroundColor: '#9E9E9E' }]}>
+                    <Text style={styles.loyaltyBadgeText}>Nuovo</Text>
+                  </View>
+                  <Text style={styles.loyaltyRange}>0 – 99 pt</Text>
+                  <Text style={styles.loyaltyDiscount}>Nessuno sconto</Text>
+                </View>
+                <View style={styles.loyaltyRow}>
+                  <View style={[styles.loyaltyBadge, { backgroundColor: '#2196F3' }]}>
+                    <Text style={styles.loyaltyBadgeText}>Fedele</Text>
+                  </View>
+                  <Text style={styles.loyaltyRange}>100 – 299 pt</Text>
+                  <Text style={styles.loyaltyDiscount}>−3%</Text>
+                </View>
+                <View style={styles.loyaltyRow}>
+                  <View style={[styles.loyaltyBadge, { backgroundColor: '#9C27B0' }]}>
+                    <Text style={styles.loyaltyBadgeText}>VIP</Text>
+                  </View>
+                  <Text style={styles.loyaltyRange}>300 – 699 pt</Text>
+                  <Text style={styles.loyaltyDiscount}>−5%</Text>
+                </View>
+                <View style={styles.loyaltyRow}>
+                  <View style={[styles.loyaltyBadge, { backgroundColor: '#FFD700' }]}>
+                    <Text style={[styles.loyaltyBadgeText, { color: '#5a4a00' }]}>Top</Text>
+                  </View>
+                  <Text style={styles.loyaltyRange}>700+ pt</Text>
+                  <Text style={styles.loyaltyDiscount}>−10%</Text>
+                </View>
+              </View>
             </View>
           </View>
         </ScrollView>
@@ -602,5 +632,36 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#FFD700',
     gap: 16,
+  },
+  loyaltyTable: {
+    marginTop: 14,
+    gap: 8,
+  },
+  loyaltyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  loyaltyBadge: {
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    minWidth: 56,
+    alignItems: 'center',
+  },
+  loyaltyBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  loyaltyRange: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    flex: 1,
+  },
+  loyaltyDiscount: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.text,
   },
 });
