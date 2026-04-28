@@ -332,7 +332,7 @@ export default function PickupPointsScreen() {
               <Text style={styles.infoText}>
                 Ritira sempre i tuoi ordini: dopo 5 ordini non ritirati l&apos;account viene bloccato definitivamente.
                 {'\n\n'}
-                I resi sono possibili al punto di ritiro, ma ogni reso comporta una penalità di −5 punti fedeltà.
+                I resi sono possibili al punto di ritiro, ma ogni reso scala dal saldo l'intero valore in punti dell'ordine restituito.
                 {'\n\n'}
                 Il pagamento avviene in contanti al momento del ritiro.
               </Text>
@@ -350,7 +350,7 @@ export default function PickupPointsScreen() {
             <View style={styles.infoContent}>
               <Text style={styles.infoTitle}>Programma Fedeltà</Text>
               <Text style={styles.infoText}>
-                Guadagni 1 punto per ogni €1 speso su ordini ritirati. I punti determinano il tuo livello e lo sconto automatico applicato alla chiusura del drop. Lo sconto non scala i punti accumulati.
+                Guadagni 1 punto per ogni €1 speso su ordini ritirati. In caso di reso, perdi tanti punti quanti ne hai guadagnati con quell'ordine. I punti determinano il tuo livello e lo sconto automatico applicato alla chiusura del drop.
               </Text>
               <View style={styles.loyaltyTable}>
                 <View style={styles.loyaltyRow}>

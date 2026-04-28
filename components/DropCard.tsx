@@ -466,8 +466,8 @@ const styles = StyleSheet.create({
     borderColor: '#86EFAC',
   },
   cardSoon: {
-    backgroundColor: '#FFF7ED',
-    borderColor: '#FED7AA',
+    backgroundColor: '#EFF6FF',
+    borderColor: '#BFDBFE',
   },
   cardTerminated: {
     backgroundColor: '#FFF1F2',
