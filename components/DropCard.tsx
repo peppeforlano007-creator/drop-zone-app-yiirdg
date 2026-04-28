@@ -221,8 +221,9 @@ export default function DropCard({ drop, deliveryMinDays, deliveryMaxDays }: Dro
     <Pressable
       style={({ pressed }) => [
         styles.card,
-        (isNonActive || isCompleted) && styles.cardDimmed,
-        isCompleted && styles.cardCompleted,
+        drop.status === 'active' && styles.cardActive,
+        isNonActive && styles.cardSoon,
+        (isCompleted || drop.status === 'expired' || drop.status === 'cancelled' || drop.status === 'underfunded') && styles.cardTerminated,
         pressed && styles.cardPressed,
       ]}
       onPress={handlePress}
@@ -459,6 +460,18 @@ const styles = StyleSheet.create({
     opacity: 0.7,
     borderColor: '#9CA3AF',
     backgroundColor: colors.backgroundSecondary,
+  },
+  cardActive: {
+    backgroundColor: '#F0FDF4',
+    borderColor: '#BBF7D0',
+  },
+  cardSoon: {
+    backgroundColor: '#EFF6FF',
+    borderColor: '#BFDBFE',
+  },
+  cardTerminated: {
+    backgroundColor: '#F9FAFB',
+    borderColor: '#E5E7EB',
   },
   timerBadgeCompleted: {
     flexDirection: 'row',
@@ -709,7 +722,7 @@ const styles = StyleSheet.create({
     fontFamily: 'System',
   },
   completedStats: {
-    backgroundColor: '#F3F4F6',
+    backgroundColor: '#EBEBEB',
     borderRadius: 10,
     padding: 12,
     marginBottom: 12,
