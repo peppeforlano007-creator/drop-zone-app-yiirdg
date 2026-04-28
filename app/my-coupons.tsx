@@ -216,7 +216,7 @@ export default function MyPointsScreen() {
               <View style={styles.ruleDivider} />
               <View style={styles.ruleRow}>
                 <Text style={[styles.ruleIcon, { color: colors.error }]}>−</Text>
-                <Text style={styles.ruleText}>Reso effettuato = −5 punti</Text>
+                <Text style={styles.ruleText}>Reso effettuato = perdi tutti i punti guadagnati con quell&apos;ordine (es. reso da €50 = −50 punti)</Text>
               </View>
               <View style={styles.ruleDivider} />
               <View style={styles.ruleRow}>

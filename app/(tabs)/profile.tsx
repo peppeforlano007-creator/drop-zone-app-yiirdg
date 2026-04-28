@@ -414,7 +414,7 @@ export default function ProfileScreen() {
                   </View>
                 </View>
                 <Text style={styles.loyaltyDescription}>
-                  Guadagni 1 punto per ogni euro speso. Il tuo livello determina lo sconto automatico applicato su ogni ordine.
+                  Guadagni 1 punto per ogni €1 speso su ordini ritirati. I resi scalano dal saldo tutti i punti dell&apos;ordine restituito. Il tuo livello determina lo sconto automatico su ogni ordine.
                 </Text>
                 <Pressable style={styles.couponsButton} onPress={handleViewCoupons}>
                   <IconSymbol ios_icon_name="star.circle.fill" android_material_icon_name="stars" size={20} color={colors.background} />
