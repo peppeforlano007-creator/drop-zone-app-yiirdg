@@ -463,15 +463,15 @@ const styles = StyleSheet.create({
   },
   cardActive: {
     backgroundColor: '#F0FDF4',
-    borderColor: '#BBF7D0',
+    borderColor: '#86EFAC',
   },
   cardSoon: {
-    backgroundColor: '#EFF6FF',
-    borderColor: '#BFDBFE',
+    backgroundColor: '#FFF7ED',
+    borderColor: '#FED7AA',
   },
   cardTerminated: {
-    backgroundColor: '#F9FAFB',
-    borderColor: '#E5E7EB',
+    backgroundColor: '#FFF1F2',
+    borderColor: '#FECDD3',
   },
   timerBadgeCompleted: {
     flexDirection: 'row',
