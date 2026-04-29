@@ -132,8 +132,24 @@ export default function CreatePickupPointScreen() {
         console.error('Error from Edge Function:', JSON.stringify(error));
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
 
-        // Try to get the specific error message from the response body
-        let errorMessage = (data as any)?.error || error.message || 'Errore durante la creazione del punto di ritiro';
+        let errorMessage = 'Errore durante la creazione del punto di ritiro';
+
+        // FunctionsHttpError has a context with the response — read the JSON body
+        try {
+          const ctx = (error as any).context;
+          let errorBody: any = null;
+          if (typeof ctx?.json === 'function') {
+            errorBody = await ctx.json();
+          } else if (typeof ctx?.text === 'function') {
+            const text = await ctx.text();
+            errorBody = JSON.parse(text);
+          }
+          if (errorBody?.error) {
+            errorMessage = errorBody.error;
+          }
+        } catch (_) {
+          errorMessage = error.message || errorMessage;
+        }
 
         if (errorMessage.toLowerCase().includes('already registered') ||
             errorMessage.toLowerCase().includes('already exists') ||
