@@ -106,70 +106,72 @@ export default function CreatePickupPointScreen() {
       
       // Get the current session
       const { data: { session } } = await supabase.auth.getSession();
-      
+
       if (!session) {
         Alert.alert('Errore', 'Sessione non valida. Effettua nuovamente il login.');
         setLoading(false);
         return;
       }
 
-      // Call the Edge Function
-      const { data, error } = await supabase.functions.invoke('create-pickup-point-user', {
-        body: {
-          email: email.trim().toLowerCase(),
-          password: generatedPassword,
-          fullName: fullName.trim(),
-          phone: phone.trim(),
-          pointName: pointName.trim(),
-          address: address.trim(),
-          city: city.trim(),
-          postalCode: postalCode.trim() || null,
-          commissionRate: commission,
-        },
-      });
+      // Call the Edge Function directly via fetch
+      let responseData: any = null;
+      try {
+        console.log('Calling Edge Function via direct fetch...');
+        const response = await fetch(
+          'https://sippdylyuzejudmzbwdn.supabase.co/functions/v1/create-pickup-point-user',
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${session.access_token}`,
+              'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNpcHBkeWx5dXplanVkbXpid2RuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjMwNDAyNTEsImV4cCI6MjA3ODYxNjI1MX0.yPqwhFDcucUNxXnxnQ4orHBvxVNkxjEBUOypW6MV6jE',
+            },
+            body: JSON.stringify({
+              email: email.trim().toLowerCase(),
+              password: generatedPassword,
+              fullName: fullName.trim(),
+              phone: phone.trim(),
+              pointName: pointName.trim(),
+              address: address.trim(),
+              city: city.trim(),
+              postalCode: postalCode.trim() || null,
+              commissionRate: commission,
+            }),
+          }
+        );
 
-      if (error) {
-        console.error('Error from Edge Function:', JSON.stringify(error));
+        responseData = await response.json();
+
+        if (!response.ok) {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+          let errorMessage = responseData?.error || 'Errore durante la creazione del punto di ritiro';
+
+          if (errorMessage.toLowerCase().includes('already registered') ||
+              errorMessage.toLowerCase().includes('already exists') ||
+              errorMessage.toLowerCase().includes('user already')) {
+            errorMessage = 'Questo indirizzo email è già registrato nel sistema.\n\nScegli un\'altra email per questo punto di ritiro.';
+          } else if (errorMessage.toLowerCase().includes('duplicate') ||
+                     errorMessage.toLowerCase().includes('unique')) {
+            errorMessage = 'Esiste già un punto di ritiro con questi dati (email o nome duplicato). Verifica i dati inseriti.';
+          } else if (errorMessage.toLowerCase().includes('missing required')) {
+            errorMessage = 'Alcuni campi obbligatori sono mancanti. Verifica tutti i campi e riprova.';
+          }
+
+          Alert.alert('Errore Creazione', errorMessage);
+          setLoading(false);
+          return;
+        }
+      } catch (fetchError) {
+        console.error('Fetch error:', fetchError);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-
-        let errorMessage = 'Errore durante la creazione del punto di ritiro';
-
-        // FunctionsHttpError has a context with the response — read the JSON body
-        try {
-          const ctx = (error as any).context;
-          let errorBody: any = null;
-          if (typeof ctx?.json === 'function') {
-            errorBody = await ctx.json();
-          } else if (typeof ctx?.text === 'function') {
-            const text = await ctx.text();
-            errorBody = JSON.parse(text);
-          }
-          if (errorBody?.error) {
-            errorMessage = errorBody.error;
-          }
-        } catch (_) {
-          errorMessage = error.message || errorMessage;
-        }
-
-        if (errorMessage.toLowerCase().includes('already registered') ||
-            errorMessage.toLowerCase().includes('already exists') ||
-            errorMessage.toLowerCase().includes('user already')) {
-          errorMessage = 'Questo indirizzo email è già registrato nel sistema.\n\nScegli un\'altra email per questo punto di ritiro.';
-        } else if (errorMessage.toLowerCase().includes('duplicate') ||
-                   errorMessage.toLowerCase().includes('unique')) {
-          errorMessage = 'Esiste già un punto di ritiro con questi dati (email o nome duplicato). Verifica i dati inseriti.';
-        } else if (errorMessage.toLowerCase().includes('missing required')) {
-          errorMessage = 'Alcuni campi obbligatori sono mancanti. Verifica tutti i campi e riprova.';
-        }
-
-        Alert.alert('Errore Creazione', errorMessage);
+        Alert.alert('Errore di Connessione', 'Impossibile contattare il server. Verifica la connessione internet e riprova.');
         setLoading(false);
         return;
       }
 
-      if (!data || !data.success) {
+      if (!responseData || !responseData.success) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-        Alert.alert('Errore', data?.error || 'Errore durante la creazione del punto di ritiro');
+        Alert.alert('Errore', responseData?.error || 'Errore durante la creazione del punto di ritiro');
         setLoading(false);
         return;
       }
