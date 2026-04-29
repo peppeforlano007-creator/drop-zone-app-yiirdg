@@ -129,17 +129,24 @@ export default function CreatePickupPointScreen() {
       });
 
       if (error) {
-        console.error('Error from Edge Function:', error);
+        console.error('Error from Edge Function:', JSON.stringify(error));
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-        
-        let errorMessage = error.message || 'Errore durante la creazione del punto di ritiro';
-        
+
+        // Try to get the specific error message from the response body
+        let errorMessage = (data as any)?.error || error.message || 'Errore durante la creazione del punto di ritiro';
+
         if (errorMessage.toLowerCase().includes('already registered') ||
-            errorMessage.toLowerCase().includes('already exists')) {
-          errorMessage = 'Questo indirizzo email è già registrato.\n\nScegli un\'altra email.';
+            errorMessage.toLowerCase().includes('already exists') ||
+            errorMessage.toLowerCase().includes('user already')) {
+          errorMessage = 'Questo indirizzo email è già registrato nel sistema.\n\nScegli un\'altra email per questo punto di ritiro.';
+        } else if (errorMessage.toLowerCase().includes('duplicate') ||
+                   errorMessage.toLowerCase().includes('unique')) {
+          errorMessage = 'Esiste già un punto di ritiro con questi dati (email o nome duplicato). Verifica i dati inseriti.';
+        } else if (errorMessage.toLowerCase().includes('missing required')) {
+          errorMessage = 'Alcuni campi obbligatori sono mancanti. Verifica tutti i campi e riprova.';
         }
-        
-        Alert.alert('Errore', errorMessage);
+
+        Alert.alert('Errore Creazione', errorMessage);
         setLoading(false);
         return;
       }
