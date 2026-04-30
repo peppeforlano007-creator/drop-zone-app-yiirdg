@@ -229,20 +229,22 @@ export default function DropsScreen() {
       console.log('Timestamp:', new Date().toISOString());
 
       // Get user's pickup point
+      let profile: { pickup_point_id: string | null } | null = null;
       if (user) {
-        const { data: profile } = await supabase
+        const { data: profileData } = await supabase
           .from('profiles')
           .select('pickup_point_id')
           .eq('user_id', user.id)
           .single();
 
+        profile = profileData;
         if (profile?.pickup_point_id) {
           setUserPickupPointId(profile.pickup_point_id);
         }
       }
 
       // Fetch active, approved, and completed drops
-      const { data, error } = await supabase
+      let query = supabase
         .from('drops')
         .select(`
           id,
@@ -274,6 +276,17 @@ export default function DropsScreen() {
         `)
         .in('status', ['active', 'approved', 'completed'])
         .order('created_at', { ascending: false });
+
+      // Filtra per punto di ritiro se l'utente ne ha uno selezionato
+      const pickupId = profile?.pickup_point_id ?? null;
+      if (pickupId) {
+        console.log('[drops] filtering by pickup_point_id:', pickupId);
+        query = query.eq('pickup_point_id', pickupId);
+      } else {
+        console.log('[drops] no pickup point selected, showing all drops');
+      }
+
+      const { data, error } = await query;
 
       console.log('[drops] raw statuses returned:', data?.map(d => ({ name: d.name, status: d.status })));
 
@@ -469,7 +482,9 @@ export default function DropsScreen() {
           <IconSymbol ios_icon_name="tray" android_material_icon_name="inbox" size={64} color={colors.textSecondary} />
           <Text style={styles.emptyTitle}>Nessun drop attivo</Text>
           <Text style={styles.emptyText}>
-            I drop appariranno qui quando abbastanza persone della tua città sono interessate ad una lista di articoli. Gioca nella sezione Punti e aumenta la probabilità di attivare un drop nella tua città.
+            {userPickupPointId
+              ? 'Non ci sono drop disponibili per il tuo punto di ritiro al momento. Torna a controllare presto!'
+              : 'I drop appariranno qui quando abbastanza persone della tua città sono interessate ad una lista di articoli. Gioca nella sezione Punti e aumenta la probabilità di attivare un drop nella tua città.'}
           </Text>
         </View>
       ) : (
