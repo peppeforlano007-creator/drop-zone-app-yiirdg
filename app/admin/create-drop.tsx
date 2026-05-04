@@ -271,17 +271,17 @@ export default function CreateDropScreen() {
                 .in('status', ['completed', 'expired', 'cancelled', 'underfunded']);
 
               if (existingDrops && existingDrops.length > 0) {
-                console.log(`🗑️ Found ${existingDrops.length} stale drop(s) for same list+pickup, deleting...`);
+                console.log(`📦 Found ${existingDrops.length} stale drop(s) for same list+pickup, archiving...`);
                 const staleIds = existingDrops.map(d => d.id);
-                const { error: deleteError } = await supabase
+                const { error: archiveError } = await supabase
                   .from('drops')
-                  .delete()
+                  .update({ archived: true })
                   .in('id', staleIds);
-                if (deleteError) {
-                  console.warn('⚠️ Could not delete stale drops:', deleteError.message);
+                if (archiveError) {
+                  console.warn('⚠️ Could not archive stale drops:', archiveError.message, '— Run: ALTER TABLE drops ADD COLUMN IF NOT EXISTS archived BOOLEAN DEFAULT FALSE;');
                   // Non-blocking — continue with creation anyway
                 } else {
-                  console.log(`✅ Deleted ${staleIds.length} stale drop(s)`);
+                  console.log(`✅ Archived ${staleIds.length} stale drop(s)`);
                 }
               }
 

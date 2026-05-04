@@ -275,6 +275,7 @@ export default function DropsScreen() {
           )
         `)
         .in('status', ['active', 'approved', 'completed'])
+        .or('archived.is.null,archived.eq.false')
         .order('created_at', { ascending: false });
 
       // Filtra per punto di ritiro se l'utente ne ha uno selezionato

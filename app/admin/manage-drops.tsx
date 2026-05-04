@@ -21,6 +21,7 @@ interface Drop {
   id: string;
   name: string;
   status: 'pending_approval' | 'approved' | 'active' | 'inactive' | 'completed' | 'expired' | 'cancelled' | 'underfunded';
+  archived?: boolean;
   current_discount: number;
   current_value: number;
   target_value: number;
@@ -48,7 +49,7 @@ export default function ManageDropsScreen() {
   const [drops, setDrops] = useState<Drop[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [filter, setFilter] = useState<'all' | 'pending_approval' | 'approved' | 'active' | 'inactive' | 'underfunded'>('all');
+  const [filter, setFilter] = useState<'all' | 'pending_approval' | 'approved' | 'active' | 'inactive' | 'underfunded' | 'archived'>('all');
 
   useEffect(() => {
     loadDrops();
@@ -416,9 +417,11 @@ export default function ManageDropsScreen() {
     }
   };
 
-  const filteredDrops = filter === 'all' 
-    ? drops 
-    : drops.filter(drop => drop.status === filter);
+  const filteredDrops = filter === 'all'
+    ? drops
+    : filter === 'archived'
+    ? drops.filter(drop => drop.archived === true)
+    : drops.filter(drop => drop.status === filter && !drop.archived);
 
   const renderDrop = (drop: Drop) => {
     const statusIcon = getStatusIcon(drop.status);
@@ -442,16 +445,23 @@ export default function ManageDropsScreen() {
               Lista: {drop.supplier_lists?.name || 'N/A'}
             </Text>
           </View>
-          <View style={[styles.statusBadge, { backgroundColor: getStatusColor(drop.status) + '20' }]}>
-            <IconSymbol
-              ios_icon_name={statusIcon.ios}
-              android_material_icon_name={statusIcon.android}
-              size={16}
-              color={getStatusColor(drop.status)}
-            />
-            <Text style={[styles.statusText, { color: getStatusColor(drop.status) }]}>
-              {getStatusText(drop.status)}
-            </Text>
+          <View style={{ alignItems: 'flex-end' }}>
+            <View style={[styles.statusBadge, { backgroundColor: getStatusColor(drop.status) + '20' }]}>
+              <IconSymbol
+                ios_icon_name={statusIcon.ios}
+                android_material_icon_name={statusIcon.android}
+                size={16}
+                color={getStatusColor(drop.status)}
+              />
+              <Text style={[styles.statusText, { color: getStatusColor(drop.status) }]}>
+                {getStatusText(drop.status)}
+              </Text>
+            </View>
+            {drop.archived && (
+              <View style={[styles.statusBadge, { backgroundColor: '#6B728020', marginTop: 4 }]}>
+                <Text style={[styles.statusText, { color: '#6B7280' }]}>Archiviato</Text>
+              </View>
+            )}
           </View>
         </View>
 
@@ -705,6 +715,7 @@ export default function ManageDropsScreen() {
               { key: 'active', label: 'Attivi' },
               { key: 'inactive', label: 'Disattivati' },
               { key: 'underfunded', label: 'Non Finanziati' },
+              { key: 'archived', label: 'Archiviati' },
             ].map((item) => (
               <Pressable
                 key={item.key}
