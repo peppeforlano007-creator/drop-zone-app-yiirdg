@@ -361,8 +361,7 @@ export default function DropsScreen() {
       if (
         updatedDrop.status === 'completed' ||
         updatedDrop.status === 'expired' ||
-        updatedDrop.status === 'cancelled' ||
-        updatedDrop.status === 'underfunded'
+        updatedDrop.status === 'cancelled'
       ) {
         console.log('Drop status changed to', updatedDrop.status, '- triggering full reload');
         loadDropsRef.current();

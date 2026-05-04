@@ -268,7 +268,7 @@ export default function CreateDropScreen() {
                 .select('id, name, status')
                 .eq('supplier_list_id', selectedList)
                 .eq('pickup_point_id', selectedPickupPoint)
-                .in('status', ['completed', 'expired', 'cancelled', 'underfunded']);
+                .in('status', ['completed', 'expired', 'cancelled']);
 
               if (existingDrops && existingDrops.length > 0) {
                 console.log(`📦 Found ${existingDrops.length} stale drop(s) for same list+pickup, archiving...`);

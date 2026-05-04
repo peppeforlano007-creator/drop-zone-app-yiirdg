@@ -20,7 +20,7 @@ import { supabase } from '@/app/integrations/supabase/client';
 interface Drop {
   id: string;
   name: string;
-  status: 'pending_approval' | 'approved' | 'active' | 'inactive' | 'completed' | 'expired' | 'cancelled' | 'underfunded';
+  status: 'pending_approval' | 'approved' | 'active' | 'inactive' | 'completed' | 'expired' | 'cancelled';
   archived?: boolean;
   current_discount: number;
   current_value: number;
@@ -32,7 +32,6 @@ interface Drop {
   approved_at?: string;
   activated_at?: string;
   deactivated_at?: string;
-  underfunded_notified_at?: string;
   pickup_points?: {
     name: string;
     city: string;
@@ -49,27 +48,11 @@ export default function ManageDropsScreen() {
   const [drops, setDrops] = useState<Drop[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [filter, setFilter] = useState<'all' | 'pending_approval' | 'approved' | 'active' | 'inactive' | 'underfunded' | 'archived'>('all');
+  const [filter, setFilter] = useState<'all' | 'pending_approval' | 'approved' | 'active' | 'inactive' | 'archived'>('all');
 
   useEffect(() => {
     loadDrops();
-    checkUnderfundedDrops();
   }, []);
-
-  const checkUnderfundedDrops = async () => {
-    try {
-      console.log('Checking for underfunded drops...');
-      const { error } = await supabase.rpc('check_underfunded_drops');
-      
-      if (error) {
-        console.error('Error checking underfunded drops:', error);
-      } else {
-        console.log('Underfunded drops check completed');
-      }
-    } catch (error) {
-      console.error('Error in checkUnderfundedDrops:', error);
-    }
-  };
 
   const loadDrops = async () => {
     try {
@@ -109,7 +92,6 @@ export default function ManageDropsScreen() {
 
   const handleRefresh = () => {
     setRefreshing(true);
-    checkUnderfundedDrops();
     loadDrops();
   };
 
@@ -121,62 +103,6 @@ export default function ManageDropsScreen() {
   const handleViewSuggestions = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     router.push('/admin/drop-suggestions');
-  };
-
-  const handleProcessUnderfunded = async (dropId: string, dropName: string) => {
-    Alert.alert(
-      'Elabora Drop Non Finanziato',
-      `Vuoi rilasciare i fondi e notificare gli utenti per il drop "${dropName}"?\n\nQuesto rilascerà tutti gli importi bloccati sulle carte degli utenti e invierà loro una notifica.`,
-      [
-        { text: 'Annulla', style: 'cancel' },
-        {
-          text: 'Procedi',
-          style: 'default',
-          onPress: async () => {
-            try {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-              
-              const { data: { session } } = await supabase.auth.getSession();
-              
-              if (!session) {
-                Alert.alert('Errore', 'Sessione non valida');
-                return;
-              }
-
-              const response = await fetch(
-                `${supabase.supabaseUrl}/functions/v1/handle-underfunded-drops`,
-                {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${session.access_token}`,
-                  },
-                  body: JSON.stringify({ dropId }),
-                }
-              );
-
-              const result = await response.json();
-
-              if (!response.ok) {
-                console.error('Error processing underfunded drop:', result);
-                Alert.alert('Errore', result.error || 'Impossibile elaborare il drop');
-                return;
-              }
-
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-              Alert.alert(
-                'Successo',
-                `Fondi rilasciati per ${result.refundedBookings} prenotazioni.\n\nGli utenti sono stati notificati.`
-              );
-              loadDrops();
-            } catch (error) {
-              console.error('Error processing underfunded drop:', error);
-              Alert.alert('Errore', 'Si è verificato un errore');
-            }
-          },
-        },
-      ]
-    );
   };
 
   const handleApproveDrop = async (dropId: string, dropName: string) => {
@@ -364,8 +290,6 @@ export default function ManageDropsScreen() {
         return colors.error;
       case 'cancelled':
         return colors.error;
-      case 'underfunded':
-        return '#FF6B35';
       default:
         return colors.textSecondary;
     }
@@ -387,8 +311,6 @@ export default function ManageDropsScreen() {
         return 'Scaduto';
       case 'cancelled':
         return 'Annullato';
-      case 'underfunded':
-        return 'Non Finanziato';
       default:
         return status;
     }
@@ -410,8 +332,6 @@ export default function ManageDropsScreen() {
         return { ios: 'xmark.circle', android: 'cancel' };
       case 'cancelled':
         return { ios: 'xmark.circle.fill', android: 'cancel' };
-      case 'underfunded':
-        return { ios: 'exclamationmark.triangle.fill', android: 'warning' };
       default:
         return { ios: 'circle', android: 'circle' };
     }
@@ -429,9 +349,7 @@ export default function ManageDropsScreen() {
     const canActivate = drop.status === 'approved' || drop.status === 'inactive';
     const canDeactivate = drop.status === 'active';
     const canComplete = drop.status === 'active';
-    const canViewAnalytics = drop.status === 'active' || drop.status === 'completed' || drop.status === 'underfunded';
-    const canProcessUnderfunded = drop.status === 'underfunded' && !drop.underfunded_notified_at;
-    const isUnderfunded = drop.status === 'underfunded';
+    const canViewAnalytics = drop.status === 'active' || drop.status === 'completed';
 
     return (
       <View key={drop.id} style={styles.dropCard}>
@@ -465,28 +383,6 @@ export default function ManageDropsScreen() {
           </View>
         </View>
 
-        {isUnderfunded && (
-          <View style={styles.underfundedWarning}>
-            <IconSymbol
-              ios_icon_name="exclamationmark.triangle.fill"
-              android_material_icon_name="warning"
-              size={20}
-              color="#FF6B35"
-            />
-            <View style={styles.underfundedTextContainer}>
-              <Text style={styles.underfundedTitle}>Drop Non Finanziato</Text>
-              <Text style={styles.underfundedText}>
-                Valore raggiunto: €{drop.current_value.toFixed(2)} / €{drop.supplier_lists?.min_reservation_value || 0}
-              </Text>
-              {drop.underfunded_notified_at && (
-                <Text style={styles.underfundedNotified}>
-                  ✓ Utenti notificati e fondi rilasciati
-                </Text>
-              )}
-            </View>
-          </View>
-        )}
-
         <View style={styles.dropStats}>
           <View style={styles.statItem}>
             <Text style={styles.statLabel}>Sconto Attuale</Text>
@@ -503,28 +399,6 @@ export default function ManageDropsScreen() {
         </View>
 
         <View style={styles.dropActions}>
-          {canProcessUnderfunded && (
-            <Pressable
-              style={({ pressed }) => [
-                styles.actionButton,
-                styles.underfundedButton,
-                pressed && styles.actionButtonPressed,
-              ]}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                handleProcessUnderfunded(drop.id, drop.name);
-              }}
-            >
-              <IconSymbol
-                ios_icon_name="arrow.counterclockwise.circle.fill"
-                android_material_icon_name="refresh"
-                size={18}
-                color="#fff"
-              />
-              <Text style={styles.actionButtonText}>Rilascia Fondi</Text>
-            </Pressable>
-          )}
-
           {canViewAnalytics && (
             <Pressable
               style={({ pressed }) => [
@@ -714,7 +588,6 @@ export default function ManageDropsScreen() {
               { key: 'approved', label: 'Approvati' },
               { key: 'active', label: 'Attivi' },
               { key: 'inactive', label: 'Disattivati' },
-              { key: 'underfunded', label: 'Non Finanziati' },
               { key: 'archived', label: 'Archiviati' },
             ].map((item) => (
               <Pressable
@@ -931,35 +804,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
-  underfundedWarning: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    backgroundColor: '#FF6B3520',
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 16,
-    gap: 10,
-  },
-  underfundedTextContainer: {
-    flex: 1,
-  },
-  underfundedTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#FF6B35',
-    marginBottom: 4,
-  },
-  underfundedText: {
-    fontSize: 13,
-    color: colors.text,
-    marginBottom: 4,
-  },
-  underfundedNotified: {
-    fontSize: 12,
-    color: colors.success,
-    fontWeight: '600',
-    marginTop: 4,
-  },
   dropStats: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -1000,9 +844,6 @@ const styles = StyleSheet.create({
   actionButtonPressed: {
     opacity: 0.7,
     transform: [{ scale: 0.98 }],
-  },
-  underfundedButton: {
-    backgroundColor: '#FF6B35',
   },
   analyticsButton: {
     backgroundColor: '#9333EA',
