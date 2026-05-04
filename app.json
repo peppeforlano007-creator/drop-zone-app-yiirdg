@@ -22,10 +22,7 @@
         ]
       },
       "entitlements": {
-        "aps-environment": "production",
-        "com.apple.security.application-groups": [
-          "group.com.giuseppeforlano.dropzone.onesignal"
-        ]
+        "aps-environment": "production"
       }
     },
     "android": {
@@ -41,12 +38,6 @@
       "bundler": "metro"
     },
     "plugins": [
-      [
-        "onesignal-expo-plugin",
-        {
-          "mode": "production"
-        }
-      ],
       "expo-font",
       "expo-router",
       "expo-web-browser"
@@ -56,8 +47,7 @@
       "typedRoutes": true
     },
     "extra": {
-      "router": {},
-      "oneSignalAppId": "94d57673-6ccc-47eb-80d5-d5aa8c2a76a1"
+      "router": {}
     }
   }
 }
