@@ -21,6 +21,7 @@ import { WidgetProvider } from "@/contexts/WidgetContext";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { SubscriptionProvider } from "@/contexts/SubscriptionContext";
 import { DropInterestProvider } from "@/contexts/DropInterestContext";
+import { NotificationProvider } from "@/contexts/NotificationContext";
 import { supabase } from "@/app/integrations/supabase/client";
 
 // Import font
@@ -328,6 +329,7 @@ export default function RootLayout() {
         <AuthProvider>
           <DropInterestProvider>
           <SubscriptionProvider>
+        <NotificationProvider>
             <WidgetProvider>
               <GestureHandlerRootView>
                 <Stack>
@@ -361,6 +363,9 @@ export default function RootLayout() {
                   {/* Subscription Screens */}
                   <Stack.Screen name="subscription-plans" options={{ headerShown: false }} />
 
+                  {/* Notification Preferences */}
+                  <Stack.Screen name="notification-preferences" options={{ headerShown: false }} />
+
                   {/* Modal Demo Screens */}
                   <Stack.Screen
                     name="modal"
@@ -390,7 +395,8 @@ export default function RootLayout() {
                 <SystemBars style={"auto"} />
               </GestureHandlerRootView>
             </WidgetProvider>
-          </SubscriptionProvider>
+          </NotificationProvider>
+        </SubscriptionProvider>
           </DropInterestProvider>
         </AuthProvider>
       </ThemeProvider>
