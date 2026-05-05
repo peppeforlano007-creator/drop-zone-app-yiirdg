@@ -19,7 +19,8 @@
         "ITSAppUsesNonExemptEncryption": false,
         "UIBackgroundModes": [
           "remote-notification"
-        ]
+        ],
+        "NSPhotoLibraryUsageDescription": "Questa app accede alla tua libreria foto per caricare immagini dei prodotti."
       },
       "entitlements": {
         "aps-environment": "production"
@@ -31,7 +32,8 @@
         "backgroundColor": "#000000"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.anonymous.Natively"
+      "package": "com.anonymous.Natively",
+      "permissions": ["READ_MEDIA_IMAGES"]
     },
     "web": {
       "favicon": "./assets/images/final_quest_240x240.png",
