@@ -36,7 +36,7 @@
       "ios": {
         "appleId": "g.forlano@modagroupcompany.com",
         "ascAppId": "6759460130",
-        "appleTeamId": "YOUR_APPLE_TEAM_ID"
+        "appleTeamId": "3QQ44353Z7"
       },
       "android": {
         "serviceAccountKeyPath": "./google-service-account.json",
