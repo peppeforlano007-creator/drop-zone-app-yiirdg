@@ -15,7 +15,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.giuseppeforlano.dropzone",
-      "buildNumber": "2",
+      "buildNumber": "4",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSPhotoLibraryUsageDescription": "Questa app accede alla tua libreria foto per caricare immagini dei prodotti."
