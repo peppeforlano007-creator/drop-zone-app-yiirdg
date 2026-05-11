@@ -36,6 +36,8 @@ interface Supplier {
 
 interface ExcelProduct {
   sku?: string;
+  asin?: string;
+  ean?: string;
   nome: string;
   descrizione?: string;
   immagine_url: string;
@@ -51,6 +53,8 @@ interface ExcelProduct {
 
 interface ProductGroup {
   sku: string;
+  asin?: string;
+  ean?: string;
   nome: string;
   descrizione?: string;
   immagine_url: string;
@@ -136,6 +140,10 @@ export default function CreateListScreen() {
     }
   };
 
+  const buildAmazonImageUrl = (asin: string): string => {
+    return `https://images-na.ssl-images-amazon.com/images/P/${asin.trim()}.jpg`;
+  };
+
   const handlePickExcelFile = async () => {
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -177,14 +185,27 @@ export default function CreateListScreen() {
       const warnings: string[] = [];
       const skuGroups: { [sku: string]: number } = {};
 
+      let asinGeneratedCount = 0;
+
       jsonData.forEach((row, index) => {
         const rowNum = index + 2;
-        
-        // Check mandatory fields: nome, immagine_url, prezzo, stock
-        if (!row.nome || !row.immagine_url || !row.prezzo || !row.stock) {
+
+        // Read ASIN and EAN
+        const asin = row.asin || row.ASIN || row.codice_asin || null;
+        const ean = row.ean || row.EAN || row.barcode || row.codice_ean || null;
+
+        // Build image URL: use provided URL, or generate from ASIN, or empty string
+        let imageUrl = row.immagine_url || '';
+        if (!imageUrl && asin) {
+          imageUrl = buildAmazonImageUrl(asin);
+          asinGeneratedCount++;
+          console.log(`[Excel Import] Riga ${rowNum}: immagine generata da ASIN ${asin} → ${imageUrl}`);
+        }
+
+        // Check mandatory fields: nome, prezzo, stock (immagine_url no longer mandatory)
+        if (!row.nome || !row.prezzo || !row.stock) {
           const missingFields = [];
           if (!row.nome) missingFields.push('nome');
-          if (!row.immagine_url) missingFields.push('immagine_url');
           if (!row.prezzo) missingFields.push('prezzo');
           if (!row.stock) missingFields.push('stock');
           errors.push(`Riga ${rowNum}: Campi obbligatori mancanti (${missingFields.join(', ')})`);
@@ -221,12 +242,17 @@ export default function CreateListScreen() {
         if (!sku) {
           warnings.push(`Riga ${rowNum}: SKU mancante - consigliato per raggruppare varianti`);
         }
+        if (!imageUrl) {
+          warnings.push(`Riga ${rowNum}: Immagine mancante (né immagine_url né asin forniti)`);
+        }
 
         products.push({
           sku: sku,
+          asin: asin,
+          ean: ean,
           nome: row.nome,
           descrizione: row.descrizione || '',
-          immagine_url: row.immagine_url,
+          immagine_url: imageUrl,
           immagini_aggiuntive: row.immagini_aggiuntive || '',
           prezzo: price,
           taglia: row.taglia || row.taglie || '',
@@ -261,6 +287,10 @@ export default function CreateListScreen() {
       const productsWithSku = products.filter(p => p.sku).length;
       
       let message = `${products.length} prodott${products.length === 1 ? 'o' : 'i'} caricato con successo!`;
+
+      if (asinGeneratedCount > 0) {
+        message += `\n\n📸 ${asinGeneratedCount} prodott${asinGeneratedCount === 1 ? 'o' : 'i'}: immagine generata automaticamente da ASIN Amazon`;
+      }
       
       if (uniqueSkus > 0) {
         message += `\n\n📦 ${uniqueSkus} SKU unici trovati`;
