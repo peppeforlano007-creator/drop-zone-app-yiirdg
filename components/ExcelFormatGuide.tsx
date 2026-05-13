@@ -48,11 +48,6 @@ export default function ExcelFormatGuide({ onClose }: ExcelFormatGuideProps) {
               <Text style={styles.fieldExample}>Es: Scarpe Nike Air Max</Text>
             </View>
             <View style={styles.field}>
-              <Text style={styles.fieldName}>immagine_url</Text>
-              <Text style={styles.fieldDescription}>URL dell&apos;immagine principale</Text>
-              <Text style={styles.fieldExample}>Es: https://example.com/image.jpg</Text>
-            </View>
-            <View style={styles.field}>
               <Text style={styles.fieldName}>prezzo</Text>
               <Text style={styles.fieldDescription}>Prezzo di listino in euro</Text>
               <Text style={styles.fieldExample}>Es: 129.99</Text>
@@ -82,6 +77,27 @@ export default function ExcelFormatGuide({ onClose }: ExcelFormatGuideProps) {
               <Text style={styles.fieldName}>sku</Text>
               <Text style={styles.fieldDescription}>Codice articolo SKU - usato per raggruppare varianti dello stesso prodotto</Text>
               <Text style={styles.fieldExample}>Es: NIKE-AM-001 (stesso SKU per tutte le taglie/colori dello stesso articolo)</Text>
+            </View>
+            <View style={[styles.field, styles.amazonField]}>
+              <Text style={styles.fieldName}>asin</Text>
+              <Text style={styles.fieldDescription}>
+                Codice ASIN Amazon{'\n'}
+                <Text style={styles.fieldBold}>✨ Se immagine_url è assente, l&apos;immagine viene generata automaticamente dall&apos;ASIN</Text>
+              </Text>
+              <Text style={styles.fieldExample}>Es: B08N5WRWNW</Text>
+            </View>
+            <View style={styles.field}>
+              <Text style={styles.fieldName}>ean</Text>
+              <Text style={styles.fieldDescription}>Codice EAN / barcode del prodotto</Text>
+              <Text style={styles.fieldExample}>Es: 0194502516598</Text>
+            </View>
+            <View style={[styles.field, styles.optionalImageField]}>
+              <Text style={styles.fieldName}>immagine_url</Text>
+              <Text style={styles.fieldDescription}>
+                URL dell&apos;immagine principale{'\n'}
+                <Text style={styles.fieldBold}>Opzionale se è presente il campo asin</Text> — l&apos;URL viene costruito automaticamente
+              </Text>
+              <Text style={styles.fieldExample}>Es: https://example.com/image.jpg</Text>
             </View>
             <View style={styles.field}>
               <Text style={styles.fieldName}>descrizione</Text>
@@ -384,7 +400,8 @@ export default function ExcelFormatGuide({ onClose }: ExcelFormatGuideProps) {
           </View>
           <View style={styles.tipsList}>
             <Text style={styles.tip}>- La prima riga deve contenere i nomi delle colonne</Text>
-            <Text style={styles.tip}>- <Text style={styles.fieldBold}>⚠️ I campi obbligatori sono: nome, immagine_url, prezzo, stock</Text></Text>
+            <Text style={styles.tip}>- <Text style={styles.fieldBold}>⚠️ I campi obbligatori sono: nome, prezzo, stock</Text></Text>
+            <Text style={styles.tip}>- <Text style={styles.fieldBold}>✨ immagine_url è opzionale se è presente il campo asin</Text> — l&apos;URL immagine Amazon viene generato automaticamente</Text>
             <Text style={styles.tip}>- Usa il punto (.) come separatore decimale per i prezzi</Text>
             <Text style={styles.tip}>- Gli URL delle immagini devono essere completi e accessibili</Text>
             <Text style={styles.tip}>- Per liste multiple (taglie, colori, immagini), usa la virgola come separatore</Text>
@@ -455,6 +472,18 @@ const styles = StyleSheet.create({
     borderLeftColor: '#FF9800',
     borderWidth: 2,
     borderColor: '#FF9800',
+  },
+  amazonField: {
+    backgroundColor: '#FFF8E1',
+    borderLeftColor: '#FF9900',
+    borderWidth: 2,
+    borderColor: '#FF9900',
+  },
+  optionalImageField: {
+    backgroundColor: '#E8F5E9',
+    borderLeftColor: '#4CAF50',
+    borderWidth: 1,
+    borderColor: '#4CAF50',
   },
   highlightedField: {
     backgroundColor: '#E8F5E9',

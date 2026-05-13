@@ -36,6 +36,8 @@ interface Supplier {
 
 interface ExcelProduct {
   sku?: string;
+  asin?: string;
+  ean?: string;
   nome: string;
   descrizione?: string;
   immagine_url?: string;
@@ -53,6 +55,8 @@ interface ExcelProduct {
 
 interface ProductGroup {
   sku: string;
+  asin?: string;
+  ean?: string;
   nome: string;
   descrizione?: string;
   immagine_url?: string;
@@ -144,6 +148,10 @@ export default function CreateListScreen() {
     }
   };
 
+  const buildAmazonImageUrl = (asin: string): string => {
+    return `https://images-na.ssl-images-amazon.com/images/P/${asin.trim()}.jpg`;
+  };
+
   const handlePickExcelFile = async () => {
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -185,6 +193,8 @@ export default function CreateListScreen() {
       const warnings: string[] = [];
       const skuGroups: { [sku: string]: number } = {};
       let asinImageCount = 0;
+
+      let asinGeneratedCount = 0;
 
       jsonData.forEach((row, index) => {
         const rowNum = index + 2;
@@ -245,9 +255,14 @@ export default function CreateListScreen() {
         if (!sku) {
           warnings.push(`Riga ${rowNum}: SKU mancante - consigliato per raggruppare varianti`);
         }
+        if (!imageUrl) {
+          warnings.push(`Riga ${rowNum}: Immagine mancante (né immagine_url né asin forniti)`);
+        }
 
         products.push({
           sku: sku,
+          asin: asin,
+          ean: ean,
           nome: row.nome,
           descrizione: row.descrizione || '',
           immagine_url: imageUrl || '',
@@ -288,6 +303,10 @@ export default function CreateListScreen() {
       const productsWithSku = products.filter(p => p.sku).length;
       
       let message = `${products.length} prodott${products.length === 1 ? 'o' : 'i'} caricato con successo!`;
+
+      if (asinGeneratedCount > 0) {
+        message += `\n\n📸 ${asinGeneratedCount} prodott${asinGeneratedCount === 1 ? 'o' : 'i'}: immagine generata automaticamente da ASIN Amazon`;
+      }
       
       if (uniqueSkus > 0) {
         message += `\n\n📦 ${uniqueSkus} SKU unici trovati`;
