@@ -92,7 +92,6 @@
     "@expo/prebuild-config": "latest"
   },
   "private": true,
-  "packageManager": "pnpm@9.15.0",
   "expo": {
     "install": {
       "exclude": [
