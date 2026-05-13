@@ -36,6 +36,8 @@ interface Supplier {
 
 interface ExcelProduct {
   sku?: string;
+  asin?: string;
+  ean?: string;
   nome: string;
   descrizione?: string;
   immagine_url?: string;
@@ -53,6 +55,8 @@ interface ExcelProduct {
 
 interface ProductGroup {
   sku: string;
+  asin?: string;
+  ean?: string;
   nome: string;
   descrizione?: string;
   immagine_url?: string;
@@ -61,6 +65,8 @@ interface ProductGroup {
   condizione: 'nuovo' | 'reso da cliente' | 'packaging rovinato';
   categoria?: string;
   brand?: string;
+  asin?: string;
+  ean?: string;
   variants: {
     taglia?: string;
     colore?: string;
@@ -72,6 +78,10 @@ interface ProductGroup {
   asin?: string;
   ean?: string;
 }
+
+const buildAmazonImageUrl = (asin: string): string => {
+  return `https://images-na.ssl-images-amazon.com/images/P/${asin.trim()}.jpg`;
+};
 
 export default function CreateListScreen() {
   const { supplierId: paramSupplierId } = useLocalSearchParams<{ supplierId?: string }>();
@@ -140,6 +150,10 @@ export default function CreateListScreen() {
     }
   };
 
+  const buildAmazonImageUrl = (asin: string): string => {
+    return `https://images-na.ssl-images-amazon.com/images/P/${asin.trim()}.jpg`;
+  };
+
   const handlePickExcelFile = async () => {
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -180,6 +194,9 @@ export default function CreateListScreen() {
       const errors: string[] = [];
       const warnings: string[] = [];
       const skuGroups: { [sku: string]: number } = {};
+      let asinImageCount = 0;
+
+      let asinGeneratedCount = 0;
 
       jsonData.forEach((row, index) => {
         const rowNum = index + 2;
@@ -192,6 +209,15 @@ export default function CreateListScreen() {
           if (!row.stock) missingFields.push('stock');
           errors.push(`Riga ${rowNum}: Campi obbligatori mancanti (${missingFields.join(', ')})`);
           return;
+        }
+
+        if (!imageUrl) {
+          warnings.push(`Riga ${rowNum}: Nessuna immagine disponibile (manca immagine_url e asin)`);
+        }
+
+        if (!row.immagine_url && asin && imageUrl) {
+          asinImageCount++;
+          console.log(`[ExcelImport] Row ${rowNum}: image auto-generated from ASIN ${asin} -> ${imageUrl}`);
         }
 
         const price = parseFloat(row.prezzo);
@@ -227,9 +253,14 @@ export default function CreateListScreen() {
         if (!sku) {
           warnings.push(`Riga ${rowNum}: SKU mancante - consigliato per raggruppare varianti`);
         }
+        if (!imageUrl) {
+          warnings.push(`Riga ${rowNum}: Immagine mancante (né immagine_url né asin forniti)`);
+        }
 
         products.push({
           sku: sku,
+          asin: asin,
+          ean: ean,
           nome: row.nome,
           descrizione: row.descrizione || '',
           immagine_url: imageUrl || '',
@@ -263,12 +294,17 @@ export default function CreateListScreen() {
       }
 
       setExcelProducts(products);
+      console.log(`[ExcelImport] Import complete: ${products.length} products, ${asinImageCount} images auto-generated from ASIN`);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       
       const uniqueSkus = Object.keys(skuGroups).length;
       const productsWithSku = products.filter(p => p.sku).length;
       
       let message = `${products.length} prodott${products.length === 1 ? 'o' : 'i'} caricato con successo!`;
+
+      if (asinGeneratedCount > 0) {
+        message += `\n\n📸 ${asinGeneratedCount} prodott${asinGeneratedCount === 1 ? 'o' : 'i'}: immagine generata automaticamente da ASIN Amazon`;
+      }
       
       if (uniqueSkus > 0) {
         message += `\n\n📦 ${uniqueSkus} SKU unici trovati`;
@@ -286,6 +322,10 @@ export default function CreateListScreen() {
         }
       }
       
+      if (asinImageCount > 0) {
+        message += `\n\n📸 ${asinImageCount} prodotti: immagine generata automaticamente da ASIN Amazon`;
+      }
+
       if (warnings.length > 0 && warnings.length <= 5) {
         message += `\n\n⚠️ Avvisi:\n${warnings.slice(0, 3).join('\n')}${warnings.length > 3 ? `\n...e altri ${warnings.length - 3}` : ''}`;
       }
