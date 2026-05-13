@@ -38,7 +38,7 @@ interface ExcelProduct {
   sku?: string;
   nome: string;
   descrizione?: string;
-  immagine_url: string;
+  immagine_url?: string;
   immagini_aggiuntive?: string;
   prezzo: number;
   taglia?: string;
@@ -47,18 +47,22 @@ interface ExcelProduct {
   categoria?: string;
   brand?: string;
   stock: number;
+  asin?: string;
+  ean?: string;
 }
 
 interface ProductGroup {
   sku: string;
   nome: string;
   descrizione?: string;
-  immagine_url: string;
+  immagine_url?: string;
   immagini_aggiuntive?: string;
   prezzo: number;
   condizione: 'nuovo' | 'reso da cliente' | 'packaging rovinato';
   categoria?: string;
   brand?: string;
+  asin?: string;
+  ean?: string;
   variants: {
     taglia?: string;
     colore?: string;
@@ -68,6 +72,10 @@ interface ProductGroup {
   availableSizes: string[];
   availableColors: string[];
 }
+
+const buildAmazonImageUrl = (asin: string): string => {
+  return `https://images-na.ssl-images-amazon.com/images/P/${asin.trim()}.jpg`;
+};
 
 export default function CreateListScreen() {
   const { supplierId: paramSupplierId } = useLocalSearchParams<{ supplierId?: string }>();
@@ -176,19 +184,35 @@ export default function CreateListScreen() {
       const errors: string[] = [];
       const warnings: string[] = [];
       const skuGroups: { [sku: string]: number } = {};
+      let asinImageCount = 0;
 
       jsonData.forEach((row, index) => {
         const rowNum = index + 2;
-        
-        // Check mandatory fields: nome, immagine_url, prezzo, stock
-        if (!row.nome || !row.immagine_url || !row.prezzo || !row.stock) {
+
+        // Read ASIN and EAN from multiple possible column names
+        const asin = row.asin || row.ASIN || row.codice_asin || null;
+        const ean = row.ean || row.EAN || row.barcode || row.codice_ean || null;
+
+        // Build image URL: use explicit URL, or auto-generate from ASIN
+        const imageUrl = row.immagine_url || (asin ? buildAmazonImageUrl(asin) : null);
+
+        // Check mandatory fields: nome, prezzo, stock (immagine_url is now optional if ASIN present)
+        if (!row.nome || !row.prezzo || !row.stock) {
           const missingFields = [];
           if (!row.nome) missingFields.push('nome');
-          if (!row.immagine_url) missingFields.push('immagine_url');
           if (!row.prezzo) missingFields.push('prezzo');
           if (!row.stock) missingFields.push('stock');
           errors.push(`Riga ${rowNum}: Campi obbligatori mancanti (${missingFields.join(', ')})`);
           return;
+        }
+
+        if (!imageUrl) {
+          warnings.push(`Riga ${rowNum}: Nessuna immagine disponibile (manca immagine_url e asin)`);
+        }
+
+        if (!row.immagine_url && asin && imageUrl) {
+          asinImageCount++;
+          console.log(`[ExcelImport] Row ${rowNum}: image auto-generated from ASIN ${asin} -> ${imageUrl}`);
         }
 
         const price = parseFloat(row.prezzo);
@@ -226,7 +250,7 @@ export default function CreateListScreen() {
           sku: sku,
           nome: row.nome,
           descrizione: row.descrizione || '',
-          immagine_url: row.immagine_url,
+          immagine_url: imageUrl || '',
           immagini_aggiuntive: row.immagini_aggiuntive || '',
           prezzo: price,
           taglia: row.taglia || row.taglie || '',
@@ -235,6 +259,8 @@ export default function CreateListScreen() {
           categoria: row.categoria || '',
           brand: row.brand || '',
           stock: stock,
+          asin: asin || undefined,
+          ean: ean || undefined,
         });
       });
 
@@ -255,6 +281,7 @@ export default function CreateListScreen() {
       }
 
       setExcelProducts(products);
+      console.log(`[ExcelImport] Import complete: ${products.length} products, ${asinImageCount} images auto-generated from ASIN`);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       
       const uniqueSkus = Object.keys(skuGroups).length;
@@ -278,6 +305,10 @@ export default function CreateListScreen() {
         }
       }
       
+      if (asinImageCount > 0) {
+        message += `\n\n📸 ${asinImageCount} prodotti: immagine generata automaticamente da ASIN Amazon`;
+      }
+
       if (warnings.length > 0 && warnings.length <= 5) {
         message += `\n\n⚠️ Avvisi:\n${warnings.slice(0, 3).join('\n')}${warnings.length > 3 ? `\n...e altri ${warnings.length - 3}` : ''}`;
       }
@@ -1012,10 +1043,12 @@ export default function CreateListScreen() {
                   
                   <Text style={styles.excelHint}>
                     <Text style={styles.excelHintBold}>Colonne obbligatorie:</Text>{'\n'}
-                    • nome, immagine_url, prezzo, <Text style={styles.excelHintBold}>stock</Text>{'\n\n'}
+                    • nome, prezzo, <Text style={styles.excelHintBold}>stock</Text>{'\n\n'}
                     <Text style={styles.excelHintBold}>Colonne opzionali:</Text>{'\n'}
                     • <Text style={styles.excelHintBold}>sku</Text> (per raggruppare varianti){'\n'}
                     • <Text style={styles.excelHintBold}>taglia, colore</Text> (per varianti){'\n'}
+                    • immagine_url (o asin per auto-generazione Amazon){'\n'}
+                    • ean (codice a barre){'\n'}
                     • descrizione, brand, immagini_aggiuntive{'\n'}
                     • condizione, categoria{'\n\n'}
                     <Text style={styles.excelHintBold}>💡 Varianti:</Text> Prodotti con lo stesso SKU verranno raggruppati. Le colonne taglia e colore definiranno le varianti disponibili.
