@@ -38,7 +38,7 @@ interface ExcelProduct {
   sku?: string;
   nome: string;
   descrizione?: string;
-  immagine_url: string;
+  immagine_url?: string;
   immagini_aggiuntive?: string;
   prezzo: number;
   taglia?: string;
@@ -47,13 +47,15 @@ interface ExcelProduct {
   categoria?: string;
   brand?: string;
   stock: number;
+  asin?: string;
+  ean?: string;
 }
 
 interface ProductGroup {
   sku: string;
   nome: string;
   descrizione?: string;
-  immagine_url: string;
+  immagine_url?: string;
   immagini_aggiuntive?: string;
   prezzo: number;
   condizione: 'nuovo' | 'reso da cliente' | 'packaging rovinato';
@@ -67,6 +69,8 @@ interface ProductGroup {
   totalStock: number;
   availableSizes: string[];
   availableColors: string[];
+  asin?: string;
+  ean?: string;
 }
 
 export default function CreateListScreen() {
@@ -180,11 +184,10 @@ export default function CreateListScreen() {
       jsonData.forEach((row, index) => {
         const rowNum = index + 2;
         
-        // Check mandatory fields: nome, immagine_url, prezzo, stock
-        if (!row.nome || !row.immagine_url || !row.prezzo || !row.stock) {
+        // Check mandatory fields: nome, prezzo, stock
+        if (!row.nome || !row.prezzo || !row.stock) {
           const missingFields = [];
           if (!row.nome) missingFields.push('nome');
-          if (!row.immagine_url) missingFields.push('immagine_url');
           if (!row.prezzo) missingFields.push('prezzo');
           if (!row.stock) missingFields.push('stock');
           errors.push(`Riga ${rowNum}: Campi obbligatori mancanti (${missingFields.join(', ')})`);
@@ -207,6 +210,9 @@ export default function CreateListScreen() {
 
         // Read SKU from Excel - this is the key fix!
         const sku = row.sku || row.SKU || row.codice || row.codice_articolo || null;
+        const asin = row.asin || row.ASIN || row.codice_asin || null;
+        const ean = row.ean || row.EAN || row.barcode || row.codice_ean || null;
+        const imageUrl = row.immagine_url || (asin ? `https://images-na.ssl-images-amazon.com/images/P/${asin.trim()}.jpg` : null);
 
         if (sku) {
           skuGroups[sku] = (skuGroups[sku] || 0) + 1;
@@ -226,7 +232,7 @@ export default function CreateListScreen() {
           sku: sku,
           nome: row.nome,
           descrizione: row.descrizione || '',
-          immagine_url: row.immagine_url,
+          immagine_url: imageUrl || '',
           immagini_aggiuntive: row.immagini_aggiuntive || '',
           prezzo: price,
           taglia: row.taglia || row.taglie || '',
@@ -235,6 +241,8 @@ export default function CreateListScreen() {
           categoria: row.categoria || '',
           brand: row.brand || '',
           stock: stock,
+          asin: asin || undefined,
+          ean: ean || undefined,
         });
       });
 
@@ -501,6 +509,8 @@ export default function CreateListScreen() {
                 totalStock: 0,
                 availableSizes: [],
                 availableColors: [],
+                asin: product.asin,
+                ean: product.ean,
               });
             }
             
@@ -569,6 +579,8 @@ export default function CreateListScreen() {
               brand: group.brand || null,
               stock: group.totalStock,
               status: 'active',
+              asin: group.asin || null,
+              ean: group.ean || null,
             }
           });
         }
@@ -602,6 +614,8 @@ export default function CreateListScreen() {
               brand: product.brand || null,
               stock: product.stock || 1,
               status: 'active',
+              asin: product.asin || null,
+              ean: product.ean || null,
             }
           });
         });
@@ -1012,10 +1026,13 @@ export default function CreateListScreen() {
                   
                   <Text style={styles.excelHint}>
                     <Text style={styles.excelHintBold}>Colonne obbligatorie:</Text>{'\n'}
-                    • nome, immagine_url, prezzo, <Text style={styles.excelHintBold}>stock</Text>{'\n\n'}
+                    • nome, prezzo, <Text style={styles.excelHintBold}>stock</Text>{'\n\n'}
                     <Text style={styles.excelHintBold}>Colonne opzionali:</Text>{'\n'}
                     • <Text style={styles.excelHintBold}>sku</Text> (per raggruppare varianti){'\n'}
                     • <Text style={styles.excelHintBold}>taglia, colore</Text> (per varianti){'\n'}
+                    • immagine_url (opzionale se presente asin){'\n'}
+                    • <Text style={styles.excelHintBold}>asin</Text> (genera immagine Amazon automaticamente){'\n'}
+                    • <Text style={styles.excelHintBold}>ean</Text> (codice a barre){'\n'}
                     • descrizione, brand, immagini_aggiuntive{'\n'}
                     • condizione, categoria{'\n\n'}
                     <Text style={styles.excelHintBold}>💡 Varianti:</Text> Prodotti con lo stesso SKU verranno raggruppati. Le colonne taglia e colore definiranno le varianti disponibili.

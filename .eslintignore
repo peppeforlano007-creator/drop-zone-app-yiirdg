@@ -1,3 +1,6 @@
+# Ignore Supabase edge functions (Deno environment)
+supabase/functions/
+
 # Ignore generated files
 _expo/
 dist/

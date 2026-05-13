@@ -69,6 +69,8 @@ export default function ListDetailsScreen() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [enriching, setEnriching] = useState(false);
+  const [productsWithoutImages, setProductsWithoutImages] = useState(0);
 
   const loadListDetails = useCallback(async () => {
     try {
@@ -186,12 +188,16 @@ export default function ListDetailsScreen() {
         }));
 
         setProducts(productsWithVariants);
+        const withoutImages = productsWithVariants.filter((p: any) => !p.image_url || p.image_url === '').length;
+        setProductsWithoutImages(withoutImages);
         console.log('✓ Products with variants loaded');
         console.log('=== LOADING COMPLETE ===');
         return;
       }
 
       setProducts(productsData || []);
+      const withoutImages = (productsData || []).filter((p: any) => !p.image_url || p.image_url === '').length;
+      setProductsWithoutImages(withoutImages);
       console.log('=== LOADING COMPLETE ===');
     } catch (error) {
       console.error('❌ Exception loading list details:', error);
@@ -211,6 +217,44 @@ export default function ListDetailsScreen() {
   const handleRefresh = () => {
     setRefreshing(true);
     loadListDetails();
+  };
+
+  const handleEnrichImages = async () => {
+    console.log('[ListDetails] handleEnrichImages pressed, productsWithoutImages:', productsWithoutImages);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    Alert.alert(
+      'Arricchisci Immagini',
+      `Verranno cercate le immagini per ${productsWithoutImages} prodotti senza foto tramite ASIN Amazon ed EAN.\n\nContinuare?`,
+      [
+        { text: 'Annulla', style: 'cancel' },
+        {
+          text: 'Procedi',
+          onPress: async () => {
+            console.log('[ListDetails] Enrich images confirmed, invoking enrich-product-images for list:', listId);
+            setEnriching(true);
+            try {
+              const { data, error } = await supabase.functions.invoke('enrich-product-images', {
+                body: { list_id: listId },
+              });
+              console.log('[ListDetails] enrich-product-images response:', data, error);
+              if (error) throw error;
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              Alert.alert(
+                'Completato!',
+                `✅ ${data.updated} immagini trovate e aggiornate\n⏭️ ${data.skipped} prodotti senza ASIN/EAN disponibile`,
+                [{ text: 'OK', onPress: () => loadListDetails() }]
+              );
+            } catch (err: any) {
+              console.error('[ListDetails] enrich-product-images error:', err);
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+              Alert.alert('Errore', `Impossibile arricchire le immagini: ${err.message}`);
+            } finally {
+              setEnriching(false);
+            }
+          },
+        },
+      ]
+    );
   };
 
   const handleToggleListStatus = async () => {
@@ -716,6 +760,32 @@ export default function ListDetailsScreen() {
             </View>
           </View>
 
+          {/* Enrich Images Button */}
+          {productsWithoutImages > 0 && (
+            <Pressable
+              style={({ pressed }) => [
+                styles.enrichButton,
+                (pressed || enriching) && { opacity: 0.7 },
+              ]}
+              onPress={handleEnrichImages}
+              disabled={enriching}
+            >
+              {enriching ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <IconSymbol
+                  ios_icon_name="photo.badge.arrow.down.fill"
+                  android_material_icon_name="add_photo_alternate"
+                  size={20}
+                  color="#FFFFFF"
+                />
+              )}
+              <Text style={styles.enrichButtonText}>
+                {enriching ? 'Ricerca immagini...' : `Arricchisci Immagini (${productsWithoutImages})`}
+              </Text>
+            </Pressable>
+          )}
+
           {/* Products Section */}
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
@@ -1144,6 +1214,23 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: colors.textTertiary,
     fontStyle: 'italic',
+  },
+  enrichButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F59E0B',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    gap: 8,
+    marginHorizontal: 16,
+    marginBottom: 12,
+  },
+  enrichButtonText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '700',
   },
   emptyState: {
     alignItems: 'center',
