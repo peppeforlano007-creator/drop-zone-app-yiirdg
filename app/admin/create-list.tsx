@@ -49,8 +49,6 @@ interface ExcelProduct {
   categoria?: string;
   brand?: string;
   stock: number;
-  asin?: string;
-  ean?: string;
 }
 
 interface ProductGroup {
@@ -65,8 +63,6 @@ interface ProductGroup {
   condizione: 'nuovo' | 'reso da cliente' | 'packaging rovinato';
   categoria?: string;
   brand?: string;
-  asin?: string;
-  ean?: string;
   variants: {
     taglia?: string;
     colore?: string;
@@ -75,8 +71,6 @@ interface ProductGroup {
   totalStock: number;
   availableSizes: string[];
   availableColors: string[];
-  asin?: string;
-  ean?: string;
 }
 
 const buildAmazonImageUrl = (asin: string): string => {
@@ -200,8 +194,14 @@ export default function CreateListScreen() {
 
       jsonData.forEach((row, index) => {
         const rowNum = index + 2;
-        
-        // Check mandatory fields: nome, prezzo, stock
+
+        // 1. Define variables first so they are available throughout the callback
+        const sku = row.sku || row.SKU || row.codice || row.codice_articolo || null;
+        const asin = row.asin || row.ASIN || row.codice_asin || null;
+        const ean = row.ean || row.EAN || row.barcode || row.codice_ean || null;
+        const imageUrl = row.immagine_url || (asin ? `https://images-na.ssl-images-amazon.com/images/P/${asin.trim()}.jpg` : null);
+
+        // 2. Check mandatory fields: nome, prezzo, stock
         if (!row.nome || !row.prezzo || !row.stock) {
           const missingFields = [];
           if (!row.nome) missingFields.push('nome');
@@ -211,15 +211,7 @@ export default function CreateListScreen() {
           return;
         }
 
-        if (!imageUrl) {
-          warnings.push(`Riga ${rowNum}: Nessuna immagine disponibile (manca immagine_url e asin)`);
-        }
-
-        if (!row.immagine_url && asin && imageUrl) {
-          asinImageCount++;
-          console.log(`[ExcelImport] Row ${rowNum}: image auto-generated from ASIN ${asin} -> ${imageUrl}`);
-        }
-
+        // 3. Validate price and stock
         const price = parseFloat(row.prezzo);
         if (isNaN(price) || price <= 0) {
           errors.push(`Riga ${rowNum}: Prezzo non valido`);
@@ -234,16 +226,11 @@ export default function CreateListScreen() {
 
         const condition = row.condizione || 'nuovo';
 
-        // Read SKU from Excel - this is the key fix!
-        const sku = row.sku || row.SKU || row.codice || row.codice_articolo || null;
-        const asin = row.asin || row.ASIN || row.codice_asin || null;
-        const ean = row.ean || row.EAN || row.barcode || row.codice_ean || null;
-        const imageUrl = row.immagine_url || (asin ? `https://images-na.ssl-images-amazon.com/images/P/${asin.trim()}.jpg` : null);
-
         if (sku) {
           skuGroups[sku] = (skuGroups[sku] || 0) + 1;
         }
 
+        // 4. Warnings for optional but recommended fields
         if (!row.descrizione) {
           warnings.push(`Riga ${rowNum}: Descrizione mancante`);
         }
@@ -257,10 +244,17 @@ export default function CreateListScreen() {
           warnings.push(`Riga ${rowNum}: Immagine mancante (né immagine_url né asin forniti)`);
         }
 
+        // Track rows where image was auto-generated from ASIN
+        if (!row.immagine_url && asin && imageUrl) {
+          asinImageCount++;
+          asinGeneratedCount++;
+          console.log(`[ExcelImport] Row ${rowNum}: image auto-generated from ASIN ${asin} -> ${imageUrl}`);
+        }
+
         products.push({
           sku: sku,
-          asin: asin,
-          ean: ean,
+          asin: asin || undefined,
+          ean: ean || undefined,
           nome: row.nome,
           descrizione: row.descrizione || '',
           immagine_url: imageUrl || '',
@@ -272,8 +266,6 @@ export default function CreateListScreen() {
           categoria: row.categoria || '',
           brand: row.brand || '',
           stock: stock,
-          asin: asin || undefined,
-          ean: ean || undefined,
         });
       });
 
