@@ -47,6 +47,8 @@ interface ExcelProduct {
   categoria?: string;
   brand?: string;
   stock: number;
+  asin?: string;
+  ean?: string;
 }
 
 interface ProductGroup {
@@ -157,11 +159,34 @@ export default function CreateListScreen() {
 
       const response = await fetch(file.uri);
       const arrayBuffer = await response.arrayBuffer();
-      const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+      const workbook = XLSX.read(arrayBuffer, { type: 'array', cellFormula: true, cellNF: true });
       
       const sheetName = workbook.SheetNames[0];
       const worksheet = workbook.Sheets[sheetName];
-      
+
+      // Build a map of cell address -> hyperlink URL for cells with hyperlinks
+      const hyperlinkMap: { [cellAddress: string]: string } = {};
+      Object.keys(worksheet).forEach(cellAddr => {
+        if (cellAddr.startsWith('!')) return;
+        const cell = worksheet[cellAddr];
+        if (cell && cell.l && cell.l.Target) {
+          hyperlinkMap[cellAddr] = cell.l.Target;
+        }
+      });
+      console.log('[ExcelImport] Hyperlink map built, entries:', Object.keys(hyperlinkMap).length);
+
+      // Find the column letter for 'immagine_url' by reading the header row
+      let immagineUrlColLetter: string | null = null;
+      const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1');
+      for (let col = range.s.c; col <= range.e.c; col++) {
+        const headerCell = worksheet[XLSX.utils.encode_cell({ r: 0, c: col })];
+        if (headerCell && (headerCell.v === 'immagine_url' || headerCell.v === 'immagine url')) {
+          immagineUrlColLetter = XLSX.utils.encode_col(col);
+          break;
+        }
+      }
+      console.log('[ExcelImport] immagine_url column letter:', immagineUrlColLetter);
+
       const jsonData = XLSX.utils.sheet_to_json(worksheet) as any[];
       
       console.log('Parsed Excel data:', jsonData);
@@ -179,12 +204,24 @@ export default function CreateListScreen() {
 
       jsonData.forEach((row, index) => {
         const rowNum = index + 2;
-        
-        // Check mandatory fields: nome, immagine_url, prezzo, stock
-        if (!row.nome || !row.immagine_url || !row.prezzo || !row.stock) {
+
+        // Extract hyperlink URL for immagine_url column if the cell value is a display text like "link"
+        if (immagineUrlColLetter) {
+          const cellAddr = `${immagineUrlColLetter}${rowNum}`;
+          const hyperlinkUrl = hyperlinkMap[cellAddr];
+          if (hyperlinkUrl && (!row.immagine_url || row.immagine_url === 'link' || !String(row.immagine_url).startsWith('http'))) {
+            console.log(`[ExcelImport] Row ${rowNum}: resolved hyperlink URL from cell ${cellAddr}:`, hyperlinkUrl);
+            row.immagine_url = hyperlinkUrl;
+          }
+        }
+
+        // Check mandatory fields: nome, immagine_url (or asin/ean), prezzo, stock
+        const hasImage = row.immagine_url && String(row.immagine_url).startsWith('http');
+        const hasAsinOrEan = row.asin || row.ean || row.ASIN || row.EAN;
+        if (!row.nome || (!hasImage && !hasAsinOrEan) || !row.prezzo || !row.stock) {
           const missingFields = [];
           if (!row.nome) missingFields.push('nome');
-          if (!row.immagine_url) missingFields.push('immagine_url');
+          if (!hasImage && !hasAsinOrEan) missingFields.push('immagine_url (o asin/ean)');
           if (!row.prezzo) missingFields.push('prezzo');
           if (!row.stock) missingFields.push('stock');
           errors.push(`Riga ${rowNum}: Campi obbligatori mancanti (${missingFields.join(', ')})`);
@@ -226,7 +263,7 @@ export default function CreateListScreen() {
           sku: sku,
           nome: row.nome,
           descrizione: row.descrizione || '',
-          immagine_url: row.immagine_url,
+          immagine_url: row.immagine_url || '',
           immagini_aggiuntive: row.immagini_aggiuntive || '',
           prezzo: price,
           taglia: row.taglia || row.taglie || '',
@@ -235,6 +272,8 @@ export default function CreateListScreen() {
           categoria: row.categoria || '',
           brand: row.brand || '',
           stock: stock,
+          asin: row.asin || row.ASIN || '',
+          ean: row.ean || row.EAN || '',
         });
       });
 
