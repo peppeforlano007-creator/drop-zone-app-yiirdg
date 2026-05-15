@@ -24,6 +24,7 @@ import { supabase } from '@/app/integrations/supabase/client';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
+import { EncodingType } from 'expo-file-system';
 import * as XLSX from 'xlsx';
 import ExcelFormatGuide from '@/components/ExcelFormatGuide';
 import { getPlatformSettings } from '@/utils/dropHelpers';
@@ -167,9 +168,11 @@ export default function CreateListScreen() {
       const file = result.assets[0];
       console.log('Selected file:', file);
 
-      const response = await fetch(file.uri);
-      const arrayBuffer = await response.arrayBuffer();
-      const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+      console.log('[Excel] Reading file via FileSystem:', file.uri);
+      const base64 = await FileSystem.readAsStringAsync(file.uri, {
+        encoding: EncodingType.Base64,
+      });
+      const workbook = XLSX.read(base64, { type: 'base64' });
       
       const sheetName = workbook.SheetNames[0];
       const worksheet = workbook.Sheets[sheetName];
