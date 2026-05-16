@@ -214,6 +214,8 @@ export default function CreateListScreen() {
           }
         }
 
+        const sku = row.sku ? String(row.sku).trim() : undefined;
+
         // Check mandatory fields: nome, immagine_url, prezzo, stock
         const hasImage = row.immagine_url && String(row.immagine_url).startsWith('http');
         if (!row.nome || !hasImage || !row.prezzo || !row.stock) {
