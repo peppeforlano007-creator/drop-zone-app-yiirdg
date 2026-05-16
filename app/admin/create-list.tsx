@@ -37,8 +37,6 @@ interface Supplier {
 
 interface ExcelProduct {
   sku?: string;
-  asin?: string;
-  ean?: string;
   nome: string;
   descrizione?: string;
   immagine_url?: string;
@@ -50,14 +48,10 @@ interface ExcelProduct {
   categoria?: string;
   brand?: string;
   stock: number;
-  asin?: string;
-  ean?: string;
 }
 
 interface ProductGroup {
   sku: string;
-  asin?: string;
-  ean?: string;
   nome: string;
   descrizione?: string;
   immagine_url?: string;
@@ -75,10 +69,6 @@ interface ProductGroup {
   availableSizes: string[];
   availableColors: string[];
 }
-
-const buildAmazonImageUrl = (asin: string): string => {
-  return `https://images-na.ssl-images-amazon.com/images/P/${asin.trim()}.jpg`;
-};
 
 export default function CreateListScreen() {
   const { supplierId: paramSupplierId } = useLocalSearchParams<{ supplierId?: string }>();
@@ -147,10 +137,6 @@ export default function CreateListScreen() {
     }
   };
 
-  const buildAmazonImageUrl = (asin: string): string => {
-    return `https://images-na.ssl-images-amazon.com/images/P/${asin.trim()}.jpg`;
-  };
-
   const handlePickExcelFile = async () => {
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -214,9 +200,6 @@ export default function CreateListScreen() {
       const errors: string[] = [];
       const warnings: string[] = [];
       const skuGroups: { [sku: string]: number } = {};
-      let asinImageCount = 0;
-
-      let asinGeneratedCount = 0;
 
       jsonData.forEach((row, index) => {
         const rowNum = index + 2;
@@ -231,13 +214,12 @@ export default function CreateListScreen() {
           }
         }
 
-        // Check mandatory fields: nome, immagine_url (or asin/ean), prezzo, stock
+        // Check mandatory fields: nome, immagine_url, prezzo, stock
         const hasImage = row.immagine_url && String(row.immagine_url).startsWith('http');
-        const hasAsinOrEan = row.asin || row.ean || row.ASIN || row.EAN;
-        if (!row.nome || (!hasImage && !hasAsinOrEan) || !row.prezzo || !row.stock) {
+        if (!row.nome || !hasImage || !row.prezzo || !row.stock) {
           const missingFields = [];
           if (!row.nome) missingFields.push('nome');
-          if (!hasImage && !hasAsinOrEan) missingFields.push('immagine_url (o asin/ean)');
+          if (!hasImage) missingFields.push('immagine_url');
           if (!row.prezzo) missingFields.push('prezzo');
           if (!row.stock) missingFields.push('stock');
           errors.push(`Riga ${rowNum}: Campi obbligatori mancanti (${missingFields.join(', ')})`);
@@ -273,21 +255,9 @@ export default function CreateListScreen() {
         if (!sku) {
           warnings.push(`Riga ${rowNum}: SKU mancante - consigliato per raggruppare varianti`);
         }
-        if (!imageUrl) {
-          warnings.push(`Riga ${rowNum}: Immagine mancante (né immagine_url né asin forniti)`);
-        }
-
-        // Track rows where image was auto-generated from ASIN
-        if (!row.immagine_url && asin && imageUrl) {
-          asinImageCount++;
-          asinGeneratedCount++;
-          console.log(`[ExcelImport] Row ${rowNum}: image auto-generated from ASIN ${asin} -> ${imageUrl}`);
-        }
 
         products.push({
           sku: sku,
-          asin: asin || undefined,
-          ean: ean || undefined,
           nome: row.nome,
           descrizione: row.descrizione || '',
           immagine_url: row.immagine_url || '',
@@ -299,8 +269,6 @@ export default function CreateListScreen() {
           categoria: row.categoria || '',
           brand: row.brand || '',
           stock: stock,
-          asin: row.asin || row.ASIN || '',
-          ean: row.ean || row.EAN || '',
         });
       });
 
@@ -321,7 +289,7 @@ export default function CreateListScreen() {
       }
 
       setExcelProducts(products);
-      console.log(`[ExcelImport] Import complete: ${products.length} products, ${asinImageCount} images auto-generated from ASIN`);
+      console.log(`[ExcelImport] Import complete: ${products.length} products`);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       
       const uniqueSkus = Object.keys(skuGroups).length;
@@ -329,10 +297,6 @@ export default function CreateListScreen() {
       
       let message = `${products.length} prodott${products.length === 1 ? 'o' : 'i'} caricato con successo!`;
 
-      if (asinGeneratedCount > 0) {
-        message += `\n\n📸 ${asinGeneratedCount} prodott${asinGeneratedCount === 1 ? 'o' : 'i'}: immagine generata automaticamente da ASIN Amazon`;
-      }
-      
       if (uniqueSkus > 0) {
         message += `\n\n📦 ${uniqueSkus} SKU unici trovati`;
         message += `\n${productsWithSku} prodotti con SKU (verranno raggruppati come varianti)`;
@@ -349,10 +313,6 @@ export default function CreateListScreen() {
         }
       }
       
-      if (asinImageCount > 0) {
-        message += `\n\n📸 ${asinImageCount} prodotti: immagine generata automaticamente da ASIN Amazon`;
-      }
-
       if (warnings.length > 0 && warnings.length <= 5) {
         message += `\n\n⚠️ Avvisi:\n${warnings.slice(0, 3).join('\n')}${warnings.length > 3 ? `\n...e altri ${warnings.length - 3}` : ''}`;
       }
@@ -576,8 +536,6 @@ export default function CreateListScreen() {
                 totalStock: 0,
                 availableSizes: [],
                 availableColors: [],
-                asin: product.asin,
-                ean: product.ean,
               });
             }
             
@@ -646,8 +604,6 @@ export default function CreateListScreen() {
               brand: group.brand || null,
               stock: group.totalStock,
               status: 'active',
-              asin: group.asin || null,
-              ean: group.ean || null,
             }
           });
         }
@@ -681,8 +637,6 @@ export default function CreateListScreen() {
               brand: product.brand || null,
               stock: product.stock || 1,
               status: 'active',
-              asin: product.asin || null,
-              ean: product.ean || null,
             }
           });
         });
@@ -1093,13 +1047,10 @@ export default function CreateListScreen() {
                   
                   <Text style={styles.excelHint}>
                     <Text style={styles.excelHintBold}>Colonne obbligatorie:</Text>{'\n'}
-                    • nome, prezzo, <Text style={styles.excelHintBold}>stock</Text>{'\n\n'}
+                    • nome, prezzo, <Text style={styles.excelHintBold}>stock</Text>, immagine_url{'\n\n'}
                     <Text style={styles.excelHintBold}>Colonne opzionali:</Text>{'\n'}
                     • <Text style={styles.excelHintBold}>sku</Text> (per raggruppare varianti){'\n'}
                     • <Text style={styles.excelHintBold}>taglia, colore</Text> (per varianti){'\n'}
-                    • immagine_url (opzionale se presente asin){'\n'}
-                    • <Text style={styles.excelHintBold}>asin</Text> (genera immagine Amazon automaticamente){'\n'}
-                    • <Text style={styles.excelHintBold}>ean</Text> (codice a barre){'\n'}
                     • descrizione, brand, immagini_aggiuntive{'\n'}
                     • condizione, categoria{'\n\n'}
                     <Text style={styles.excelHintBold}>💡 Varianti:</Text> Prodotti con lo stesso SKU verranno raggruppati. Le colonne taglia e colore definiranno le varianti disponibili.
