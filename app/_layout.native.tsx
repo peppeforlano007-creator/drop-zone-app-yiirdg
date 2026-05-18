@@ -119,7 +119,7 @@ function CustomSplashScreen({ onFinish }: { onFinish: () => void }) {
           <Text style={{ color: '#F5A623' }}>RDN</Text>
           <Text style={{ color: '#4FC3F7' }}>STREET</Text>
           <Text style={{ color: '#E91E8C' }}>STOCK</Text>
-          <Text style={{ color: '#FFFFFF' }}>MARKET</Text>
+          <Text style={{ color: '#F5A623' }}>MARKET</Text>
         </Text>
 
         {/* Tagline */}
@@ -357,7 +357,7 @@ const splashStyles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
   },
   logoRow: {
-    fontSize: 28,
+    fontSize: 20,
     fontWeight: '900',
     letterSpacing: 1,
     textAlign: 'center',
