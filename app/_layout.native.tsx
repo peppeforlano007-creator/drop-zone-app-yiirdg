@@ -6,7 +6,7 @@ import { Stack, router } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { SystemBars } from "react-native-edge-to-edge";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { useColorScheme, Alert, StyleSheet, Animated, View } from "react-native";
+import { useColorScheme, Alert, StyleSheet, Animated, View, Text } from "react-native";
 import { useNetworkState } from "expo-network";
 import * as Linking from "expo-linking";
 import {
@@ -34,66 +34,99 @@ export const unstable_settings = {
 
 // RDN Brand Splash Screen
 function CustomSplashScreen({ onFinish }: { onFinish: () => void }) {
-  const [containerOpacity] = useState(new Animated.Value(1));
-  const [rdnScale] = useState(new Animated.Value(0.2));
-  const [rdnOpacity] = useState(new Animated.Value(0));
-  const [streetOpacity] = useState(new Animated.Value(0));
-  const [stockOpacity] = useState(new Animated.Value(0));
-  const [marketOpacity] = useState(new Animated.Value(0));
-  const [taglineOpacity] = useState(new Animated.Value(0));
-  const [glowOpacity] = useState(new Animated.Value(0));
+  const [fadeAnim] = useState(new Animated.Value(1));
+  const [scaleAnim] = useState(new Animated.Value(0.3));
+  const [circleScaleAnim] = useState(new Animated.Value(0));
+  const [bgColorAnim] = useState(new Animated.Value(0));
+  const [logoScaleAnim] = useState(new Animated.Value(1));
+  const [sloganOpacityAnim] = useState(new Animated.Value(0));
 
   useEffect(() => {
-    // Phase 1: RDN appare con spring (0-600ms)
+    console.log('[SplashScreen] Starting animation sequence');
+    // Phase 1: Logo appare con spring (0-800ms)
     Animated.parallel([
-      Animated.spring(rdnScale, { toValue: 1, friction: 5, tension: 50, useNativeDriver: true }),
-      Animated.timing(rdnOpacity, { toValue: 1, duration: 400, useNativeDriver: true }),
-      Animated.timing(glowOpacity, { toValue: 0.6, duration: 600, useNativeDriver: true }),
+      Animated.timing(fadeAnim, { toValue: 1, duration: 800, useNativeDriver: false }),
+      Animated.spring(scaleAnim, { toValue: 1, friction: 4, tension: 40, useNativeDriver: false }),
     ]).start(() => {
-      // Phase 2: STREET STOCK MARKET appare lettera per lettera (600-1400ms)
-      Animated.stagger(120, [
-        Animated.timing(streetOpacity, { toValue: 1, duration: 300, useNativeDriver: true }),
-        Animated.timing(stockOpacity, { toValue: 1, duration: 300, useNativeDriver: true }),
-        Animated.timing(marketOpacity, { toValue: 1, duration: 300, useNativeDriver: true }),
-      ]).start(() => {
-        // Phase 3: tagline appare (1400-1800ms)
-        Animated.timing(taglineOpacity, { toValue: 1, duration: 400, useNativeDriver: true }).start(() => {
-          // Phase 4: pausa poi fade out (2200-2700ms)
+      // Phase 2: Tagline appare (800-1200ms)
+      Animated.timing(sloganOpacityAnim, { toValue: 1, duration: 400, useNativeDriver: false }).start(() => {
+        // Phase 3: Cerchio bianco cresce + sfondo diventa bianco (1200-2200ms)
+        Animated.parallel([
+          Animated.timing(circleScaleAnim, { toValue: 1, duration: 1000, useNativeDriver: false }),
+          Animated.timing(bgColorAnim, { toValue: 1, duration: 1000, useNativeDriver: false }),
+          Animated.timing(logoScaleAnim, { toValue: 1.1, duration: 500, useNativeDriver: false }),
+        ]).start(() => {
+          // Phase 4: Fade out (2200-2700ms)
           setTimeout(() => {
-            Animated.timing(containerOpacity, { toValue: 0, duration: 500, useNativeDriver: true }).start(() => {
+            Animated.timing(fadeAnim, { toValue: 0, duration: 500, useNativeDriver: false }).start(() => {
+              console.log('[SplashScreen] Animation complete, calling onFinish');
               onFinish();
             });
-          }, 600);
+          }, 300);
         });
       });
     });
-  }, []);
+  }, [fadeAnim, scaleAnim, circleScaleAnim, bgColorAnim, logoScaleAnim, sloganOpacityAnim, onFinish]);
+
+  const backgroundColor = bgColorAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['#000000', '#FFFFFF'],
+  });
+
+  const sloganColor = bgColorAnim.interpolate({
+    inputRange: [0, 0.5, 1],
+    outputRange: ['#CCCCCC', '#999999', '#666666'],
+  });
+
+  const combinedScale = scaleAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 1],
+  });
+
+  const logoScale = logoScaleAnim.interpolate({
+    inputRange: [1, 1.1],
+    outputRange: [1, 1.1],
+  });
 
   return (
-    <Animated.View style={[splashStyles.container, { opacity: containerOpacity }]}>
-      {/* Glow effect dietro RDN */}
-      <Animated.View style={[splashStyles.glow, { opacity: glowOpacity }]} />
+    <Animated.View style={[splashStyles.container, { backgroundColor, opacity: fadeAnim }]}>
+      {/* Cerchio bianco che cresce */}
+      <Animated.View
+        style={[
+          splashStyles.whiteCircle,
+          {
+            transform: [{
+              scale: circleScaleAnim.interpolate({
+                inputRange: [0, 1],
+                outputRange: [0, 20],
+              }),
+            }],
+          },
+        ]}
+      />
 
-      {/* Logo RDN grande */}
-      <Animated.View style={{ transform: [{ scale: rdnScale }], opacity: rdnOpacity, alignItems: 'center' }}>
-        <Animated.Text style={splashStyles.rdnText}>
-          <Animated.Text style={{ color: '#F5A623' }}>R</Animated.Text>
-          <Animated.Text style={{ color: '#4FC3F7' }}>D</Animated.Text>
-          <Animated.Text style={{ color: '#E91E8C' }}>N</Animated.Text>
+      {/* Logo + tagline */}
+      <Animated.View
+        style={{
+          transform: [{ scale: combinedScale }, { scale: logoScale }],
+          zIndex: 10,
+          paddingHorizontal: 20,
+          alignItems: 'center',
+        }}
+      >
+        {/* Logo su una riga: RDN STREET STOCK MARKET */}
+        <Text style={splashStyles.logoRow}>
+          <Text style={{ color: '#F5A623' }}>RDN</Text>
+          <Text style={{ color: '#4FC3F7' }}>STREET</Text>
+          <Text style={{ color: '#E91E8C' }}>STOCK</Text>
+          <Text style={{ color: '#FFFFFF' }}>MARKET</Text>
+        </Text>
+
+        {/* Tagline */}
+        <Animated.Text style={[splashStyles.tagline, { color: sloganColor as any, opacity: sloganOpacityAnim }]}>
+          Più condividi, più risparmi
         </Animated.Text>
       </Animated.View>
-
-      {/* STREET STOCK MARKET sotto */}
-      <View style={splashStyles.subtitleRow}>
-        <Animated.Text style={[splashStyles.streetText, { opacity: streetOpacity }]}>STREET </Animated.Text>
-        <Animated.Text style={[splashStyles.stockText, { opacity: stockOpacity }]}>STOCK </Animated.Text>
-        <Animated.Text style={[splashStyles.marketText, { opacity: marketOpacity }]}>MARKET</Animated.Text>
-      </View>
-
-      {/* Tagline */}
-      <Animated.Text style={[splashStyles.tagline, { opacity: taglineOpacity }]}>
-        Più condividi, più risparmi
-      </Animated.Text>
     </Animated.View>
   );
 }
@@ -312,51 +345,28 @@ const styles = StyleSheet.create({});
 const splashStyles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#111111',
     justifyContent: 'center',
     alignItems: 'center',
+    overflow: 'hidden',
   },
-  glow: {
+  whiteCircle: {
     position: 'absolute',
-    width: 300,
-    height: 300,
-    borderRadius: 150,
-    backgroundColor: '#4FC3F7',
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: '#FFFFFF',
   },
-  rdnText: {
-    fontSize: 96,
+  logoRow: {
+    fontSize: 28,
     fontWeight: '900',
-    letterSpacing: 8,
+    letterSpacing: 1,
     textAlign: 'center',
-  },
-  subtitleRow: {
-    flexDirection: 'row',
-    marginTop: 8,
-    alignItems: 'center',
-  },
-  streetText: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#F5A623',
-    letterSpacing: 3,
-  },
-  stockText: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#E91E8C',
-    letterSpacing: 3,
-  },
-  marketText: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#4FC3F7',
-    letterSpacing: 3,
+    marginBottom: 16,
   },
   tagline: {
-    marginTop: 32,
-    fontSize: 14,
-    color: '#888888',
-    letterSpacing: 1,
-    fontWeight: '400',
+    fontSize: 16,
+    fontWeight: '500',
+    textAlign: 'center',
+    letterSpacing: 0.5,
   },
 });
