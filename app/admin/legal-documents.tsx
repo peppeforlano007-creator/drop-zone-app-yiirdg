@@ -207,7 +207,7 @@ export default function LegalDocumentsScreen() {
 Ultimo aggiornamento: ${new Date().toLocaleDateString('it-IT')}
 
 1. INTRODUZIONE
-Questa Privacy Policy descrive come Drop Zone raccoglie, utilizza e protegge i dati personali degli utenti in conformità con il Regolamento Generale sulla Protezione dei Dati (GDPR - Regolamento UE 2016/679).
+Questa Privacy Policy descrive come RDN raccoglie, utilizza e protegge i dati personali degli utenti in conformità con il Regolamento Generale sulla Protezione dei Dati (GDPR - Regolamento UE 2016/679).
 
 2. TITOLARE DEL TRATTAMENTO
 [Inserire nome azienda]
@@ -264,10 +264,10 @@ Per esercitare i tuoi diritti o per informazioni, contattaci a: [inserire email]
 Ultimo aggiornamento: ${new Date().toLocaleDateString('it-IT')}
 
 1. ACCETTAZIONE DEI TERMINI
-Utilizzando Drop Zone, accetti questi Termini e Condizioni. Se non accetti, non utilizzare il servizio.
+Utilizzando RDN, accetti questi Termini e Condizioni. Se non accetti, non utilizzare il servizio.
 
 2. DESCRIZIONE DEL SERVIZIO
-Drop Zone è una piattaforma di social e-commerce che permette agli utenti di prenotare prodotti con sconti progressivi basati su prenotazioni collettive.
+RDN è una piattaforma di social e-commerce che permette agli utenti di prenotare prodotti con sconti progressivi basati su prenotazioni collettive.
 
 3. REGISTRAZIONE
 Per utilizzare il servizio devi:
@@ -291,7 +291,7 @@ I prodotti devono essere ritirati presso il punto di ritiro selezionato entro i 
 I prodotti sono coperti dalla garanzia legale di conformità di 2 anni.
 
 8. RESPONSABILITÀ
-Drop Zone non è responsabile per:
+RDN non è responsabile per:
 - Ritardi nella consegna da parte dei fornitori
 - Difetti dei prodotti (responsabilità del fornitore)
 - Uso improprio del servizio
@@ -314,7 +314,7 @@ Ultimo aggiornamento: ${new Date().toLocaleDateString('it-IT')}
 I cookie sono piccoli file di testo che vengono memorizzati sul dispositivo quando visiti un sito web o utilizzi un'app.
 
 2. UTILIZZO NELL'APP
-Drop Zone è un'app mobile nativa che non utilizza cookie tradizionali del browser. Tuttavia, utilizziamo tecnologie simili per:
+RDN è un'app mobile nativa che non utilizza cookie tradizionali del browser. Tuttavia, utilizziamo tecnologie simili per:
 - Mantenere la sessione di login
 - Memorizzare le preferenze
 - Analizzare l'utilizzo dell'app

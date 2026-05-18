@@ -216,8 +216,8 @@ export default function ChatIndexScreen() {
     console.log('[Chat] Invite friends button pressed');
     try {
       const result = await Share.share({
-        message: 'Scarica Drop Zone e unisciti ai miei gruppi! 🔥 Prenota articoli scontati con amici e parenti.',
-        url: 'https://dropzone.app',
+        message: 'Scarica RDN e unisciti ai miei gruppi! 🔥 Prenota articoli scontati con amici e parenti.',
+        url: 'https://rdnstreet.app',
       });
       console.log('[Chat] Share result:', result.action);
     } catch (err) {
