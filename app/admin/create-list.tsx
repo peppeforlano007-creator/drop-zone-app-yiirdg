@@ -375,20 +375,38 @@ export default function CreateListScreen() {
   const uploadBanner = async (uri: string): Promise<string | null> => {
     try {
       const fileName = `banner_${Date.now()}.jpg`;
+      let uploadData: Uint8Array | Blob;
+      let contentType = 'image/jpeg';
 
-      const base64 = await FileSystemLegacy.readAsStringAsync(uri, {
-        encoding: FileSystemLegacy.EncodingType.Base64,
-      });
-      const binary = atob(base64);
-      const uploadData = new Uint8Array(binary.length);
-      for (let i = 0; i < binary.length; i++) {
-        uploadData[i] = binary.charCodeAt(i);
+      if (Platform.OS === 'web') {
+        // On web, expo-image-picker returns blob: or data: URIs.
+        // expo-file-system is not available on web, so use fetch() directly.
+        console.log('[CreateList] uploadBanner web path, fetching URI:', uri.substring(0, 60));
+        const response = await fetch(uri);
+        const blob = await response.blob();
+        uploadData = blob;
+        if (blob.type) {
+          contentType = blob.type;
+        }
+      } else {
+        // On native (iOS/Android), use expo-file-system/legacy.
+        console.log('[CreateList] uploadBanner native path, reading base64 for URI:', uri.substring(0, 60));
+        const base64 = await FileSystemLegacy.readAsStringAsync(uri, {
+          encoding: FileSystemLegacy.EncodingType.Base64,
+        });
+        const binary = atob(base64);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) {
+          bytes[i] = binary.charCodeAt(i);
+        }
+        uploadData = bytes;
       }
 
+      console.log('[CreateList] uploadBanner uploading to Supabase storage, contentType:', contentType);
       const { data, error } = await supabase.storage
         .from('banners')
         .upload(fileName, uploadData, {
-          contentType: 'image/jpeg',
+          contentType,
           upsert: true,
         });
 
@@ -402,6 +420,7 @@ export default function CreateListScreen() {
         .from('banners')
         .getPublicUrl(data.path);
 
+      console.log('[CreateList] uploadBanner success, public URL:', urlData.publicUrl);
       return urlData.publicUrl;
     } catch (e) {
       console.error('Create list banner upload exception:', e);
