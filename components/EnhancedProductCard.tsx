@@ -550,17 +550,17 @@ export default function EnhancedProductCard({
           <Text style={styles.productName} numberOfLines={2}>{product.name ?? 'Prodotto'}</Text>
 
           <View style={styles.compactInfoRow}>
-            {product.brand && (
+            {!!product.brand && (
               <View style={styles.infoBadge}>
                 <Text style={styles.infoBadgeText}>{product.brand}</Text>
               </View>
             )}
-            {product.category && (
+            {!!product.category && (
               <View style={styles.infoBadge}>
                 <Text style={styles.infoBadgeText}>{product.category}</Text>
               </View>
             )}
-            {product.condition && (
+            {!!product.condition && (
               <View style={[styles.infoBadge, { backgroundColor: getConditionColor(product.condition) + '20' }]}>
                 <Text style={[styles.infoBadgeText, { color: getConditionColor(product.condition) }]}>
                   {product.condition}
@@ -580,7 +580,7 @@ export default function EnhancedProductCard({
             </View>
           </View>
 
-          {product.description && (
+          {!!product.description && (
             <Pressable 
               style={styles.descriptionContainer}
               onPress={handleDescriptionPress}
