@@ -9,6 +9,7 @@ import * as Haptics from 'expo-haptics';
 import ImageGallery from './ImageGallery';
 import { supabase } from '@/app/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import GoogleSearchModal from './GoogleSearchModal';
 import { 
   getStandardizedImageUri, 
   getStandardizedImageUris, 
@@ -57,6 +58,7 @@ export default function EnhancedProductCard({
   const [descriptionHeight, setDescriptionHeight] = useState(0);
   const [isInWishlist, setIsInWishlist] = useState(false);
   const [wishlistLoading, setWishlistLoading] = useState(false);
+  const [googleSearchVisible, setGoogleSearchVisible] = useState(false);
   
   // Animation values
   const scaleAnim = useRef(new Animated.Value(1)).current;
@@ -586,6 +588,25 @@ export default function EnhancedProductCard({
             </Pressable>
           )}
 
+          <Pressable
+            style={styles.googleSearchButton}
+            onPress={() => {
+              const query = `${product.brand ?? ''} ${product.name ?? ''}`.trim();
+              console.log('[EnhancedProductCard] Cerca su Google pressed for:', query);
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setGoogleSearchVisible(true);
+            }}
+            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+          >
+            <IconSymbol
+              ios_icon_name="magnifyingglass"
+              android_material_icon_name="search"
+              size={13}
+              color={colors.textSecondary}
+            />
+            <Text style={styles.googleSearchButtonText}>Cerca info</Text>
+          </Pressable>
+
           <View style={styles.priceRow}>
             <Text style={styles.discountedPrice}>€{discountedPrice.toFixed(2)}</Text>
             <View style={styles.discountBadge}>
@@ -773,6 +794,15 @@ export default function EnhancedProductCard({
           initialIndex={0}
         />
       )}
+
+      <GoogleSearchModal
+        visible={googleSearchVisible}
+        onClose={() => {
+          console.log('[EnhancedProductCard] GoogleSearchModal closed for product:', product.name);
+          setGoogleSearchVisible(false);
+        }}
+        productName={`${product.brand ?? ''} ${product.name ?? ''}`.trim()}
+      />
     </View>
   );
 }
@@ -1177,5 +1207,23 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
     letterSpacing: 1,
+  },
+  googleSearchButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 4,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.backgroundSecondary,
+    marginBottom: 8,
+  },
+  googleSearchButtonText: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: colors.textSecondary,
   },
 });
