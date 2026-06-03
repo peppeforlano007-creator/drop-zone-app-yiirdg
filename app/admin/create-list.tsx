@@ -23,8 +23,7 @@ import * as Haptics from 'expo-haptics';
 import { supabase } from '@/app/integrations/supabase/client';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from 'expo-file-system';
-import { EncodingType } from 'expo-file-system';
+import * as FileSystemLegacy from 'expo-file-system/legacy';
 import * as XLSX from 'xlsx';
 import ExcelFormatGuide from '@/components/ExcelFormatGuide';
 import { getPlatformSettings } from '@/utils/dropHelpers';
@@ -376,24 +375,14 @@ export default function CreateListScreen() {
   const uploadBanner = async (uri: string): Promise<string | null> => {
     try {
       const fileName = `banner_${Date.now()}.jpg`;
-      let uploadData: Uint8Array;
 
-      try {
-        // SDK 54 new API
-        const file = new FileSystem.File(uri);
-        const buffer = await file.arrayBuffer();
-        uploadData = new Uint8Array(buffer);
-      } catch (e) {
-        // Fallback to legacy API
-        const FileSystemLegacy = await import('expo-file-system/legacy');
-        const base64 = await FileSystemLegacy.readAsStringAsync(uri, {
-          encoding: FileSystemLegacy.EncodingType.Base64,
-        });
-        const binary = atob(base64);
-        uploadData = new Uint8Array(binary.length);
-        for (let i = 0; i < binary.length; i++) {
-          uploadData[i] = binary.charCodeAt(i);
-        }
+      const base64 = await FileSystemLegacy.readAsStringAsync(uri, {
+        encoding: FileSystemLegacy.EncodingType.Base64,
+      });
+      const binary = atob(base64);
+      const uploadData = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) {
+        uploadData[i] = binary.charCodeAt(i);
       }
 
       const { data, error } = await supabase.storage
