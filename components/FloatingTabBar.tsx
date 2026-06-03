@@ -39,7 +39,7 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 // Mapping for SF Symbols to Material Icons
 const iconMapping: Record<string, string> = {
   'star.fill': 'star',
-  'flame.fill': 'local_fire_department',
+  'flame.fill': 'local-fire-department',
   'location.fill': 'location_on',
   'person.fill': 'person',
   'creditcard.fill': 'credit_card',

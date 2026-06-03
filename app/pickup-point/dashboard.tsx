@@ -378,7 +378,7 @@ export default function PickupPointDashboardScreen() {
             <View style={styles.statCard}>
               <IconSymbol
                 ios_icon_name="flame.fill"
-                android_material_icon_name="local_fire_department"
+                android_material_icon_name="local-fire-department"
                 size={32}
                 color={colors.error}
               />

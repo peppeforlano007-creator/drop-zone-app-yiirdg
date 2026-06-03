@@ -155,7 +155,7 @@ export default function NotificationsScreen() {
   const getNotificationIcon = (type: Notification['type']) => {
     switch (type) {
       case 'drop_activated':
-        return { ios: 'flame.fill', android: 'local_fire_department', color: '#FF6B35' };
+        return { ios: 'flame.fill', android: 'local-fire-department', color: '#FF6B35' };
       case 'drop_ending':
         return { ios: 'clock.fill', android: 'schedule', color: '#FFB800' };
       case 'order_ready':
