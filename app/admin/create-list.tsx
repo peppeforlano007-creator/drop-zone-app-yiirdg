@@ -216,12 +216,10 @@ export default function CreateListScreen() {
 
         const sku = row.sku ? String(row.sku).trim() : undefined;
 
-        // Check mandatory fields: nome, immagine_url, prezzo, stock
-        const hasImage = row.immagine_url && String(row.immagine_url).startsWith('http');
-        if (!row.nome || !hasImage || !row.prezzo || !row.stock) {
+        // Check mandatory fields: nome, prezzo, stock (immagine_url is optional)
+        if (!row.nome || !row.prezzo || !row.stock) {
           const missingFields = [];
           if (!row.nome) missingFields.push('nome');
-          if (!hasImage) missingFields.push('immagine_url');
           if (!row.prezzo) missingFields.push('prezzo');
           if (!row.stock) missingFields.push('stock');
           errors.push(`Riga ${rowNum}: Campi obbligatori mancanti (${missingFields.join(', ')})`);
@@ -1049,12 +1047,12 @@ export default function CreateListScreen() {
                   
                   <Text style={styles.excelHint}>
                     <Text style={styles.excelHintBold}>Colonne obbligatorie:</Text>{'\n'}
-                    • nome, prezzo, <Text style={styles.excelHintBold}>stock</Text>, immagine_url{'\n\n'}
+                    • nome, prezzo, <Text style={styles.excelHintBold}>stock</Text>{'\n\n'}
                     <Text style={styles.excelHintBold}>Colonne opzionali:</Text>{'\n'}
+                    • immagine_url, descrizione, brand, categoria{'\n'}
+                    • condizione, immagini_aggiuntive{'\n'}
                     • <Text style={styles.excelHintBold}>sku</Text> (per raggruppare varianti){'\n'}
-                    • <Text style={styles.excelHintBold}>taglia, colore</Text> (per varianti){'\n'}
-                    • descrizione, brand, immagini_aggiuntive{'\n'}
-                    • condizione, categoria{'\n\n'}
+                    • <Text style={styles.excelHintBold}>taglia, colore</Text> (per varianti){'\n\n'}
                     <Text style={styles.excelHintBold}>💡 Varianti:</Text> Prodotti con lo stesso SKU verranno raggruppati. Le colonne taglia e colore definiranno le varianti disponibili.
                   </Text>
                 </View>
