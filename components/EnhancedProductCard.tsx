@@ -459,18 +459,30 @@ export default function EnhancedProductCard({
               }}
             />
           ) : (
-            <View style={styles.imagePlaceholder}>
-              <IconSymbol 
-                ios_icon_name="photo" 
-                android_material_icon_name="broken_image" 
-                size={100} 
-                color={colors.textTertiary} 
+            <Pressable
+              style={styles.noImageBanner}
+              onPress={() => {
+                const query = `${product.brand ?? ''} ${product.name ?? ''}`.trim();
+                console.log('[EnhancedProductCard] No-image banner pressed, opening Google search for:', query);
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                setGoogleSearchVisible(true);
+              }}
+            >
+              <IconSymbol
+                ios_icon_name="magnifyingglass.circle.fill"
+                android_material_icon_name="search"
+                size={64}
+                color="#FFF"
+                style={styles.noImageBannerIcon}
               />
-              <Text style={styles.imageErrorText}>Immagine non disponibile</Text>
-              {product.imageUrl && !isValidImageUrl(product.imageUrl) && (
-                <Text style={styles.imageDebugText}>URL non valido: {product.imageUrl}</Text>
-              )}
-            </View>
+              <Text style={styles.noImageBannerTitle}>Scopri di più su questo prodotto</Text>
+              <Text style={styles.noImageBannerSubtitle} numberOfLines={2}>
+                Tocca per cercare immagini, prezzi e dettagli
+              </Text>
+              <View style={styles.noImageBannerChip}>
+                <Text style={styles.noImageBannerChipText}>🔍 CERCA SU GOOGLE</Text>
+              </View>
+            </Pressable>
           )}
 
           {hasMultipleImages && (
@@ -588,24 +600,52 @@ export default function EnhancedProductCard({
             </Pressable>
           )}
 
-          <Pressable
-            style={styles.googleSearchButton}
-            onPress={() => {
-              const query = `${product.brand ?? ''} ${product.name ?? ''}`.trim();
-              console.log('[EnhancedProductCard] Cerca su Google pressed for:', query);
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              setGoogleSearchVisible(true);
-            }}
-            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-          >
-            <IconSymbol
-              ios_icon_name="magnifyingglass"
-              android_material_icon_name="search"
-              size={13}
-              color={colors.textSecondary}
-            />
-            <Text style={styles.googleSearchButtonText}>Cerca info</Text>
-          </Pressable>
+          {!product.description && (
+            <Pressable
+              style={styles.noDescriptionBanner}
+              onPress={() => {
+                const query = `${product.brand ?? ''} ${product.name ?? ''}`.trim();
+                console.log('[EnhancedProductCard] No-description banner pressed, opening Google search for:', query);
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setGoogleSearchVisible(true);
+              }}
+            >
+              <IconSymbol
+                ios_icon_name="magnifyingglass"
+                android_material_icon_name="search"
+                size={18}
+                color={colors.textSecondary}
+              />
+              <Text style={styles.noDescriptionBannerText}>Cerca info, foto e prezzi su Google</Text>
+              <IconSymbol
+                ios_icon_name="chevron.right"
+                android_material_icon_name="chevron_right"
+                size={16}
+                color={colors.textTertiary}
+              />
+            </Pressable>
+          )}
+
+          {!!product.description && hasValidImage && (
+            <Pressable
+              style={styles.googleSearchButton}
+              onPress={() => {
+                const query = `${product.brand ?? ''} ${product.name ?? ''}`.trim();
+                console.log('[EnhancedProductCard] Cerca su Google pressed for:', query);
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setGoogleSearchVisible(true);
+              }}
+              hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+            >
+              <IconSymbol
+                ios_icon_name="magnifyingglass"
+                android_material_icon_name="search"
+                size={13}
+                color={colors.textSecondary}
+              />
+              <Text style={styles.googleSearchButtonText}>Cerca info</Text>
+            </Pressable>
+          )}
 
           <View style={styles.priceRow}>
             <Text style={styles.discountedPrice}>€{discountedPrice.toFixed(2)}</Text>
@@ -1225,5 +1265,67 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '500',
     color: colors.textSecondary,
+  },
+  noImageBanner: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: '#1A1A1A',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  noImageBannerIcon: {
+    marginBottom: 16,
+  },
+  noImageBannerTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#FFF',
+    textAlign: 'center',
+    marginBottom: 6,
+    letterSpacing: -0.3,
+  },
+  noImageBannerSubtitle: {
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.7)',
+    textAlign: 'center',
+    marginBottom: 16,
+    paddingHorizontal: 24,
+    lineHeight: 18,
+  },
+  noImageBannerChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#FFF',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  noImageBannerChipText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#1A1A1A',
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+  },
+  noDescriptionBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: colors.backgroundSecondary,
+    borderRadius: 12,
+    marginBottom: 8,
+  },
+  noDescriptionBannerText: {
+    flex: 1,
+    fontSize: 12.5,
+    fontWeight: '600',
+    color: colors.text,
   },
 });
