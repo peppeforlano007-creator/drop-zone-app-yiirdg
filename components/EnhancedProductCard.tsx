@@ -497,7 +497,7 @@ export default function EnhancedProductCard({
             </View>
           )}
 
-          {isInDrop && currentDiscount && (
+          {isInDrop && !!currentDiscount && currentDiscount > 0 && (
             <View style={styles.dropBadge}>
               <Text style={styles.dropBadgeText}>Drop -{Math.floor(currentDiscount)}%</Text>
             </View>
