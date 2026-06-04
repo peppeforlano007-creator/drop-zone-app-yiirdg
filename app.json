@@ -2,7 +2,7 @@
   "expo": {
     "name": "Drop Zone",
     "slug": "drop-zone",
-    "version": "2.0.6",
+    "version": "2.0.7",
     "orientation": "portrait",
     "icon": "./assets/images/dropmarket-icon.png",
     "userInterfaceStyle": "automatic",
@@ -15,7 +15,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.giuseppeforlano.dropzone",
-      "buildNumber": "13",
+      "buildNumber": "14",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSPhotoLibraryUsageDescription": "Questa app accede alla tua libreria foto per caricare immagini dei prodotti.",
@@ -24,10 +24,7 @@
         ]
       },
       "entitlements": {
-        "aps-environment": "production",
-        "com.apple.security.application-groups": [
-          "group.com.giuseppeforlano.dropzone.onesignal"
-        ]
+        "aps-environment": "production"
       }
     },
     "android": {
@@ -49,7 +46,8 @@
       [
         "onesignal-expo-plugin",
         {
-          "mode": "production"
+          "mode": "production",
+          "iosNSEEnabled": false
         }
       ],
       "expo-font",
