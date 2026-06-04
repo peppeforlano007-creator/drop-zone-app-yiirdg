@@ -2,14 +2,11 @@ import React from "react";
 import { StyleSheet, View, Text } from "react-native";
 import { Stack } from "expo-router";
 import { useTheme } from "@react-navigation/native";
-import { NotificationBell } from "@/components/NotificationBell";
 import { useAuth } from "@/contexts/AuthContext";
 
 export default function HomeScreen() {
   const theme = useTheme();
   const { isAuthenticated } = useAuth();
-
-  const headerRight = isAuthenticated ? () => <NotificationBell /> : undefined;
 
   return (
     <>
@@ -19,7 +16,6 @@ export default function HomeScreen() {
           title: "Home",
           headerStyle: { backgroundColor: theme.colors.card },
           headerTintColor: theme.colors.text,
-          headerRight,
         }}
       />
       <View style={[styles.container, { backgroundColor: theme.colors.background }]}>

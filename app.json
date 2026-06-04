@@ -18,13 +18,7 @@
       "buildNumber": "12",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-        "NSPhotoLibraryUsageDescription": "Questa app accede alla tua libreria foto per caricare immagini dei prodotti.",
-        "UIBackgroundModes": [
-          "remote-notification"
-        ]
-      },
-      "entitlements": {
-        "aps-environment": "production"
+        "NSPhotoLibraryUsageDescription": "Questa app accede alla tua libreria foto per caricare immagini dei prodotti."
       }
     },
     "android": {
@@ -43,13 +37,6 @@
       "bundler": "metro"
     },
     "plugins": [
-      [
-        "onesignal-expo-plugin",
-        {
-          "mode": "production",
-          "iosNSEEnabled": false
-        }
-      ],
       "expo-font",
       "expo-router",
       "expo-web-browser"
@@ -62,8 +49,7 @@
       "router": {},
       "eas": {
         "projectId": "587d28f9-01b5-4121-aa8e-4d77ee7b13ae"
-      },
-      "oneSignalAppId": "94d57673-6ccc-47eb-80d5-d5aa8c2a76a1"
+      }
     }
   }
 }

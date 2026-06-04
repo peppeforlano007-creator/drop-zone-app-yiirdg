@@ -21,7 +21,6 @@ import { WidgetProvider } from "@/contexts/WidgetContext";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { SubscriptionProvider } from "@/contexts/SubscriptionContext";
 import { DropInterestProvider } from "@/contexts/DropInterestContext";
-import { NotificationProvider } from "@/contexts/NotificationContext";
 import { supabase } from "@/app/integrations/supabase/client";
 
 // Import font
@@ -281,7 +280,6 @@ export default function RootLayout() {
         value={colorScheme === "dark" ? CustomDarkTheme : CustomDefaultTheme}
       >
         <AuthProvider>
-          <NotificationProvider>
           <DropInterestProvider>
           <SubscriptionProvider>
             <WidgetProvider>
@@ -348,7 +346,6 @@ export default function RootLayout() {
             </WidgetProvider>
           </SubscriptionProvider>
           </DropInterestProvider>
-          </NotificationProvider>
         </AuthProvider>
       </ThemeProvider>
     </>
