@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Stack } from "expo-router";
+import { OneSignal } from "react-native-onesignal";
 import { useNotifications } from "@/contexts/NotificationContext";
 import { IconSymbol } from "@/components/IconSymbol";
 import { colors, layout } from "@/styles/commonStyles";
@@ -56,10 +57,12 @@ export default function NotificationPreferencesScreen() {
       }
       const granted = await requestPermission();
       if (granted) {
+        OneSignal.User.pushSubscription.optIn();
         setPushEnabled(true);
         console.log("[NotificationPreferences] Push notifications opted in");
       }
     } else {
+      OneSignal.User.pushSubscription.optOut();
       setPushEnabled(false);
       console.log("[NotificationPreferences] Push notifications opted out");
     }
