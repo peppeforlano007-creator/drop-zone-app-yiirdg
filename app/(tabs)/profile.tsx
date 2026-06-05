@@ -235,25 +235,30 @@ export default function ProfileScreen() {
     console.log('Profile: User tapped Aiuto e Supporto');
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
+    const sanitizedNumber = whatsappNumber.replace(/\D/g, '');
     const message = encodeURIComponent('Ciao, ho bisogno di supporto.');
-    const whatsappUrl = `whatsapp://send?phone=${whatsappNumber}&text=${message}`;
-    const whatsappWebUrl = `https://wa.me/${whatsappNumber}?text=${message}`;
+    const whatsappUrl = `whatsapp://send?phone=${sanitizedNumber}&text=${message}`;
+    const whatsappWebUrl = `https://wa.me/${sanitizedNumber}?text=${message}`;
+
+    console.log('Profile: Opening WhatsApp with sanitized number:', sanitizedNumber);
 
     try {
-      const canOpen = await Linking.canOpenURL(whatsappUrl);
-
-      if (canOpen) {
-        await Linking.openURL(whatsappUrl);
-      } else {
+      console.log('Profile: Trying WhatsApp app URL...');
+      await Linking.openURL(whatsappUrl);
+      console.log('Profile: WhatsApp app opened successfully');
+    } catch (appError) {
+      console.log('Profile: WhatsApp app URL failed, falling back to wa.me:', appError);
+      try {
         await Linking.openURL(whatsappWebUrl);
+        console.log('Profile: WhatsApp web fallback opened successfully');
+      } catch (webError) {
+        console.error('Profile: Both WhatsApp URLs failed:', webError);
+        Alert.alert(
+          'Errore',
+          'Impossibile aprire WhatsApp. Assicurati di avere WhatsApp installato sul tuo dispositivo.',
+          [{ text: 'OK' }]
+        );
       }
-    } catch (error) {
-      console.error('Profile: Error opening WhatsApp:', error);
-      Alert.alert(
-        'Errore',
-        'Impossibile aprire WhatsApp. Assicurati di avere WhatsApp installato sul tuo dispositivo.',
-        [{ text: 'OK' }]
-      );
     }
   };
 
