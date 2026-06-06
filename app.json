@@ -19,7 +19,10 @@
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSPhotoLibraryUsageDescription": "Questa app accede alla tua libreria foto per caricare immagini dei prodotti.",
-        "LSApplicationQueriesSchemes": ["whatsapp", "https"]
+        "LSApplicationQueriesSchemes": [
+          "whatsapp",
+          "https"
+        ]
       }
     },
     "android": {
