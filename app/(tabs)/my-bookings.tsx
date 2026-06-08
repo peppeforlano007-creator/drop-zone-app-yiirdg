@@ -123,7 +123,7 @@ export default function MyBookingsScreen() {
   const handleCancelBooking = (bookingId: string, productName: string) => {
     Alert.alert(
       'Annulla Prenotazione',
-      `Sei sicuro di voler annullare la prenotazione per "${productName}"?\n\nL'importo bloccato verrà rilasciato.`,
+      `Sei sicuro di voler annullare la prenotazione per "${productName}"?`,
       [
         { text: 'No', style: 'cancel' },
         {
@@ -149,7 +149,7 @@ export default function MyBookingsScreen() {
               }
 
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-              Alert.alert('Successo', 'Prenotazione annullata. L\'importo verrà rilasciato.');
+              Alert.alert('Successo', 'Prenotazione annullata con successo.');
               loadBookings();
             } catch (error) {
               console.error('Error in handleCancelBooking:', error);
@@ -230,9 +230,9 @@ export default function MyBookingsScreen() {
     
     if (drop.status === 'underfunded') {
       return {
-        text: '⚠️ Drop non finanziato - Fondi rilasciati',
+        text: '⚠️ Drop non finanziato',
         color: '#FF6B35',
-        description: 'Questo drop non ha raggiunto l\'ordine minimo. L\'importo bloccato è stato rilasciato sulla tua carta.',
+        description: 'Questo drop non ha raggiunto l\'ordine minimo. La prenotazione è stata annullata e non verrà addebitato nulla.',
       };
     }
     if (drop.status === 'expired') {
@@ -412,10 +412,10 @@ export default function MyBookingsScreen() {
                     </View>
                   )}
                   <View style={styles.priceRow}>
-                    <Text style={styles.priceLabel}>Importo bloccato:</Text>
+                    <Text style={styles.priceLabel}>Importo prenotato:</Text>
                     <Text style={[styles.priceValue, isRefunded && styles.refundedAmount]}>
                       €{authorizedAmount.toFixed(2)}
-                      {isRefunded && ' (Rilasciato)'}
+                      {isRefunded && ' (Annullato)'}
                     </Text>
                   </View>
                   {isDropCompleted && finalPrice > 0 && (
