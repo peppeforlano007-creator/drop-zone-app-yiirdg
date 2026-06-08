@@ -840,6 +840,7 @@ export default function DropDetailsScreen() {
           isInterested={isBooked}
           dropId={dropId}
           dropBookingDisabled={isDropBookingDisabled}
+          dropStatus={drop?.status}
         />
       </View>
     );
@@ -1142,46 +1143,56 @@ export default function DropDetailsScreen() {
         </SafeAreaView>
       </View>
 
-      <View style={styles.rightSideIcons} pointerEvents="box-none">
-        <View style={styles.iconButton}>
-          <View style={styles.iconCircle}>
-            <IconSymbol 
-              ios_icon_name="mappin.circle.fill" 
-              android_material_icon_name="location_on" 
-              size={20} 
-              color="#FFF" 
-            />
+      <View
+        style={[
+          styles.bottomLeftOverlay,
+          (isDropCompleted || isDropBookingDisabled || drop?.status === 'approved')
+            ? styles.bottomLeftOverlayWithBanner
+            : null,
+        ]}
+        pointerEvents="box-none"
+      >
+        <SafeAreaView edges={['bottom']} style={styles.bottomLeftSafeArea}>
+          <View style={styles.bottomLeftChipsRow} pointerEvents="box-none">
+            <View style={styles.infoChip} pointerEvents="none">
+              <IconSymbol
+                ios_icon_name="mappin.fill"
+                android_material_icon_name="location_on"
+                size={12}
+                color="#FFF"
+              />
+              <Text style={styles.infoChipText} numberOfLines={1}>
+                {cityName}
+              </Text>
+            </View>
+            <View style={styles.infoChip} pointerEvents="none">
+              <MaterialCommunityIcons name="bullseye-arrow" size={12} color="#FFF" />
+              <Text style={styles.infoChipText} numberOfLines={1}>
+                {listName}
+              </Text>
+            </View>
           </View>
-          <Text style={styles.iconLabel} numberOfLines={1}>
-            {cityName}
-          </Text>
-        </View>
-
-        <View style={styles.iconButton}>
-          <View style={styles.iconCircle}>
-            <MaterialCommunityIcons name="bullseye-arrow" size={22} color="#FFF" />
-          </View>
-          <Text style={styles.iconLabel} numberOfLines={1}>
-            {listName}
-          </Text>
-        </View>
-
-        <Pressable 
-          style={styles.iconButton}
-          onPress={handleShare}
-          onPressIn={handlePressIn}
-          onPressOut={handlePressOut}
-        >
-          <Animated.View style={[styles.iconCircle, styles.shareCircle, { transform: [{ scale: bounceAnim }] }]}>
-            <IconSymbol 
-              ios_icon_name="square.and.arrow.up.fill" 
-              android_material_icon_name="share" 
-              size={20} 
-              color="#FFF" 
-            />
+          <Animated.View
+            style={[styles.shareButtonWrapper, { transform: [{ scale: bounceAnim }] }]}
+            pointerEvents="box-none"
+          >
+            <Pressable
+              style={styles.shareButton}
+              onPress={handleShare}
+              onPressIn={handlePressIn}
+              onPressOut={handlePressOut}
+              pointerEvents="auto"
+            >
+              <IconSymbol
+                ios_icon_name="square.and.arrow.up"
+                android_material_icon_name="share"
+                size={16}
+                color="#FFF"
+              />
+              <Text style={styles.shareButtonText}>Condividi</Text>
+            </Pressable>
           </Animated.View>
-          <Text style={styles.iconLabel} numberOfLines={1}>Condividi</Text>
-        </Pressable>
+        </SafeAreaView>
       </View>
 
       {isConnected && (
@@ -1355,55 +1366,57 @@ const styles = StyleSheet.create({
     marginLeft: 16,
     marginTop: 8,
   },
-  rightSideIcons: {
+  bottomLeftOverlay: {
     position: 'absolute',
-    right: 16,
-    top: '18%',
-    bottom: '34%',
-    justifyContent: 'space-evenly',
-    alignItems: 'center',
-    gap: 32,
-    zIndex: 10,
+    left: 16,
+    bottom: 24,
+    zIndex: 50,
   },
-  iconButton: {
+  bottomLeftOverlayWithBanner: {
+    bottom: 80,
+  },
+  bottomLeftSafeArea: {
+    backgroundColor: 'transparent',
+    gap: 10,
+  },
+  bottomLeftChipsRow: {
+    flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
   },
-  iconCircle: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: 'rgba(0, 0, 0, 0.75)',
-    justifyContent: 'center',
+  infoChip: {
+    flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.5)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.4,
-    shadowRadius: 6,
-    elevation: 8,
+    gap: 5,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 14,
   },
-  shareCircle: {
-    backgroundColor: 'rgba(76, 175, 80, 0.9)',
-    borderColor: 'rgba(255, 255, 255, 0.6)',
-  },
-  iconLabel: {
+  infoChipText: {
     fontSize: 11,
-    fontWeight: '800',
+    fontWeight: '700',
     color: '#FFF',
-    textAlign: 'center',
-    maxWidth: 80,
-    flexShrink: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.75)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    maxWidth: 140,
+  },
+  shareButtonWrapper: {
+    alignSelf: 'flex-start',
+  },
+  shareButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.7)',
     borderRadius: 10,
-    overflow: 'hidden',
-    textShadowColor: 'rgba(0, 0, 0, 0.75)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
-    letterSpacing: 0.4,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  shareButtonText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#FFF',
   },
   realtimeIndicator: {
     position: 'absolute',

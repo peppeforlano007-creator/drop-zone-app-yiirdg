@@ -32,6 +32,8 @@ interface EnhancedProductCardProps {
   isInterested?: boolean;
   dropId?: string;
   dropBookingDisabled?: boolean;
+  /** Current drop status — used to differentiate button CTA when booking is disabled */
+  dropStatus?: string;
 }
 
 export default function EnhancedProductCard({
@@ -45,6 +47,7 @@ export default function EnhancedProductCard({
   isInterested = false,
   dropId,
   dropBookingDisabled = false,
+  dropStatus,
 }: EnhancedProductCardProps) {
   const { user } = useAuth();
   const [imageLoaded, setImageLoaded] = useState(false);
@@ -722,12 +725,10 @@ export default function EnhancedProductCard({
 
           {/* CRITICAL: Enhanced booking button with clear disabled state (ONLY IN DROP) */}
           {isInDrop ? (
-            <Animated.View 
+            <Animated.View
               style={[
                 styles.bookButtonWrapper,
-                {
-                  transform: [{ scale: scaleAnim }],
-                },
+                { transform: [{ scale: scaleAnim }] },
               ]}
             >
               <Pressable
@@ -737,67 +738,82 @@ export default function EnhancedProductCard({
                 disabled={isBookingDisabled}
                 style={[
                   styles.bookButton,
-                  isBookingDisabled && styles.bookButtonDisabled,
+                  isInterested && styles.bookButtonBooked,
+                  (isOutOfStock || (dropBookingDisabled && dropStatus !== 'approved')) && styles.bookButtonGray,
+                  dropBookingDisabled && dropStatus === 'approved' && !isInterested && styles.bookButtonOutline,
                 ]}
               >
                 {isProcessing ? (
                   <ActivityIndicator color="#FFFFFF" size="small" />
                 ) : isOutOfStock ? (
                   <>
-                    <View style={styles.bookButtonIconContainer}>
-                      <IconSymbol 
-                        ios_icon_name="xmark.circle.fill" 
-                        android_material_icon_name="cancel" 
-                        size={20} 
-                        color="#999" 
-                      />
-                    </View>
-                    <View style={styles.bookButtonTextContainer}>
-                      <Text style={[styles.bookButtonTitle, styles.bookButtonTitleDisabled]}>
-                        ESAURITO
-                      </Text>
-                    </View>
+                    <Text style={[styles.bookButtonTitle, styles.bookButtonTitleGray]}>
+                      ESAURITO
+                    </Text>
+                    <IconSymbol
+                      ios_icon_name="xmark.circle.fill"
+                      android_material_icon_name="cancel"
+                      size={16}
+                      color="#999"
+                    />
+                  </>
+                ) : isInterested ? (
+                  <>
+                    <Text style={[styles.bookButtonTitle, styles.bookButtonTitleGray]}>
+                      ARTICOLO PRENOTATO
+                    </Text>
+                    <IconSymbol
+                      ios_icon_name="checkmark.circle.fill"
+                      android_material_icon_name="check_circle"
+                      size={16}
+                      color="#999"
+                    />
                   </>
                 ) : requiresVariantSelection && !hasAllRequiredSelections ? (
                   <>
-                    <View style={[styles.bookButtonIconContainer, styles.bookButtonIconWarning]}>
-                      <IconSymbol 
-                        ios_icon_name="exclamationmark.triangle.fill" 
-                        android_material_icon_name="warning" 
-                        size={20} 
-                        color="#666" 
-                      />
-                    </View>
-                    <View style={styles.bookButtonTextContainer}>
-                      <Text style={[styles.bookButtonTitle, styles.bookButtonTitleWarning]}>
-                        SELEZIONA OPZIONI
-                      </Text>
-                    </View>
+                    <Text style={[styles.bookButtonTitle, styles.bookButtonTitleGray]}>
+                      SELEZIONA OPZIONI
+                    </Text>
+                    <IconSymbol
+                      ios_icon_name="exclamationmark.triangle.fill"
+                      android_material_icon_name="warning"
+                      size={16}
+                      color="#999"
+                    />
+                  </>
+                ) : dropBookingDisabled && dropStatus === 'approved' ? (
+                  <>
+                    <Text style={[styles.bookButtonTitle, styles.bookButtonTitleOutline]}>
+                      SCOPRI LA LISTA
+                    </Text>
+                    <IconSymbol
+                      ios_icon_name="arrow.right"
+                      android_material_icon_name="arrow_forward"
+                      size={16}
+                      color={colors.primary}
+                    />
+                  </>
+                ) : dropBookingDisabled ? (
+                  <>
+                    <Text style={[styles.bookButtonTitle, styles.bookButtonTitleGray]}>
+                      NON ANCORA ATTIVO
+                    </Text>
+                    <IconSymbol
+                      ios_icon_name="clock"
+                      android_material_icon_name="schedule"
+                      size={16}
+                      color="#9CA3AF"
+                    />
                   </>
                 ) : (
                   <>
-                    <View style={styles.bookButtonIconContainer}>
-                      <IconSymbol 
-                        ios_icon_name="cube.box.fill" 
-                        android_material_icon_name="inventory" 
-                        size={20} 
-                        color="#333" 
-                      />
-                    </View>
-                    <View style={styles.bookButtonTextContainer}>
-                      <Text style={styles.bookButtonTitle}>PRENOTA ARTICOLO</Text>
-                      <Text style={styles.bookButtonSubtitle}>
-                        Pagamento alla consegna
-                      </Text>
-                    </View>
-                    <View style={styles.bookButtonArrow}>
-                      <IconSymbol 
-                        ios_icon_name="chevron.right" 
-                        android_material_icon_name="chevron_right" 
-                        size={18} 
-                        color="#333" 
-                      />
-                    </View>
+                    <Text style={styles.bookButtonTitle}>PRENOTA ARTICOLO</Text>
+                    <IconSymbol
+                      ios_icon_name="arrow.right"
+                      android_material_icon_name="arrow_forward"
+                      size={16}
+                      color="#FFF"
+                    />
                   </>
                 )}
               </Pressable>
@@ -1169,65 +1185,48 @@ const styles = StyleSheet.create({
     marginTop: 14,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
     elevation: 4,
   },
   bookButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 13,
-    paddingHorizontal: 16,
-    gap: 10,
-    backgroundColor: '#FFF',
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: '#333',
-  },
-  bookButtonDisabled: {
-    opacity: 0.6,
-    borderColor: '#999',
-    backgroundColor: '#F5F5F5',
-  },
-  bookButtonIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#F5F5F5',
     justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
+    minHeight: 52,
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    gap: 8,
+    backgroundColor: '#16A34A',
+    borderRadius: 14,
   },
-  bookButtonIconWarning: {
-    backgroundColor: '#F5F5F5',
-    borderColor: '#E0E0E0',
+  bookButtonBooked: {
+    backgroundColor: '#F3F4F6',
+    shadowOpacity: 0,
+    elevation: 0,
   },
-  bookButtonTextContainer: {
-    flex: 1,
-    gap: 1,
+  bookButtonGray: {
+    backgroundColor: '#E5E7EB',
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  bookButtonOutline: {
+    backgroundColor: 'transparent',
+    borderWidth: 1.5,
+    borderColor: colors.primary,
   },
   bookButtonTitle: {
-    color: '#000',
-    fontSize: 12,
+    color: '#FFF',
+    fontSize: 15,
     fontWeight: '800',
-    letterSpacing: 0.3,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
   },
-  bookButtonTitleDisabled: {
-    color: '#999',
+  bookButtonTitleGray: {
+    color: '#9CA3AF',
   },
-  bookButtonTitleWarning: {
-    color: '#666',
-  },
-  bookButtonSubtitle: {
-    color: '#666',
-    fontSize: 9,
-    fontWeight: '500',
-    letterSpacing: 0.1,
-  },
-  bookButtonArrow: {
-    opacity: 0.8,
+  bookButtonTitleOutline: {
+    color: colors.primary,
   },
   actionButton: {
     paddingVertical: 13,
