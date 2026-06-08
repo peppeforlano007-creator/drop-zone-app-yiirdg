@@ -747,22 +747,6 @@ export default function DropDetailsScreen() {
     }
   }, [user, drop, products, loadDropDetails, isExpired, isDropCompleted]);
 
-  const handlePressIn = () => {
-    Animated.spring(bounceAnim, {
-      toValue: 0.95,
-      useNativeDriver: true,
-    }).start();
-  };
-
-  const handlePressOut = () => {
-    Animated.spring(bounceAnim, {
-      toValue: 1,
-      friction: 3,
-      tension: 40,
-      useNativeDriver: true,
-    }).start();
-  };
-
   const onViewableItemsChanged = useCallback(({ viewableItems }: any) => {
     if (viewableItems.length > 0) {
       setCurrentProductIndex(viewableItems[0].index ?? 0);
@@ -841,6 +825,7 @@ export default function DropDetailsScreen() {
           dropId={dropId}
           dropBookingDisabled={isDropBookingDisabled}
           dropStatus={drop?.status}
+          onShare={handleShare}
         />
       </View>
     );
@@ -1172,26 +1157,6 @@ export default function DropDetailsScreen() {
               </Text>
             </View>
           </View>
-          <Animated.View
-            style={[styles.shareButtonWrapper, { transform: [{ scale: bounceAnim }] }]}
-            pointerEvents="box-none"
-          >
-            <Pressable
-              style={styles.shareButton}
-              onPress={handleShare}
-              onPressIn={handlePressIn}
-              onPressOut={handlePressOut}
-              pointerEvents="auto"
-            >
-              <IconSymbol
-                ios_icon_name="square.and.arrow.up"
-                android_material_icon_name="share"
-                size={16}
-                color="#FFF"
-              />
-              <Text style={styles.shareButtonText}>Condividi</Text>
-            </Pressable>
-          </Animated.View>
         </SafeAreaView>
       </View>
 
@@ -1398,25 +1363,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FFF',
     maxWidth: 140,
-  },
-  shareButtonWrapper: {
-    alignSelf: 'flex-start',
-  },
-  shareButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 7,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    borderWidth: 1.5,
-    borderColor: 'rgba(255, 255, 255, 0.7)',
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-  },
-  shareButtonText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#FFF',
   },
   realtimeIndicator: {
     position: 'absolute',

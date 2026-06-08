@@ -34,6 +34,8 @@ interface EnhancedProductCardProps {
   dropBookingDisabled?: boolean;
   /** Current drop status — used to differentiate button CTA when booking is disabled */
   dropStatus?: string;
+  /** Called when the user taps the share button inside the card (only shown when provided) */
+  onShare?: () => void;
 }
 
 export default function EnhancedProductCard({
@@ -48,6 +50,7 @@ export default function EnhancedProductCard({
   dropId,
   dropBookingDisabled = false,
   dropStatus,
+  onShare,
 }: EnhancedProductCardProps) {
   const { user } = useAuth();
   const [imageLoaded, setImageLoaded] = useState(false);
@@ -839,6 +842,25 @@ export default function EnhancedProductCard({
               )}
             </Pressable>
           )}
+
+          {!!onShare && (
+            <Pressable
+              style={styles.shareButtonInCard}
+              onPress={() => {
+                console.log('[EnhancedProductCard] Share button pressed for product:', product.id, product.name);
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                onShare();
+              }}
+            >
+              <IconSymbol
+                ios_icon_name="square.and.arrow.up"
+                android_material_icon_name="share"
+                size={16}
+                color={colors.text}
+              />
+              <Text style={styles.shareButtonInCardText}>CONDIVIDI</Text>
+            </Pressable>
+          )}
         </View>
       </View>
 
@@ -1326,5 +1348,25 @@ const styles = StyleSheet.create({
     fontSize: 12.5,
     fontWeight: '600',
     color: colors.text,
+  },
+  shareButtonInCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: 'rgba(0,0,0,0.15)',
+    backgroundColor: 'transparent',
+  },
+  shareButtonInCardText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.text,
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
   },
 });
