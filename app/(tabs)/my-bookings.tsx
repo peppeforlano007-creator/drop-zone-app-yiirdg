@@ -7,7 +7,6 @@ import * as Haptics from 'expo-haptics';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
-import { computeDropDiscount } from '@/utils/dropHelpers';
 import {
   View,
   Text,
@@ -333,24 +332,10 @@ export default function MyBookingsScreen() {
             const dropStatus = booking.drops?.status || 'unknown';
             const isDropCompleted = dropStatus === 'completed';
 
-            // For completed drops, compute the final achieved discount via interpolation
-            let displayDiscountPercentage = typeof booking.discount_percentage === 'number' ? booking.discount_percentage : 0;
-            if (isDropCompleted && booking.drops?.supplier_lists) {
-              const sl = booking.drops.supplier_lists;
-              const cv = Number(booking.drops.current_value ?? 0);
-              const minVal = Number(sl.min_reservation_value ?? 0);
-              const maxVal = Number(sl.max_reservation_value ?? 0);
-              if (cv > 0 && maxVal > minVal) {
-                displayDiscountPercentage = computeDropDiscount({
-                  current_value: cv,
-                  min_reservation_value: minVal,
-                  max_reservation_value: maxVal,
-                  min_discount: Number(sl.min_discount ?? 0),
-                  max_discount: Number(sl.max_discount ?? 0),
-                });
-                console.log('[my-bookings] computed final discount for completed drop booking', booking.id, ':', displayDiscountPercentage);
-              }
-            }
+            // Always use the stored discount_percentage — for completed drops this is the
+            // uniform final discount set by capture-drop-payments; for active drops it is
+            // the discount at booking time (shown as current progress).
+            const displayDiscountPercentage = typeof booking.discount_percentage === 'number' ? booking.discount_percentage : 0;
             
             // Safe number handling with fallbacks
             const originalPrice = typeof booking.original_price === 'number' ? booking.original_price : 0;
