@@ -727,7 +727,7 @@ export default function EnhancedProductCard({
           )}
 
           {/* CRITICAL: Enhanced booking button with clear disabled state (ONLY IN DROP) */}
-          {isInDrop ? (
+          {isInDrop && !(dropBookingDisabled && dropStatus === 'approved') ? (
             <Animated.View
               style={[
                 styles.bookButtonWrapper,
@@ -782,18 +782,6 @@ export default function EnhancedProductCard({
                       android_material_icon_name="warning"
                       size={16}
                       color="#999"
-                    />
-                  </>
-                ) : dropBookingDisabled && dropStatus === 'approved' ? (
-                  <>
-                    <Text style={[styles.bookButtonTitle, styles.bookButtonTitleOutline]}>
-                      SCOPRI LA LISTA
-                    </Text>
-                    <IconSymbol
-                      ios_icon_name="arrow.right"
-                      android_material_icon_name="arrow_forward"
-                      size={16}
-                      color={colors.primary}
                     />
                   </>
                 ) : dropBookingDisabled ? (
