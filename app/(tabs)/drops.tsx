@@ -243,7 +243,7 @@ export default function DropsScreen() {
         }
       }
 
-      // Fetch active, approved, and completed drops
+      // Fetch active and approved drops
       let query = supabase
         .from('drops')
         .select(`
@@ -274,7 +274,7 @@ export default function DropsScreen() {
             banner_url
           )
         `)
-        .in('status', ['active', 'approved', 'completed'])
+        .in('status', ['active', 'approved'])
         .or('archived.is.null,archived.eq.false')
         .order('created_at', { ascending: false });
 
@@ -304,24 +304,12 @@ export default function DropsScreen() {
           list: d.supplier_lists?.name,
           end_time: d.end_time
         })));
-        const firstCompleted = data.find(d => d.status === 'completed');
-        if (firstCompleted) {
-          console.log('[drops] first completed drop stats:', {
-            id: firstCompleted.id,
-            name: firstCompleted.name,
-            current_value: firstCompleted.current_value,
-            supplier_list_max: firstCompleted.supplier_lists?.max_reservation_value,
-          });
-        } else {
-          console.log('[drops] no completed drops in result set');
-        }
       }
 
-      // Sort: active first, then approved, then completed
+      // Sort: active first, then approved
       const statusOrder: Record<string, number> = {
         active: 0,
         approved: 1,
-        completed: 2,
       };
 
       const sorted = (data || []).slice().sort((a, b) => {
@@ -402,8 +390,7 @@ export default function DropsScreen() {
     loadDrops();
   };
 
-  const activeDrops = drops.filter(d => d.status !== 'completed');
-  const completedDrops = drops.filter(d => d.status === 'completed');
+  const visibleDrops = drops;
 
   const renderDrop = ({ item }: { item: Drop }) => (
     <DropCard
@@ -412,31 +399,6 @@ export default function DropsScreen() {
       deliveryMaxDays={item.supplier_lists?.delivery_max_days ?? null}
     />
   );
-
-  const renderCompletedSection = () => {
-    if (completedDrops.length === 0) return null;
-    return (
-      <View style={styles.completedSection}>
-        <View style={styles.completedSectionHeader}>
-          <IconSymbol
-            ios_icon_name="checkmark.circle.fill"
-            android_material_icon_name="check_circle"
-            size={18}
-            color={colors.textSecondary}
-          />
-          <Text style={styles.completedSectionTitle}>Terminati</Text>
-        </View>
-        {completedDrops.map(drop => (
-          <DropCard
-            key={drop.id}
-            drop={drop}
-            deliveryMinDays={drop.supplier_lists?.delivery_min_days ?? null}
-            deliveryMaxDays={drop.supplier_lists?.delivery_max_days ?? null}
-          />
-        ))}
-      </View>
-    );
-  };
 
   const renderHeader = () => (
     <View style={styles.headerContainer}>
@@ -477,7 +439,7 @@ export default function DropsScreen() {
         </View>
       )}
 
-      {activeDrops.length === 0 && completedDrops.length === 0 ? (
+      {visibleDrops.length === 0 ? (
         <View style={styles.emptyContainer}>
           <IconSymbol ios_icon_name="tray" android_material_icon_name="inbox" size={64} color={colors.textSecondary} />
           <Text style={styles.emptyTitle}>Nessun drop attivo</Text>
@@ -490,11 +452,10 @@ export default function DropsScreen() {
       ) : (
         <View style={styles.listWrapper}>
           <FlatList
-            data={activeDrops}
+            data={visibleDrops}
             renderItem={renderDrop}
             keyExtractor={(item) => item.id}
             ListHeaderComponent={renderHeader}
-            ListFooterComponent={renderCompletedSection}
             contentContainerStyle={styles.listContent}
             showsVerticalScrollIndicator={false}
             refreshControl={
@@ -581,25 +542,5 @@ const styles = StyleSheet.create({
   },
   listWrapper: {
     flex: 1,
-  },
-  completedSection: {
-    marginTop: 8,
-  },
-  completedSectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 12,
-    paddingTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
-  completedSectionTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: colors.textSecondary,
-    fontFamily: 'System',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
   },
 });

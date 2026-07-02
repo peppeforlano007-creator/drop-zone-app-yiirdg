@@ -402,6 +402,20 @@ export default function DropCard({ drop, deliveryMinDays, deliveryMaxDays }: Dro
           )}
           {drop.status === 'approved' && (
             <Pressable
+              style={styles.shareButton}
+              onPress={handleShare}
+            >
+              <IconSymbol
+                ios_icon_name="square.and.arrow.up.fill"
+                android_material_icon_name="share"
+                size={14}
+                color="#FFF"
+              />
+              <Text style={styles.shareButtonText}>Condividi</Text>
+            </Pressable>
+          )}
+          {drop.status === 'approved' && (
+            <Pressable
               style={[styles.interestButton, isInterested(drop.id) && styles.interestButtonActive]}
               onPress={handleInterest}
               disabled={isLoading(drop.id)}
@@ -417,15 +431,17 @@ export default function DropCard({ drop, deliveryMinDays, deliveryMaxDays }: Dro
               </Text>
             </Pressable>
           )}
-          <View style={[styles.viewButton, (isNonActive || isCompleted) && styles.viewButtonFull, isCompleted && styles.viewButtonCompleted]}>
-            <Text style={styles.viewButtonText}>Sfoglia</Text>
-            <IconSymbol 
-              ios_icon_name="chevron.right" 
-              android_material_icon_name="chevron_right" 
-              size={16} 
-              color="#FFF" 
-            />
-          </View>
+          {drop.status !== 'approved' && (
+            <View style={[styles.viewButton, (isNonActive || isCompleted) && styles.viewButtonFull, isCompleted && styles.viewButtonCompleted]}>
+              <Text style={styles.viewButtonText}>Sfoglia</Text>
+              <IconSymbol 
+                ios_icon_name="chevron.right" 
+                android_material_icon_name="chevron_right" 
+                size={16} 
+                color="#FFF" 
+              />
+            </View>
+          )}
         </View>
       </View>
       <ShareToGroupModal
