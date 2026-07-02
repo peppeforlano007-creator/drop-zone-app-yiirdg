@@ -36,6 +36,7 @@ interface Supplier {
 
 interface ExcelProduct {
   sku?: string;
+  lotto?: string;
   nome: string;
   descrizione?: string;
   immagine_url?: string;
@@ -51,6 +52,7 @@ interface ExcelProduct {
 
 interface ProductGroup {
   sku: string;
+  lotto?: string;
   nome: string;
   descrizione?: string;
   immagine_url?: string;
@@ -257,6 +259,7 @@ export default function CreateListScreen() {
 
         products.push({
           sku: sku,
+          lotto: row.lotto ? String(row.lotto).trim() : undefined,
           nome: row.nome,
           descrizione: row.descrizione || '',
           immagine_url: row.immagine_url || '',
@@ -532,6 +535,7 @@ export default function CreateListScreen() {
               // Create new product group
               productGroups.set(product.sku, {
                 sku: product.sku,
+                lotto: product.lotto,
                 nome: product.nome,
                 descrizione: product.descrizione,
                 immagine_url: product.immagine_url,
@@ -600,6 +604,7 @@ export default function CreateListScreen() {
               supplier_list_id: data.id,
               supplier_id: selectedSupplierId,
               sku: sku,
+              lot: group.lotto || null,
               name: group.nome || '',
               description: group.descrizione || null,
               image_url: group.immagine_url || '',
@@ -633,6 +638,7 @@ export default function CreateListScreen() {
               supplier_list_id: data.id,
               supplier_id: selectedSupplierId,
               sku: product.sku || null,
+              lot: product.lotto || null,
               name: product.nome || '',
               description: product.descrizione || null,
               image_url: product.immagine_url || '',

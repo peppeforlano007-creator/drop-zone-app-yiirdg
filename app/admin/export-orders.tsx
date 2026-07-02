@@ -49,6 +49,7 @@ interface PickupPointData {
 interface OrderData {
   product_name: string;
   product_id: string;
+  lot?: string | null;
   quantity: number;
   selected_size?: string;
   selected_color?: string;
@@ -224,7 +225,7 @@ export default function ExportOrdersScreen() {
       const productIds = [...new Set(bookings.map(b => b.product_id))];
       const { data: productsData, error: productsError } = await supabase
         .from('products')
-        .select('id, name, available_sizes, available_colors')
+        .select('id, name, lot, available_sizes, available_colors')
         .in('id', productIds);
 
       if (productsError) {
@@ -262,6 +263,7 @@ export default function ExportOrdersScreen() {
           ordersByProduct.set(productId, {
             product_id: productId,
             product_name: productName,
+            lot: product?.lot || null,
             quantity: 1,
             selected_size: product?.available_sizes?.[0],
             selected_color: product?.available_colors?.[0],
@@ -280,6 +282,7 @@ export default function ExportOrdersScreen() {
         ordersArray.map((order, index) => ({
           '#': index + 1,
           'Prodotto': order.product_name,
+          'Lotto': order.lot || 'N/A',
           'Quantità': order.quantity,
           'Taglia': order.selected_size || 'N/A',
           'Colore': order.selected_color || 'N/A',

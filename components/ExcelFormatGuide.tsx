@@ -79,6 +79,11 @@ export default function ExcelFormatGuide({ onClose }: ExcelFormatGuideProps) {
               <Text style={styles.fieldExample}>Es: NIKE-AM-001 (stesso SKU per tutte le taglie/colori dello stesso articolo)</Text>
             </View>
             <View style={styles.field}>
+              <Text style={styles.fieldName}>lotto</Text>
+              <Text style={styles.fieldDescription}>Numero di lotto del fornitore (es. LOT-2024-001)</Text>
+              <Text style={styles.fieldExample}>Es: LOT-2024-001</Text>
+            </View>
+            <View style={styles.field}>
               <Text style={styles.fieldName}>immagine_url</Text>
               <Text style={styles.fieldDescription}>URL dell&apos;immagine principale del prodotto</Text>
               <Text style={styles.fieldExample}>Es: https://example.com/image.jpg</Text>
