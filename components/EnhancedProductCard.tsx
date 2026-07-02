@@ -809,7 +809,7 @@ export default function EnhancedProductCard({
                 )}
               </Pressable>
             </Animated.View>
-          ) : (
+          ) : isInDrop && dropBookingDisabled && dropStatus === 'approved' ? null : (
             <Pressable
               style={[
                 styles.actionButton,
