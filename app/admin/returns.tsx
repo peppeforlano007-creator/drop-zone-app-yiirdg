@@ -45,6 +45,13 @@ interface PickupPointStats {
   total_value: number;
 }
 
+function getLoyaltyLevel(points: number): string {
+  if (points >= 500) return 'Top';
+  if (points >= 200) return 'VIP';
+  if (points >= 50) return 'Fedele';
+  return 'Nuovo';
+}
+
 export default function ReturnsScreen() {
   const [returns, setReturns] = useState<ReturnData[]>([]);
   const [filteredReturns, setFilteredReturns] = useState<ReturnData[]>([]);
@@ -53,6 +60,7 @@ export default function ReturnsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPickupPoint, setSelectedPickupPoint] = useState<string>('all');
+  const [processedIds, setProcessedIds] = useState<Set<string>>(new Set());
 
   const filterReturns = useCallback(() => {
     let filtered = returns;
@@ -229,6 +237,70 @@ export default function ReturnsScreen() {
     loadReturns();
   };
 
+  const handleScalaPunti = (returnItem: ReturnData) => {
+    console.log('[handleScalaPunti] pressed for return item:', returnItem.id, 'user:', returnItem.user_name, 'price:', returnItem.final_price);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    const pointsToDeduct = Math.round(returnItem.final_price);
+    Alert.alert(
+      'Scala Punti Fedeltà',
+      `Scalare €${returnItem.final_price.toFixed(2)} punti fedeltà a ${returnItem.user_name}?`,
+      [
+        { text: 'Annulla', style: 'cancel' },
+        {
+          text: 'Conferma',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              console.log('[handleScalaPunti] confirmed — fetching profile for user:', returnItem.user_id);
+
+              const { data: profileData, error: profileError } = await supabase
+                .from('profiles')
+                .select('loyalty_points, loyalty_level')
+                .eq('user_id', returnItem.user_id)
+                .single();
+
+              if (profileError) {
+                console.error('[handleScalaPunti] error fetching profile:', profileError);
+                Alert.alert('Errore', 'Impossibile recuperare il profilo del cliente');
+                return;
+              }
+
+              const currentPoints = profileData?.loyalty_points ?? 0;
+              const newPoints = Math.max(0, currentPoints - pointsToDeduct);
+              const newLevel = getLoyaltyLevel(newPoints);
+
+              console.log(`[handleScalaPunti] updating loyalty for user ${returnItem.user_id}: ${currentPoints} -> ${newPoints} (${newLevel})`);
+
+              const { error: updateError } = await supabase
+                .from('profiles')
+                .update({ loyalty_points: newPoints, loyalty_level: newLevel })
+                .eq('user_id', returnItem.user_id);
+
+              if (updateError) {
+                console.error('[handleScalaPunti] error updating loyalty points:', updateError);
+                Alert.alert('Errore', 'Impossibile aggiornare i punti fedeltà');
+                return;
+              }
+
+              console.log(`[handleScalaPunti] success — scalati ${pointsToDeduct} punti a ${returnItem.user_name}, punti attuali: ${newPoints}`);
+
+              setProcessedIds(prev => new Set(prev).add(returnItem.id));
+
+              Alert.alert(
+                'Punti Scalati',
+                `Scalati ${pointsToDeduct} punti a ${returnItem.user_name}. Punti attuali: ${newPoints}`
+              );
+            } catch (error: any) {
+              console.error('[handleScalaPunti] unexpected error:', error);
+              Alert.alert('Errore', 'Si è verificato un errore imprevisto');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const renderReturn = (returnItem: ReturnData) => {
     return (
       <Pressable
@@ -292,6 +364,34 @@ export default function ReturnsScreen() {
             {new Date(returnItem.returned_at).toLocaleDateString('it-IT')}
           </Text>
         </View>
+
+        {processedIds.has(returnItem.id) ? (
+          <View style={styles.processedBadge}>
+            <IconSymbol
+              ios_icon_name="checkmark.circle.fill"
+              android_material_icon_name="check_circle"
+              size={14}
+              color={colors.success}
+            />
+            <Text style={styles.processedText}>Punti scalati</Text>
+          </View>
+        ) : (
+          <Pressable
+            style={styles.scalaPuntiButton}
+            onPress={(e) => {
+              e.stopPropagation();
+              handleScalaPunti(returnItem);
+            }}
+          >
+            <IconSymbol
+              ios_icon_name="minus.circle.fill"
+              android_material_icon_name="remove_circle"
+              size={14}
+              color="#fff"
+            />
+            <Text style={styles.scalaPuntiButtonText}>Scala Punti</Text>
+          </Pressable>
+        )}
       </Pressable>
     );
   };
@@ -648,5 +748,34 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.textSecondary,
     textAlign: 'center',
+  },
+  scalaPuntiButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+    backgroundColor: '#E53E3E',
+    alignSelf: 'flex-end',
+  },
+  scalaPuntiButtonText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  processedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 10,
+    alignSelf: 'flex-end',
+  },
+  processedText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.success,
   },
 });
