@@ -139,11 +139,7 @@ export default function ReturnsScreen() {
   }, [orderNumber, user?.pickupPointId]);
 
   const handleReturnItem = async (item: OrderItem) => {
-    if (item.picked_up_at) {
-      Alert.alert('Errore', 'Questo articolo è già stato ritirato dal cliente');
-      return;
-    }
-
+    console.log('[handleReturnItem] Registra Reso pressed for item:', item.id, 'picked_up_at:', item.picked_up_at);
     if (item.returned_to_sender) {
       Alert.alert('Errore', 'Questo articolo è già stato segnato come reso');
       return;
@@ -340,17 +336,7 @@ export default function ReturnsScreen() {
                   </View>
 
                   {/* Status & Actions */}
-                  {item.picked_up_at ? (
-                    <View style={styles.statusBadge}>
-                      <IconSymbol 
-                        ios_icon_name="checkmark.circle.fill" 
-                        android_material_icon_name="check_circle"
-                        size={16} 
-                        color={colors.success} 
-                      />
-                      <Text style={styles.statusText}>Già Ritirato</Text>
-                    </View>
-                  ) : item.returned_to_sender ? (
+                  {item.returned_to_sender ? (
                     <View style={[styles.statusBadge, styles.statusBadgeReturned]}>
                       <IconSymbol 
                         ios_icon_name="arrow.uturn.backward.circle.fill" 
