@@ -829,7 +829,7 @@ export default function DropDetailsScreen() {
         />
       </View>
     );
-  }, [drop, userBookings, handleBook, dropId, isDropBookingDisabled]);
+  }, [drop, userBookings, handleBook, dropId, isDropBookingDisabled, handleShare]);
 
   if (loading) {
     return (
