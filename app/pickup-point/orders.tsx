@@ -461,12 +461,14 @@ export default function OrdersScreen() {
 
               // Add loyalty points for each unique user (points = total amount spent)
               const uniqueUserIds = [...new Set(itemsToUpdate.map(item => item.user_id).filter(Boolean))];
+              const pointsEarnedByUser: Record<string, number> = {};
 
               for (const userId of uniqueUserIds) {
                 const userItems = itemsToUpdate.filter(item => item.user_id === userId);
                 const pointsToAdd = Math.round(
                   userItems.reduce((sum, item) => sum + (Number(item.final_price) || 0), 0)
                 );
+                pointsEarnedByUser[userId] = pointsToAdd;
                 console.log(`Adding ${pointsToAdd} loyalty points for user ${userId} (total spent across ${userItems.length} items)`);
 
                 const { data: profileData, error: profileFetchError } = await supabase
@@ -501,10 +503,11 @@ export default function OrdersScreen() {
               let notificationsFailed = 0;
 
               for (const userId of uniqueUserIds) {
+                const pointsEarned = pointsEarnedByUser[userId] ?? 0;
                 const success = await sendNotificationToUser(
                   userId,
                   '✅ Ordine Consegnato con Successo',
-                  `L'ordine ${order.order_number} è stato consegnato con successo presso il punto di ritiro. Grazie per aver utilizzato il nostro servizio! Hai guadagnato 10 punti fedeltà.`,
+                  `L'ordine ${order.order_number} è stato consegnato con successo presso il punto di ritiro. Grazie per aver utilizzato il nostro servizio! Hai guadagnato ${pointsEarned} punti fedeltà.`,
                   order.id
                 );
 
