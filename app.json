@@ -1,10 +1,10 @@
 {
   "expo": {
     "name": "RDN STREET STOCK MARKET",
-    "slug": "drop-zone",
-    "version": "2.0.6",
+    "slug": "rdn-street-stock-market",
+    "version": "2.0.7",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/images/rdnstreetstockmarket-icon.png",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
@@ -15,7 +15,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.giuseppeforlano.dropzone",
-      "buildNumber": "13",
+      "buildNumber": "14",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSPhotoLibraryUsageDescription": "Questa app accede alla tua libreria foto per caricare immagini dei prodotti.",
@@ -45,7 +45,7 @@
       "expo-router",
       "expo-web-browser"
     ],
-    "scheme": "dropzone",
+    "scheme": "rdnstreetstockmarket",
     "experiments": {
       "typedRoutes": true
     },
