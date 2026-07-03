@@ -19,6 +19,7 @@ import { IconSymbol } from '@/components/IconSymbol';
 import * as Haptics from 'expo-haptics';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/app/integrations/supabase/client';
+import { getLoyaltyLevel } from '@/utils/loyaltyHelpers';
 
 interface OrderItem {
   id: string;
@@ -418,6 +419,7 @@ export default function OrdersScreen() {
   };
 
   const handleMarkOrderAsDelivered = async (order: Order) => {
+    console.log('[handleMarkOrderAsDelivered] pressed for order:', order.id, order.order_number);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     
     Alert.alert(
@@ -429,6 +431,7 @@ export default function OrdersScreen() {
           text: 'Conferma',
           onPress: async () => {
             try {
+              console.log('[handleMarkOrderAsDelivered] confirmed for order:', order.id);
               const now = new Date().toISOString();
               
               // Get all items that haven't been picked up yet
@@ -456,16 +459,38 @@ export default function OrdersScreen() {
                 return;
               }
 
-              // Call handle_order_pickup for each unique user
+              // Add loyalty points for each unique user (10 points per item delivered)
               const uniqueUserIds = [...new Set(itemsToUpdate.map(item => item.user_id).filter(Boolean))];
-              
-              for (const userId of uniqueUserIds) {
-                const { error: functionError } = await supabase.rpc('handle_order_pickup', {
-                  p_user_id: userId,
-                });
 
-                if (functionError) {
-                  console.error('Error calling handle_order_pickup:', functionError);
+              for (const userId of uniqueUserIds) {
+                const itemCountForUser = itemsToUpdate.filter(item => item.user_id === userId).length;
+                const pointsToAdd = itemCountForUser * 10;
+                console.log(`Adding ${pointsToAdd} loyalty points for user ${userId} (${itemCountForUser} items)`);
+
+                const { data: profileData, error: profileFetchError } = await supabase
+                  .from('profiles')
+                  .select('loyalty_points, loyalty_level')
+                  .eq('user_id', userId)
+                  .single();
+
+                if (profileFetchError) {
+                  console.error('Error fetching profile for loyalty update:', profileFetchError);
+                  continue;
+                }
+
+                const currentPoints = profileData?.loyalty_points ?? 0;
+                const newPoints = currentPoints + pointsToAdd;
+                const newLevel = getLoyaltyLevel(newPoints);
+
+                const { error: loyaltyUpdateError } = await supabase
+                  .from('profiles')
+                  .update({ loyalty_points: newPoints, loyalty_level: newLevel })
+                  .eq('user_id', userId);
+
+                if (loyaltyUpdateError) {
+                  console.error('Error updating loyalty points:', loyaltyUpdateError);
+                } else {
+                  console.log(`Loyalty updated for user ${userId}: ${currentPoints} -> ${newPoints} (${newLevel})`);
                 }
               }
 
@@ -619,6 +644,89 @@ export default function OrdersScreen() {
               setModalVisible(false);
             } catch (error: any) {
               console.error('Error marking order as returned:', error);
+              Alert.alert('Errore', 'Si è verificato un errore');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleMarkItemAsReturned = async (item: OrderItem, order: Order) => {
+    console.log('[handleMarkItemAsReturned] pressed for item:', item.id, 'product:', item.product_name, 'order:', order.order_number);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    Alert.alert(
+      'Rispedisci articolo al fornitore',
+      `Vuoi rispedire "${item.product_name}" di ${item.customer_name || 'Cliente'} (ordine ${order.order_number}) al fornitore?\n\nQuesta azione ridurrà il rating del cliente.`,
+      [
+        { text: 'Annulla', style: 'cancel' },
+        {
+          text: 'Conferma',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              console.log('[handleMarkItemAsReturned] confirmed for item:', item.id);
+              const now = new Date().toISOString();
+
+              // a. Update the single order_items row
+              const { error: itemUpdateError } = await supabase
+                .from('order_items')
+                .update({
+                  returned_to_sender: true,
+                  returned_at: now,
+                  return_reason: 'Non ritirato dal cliente',
+                })
+                .eq('id', item.id);
+
+              if (itemUpdateError) {
+                console.error('Error updating order item as returned:', itemUpdateError);
+                Alert.alert('Errore', 'Impossibile aggiornare l\'articolo');
+                return;
+              }
+
+              // b. Deduct loyalty points via RPC
+              const { error: rpcError } = await supabase.rpc('handle_order_return', {
+                p_user_id: item.user_id,
+                p_order_item_id: item.id,
+              });
+
+              if (rpcError) {
+                console.error('Error calling handle_order_return for item:', rpcError);
+              }
+
+              // c. Send notification to the item's customer
+              await sendNotificationToUser(
+                item.user_id,
+                '⚠️ Articolo Rispedito al Fornitore',
+                `Il prodotto "${item.product_name}" dell'ordine ${order.order_number} non è stato ritirato entro i termini e verrà rispedito al fornitore. Il tuo rating è stato aggiornato.`,
+                order.id
+              );
+              console.log('[handleMarkItemAsReturned] notification sent to user:', item.user_id);
+
+              // d. Check if ALL items in the order are now handled
+              const updatedItems = order.order_items.map(i =>
+                i.id === item.id ? { ...i, returned_to_sender: true } : i
+              );
+              const allHandled = updatedItems.length > 0 && updatedItems.every(
+                i => i.picked_up_at || i.returned_to_sender
+              );
+
+              if (allHandled) {
+                console.log('[handleMarkItemAsReturned] all items handled, marking order as completed:', order.id);
+                await supabase
+                  .from('orders')
+                  .update({ status: 'completed', completed_at: now, updated_at: now })
+                  .eq('id', order.id);
+              }
+
+              Alert.alert('Successo', `L'articolo "${item.product_name}" è stato segnato come da rispedire al fornitore.`);
+
+              // e. Refresh orders
+              loadOrders();
+              setModalVisible(false);
+            } catch (error: any) {
+              console.error('Error in handleMarkItemAsReturned:', error);
               Alert.alert('Errore', 'Si è verificato un errore');
             }
           },
@@ -849,20 +957,6 @@ export default function OrdersScreen() {
                     </Text>
                   </Pressable>
                   
-                  <Pressable
-                    style={[styles.orderActionButton, styles.dangerOrderActionButton]}
-                    onPress={() => handleMarkOrderAsReturned(selectedOrder)}
-                  >
-                    <IconSymbol 
-                      ios_icon_name="arrow.uturn.backward" 
-                      android_material_icon_name="undo"
-                      size={20} 
-                      color={colors.error} 
-                    />
-                    <Text style={[styles.orderActionButtonText, styles.dangerOrderActionButtonText]}>
-                      Rispedisci
-                    </Text>
-                  </Pressable>
                 </View>
               </View>
             )}
@@ -948,6 +1042,24 @@ export default function OrdersScreen() {
                           Rispedito al fornitore
                         </Text>
                       </View>
+                    )}
+
+                    {!item.picked_up_at && !item.returned_to_sender && isReady && (
+                      <Pressable
+                        style={styles.itemReturnButton}
+                        onPress={() => {
+                          console.log('[Rispedisci button] pressed for item:', item.id, item.product_name);
+                          handleMarkItemAsReturned(item, selectedOrder);
+                        }}
+                      >
+                        <IconSymbol
+                          ios_icon_name="arrow.uturn.backward"
+                          android_material_icon_name="undo"
+                          size={14}
+                          color={colors.error}
+                        />
+                        <Text style={styles.itemReturnButtonText}>Rispedisci</Text>
+                      </Pressable>
                     )}
                   </View>
                 ))
@@ -1556,6 +1668,24 @@ const styles = StyleSheet.create({
   },
   returnedText: {
     fontSize: 12,
+    color: colors.error,
+  },
+  itemReturnButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    backgroundColor: colors.error + '15',
+    borderWidth: 1,
+    borderColor: colors.error + '30',
+  },
+  itemReturnButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
     color: colors.error,
   },
   summaryRow: {
