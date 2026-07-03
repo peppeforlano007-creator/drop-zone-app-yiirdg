@@ -4,7 +4,7 @@
     "slug": "drop-zone",
     "version": "2.0.6",
     "orientation": "portrait",
-    "icon": "./assets/images/95CE18FD-0FF0-4419-B1D2-85A9F1D7815D.png",
+    "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
