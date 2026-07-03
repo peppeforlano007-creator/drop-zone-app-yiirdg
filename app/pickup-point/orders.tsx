@@ -459,13 +459,15 @@ export default function OrdersScreen() {
                 return;
               }
 
-              // Add loyalty points for each unique user (10 points per item delivered)
+              // Add loyalty points for each unique user (points = total amount spent)
               const uniqueUserIds = [...new Set(itemsToUpdate.map(item => item.user_id).filter(Boolean))];
 
               for (const userId of uniqueUserIds) {
-                const itemCountForUser = itemsToUpdate.filter(item => item.user_id === userId).length;
-                const pointsToAdd = itemCountForUser * 10;
-                console.log(`Adding ${pointsToAdd} loyalty points for user ${userId} (${itemCountForUser} items)`);
+                const userItems = itemsToUpdate.filter(item => item.user_id === userId);
+                const pointsToAdd = Math.round(
+                  userItems.reduce((sum, item) => sum + (Number(item.final_price) || 0), 0)
+                );
+                console.log(`Adding ${pointsToAdd} loyalty points for user ${userId} (total spent across ${userItems.length} items)`);
 
                 const { data: profileData, error: profileFetchError } = await supabase
                   .from('profiles')
@@ -685,7 +687,35 @@ export default function OrdersScreen() {
                 return;
               }
 
-              // b. Deduct loyalty points via RPC
+              // b. Deduct loyalty points equal to the item's price
+              const pointsToDeduct = Math.round(Number(item.final_price) || 0);
+              console.log(`[handleMarkItemAsReturned] deducting ${pointsToDeduct} loyalty points for user ${item.user_id} (item price: ${item.final_price})`);
+
+              const { data: profileForDeduct, error: profileDeductFetchError } = await supabase
+                .from('profiles')
+                .select('loyalty_points, loyalty_level')
+                .eq('user_id', item.user_id)
+                .single();
+
+              if (profileDeductFetchError) {
+                console.error('Error fetching profile for loyalty deduction:', profileDeductFetchError);
+              } else {
+                const currentPoints = profileForDeduct?.loyalty_points ?? 0;
+                const newPoints = Math.max(0, currentPoints - pointsToDeduct);
+                const newLevel = getLoyaltyLevel(newPoints);
+                console.log(`[handleMarkItemAsReturned] loyalty update for user ${item.user_id}: ${currentPoints} -> ${newPoints} (${newLevel})`);
+
+                const { error: loyaltyDeductError } = await supabase
+                  .from('profiles')
+                  .update({ loyalty_points: newPoints, loyalty_level: newLevel })
+                  .eq('user_id', item.user_id);
+
+                if (loyaltyDeductError) {
+                  console.error('Error deducting loyalty points:', loyaltyDeductError);
+                }
+              }
+
+              // Also call RPC for rating/return tracking
               const { error: rpcError } = await supabase.rpc('handle_order_return', {
                 p_user_id: item.user_id,
                 p_order_item_id: item.id,
