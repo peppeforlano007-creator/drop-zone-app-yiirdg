@@ -29,6 +29,14 @@ interface OrderItem {
   customer_phone?: string;
   picked_up_at?: string;
   returned_to_sender?: boolean;
+  returned_at?: string;
+}
+
+function getLoyaltyLevel(points: number): string {
+  if (points >= 500) return 'Top';
+  if (points >= 200) return 'VIP';
+  if (points >= 50) return 'Fedele';
+  return 'Nuovo';
 }
 
 interface Order {
@@ -156,29 +164,52 @@ export default function ReturnsScreen() {
           onPress: async () => {
             try {
               setProcessing(item.id);
+              console.log('[Returns] Avvio reso diretto per articolo:', item.id, 'prezzo:', item.final_price);
 
-              // Call the handle_item_return function
-              console.log('[Returns] Chiamata RPC handle_item_return per articolo:', item.id, 'prezzo:', item.final_price);
-              const { data, error } = await supabase.rpc('handle_item_return', {
-                p_user_id: item.user_id,
-                p_order_item_id: item.id,
-                p_return_reason: 'Reso al punto di ritiro',
-              });
-              console.log('[Returns] Risposta RPC handle_item_return:', data, 'errore:', error);
+              // 1. Mark item as returned
+              const { error: itemError } = await supabase
+                .from('order_items')
+                .update({ returned_to_sender: true, returned_at: new Date().toISOString() })
+                .eq('id', item.id);
 
-              if (error) {
-                console.error('Error processing return:', error);
-                Alert.alert('Errore', 'Impossibile processare il reso');
+              if (itemError) {
+                console.error('[Returns] Errore aggiornamento order_items:', itemError);
+                Alert.alert('Errore', 'Impossibile aggiornare l\'articolo');
                 return;
               }
+              console.log('[Returns] Articolo marcato come reso:', item.id);
 
-              // Send notification to customer
+              // 2. Deduct loyalty points (= final_price rounded)
+              const pointsToDeduct = Math.round(Number(item.final_price) || 0);
+              console.log('[Returns] Punti fedeltà da scalare:', pointsToDeduct, 'per utente:', item.user_id);
+
+              const { data: profileData, error: profileError } = await supabase
+                .from('profiles')
+                .select('loyalty_points')
+                .eq('id', item.user_id)
+                .single();
+
+              if (!profileError && profileData) {
+                const currentPoints = profileData.loyalty_points || 0;
+                const newPoints = Math.max(0, currentPoints - pointsToDeduct);
+                const newLevel = getLoyaltyLevel(newPoints);
+                console.log('[Returns] Aggiornamento punti fedeltà:', currentPoints, '->', newPoints, 'livello:', newLevel);
+                await supabase
+                  .from('profiles')
+                  .update({ loyalty_points: newPoints, loyalty_level: newLevel })
+                  .eq('id', item.user_id);
+              } else if (profileError) {
+                console.warn('[Returns] Impossibile caricare profilo per punti fedeltà:', profileError);
+              }
+
+              // 3. Send notification
+              console.log('[Returns] Invio notifica reso a utente:', item.user_id);
               await supabase
                 .from('notifications')
                 .insert({
                   user_id: item.user_id,
                   title: 'Articolo Reso',
-                  message: `L'articolo "${item.product_name}" è stato reso al punto di ritiro. ${data.message}`,
+                  message: `L'articolo "${item.product_name}" è stato reso. Sono stati scalati ${pointsToDeduct} punti fedeltà.`,
                   type: 'general',
                   related_id: item.id,
                   related_type: 'order',
@@ -186,20 +217,11 @@ export default function ReturnsScreen() {
                 });
 
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-              
-              Alert.alert(
-                'Reso Registrato',
-                data.message,
-                [
-                  {
-                    text: 'OK',
-                    onPress: () => {
-                      // Refresh order data
-                      searchOrder();
-                    },
-                  },
-                ]
-              );
+              console.log('[Returns] Reso completato con successo per articolo:', item.id);
+
+              Alert.alert('Reso Registrato', `Reso registrato. Scalati ${pointsToDeduct} punti fedeltà a ${item.customer_name}.`, [
+                { text: 'OK', onPress: () => searchOrder() },
+              ]);
             } catch (error: any) {
               console.error('Error processing return:', error);
               Alert.alert('Errore', 'Si è verificato un errore');
