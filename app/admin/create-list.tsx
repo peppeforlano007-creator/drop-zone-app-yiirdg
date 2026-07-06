@@ -240,7 +240,7 @@ export default function CreateListScreen() {
           return;
         }
 
-        const condition = row.condizione || 'nuovo';
+        const condition = row.condizione || '';
 
         if (sku) {
           skuGroups[sku] = (skuGroups[sku] || 0) + 1;
