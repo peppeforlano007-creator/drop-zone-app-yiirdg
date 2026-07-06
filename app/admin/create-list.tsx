@@ -44,7 +44,7 @@ interface ExcelProduct {
   prezzo: number;
   taglia?: string;
   colore?: string;
-  condizione: 'nuovo' | 'reso da cliente' | 'packaging rovinato';
+  condizione: string;
   categoria?: string;
   brand?: string;
   stock: number;
@@ -58,7 +58,7 @@ interface ProductGroup {
   immagine_url?: string;
   immagini_aggiuntive?: string;
   prezzo: number;
-  condizione: 'nuovo' | 'reso da cliente' | 'packaging rovinato';
+  condizione: string;
   categoria?: string;
   brand?: string;
   variants: {
@@ -612,7 +612,7 @@ export default function CreateListScreen() {
               original_price: group.prezzo || 0,
               available_sizes: group.availableSizes.length > 0 ? group.availableSizes : null,
               available_colors: group.availableColors.length > 0 ? group.availableColors : null,
-              condition: group.condizione || 'nuovo',
+              condition: group.condizione || '',
               category: group.categoria || null,
               brand: group.brand || null,
               stock: group.totalStock,
@@ -646,7 +646,7 @@ export default function CreateListScreen() {
               original_price: product.prezzo || 0,
               available_sizes: sizes.length > 0 ? sizes : null,
               available_colors: colors.length > 0 ? colors : null,
-              condition: product.condizione || 'nuovo',
+              condition: product.condizione || '',
               category: product.categoria || null,
               brand: product.brand || null,
               stock: product.stock || 1,
