@@ -8,7 +8,7 @@ import Animated, {
   interpolate,
 } from 'react-native-reanimated';
 import { useRouter, usePathname } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   View,
   Text,
@@ -55,6 +55,8 @@ export default function FloatingTabBar({
   const router = useRouter();
   const pathname = usePathname();
   const animatedIndex = useSharedValue(0);
+  const insets = useSafeAreaInsets();
+  const bottomInset = Platform.OS === 'web' ? 0 : insets.bottom;
 
   const handleTabPress = (route: string, index: number) => {
     console.log('FloatingTabBar: Tab pressed:', route);
@@ -98,9 +100,11 @@ export default function FloatingTabBar({
   });
 
   return (
-    <SafeAreaView
-      edges={['bottom']}
-      style={[styles.safeArea, { marginBottom: bottomMargin }]}
+    <View
+      style={[
+        styles.safeArea,
+        { paddingBottom: bottomInset + bottomMargin },
+      ]}
     >
       <View style={[styles.container, { width: containerWidth, borderRadius }]}>
         <Animated.View style={[styles.indicator, indicatorStyle, { borderRadius: borderRadius - 4 }]} />
@@ -138,7 +142,7 @@ export default function FloatingTabBar({
           })}
         </View>
       </View>
-    </SafeAreaView>
+    </View>
   );
 }
 
