@@ -26,8 +26,9 @@ export function useUnreadNotifications() {
     loadCount();
 
     // Ascolta nuove notifiche in realtime
+    // Use a unique channel name per user to avoid conflicts when multiple tabs mount simultaneously
     const channel = supabase
-      .channel('unread-notifications-count')
+      .channel(`unread-notifications-${user?.id ?? 'anon'}`)
       .on(
         'postgres_changes',
         {

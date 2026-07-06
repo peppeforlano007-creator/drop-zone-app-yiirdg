@@ -5,13 +5,20 @@ import { Platform } from 'react-native';
 import { supabase } from '@/app/integrations/supabase/client';
 
 // Configura come vengono mostrate le notifiche quando l'app è in foreground
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-  }),
-});
+// Wrapped in try/catch so a crash before the native runtime is ready (e.g. TestFlight cold-start)
+// does not take down the whole app.
+try {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowAlert: true,
+      shouldPlaySound: true,
+      shouldSetBadge: true,
+    }),
+  });
+  console.log('[PushNotifications] setNotificationHandler registered');
+} catch (e) {
+  console.warn('[PushNotifications] setNotificationHandler failed (non-fatal):', e);
+}
 
 export async function registerForPushNotificationsAsync(userId: string): Promise<string | null> {
   try {
