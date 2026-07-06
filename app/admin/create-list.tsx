@@ -187,8 +187,17 @@ export default function CreateListScreen() {
       }
       console.log('[ExcelImport] immagine_url column letter:', immagineUrlColLetter);
 
-      const jsonData = XLSX.utils.sheet_to_json(worksheet) as any[];
-      
+      const rawData = XLSX.utils.sheet_to_json(worksheet) as any[];
+
+      // Normalize all column header keys: lowercase + trim so "Condizione", "CONDIZIONE ", etc. all work
+      const jsonData = rawData.map((row: any) => {
+        const normalized: any = {};
+        Object.keys(row).forEach(key => {
+          normalized[key.toLowerCase().trim()] = row[key];
+        });
+        return normalized;
+      });
+
       console.log('Parsed Excel data:', jsonData);
       console.log('Sample row:', jsonData[0]);
 
