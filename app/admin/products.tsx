@@ -261,18 +261,7 @@ export default function ProductsScreen() {
     }
   };
 
-  const getConditionColor = (condition: string) => {
-    switch (condition) {
-      case 'nuovo':
-        return colors.success;
-      case 'reso da cliente':
-        return colors.warning;
-      case 'packaging rovinato':
-        return colors.info;
-      default:
-        return colors.textSecondary;
-    }
-  };
+  const getConditionColor = (_condition: string) => '#FF9800';
 
   const handleScroll = (event: any) => {
     const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;

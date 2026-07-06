@@ -46,7 +46,7 @@ export default function EditProductScreen() {
   const [imageUrl, setImageUrl] = useState('');
   const [additionalImages, setAdditionalImages] = useState('');
   const [originalPrice, setOriginalPrice] = useState('');
-  const [condition, setCondition] = useState('nuovo');
+  const [condition, setCondition] = useState('');
   const [category, setCategory] = useState('');
   const [stock, setStock] = useState('');
   const [status, setStatus] = useState('active');
@@ -77,7 +77,7 @@ export default function EditProductScreen() {
       setImageUrl(data.image_url || '');
       setAdditionalImages(data.additional_images ? data.additional_images.join(', ') : '');
       setOriginalPrice(data.original_price?.toString() || '');
-      setCondition(data.condition || 'nuovo');
+      setCondition(data.condition || '');
       setCategory(data.category || '');
       setStock(data.stock?.toString() || '');
       setStatus(data.status || 'active');

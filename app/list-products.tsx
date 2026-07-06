@@ -232,31 +232,9 @@ export default function ListProductsScreen() {
     }
   };
 
-  const getConditionColor = (condition: string) => {
-    switch (condition) {
-      case 'nuovo':
-        return '#4CAF50';
-      case 'reso da cliente':
-        return '#FF9800';
-      case 'packaging rovinato':
-        return '#F44336';
-      default:
-        return colors.textSecondary;
-    }
-  };
+  const getConditionColor = (_condition: string) => '#FF9800';
 
-  const getConditionLabel = (condition: string) => {
-    switch (condition) {
-      case 'nuovo':
-        return 'Nuovo';
-      case 'reso da cliente':
-        return 'Reso';
-      case 'packaging rovinato':
-        return 'Packaging Rovinato';
-      default:
-        return condition;
-    }
-  };
+  const getConditionLabel = (condition: string) => condition;
 
   const renderProduct = ({ item }: { item: Product }) => (
     <View style={styles.productCard}>

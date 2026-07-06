@@ -797,7 +797,7 @@ export default function DropDetailsScreen() {
       colors: item.available_colors?.join(', ') || '',
       availableSizes: item.available_sizes || [],
       availableColors: item.available_colors || [],
-      condition: item.condition || 'nuovo',
+      condition: item.condition || '',
       category: item.category || '',
       stock: item.stock,
       supplierName: supplierLists?.name || 'Fornitore',
