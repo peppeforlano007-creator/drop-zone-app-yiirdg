@@ -196,7 +196,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Registra push token in background (solo per consumer)
       if (userData.role === 'consumer') {
         console.log('AuthProvider: Registering push token for consumer:', userId);
-        registerForPushNotificationsAsync(userId).catch(console.error);
+        registerForPushNotificationsAsync(userId).catch(() => {});
       }
     } catch (error) {
       console.error('AuthProvider: Exception loading profile:', error);

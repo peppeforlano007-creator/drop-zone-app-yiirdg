@@ -14,59 +14,61 @@ Notifications.setNotificationHandler({
 });
 
 export async function registerForPushNotificationsAsync(userId: string): Promise<string | null> {
-  if (!Device.isDevice) {
-    console.log('[PushNotifications] Push notifications non disponibili su simulatore');
-    return null;
-  }
-
-  // Richiedi permessi
-  const { status: existingStatus } = await Notifications.getPermissionsAsync();
-  let finalStatus = existingStatus;
-
-  if (existingStatus !== 'granted') {
-    console.log('[PushNotifications] Richiedendo permessi notifiche...');
-    const { status } = await Notifications.requestPermissionsAsync();
-    finalStatus = status;
-    console.log('[PushNotifications] Risposta permessi:', status);
-  }
-
-  if (finalStatus !== 'granted') {
-    console.log('[PushNotifications] Permesso notifiche negato');
-    return null;
-  }
-
-  // Canale Android
-  if (Platform.OS === 'android') {
-    await Notifications.setNotificationChannelAsync('default', {
-      name: 'default',
-      importance: Notifications.AndroidImportance.MAX,
-      vibrationPattern: [0, 250, 250, 250],
-      lightColor: '#FF231F7C',
-    });
-  }
-
   try {
+    if (!Device.isDevice) {
+      console.log('[PushNotifications] Push notifications non disponibili su simulatore');
+      return null;
+    }
+
+    // Richiedi permessi
+    const { status: existingStatus } = await Notifications.getPermissionsAsync();
+    let finalStatus = existingStatus;
+
+    if (existingStatus !== 'granted') {
+      console.log('[PushNotifications] Richiedendo permessi notifiche...');
+      const { status } = await Notifications.requestPermissionsAsync();
+      finalStatus = status;
+      console.log('[PushNotifications] Risposta permessi:', status);
+    }
+
+    if (finalStatus !== 'granted') {
+      console.log('[PushNotifications] Permesso notifiche negato');
+      return null;
+    }
+
+    // Canale Android
+    if (Platform.OS === 'android') {
+      await Notifications.setNotificationChannelAsync('default', {
+        name: 'default',
+        importance: Notifications.AndroidImportance.MAX,
+        vibrationPattern: [0, 250, 250, 250],
+        lightColor: '#FF231F7C',
+      });
+    }
+
     const tokenData = await Notifications.getExpoPushTokenAsync({
       projectId: '587d28f9-01b5-4121-aa8e-4d77ee7b13ae',
     });
     const token = tokenData.data;
     console.log('[PushNotifications] Push token ottenuto:', token);
 
-    // Salva il token nel profilo utente su Supabase
-    const { error } = await supabase
-      .from('profiles')
-      .update({ push_token: token })
-      .eq('user_id', userId);
+    if (token && userId) {
+      // Salva il token nel profilo utente su Supabase
+      const { error } = await supabase
+        .from('profiles')
+        .update({ push_token: token })
+        .eq('user_id', userId);
 
-    if (error) {
-      console.error('[PushNotifications] Errore salvataggio push token:', error);
-    } else {
-      console.log('[PushNotifications] Push token salvato con successo per utente:', userId);
+      if (error) {
+        console.warn('[PushNotifications] Errore salvataggio push token:', error.message);
+      } else {
+        console.log('[PushNotifications] Push token salvato con successo per utente:', userId);
+      }
     }
 
     return token;
   } catch (error) {
-    console.error('[PushNotifications] Errore ottenimento push token:', error);
+    console.warn('[PushNotifications] Push notification registration failed (non-fatal):', error);
     return null;
   }
 }
@@ -77,17 +79,17 @@ export async function sendPushNotification(
   body: string,
   data?: Record<string, any>
 ): Promise<void> {
-  const message = {
-    to: pushToken,
-    sound: 'default',
-    title,
-    body,
-    data: data || {},
-  };
-
-  console.log('[PushNotifications] Invio push notification a token:', pushToken, '| titolo:', title);
-
   try {
+    const message = {
+      to: pushToken,
+      sound: 'default',
+      title,
+      body,
+      data: data || {},
+    };
+
+    console.log('[PushNotifications] Invio push notification a token:', pushToken, '| titolo:', title);
+
     const response = await fetch('https://exp.host/--/api/v2/push/send', {
       method: 'POST',
       headers: {
@@ -100,13 +102,13 @@ export async function sendPushNotification(
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('[PushNotifications] Errore HTTP invio push:', response.status, errorText);
+      console.warn('[PushNotifications] Errore HTTP invio push:', response.status, errorText);
       return;
     }
 
     const result = await response.json();
     console.log('[PushNotifications] Push notification inviata con successo:', result);
   } catch (error) {
-    console.error('[PushNotifications] Errore invio push notification:', error);
+    console.warn('[PushNotifications] Errore invio push notification (non-fatal):', error);
   }
 }
