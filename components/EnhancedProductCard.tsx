@@ -420,18 +420,7 @@ export default function EnhancedProductCard({
     }
   };
 
-  const getConditionColor = (condition?: string) => {
-    switch (condition) {
-      case 'nuovo':
-        return '#4CAF50';
-      case 'reso da cliente':
-        return '#FF9800';
-      case 'packaging rovinato':
-        return '#F44336';
-      default:
-        return colors.textSecondary;
-    }
-  };
+  const getConditionColor = (_condition?: string) => '#FF9800';
 
   const mainImageUrl = imageUrls[0] || '';
 

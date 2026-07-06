@@ -251,31 +251,9 @@ export default function ProductCard({
     }
   };
 
-  const getConditionColor = (condition?: string) => {
-    switch (condition) {
-      case 'nuovo':
-        return '#4CAF50';
-      case 'reso da cliente':
-        return '#FF9800';
-      case 'packaging rovinato':
-        return '#F44336';
-      default:
-        return colors.textSecondary;
-    }
-  };
+  const getConditionColor = (_condition?: string) => '#FF9800';
 
-  const getConditionIcon = (condition?: string) => {
-    switch (condition) {
-      case 'nuovo':
-        return { ios: 'sparkles', android: 'star' };
-      case 'reso da cliente':
-        return { ios: 'arrow.uturn.backward', android: 'keyboard_return' };
-      case 'packaging rovinato':
-        return { ios: 'exclamationmark.triangle', android: 'warning' };
-      default:
-        return { ios: 'tag', android: 'label' };
-    }
-  };
+  const getConditionIcon = (_condition?: string) => ({ ios: 'tag', android: 'label' });
 
   const conditionIcon = getConditionIcon(product.condition);
   const mainImageUrl = currentImageUrl || imageUrls[0] || '';
