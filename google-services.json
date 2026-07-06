@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1073207227290",
+    "project_id": "rdn-street-stock-market",
+    "storage_bucket": "rdn-street-stock-market.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1073207227290:android:4bfdd8d0ca4c410ccdc023",
+        "android_client_info": {
+          "package_name": "com.giuseppeforlano.dropzone"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAr5kigTNEpYQkqf4P11EEa3IWyS3O6DT4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
