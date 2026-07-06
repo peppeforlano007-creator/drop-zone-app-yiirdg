@@ -20,6 +20,7 @@ import * as Haptics from 'expo-haptics';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/app/integrations/supabase/client';
 import { getLoyaltyLevel } from '@/utils/loyaltyHelpers';
+import { sendPushNotification } from '@/utils/pushNotifications';
 
 interface OrderItem {
   id: string;
@@ -387,6 +388,27 @@ export default function OrdersScreen() {
                   } else {
                     notificationsFailed++;
                   }
+
+                  // Invia push notification
+                  try {
+                    const { data: profile } = await supabase
+                      .from('profiles')
+                      .select('push_token')
+                      .eq('user_id', userId)
+                      .single();
+
+                    if (profile?.push_token) {
+                      console.log(`[Orders] Invio push order_ready a utente ${userId}`);
+                      await sendPushNotification(
+                        profile.push_token,
+                        'Ordine Pronto 📦',
+                        `Il tuo ordine ${order.order_number} è pronto per il ritiro!`,
+                        { type: 'order_ready', orderId: order.id }
+                      );
+                    }
+                  } catch (e) {
+                    console.error('[Orders] Errore invio push order_ready:', e);
+                  }
                 }
 
                 console.log(`Notifications sent: ${notificationsSent}, failed: ${notificationsFailed}`);
@@ -516,6 +538,28 @@ export default function OrdersScreen() {
                 } else {
                   notificationsFailed++;
                 }
+
+                // Invia push notification
+                try {
+                  const { data: profile } = await supabase
+                    .from('profiles')
+                    .select('push_token')
+                    .eq('user_id', userId)
+                    .single();
+
+                  if (profile?.push_token) {
+                    const pointsEarnedForUser = pointsEarnedByUser[userId] ?? 0;
+                    console.log(`[Orders] Invio push order_delivered a utente ${userId}`);
+                    await sendPushNotification(
+                      profile.push_token,
+                      '✅ Ordine Consegnato',
+                      `L'ordine ${order.order_number} è stato consegnato. Hai guadagnato ${pointsEarnedForUser} punti fedeltà!`,
+                      { type: 'order_delivered', orderId: order.id }
+                    );
+                  }
+                } catch (e) {
+                  console.error('[Orders] Errore invio push order_delivered:', e);
+                }
               }
 
               console.log(`Delivery notifications sent: ${notificationsSent}, failed: ${notificationsFailed}`);
@@ -625,6 +669,27 @@ export default function OrdersScreen() {
                   notificationsSent++;
                 } else {
                   notificationsFailed++;
+                }
+
+                // Invia push notification
+                try {
+                  const { data: profile } = await supabase
+                    .from('profiles')
+                    .select('push_token')
+                    .eq('user_id', userId)
+                    .single();
+
+                  if (profile?.push_token) {
+                    console.log(`[Orders] Invio push order_returned a utente ${userId}`);
+                    await sendPushNotification(
+                      profile.push_token,
+                      '⚠️ Ordine Rispedito',
+                      `L'ordine ${order.order_number} non è stato ritirato e verrà rispedito al fornitore.`,
+                      { type: 'order_returned', orderId: order.id }
+                    );
+                  }
+                } catch (e) {
+                  console.error('[Orders] Errore invio push order_returned:', e);
                 }
               }
 

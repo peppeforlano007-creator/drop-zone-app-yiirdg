@@ -5,7 +5,7 @@ import { IconSymbol } from '@/components/IconSymbol';
 import { supabase } from '@/app/integrations/supabase/client';
 import * as Haptics from 'expo-haptics';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Stack } from 'expo-router';
+import { Stack, router } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   View,
@@ -18,6 +18,7 @@ import {
   RefreshControl,
   ActivityIndicator,
 } from 'react-native';
+import { useUnreadNotifications } from '@/hooks/useUnreadNotifications';
 
 interface Booking {
   id: string;
@@ -56,6 +57,7 @@ export default function MyBookingsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const { user } = useAuth();
+  const unreadCount = useUnreadNotifications();
 
   const loadBookings = useCallback(async () => {
     if (!user) {
@@ -288,12 +290,37 @@ export default function MyBookingsScreen() {
     );
   }
 
+  const bookingsBellCountText = unreadCount > 99 ? '99+' : String(unreadCount);
+
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>
       <Stack.Screen
         options={{
           title: 'Le Mie Prenotazioni',
           headerShown: true,
+          headerRight: () => (
+            <Pressable
+              onPress={() => {
+                console.log('[MyBookings] Bell icon pressed, navigating to notifications');
+                router.push('/(tabs)/notifications');
+              }}
+              style={{ marginRight: 8, position: 'relative' }}
+            >
+              <IconSymbol
+                ios_icon_name="bell.fill"
+                android_material_icon_name="notifications"
+                size={24}
+                color={colors.text}
+              />
+              {unreadCount > 0 && (
+                <View style={styles.bellBadge}>
+                  <Text style={styles.bellBadgeText}>
+                    {bookingsBellCountText}
+                  </Text>
+                </View>
+              )}
+            </Pressable>
+          ),
         }}
       />
 
@@ -728,5 +755,22 @@ const styles = StyleSheet.create({
     color: colors.textTertiary,
     textAlign: 'center',
     fontFamily: 'System',
+  },
+  bellBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    backgroundColor: '#FF3B30',
+    borderRadius: 8,
+    minWidth: 16,
+    height: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 3,
+  },
+  bellBadgeText: {
+    color: 'white',
+    fontSize: 10,
+    fontWeight: '700',
   },
 });

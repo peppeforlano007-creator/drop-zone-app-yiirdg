@@ -9,9 +9,11 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/app/integrations/supabase/client';
 import * as Haptics from 'expo-haptics';
 import { getLoyaltyLevel, getLoyaltyLevelColor, getNextLevelInfo } from '@/utils/loyaltyHelpers';
+import { useUnreadNotifications } from '@/hooks/useUnreadNotifications';
 
 export default function ProfileScreen() {
   const { logout, user, session, updatePickupPoint } = useAuth();
+  const unreadCount = useUnreadNotifications();
   const [selectedPickupPoint, setSelectedPickupPoint] = useState(user?.pickupPoint || '');
   const [pickupPoints, setPickupPoints] = useState<{ id: string; city: string }[]>([]);
   const [loadingPoints, setLoadingPoints] = useState(true);
@@ -338,6 +340,8 @@ export default function ProfileScreen() {
   const progressBase = loyaltyLevel === 'Nuovo' ? 0 : loyaltyLevel === 'Fedele' ? 100 : loyaltyLevel === 'VIP' ? 300 : 700;
   const progressValue = nextLevelInfo ? Math.min((pointsBalance - progressBase) / (progressMax - progressBase), 1) : 1;
 
+  const profileBellCountText = unreadCount > 99 ? '99+' : String(unreadCount);
+
   return (
     <>
       <Stack.Screen
@@ -347,9 +351,32 @@ export default function ProfileScreen() {
           headerStyle: { backgroundColor: colors.background },
           headerTintColor: colors.text,
           headerRight: () => (
-            <Pressable onPress={handleLogout} style={{ marginRight: 8 }}>
-              <IconSymbol ios_icon_name="rectangle.portrait.and.arrow.right" android_material_icon_name="logout" size={24} color={colors.text} />
-            </Pressable>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginRight: 8 }}>
+              <Pressable
+                onPress={() => {
+                  console.log('[Profile] Bell icon pressed, navigating to notifications');
+                  router.push('/(tabs)/notifications');
+                }}
+                style={{ position: 'relative' }}
+              >
+                <IconSymbol
+                  ios_icon_name="bell.fill"
+                  android_material_icon_name="notifications"
+                  size={24}
+                  color={colors.text}
+                />
+                {unreadCount > 0 && (
+                  <View style={styles.bellBadge}>
+                    <Text style={styles.bellBadgeText}>
+                      {profileBellCountText}
+                    </Text>
+                  </View>
+                )}
+              </Pressable>
+              <Pressable onPress={handleLogout}>
+                <IconSymbol ios_icon_name="rectangle.portrait.and.arrow.right" android_material_icon_name="logout" size={24} color={colors.text} />
+              </Pressable>
+            </View>
           ),
         }}
       />
@@ -966,5 +993,22 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: colors.background,
+  },
+  bellBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    backgroundColor: '#FF3B30',
+    borderRadius: 8,
+    minWidth: 16,
+    height: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 3,
+  },
+  bellBadgeText: {
+    color: 'white',
+    fontSize: 10,
+    fontWeight: '700',
   },
 });

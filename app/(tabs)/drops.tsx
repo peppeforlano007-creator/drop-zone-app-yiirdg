@@ -17,11 +17,13 @@ import {
   TouchableOpacity,
   Animated,
   useColorScheme,
+  Pressable,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { IconSymbol } from '@/components/IconSymbol';
 import { useRealtimeDrops } from '@/hooks/useRealtimeDrop';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useUnreadNotifications } from '@/hooks/useUnreadNotifications';
 
 const LOYALTY_ONBOARDING_SEEN_KEY = 'loyalty_onboarding_seen';
 
@@ -201,6 +203,7 @@ export default function DropsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const { user } = useAuth();
   const [userPickupPointId, setUserPickupPointId] = useState<string | null>(null);
+  const unreadCount = useUnreadNotifications();
 
   // Show loyalty onboarding only once
   useFocusEffect(
@@ -406,6 +409,8 @@ export default function DropsScreen() {
     </View>
   );
 
+  const bellCountText = unreadCount > 99 ? '99+' : String(unreadCount);
+
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
@@ -429,6 +434,29 @@ export default function DropsScreen() {
         options={{
           title: 'Drop Attivi',
           headerShown: true,
+          headerRight: () => (
+            <Pressable
+              onPress={() => {
+                console.log('[Drops] Bell icon pressed, navigating to notifications');
+                router.push('/(tabs)/notifications');
+              }}
+              style={{ marginRight: 8, position: 'relative' }}
+            >
+              <IconSymbol
+                ios_icon_name="bell.fill"
+                android_material_icon_name="notifications"
+                size={24}
+                color={colors.text}
+              />
+              {unreadCount > 0 && (
+                <View style={styles.bellBadge}>
+                  <Text style={styles.bellBadgeText}>
+                    {bellCountText}
+                  </Text>
+                </View>
+              )}
+            </Pressable>
+          ),
         }}
       />
 
@@ -542,5 +570,22 @@ const styles = StyleSheet.create({
   },
   listWrapper: {
     flex: 1,
+  },
+  bellBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    backgroundColor: '#FF3B30',
+    borderRadius: 8,
+    minWidth: 16,
+    height: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 3,
+  },
+  bellBadgeText: {
+    color: 'white',
+    fontSize: 10,
+    fontWeight: '700',
   },
 });

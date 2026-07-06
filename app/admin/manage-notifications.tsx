@@ -17,6 +17,7 @@ import { supabase } from '@/app/integrations/supabase/client';
 import * as Haptics from 'expo-haptics';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
+import { sendPushNotification } from '@/utils/pushNotifications';
 
 interface NotificationFlow {
   id: string;
@@ -262,6 +263,46 @@ export default function ManageNotificationsScreen() {
                 .insert(notifications);
 
               if (notifError) throw notifError;
+
+              // Invia push a tutti gli utenti con push_token
+              try {
+                const userIds = notifications.map((n: any) => n.user_id);
+                const { data: profiles } = await supabase
+                  .from('profiles')
+                  .select('push_token')
+                  .in('user_id', userIds)
+                  .not('push_token', 'is', null);
+
+                if (profiles && profiles.length > 0) {
+                  const tokens = profiles.map((p: any) => p.push_token).filter(Boolean);
+                  console.log(`[ManageNotifications] Invio push broadcast a ${tokens.length} utenti`);
+                  // Invia in batch (max 100 per chiamata Expo)
+                  for (let i = 0; i < tokens.length; i += 100) {
+                    const batch = tokens.slice(i, i + 100);
+                    const batchMessages = batch.map((token: string) => ({
+                      to: token,
+                      sound: 'default',
+                      title: massTitle,
+                      body: massMessage,
+                      data: { type: 'general' },
+                    }));
+                    const pushResponse = await fetch('https://exp.host/--/api/v2/push/send', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify(batchMessages),
+                    });
+                    if (!pushResponse.ok) {
+                      const errText = await pushResponse.text();
+                      console.error('[ManageNotifications] Errore push batch:', pushResponse.status, errText);
+                    } else {
+                      const pushResult = await pushResponse.json();
+                      console.log('[ManageNotifications] Push batch inviato:', pushResult);
+                    }
+                  }
+                }
+              } catch (e) {
+                console.error('[ManageNotifications] Errore invio push broadcast:', e);
+              }
 
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
               Alert.alert(

@@ -4,6 +4,7 @@ import { User, UserRole } from '@/types/User';
 import { supabase } from '@/app/integrations/supabase/client';
 import { Session } from '@supabase/supabase-js';
 import { Alert } from 'react-native';
+import { registerForPushNotificationsAsync } from '@/utils/pushNotifications';
 
 interface AuthContextType {
   user: User | null;
@@ -191,6 +192,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       setUser(userData);
       setLoading(false);
+
+      // Registra push token in background (solo per consumer)
+      if (userData.role === 'consumer') {
+        console.log('AuthProvider: Registering push token for consumer:', userId);
+        registerForPushNotificationsAsync(userId).catch(console.error);
+      }
     } catch (error) {
       console.error('AuthProvider: Exception loading profile:', error);
       
