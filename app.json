@@ -5,7 +5,7 @@
     },
     "name": "RDN STREET STOCK MARKET",
     "slug": "rdn-street-stock-market",
-    "version": "2.0.7",
+    "version": "2.0.8",
     "orientation": "portrait",
     "icon": "./assets/images/rdnstreetstockmarket-icon.png",
     "userInterfaceStyle": "automatic",
@@ -18,7 +18,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.giuseppeforlano.dropzone",
-      "buildNumber": "14",
+      "buildNumber": "15",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "UIBackgroundModes": [
