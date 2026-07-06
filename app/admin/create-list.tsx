@@ -250,6 +250,7 @@ export default function CreateListScreen() {
         }
 
         const condition = row.condizione || '';
+        console.log(`[ExcelImport] Row ${rowNum} condizione raw:`, JSON.stringify(row.condizione), '| all keys:', JSON.stringify(Object.keys(row)));
 
         if (sku) {
           skuGroups[sku] = (skuGroups[sku] || 0) + 1;
@@ -276,7 +277,7 @@ export default function CreateListScreen() {
           prezzo: price,
           taglia: row.taglia || row.taglie || '',
           colore: row.colore || row.colori || '',
-          condizione: condition as 'nuovo' | 'reso da cliente' | 'packaging rovinato',
+          condizione: condition,
           categoria: row.categoria || '',
           brand: row.brand || '',
           stock: stock,
@@ -665,6 +666,7 @@ export default function CreateListScreen() {
         });
         
         // OPTIMIZATION 2: Batch insert all products at once
+        console.log('[ExcelImport] First product condition to insert:', productsToInsert[0]?.data?.condition);
         console.log(`⚡ Batch inserting ${productsToInsert.length} products...`);
         setImportProgress(`Inserimento ${productsToInsert.length} prodotti...`);
         
