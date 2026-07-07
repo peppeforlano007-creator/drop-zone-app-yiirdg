@@ -3,7 +3,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode, useCa
 import { User, UserRole } from '@/types/User';
 import { supabase } from '@/app/integrations/supabase/client';
 import { Session } from '@supabase/supabase-js';
-import { Alert } from 'react-native';
+import { Alert, AppState, AppStateStatus } from 'react-native';
 import { registerForPushNotificationsAsync } from '@/utils/pushNotifications';
 
 interface AuthContextType {
@@ -24,6 +24,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const isLoggingOut = useRef(false);
+  const hasRegisteredToken = useRef(false);
 
   const loadUserProfile = useCallback(async (userId: string) => {
     try {
@@ -264,6 +265,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [loadUserProfile]);
 
+  useEffect(() => {
+    const handleAppStateChange = (nextAppState: AppStateStatus) => {
+      if (nextAppState === 'active' && user && user.role === 'consumer' && !hasRegisteredToken.current) {
+        hasRegisteredToken.current = true;
+        console.log('[AuthContext] App foregrounded — re-registering push token for user:', user.id);
+        registerForPushNotificationsAsync(user.id).catch(() => {});
+      }
+    };
+
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    return () => subscription.remove();
+  }, [user]);
+
   const register = async (
     email: string,
     password: string,
@@ -360,6 +374,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       // Set logout flag to prevent auth state change listener from firing
       isLoggingOut.current = true;
+      hasRegisteredToken.current = false;
       
       // Store current user info for logging before clearing
       const currentUser = user;

@@ -4,8 +4,8 @@
       "appVersionSource": "local"
     },
     "name": "RDN STREET STOCK MARKET",
-    "slug": "rdn-street-stock-market",
-    "version": "2.3.0",
+    "slug": "drop-zone",
+    "version": "2.4.0",
     "orientation": "portrait",
     "icon": "./assets/images/rdnstreetstockmarket-icon.png",
     "userInterfaceStyle": "automatic",
@@ -18,7 +18,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.giuseppeforlano.dropzone",
-      "buildNumber": "20",
+      "buildNumber": "21",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "UIBackgroundModes": [

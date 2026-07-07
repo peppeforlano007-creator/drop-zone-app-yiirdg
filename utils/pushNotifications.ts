@@ -53,6 +53,7 @@ export async function registerForPushNotificationsAsync(userId: string): Promise
       });
     }
 
+    console.log('[PushNotifications] Calling getExpoPushTokenAsync with projectId: 587d28f9-01b5-4121-aa8e-4d77ee7b13ae');
     const tokenData = await Notifications.getExpoPushTokenAsync({
       projectId: '587d28f9-01b5-4121-aa8e-4d77ee7b13ae',
     });
@@ -75,7 +76,7 @@ export async function registerForPushNotificationsAsync(userId: string): Promise
 
     return token;
   } catch (error) {
-    console.warn('[PushNotifications] Push notification registration failed (non-fatal):', error);
+    console.error('[PushNotifications] Push notification registration failed:', error);
     return null;
   }
 }
