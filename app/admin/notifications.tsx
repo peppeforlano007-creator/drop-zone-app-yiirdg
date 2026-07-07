@@ -25,12 +25,24 @@ interface NotificationTemplate {
   icon: { ios: string; android: string };
 }
 
+interface Drop {
+  id: string;
+  name: string;
+  status: string;
+}
+
+const DROP_TEMPLATES = ['new_drop', 'drop_ending'];
+
 export default function NotificationsScreen() {
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
   const [title, setTitle] = useState('');
   const [message, setMessage] = useState('');
   const [targetAudience, setTargetAudience] = useState<'all' | 'consumers' | 'suppliers' | 'pickup_points'>('all');
   const [sending, setSending] = useState(false);
+
+  const [drops, setDrops] = useState<Drop[]>([]);
+  const [selectedDropId, setSelectedDropId] = useState<string | null>(null);
+  const [loadingDrops, setLoadingDrops] = useState(false);
 
   const templates: NotificationTemplate[] = [
     {
@@ -65,11 +77,47 @@ export default function NotificationsScreen() {
     },
   ];
 
+  useEffect(() => {
+    if (selectedTemplate && DROP_TEMPLATES.includes(selectedTemplate)) {
+      loadDrops();
+    }
+    setSelectedDropId(null);
+  }, [selectedTemplate]);
+
+  const loadDrops = async () => {
+    console.log('[Notifications] Loading drops for drop-related template');
+    setLoadingDrops(true);
+    try {
+      const { data, error } = await supabase
+        .from('drops')
+        .select('id, name, status')
+        .in('status', ['active', 'pending'])
+        .order('created_at', { ascending: false })
+        .limit(20);
+
+      if (error) {
+        console.error('[Notifications] Error loading drops:', error);
+      } else {
+        console.log('[Notifications] Loaded', data?.length ?? 0, 'drops');
+        setDrops(data || []);
+      }
+    } finally {
+      setLoadingDrops(false);
+    }
+  };
+
   const handleSelectTemplate = (template: NotificationTemplate) => {
+    console.log('[Notifications] Template selected:', template.id);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setSelectedTemplate(template.id);
     setTitle(template.title);
     setMessage(template.message);
+  };
+
+  const handleSelectDrop = (dropId: string) => {
+    console.log('[Notifications] Drop selected:', dropId);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setSelectedDropId(dropId);
   };
 
   const handleSendNotification = async () => {
@@ -77,6 +125,15 @@ export default function NotificationsScreen() {
       Alert.alert('Errore', 'Inserisci titolo e messaggio');
       return;
     }
+
+    const isDropTemplate = selectedTemplate && DROP_TEMPLATES.includes(selectedTemplate);
+
+    if (isDropTemplate && !selectedDropId) {
+      Alert.alert('Errore', 'Seleziona un drop prima di inviare');
+      return;
+    }
+
+    console.log('[Notifications] Send button pressed — template:', selectedTemplate, 'audience:', targetAudience, 'dropId:', selectedDropId);
 
     Alert.alert(
       'Invia Notifica',
@@ -93,7 +150,7 @@ export default function NotificationsScreen() {
 
               // Get target users
               let query = supabase.from('profiles').select('user_id, email, full_name');
-              
+
               if (targetAudience !== 'all') {
                 const roleMap = {
                   consumers: 'consumer',
@@ -103,10 +160,11 @@ export default function NotificationsScreen() {
                 query = query.eq('role', roleMap[targetAudience]);
               }
 
+              console.log('[Notifications] Fetching users for audience:', targetAudience);
               const { data: users, error } = await query;
 
               if (error) {
-                console.error('Error fetching users:', error);
+                console.error('[Notifications] Error fetching users:', error);
                 errorHandler.handleSupabaseError(error, { context: 'fetch_users_for_notification' });
                 return;
               }
@@ -116,26 +174,39 @@ export default function NotificationsScreen() {
                 return;
               }
 
-              // Create notification records for each user
-              const notifications = users.map(user => ({
-                user_id: user.user_id,
-                title,
-                message,
-                type: 'general' as const,
-                read: false,
-              }));
+              // Build notification payload
+              const notificationType = isDropTemplate
+                ? (selectedTemplate === 'new_drop' ? 'drop_activated' : 'drop_ending')
+                : 'general';
+
+              const notifications = users.map(user => {
+                const base: Record<string, unknown> = {
+                  user_id: user.user_id,
+                  title,
+                  message,
+                  type: notificationType,
+                  read: false,
+                };
+                if (isDropTemplate && selectedDropId) {
+                  base.related_id = selectedDropId;
+                  base.related_type = 'drop';
+                }
+                return base;
+              });
+
+              console.log('[Notifications] Inserting', notifications.length, 'notifications with type:', notificationType, isDropTemplate ? `related_id: ${selectedDropId}` : '');
 
               const { error: notifError } = await supabase
                 .from('notifications')
                 .insert(notifications);
 
               if (notifError) {
-                console.error('Error creating notifications:', notifError);
+                console.error('[Notifications] Error creating notifications:', notifError);
                 errorHandler.handleSupabaseError(notifError, { context: 'create_notifications' });
                 return;
               }
 
-              console.log('Sent notification to', users.length, 'users');
+              console.log('[Notifications] Successfully sent to', users.length, 'users');
 
               Alert.alert(
                 'Notifica Inviata',
@@ -147,12 +218,13 @@ export default function NotificationsScreen() {
                       setTitle('');
                       setMessage('');
                       setSelectedTemplate(null);
+                      setSelectedDropId(null);
                     },
                   },
                 ]
               );
             } catch (error) {
-              console.error('Error sending notification:', error);
+              console.error('[Notifications] Unexpected error sending notification:', error);
               errorHandler.handleError(
                 'Errore imprevisto durante l\'invio della notifica',
                 ErrorCategory.UNKNOWN,
@@ -183,6 +255,10 @@ export default function NotificationsScreen() {
         return audience;
     }
   };
+
+  const isDropTemplate = selectedTemplate && DROP_TEMPLATES.includes(selectedTemplate);
+
+  const sendButtonDisabled = !title.trim() || !message.trim() || sending || (!!isDropTemplate && !selectedDropId);
 
   return (
     <>
@@ -251,6 +327,7 @@ export default function NotificationsScreen() {
                     pressed && styles.audienceButtonPressed,
                   ]}
                   onPress={() => {
+                    console.log('[Notifications] Audience selected:', audience.key);
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                     setTargetAudience(audience.key as any);
                   }}
@@ -273,6 +350,72 @@ export default function NotificationsScreen() {
               ))}
             </View>
           </View>
+
+          {isDropTemplate && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Seleziona Drop</Text>
+              <Text style={styles.sectionDescription}>
+                Scegli il drop a cui si riferisce questa notifica
+              </Text>
+              {loadingDrops ? (
+                <ActivityIndicator color={colors.primary} style={styles.dropsLoader} />
+              ) : drops.length === 0 ? (
+                <View style={styles.emptyDrops}>
+                  <IconSymbol
+                    ios_icon_name="tray"
+                    android_material_icon_name="inbox"
+                    size={32}
+                    color={colors.textTertiary}
+                  />
+                  <Text style={styles.emptyDropsText}>Nessun drop attivo disponibile</Text>
+                </View>
+              ) : (
+                drops.map((drop) => {
+                  const isSelected = selectedDropId === drop.id;
+                  const statusLabel = drop.status === 'active' ? 'Attivo' : 'In Attesa';
+                  const statusColor = drop.status === 'active' ? '#22c55e' : '#f97316';
+                  return (
+                    <Pressable
+                      key={drop.id}
+                      style={({ pressed }) => [
+                        styles.templateCard,
+                        isSelected && styles.templateCardSelected,
+                        pressed && styles.templateCardPressed,
+                      ]}
+                      onPress={() => handleSelectDrop(drop.id)}
+                    >
+                      <View style={styles.templateIcon}>
+                        <IconSymbol
+                          ios_icon_name="shippingbox.fill"
+                          android_material_icon_name="inventory_2"
+                          size={24}
+                          color={isSelected ? colors.primary : colors.textSecondary}
+                        />
+                      </View>
+                      <View style={styles.templateContent}>
+                        <Text style={styles.templateTitle}>{drop.name}</Text>
+                        <View style={styles.statusBadgeRow}>
+                          <View style={[styles.statusBadge, { backgroundColor: statusColor + '20' }]}>
+                            <Text style={[styles.statusBadgeText, { color: statusColor }]}>
+                              {statusLabel}
+                            </Text>
+                          </View>
+                        </View>
+                      </View>
+                      {isSelected && (
+                        <IconSymbol
+                          ios_icon_name="checkmark.circle.fill"
+                          android_material_icon_name="check_circle"
+                          size={24}
+                          color={colors.primary}
+                        />
+                      )}
+                    </Pressable>
+                  );
+                })
+              )}
+            </View>
+          )}
 
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Personalizza Notifica</Text>
@@ -326,11 +469,11 @@ export default function NotificationsScreen() {
           <Pressable
             style={({ pressed }) => [
               styles.sendButton,
-              (!title.trim() || !message.trim() || sending) && styles.sendButtonDisabled,
+              sendButtonDisabled && styles.sendButtonDisabled,
               pressed && styles.sendButtonPressed,
             ]}
             onPress={handleSendNotification}
-            disabled={!title.trim() || !message.trim() || sending}
+            disabled={sendButtonDisabled}
           >
             {sending ? (
               <ActivityIndicator color="#fff" />
@@ -417,6 +560,30 @@ const styles = StyleSheet.create({
   templateMessage: {
     fontSize: 13,
     color: colors.textSecondary,
+  },
+  statusBadgeRow: {
+    flexDirection: 'row',
+  },
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  statusBadgeText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  dropsLoader: {
+    marginVertical: 24,
+  },
+  emptyDrops: {
+    alignItems: 'center',
+    paddingVertical: 32,
+    gap: 12,
+  },
+  emptyDropsText: {
+    fontSize: 14,
+    color: colors.textTertiary,
   },
   audienceButtons: {
     flexDirection: 'row',
