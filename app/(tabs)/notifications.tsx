@@ -60,7 +60,7 @@ export default function NotificationsScreen() {
     if (!user) return;
 
     const channel = supabase
-      .channel('notifications')
+      .channel(`notifications-${user.id}-${Date.now()}`)
       .on(
         'postgres_changes',
         {
@@ -79,9 +79,10 @@ export default function NotificationsScreen() {
       .subscribe();
 
     return () => {
+      channel.unsubscribe();
       supabase.removeChannel(channel);
     };
-  }, [user, loadNotifications]);
+  }, [user]);
 
   const handleRefresh = () => {
     setRefreshing(true);
