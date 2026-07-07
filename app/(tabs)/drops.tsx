@@ -203,7 +203,7 @@ export default function DropsScreen() {
   const [drops, setDrops] = useState<Drop[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const [userPickupPointId, setUserPickupPointId] = useState<string | null>(null);
   const unreadCount = useUnreadNotifications();
 
@@ -436,23 +436,6 @@ export default function DropsScreen() {
         options={{
           title: 'Drop Attivi',
           headerShown: true,
-          headerLeft: () => (
-            <Pressable
-              onPress={() => {
-                console.log('[Drops] Logout button pressed');
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                logout();
-              }}
-              style={{ marginLeft: 8 }}
-            >
-              <IconSymbol
-                ios_icon_name="rectangle.portrait.and.arrow.right"
-                android_material_icon_name="logout"
-                size={24}
-                color={colors.text}
-              />
-            </Pressable>
-          ),
           headerRight: () => (
             <Pressable
               onPress={() => {
