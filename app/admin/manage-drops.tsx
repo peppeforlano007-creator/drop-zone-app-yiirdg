@@ -16,6 +16,7 @@ import {
 import React, { useState, useEffect } from 'react';
 import * as Haptics from 'expo-haptics';
 import { supabase } from '@/app/integrations/supabase/client';
+import { sendPushNotification } from '@/utils/pushNotifications';
 
 interface Drop {
   id: string;
@@ -167,6 +168,53 @@ export default function ManageDropsScreen() {
                 console.error('Error activating drop:', error);
                 Alert.alert('Errore', 'Impossibile attivare il drop');
                 return;
+              }
+
+              console.log('[handleActivateDrop] Drop activated, sending notifications for dropId:', dropId);
+
+              // Send in-app + push notifications to all consumers
+              try {
+                const { data: consumers } = await supabase
+                  .from('profiles')
+                  .select('user_id, push_token')
+                  .eq('role', 'consumer');
+
+                console.log('[handleActivateDrop] Fetched', consumers?.length ?? 0, 'consumers');
+
+                const notifRows = (consumers || []).map(c => ({
+                  user_id: c.user_id,
+                  title: 'Nuovo Drop Disponibile! 🎉',
+                  message: `Il drop "${dropName}" è ora attivo. Controlla ora per non perdere le migliori offerte!`,
+                  type: 'drop_activated',
+                  related_id: dropId,
+                  related_type: 'drop',
+                  read: false,
+                }));
+
+                if (notifRows.length > 0) {
+                  const { error: notifInsertError } = await supabase.from('notifications').insert(notifRows);
+                  if (notifInsertError) {
+                    console.error('[handleActivateDrop] Error inserting notifications:', notifInsertError);
+                  } else {
+                    console.log('[handleActivateDrop] Inserted', notifRows.length, 'notification rows');
+                  }
+                }
+
+                const pushPromises = (consumers || [])
+                  .filter(c => c.push_token)
+                  .map(c => sendPushNotification(
+                    c.push_token!,
+                    'Nuovo Drop Disponibile! 🎉',
+                    `Il drop "${dropName}" è ora attivo. Controlla ora!`,
+                    { type: 'drop_activated', dropId }
+                  ));
+
+                console.log('[handleActivateDrop] Sending push to', pushPromises.length, 'consumers with tokens');
+                const pushResults = await Promise.allSettled(pushPromises);
+                const pushSent = pushResults.filter(r => r.status === 'fulfilled').length;
+                console.log('[handleActivateDrop] Push sent:', pushSent, '/', pushPromises.length);
+              } catch (notifError) {
+                console.error('[handleActivateDrop] Notification error (non-blocking):', notifError);
               }
 
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);

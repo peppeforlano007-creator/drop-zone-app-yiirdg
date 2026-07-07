@@ -17,6 +17,7 @@ import * as Haptics from 'expo-haptics';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 import { errorHandler, ErrorCategory, ErrorSeverity } from '@/utils/errorHandler';
+import { sendPushNotification } from '@/utils/pushNotifications';
 
 interface NotificationTemplate {
   id: string;
@@ -149,7 +150,7 @@ export default function NotificationsScreen() {
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
               // Get target users
-              let query = supabase.from('profiles').select('user_id, email, full_name');
+              let query = supabase.from('profiles').select('user_id, email, full_name, push_token');
 
               if (targetAudience !== 'all') {
                 const roleMap = {
@@ -207,6 +208,25 @@ export default function NotificationsScreen() {
               }
 
               console.log('[Notifications] Successfully sent to', users.length, 'users');
+
+              // Send push notifications to users with tokens
+              try {
+                const pushPromises = (users || [])
+                  .filter(u => u.push_token)
+                  .map(u => sendPushNotification(
+                    u.push_token!,
+                    title,
+                    message,
+                    isDropTemplate && selectedDropId
+                      ? { type: notificationType, dropId: selectedDropId }
+                      : { type: notificationType }
+                  ));
+                const pushResults = await Promise.allSettled(pushPromises);
+                const pushSent = pushResults.filter(r => r.status === 'fulfilled').length;
+                console.log('[Notifications] Push sent to', pushSent, 'of', pushPromises.length, 'users with tokens');
+              } catch (pushError) {
+                console.error('[Notifications] Push error (non-blocking):', pushError);
+              }
 
               Alert.alert(
                 'Notifica Inviata',
