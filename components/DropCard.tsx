@@ -47,6 +47,11 @@ function formatEuro(value: number): string {
 export default function DropCard({ drop, deliveryMinDays, deliveryMaxDays }: DropCardProps) {
   const [timeRemaining, setTimeRemaining] = useState('');
   const [showShareModal, setShowShareModal] = useState(false);
+  const [bannerError, setBannerError] = useState(false);
+
+  useEffect(() => {
+    setBannerError(false);
+  }, [drop.supplier_lists?.banner_url]);
   const { user } = useAuth();
   const { isInterested, isLoading, loadInterest, toggleInterest } = useDropInterest();
 
@@ -228,11 +233,16 @@ export default function DropCard({ drop, deliveryMinDays, deliveryMaxDays }: Dro
       ]}
       onPress={handlePress}
     >
-      {!isCompleted && drop.supplier_lists?.banner_url ? (
+      {!isCompleted && drop.supplier_lists?.banner_url && !bannerError ? (
         <Image
           source={{ uri: drop.supplier_lists.banner_url }}
           style={styles.banner}
           resizeMode="cover"
+          onError={() => {
+            console.log('[DropCard] Banner image failed to load for drop:', drop.id, 'url:', drop.supplier_lists?.banner_url);
+            setBannerError(true);
+          }}
+          onLoad={() => setBannerError(false)}
         />
       ) : null}
       <View style={styles.header}>
