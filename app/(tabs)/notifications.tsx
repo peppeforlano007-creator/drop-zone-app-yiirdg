@@ -13,7 +13,7 @@ interface Notification {
   id: string;
   title: string;
   message: string;
-  type: 'drop_activated' | 'drop_ending' | 'order_ready' | 'order_shipped' | 'payment_captured' | 'general';
+  type: 'drop_activated' | 'drop_ending' | 'drop_completed' | 'order_ready' | 'order_shipped' | 'payment_captured' | 'general';
   related_id?: string;
   related_type?: 'drop' | 'order' | 'booking' | 'product';
   read: boolean;
@@ -135,7 +135,7 @@ export default function NotificationsScreen() {
   };
 
   const handleNotificationPress = async (notification: Notification) => {
-    console.log('[Notifications] Notification pressed:', notification.id, 'type:', notification.type);
+    console.log('[Notifications] Notification pressed:', notification.id, 'type:', notification.type, 'related_type:', notification.related_type, 'related_id:', notification.related_id);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
     // Mark as read
@@ -143,19 +143,24 @@ export default function NotificationsScreen() {
       await markAsRead(notification.id);
     }
 
-    // Navigate based on notification type
+    // Navigate based on notification type (explicit type check first, then related_type fallback)
     if (notification.type === 'drop_completed' && notification.related_id) {
       console.log('[Notifications] Navigating to drop-summary for drop:', notification.related_id);
       router.push({ pathname: '/drop-summary', params: { dropId: notification.related_id } });
+    } else if (
+      (notification.type === 'drop_activated' || notification.type === 'drop_ending') &&
+      notification.related_id
+    ) {
+      console.log('[Notifications] Navigating to drop-details for type', notification.type, 'drop:', notification.related_id);
+      router.push({ pathname: '/drop-details', params: { dropId: notification.related_id } });
     } else if (notification.related_type === 'drop' && notification.related_id) {
-      console.log('[Notifications] Navigating to drop-details for drop:', notification.related_id);
-      router.push({
-        pathname: '/drop-details',
-        params: { dropId: notification.related_id },
-      });
+      console.log('[Notifications] Navigating to drop-details via related_type for drop:', notification.related_id);
+      router.push({ pathname: '/drop-details', params: { dropId: notification.related_id } });
     } else if (notification.related_type === 'order' && notification.related_id) {
       console.log('[Notifications] Navigating to my-bookings for order:', notification.related_id);
       router.push('/(tabs)/my-bookings');
+    } else {
+      console.log('[Notifications] No navigation target for notification:', notification.id, '(type:', notification.type, ', related_type:', notification.related_type, ')');
     }
   };
 
