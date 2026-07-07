@@ -18,6 +18,7 @@ import {
   Animated,
   useColorScheme,
   Pressable,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { IconSymbol } from '@/components/IconSymbol';
