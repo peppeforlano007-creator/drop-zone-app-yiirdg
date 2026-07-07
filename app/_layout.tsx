@@ -10,6 +10,7 @@ import { useColorScheme, Alert, StyleSheet, Animated, AppState, View, Text } fro
 import * as Updates from "expo-updates";
 import { useNetworkState } from "expo-network";
 import * as Linking from "expo-linking";
+import * as Notifications from "expo-notifications";
 import {
   DarkTheme,
   DefaultTheme,
@@ -222,6 +223,43 @@ export default function RootLayout() {
     };
   }, []);
 
+  // Handle push notification taps (background / killed app)
+  useEffect(() => {
+    const subscription = Notifications.addNotificationResponseReceivedListener((response) => {
+      const data = response.notification.request.content.data as Record<string, string> | undefined;
+      console.log('[PushNotification] Notification tapped, data:', data);
+
+      if (!data) return;
+
+      switch (data.type) {
+        case 'drop_activated':
+          console.log('[PushNotification] Routing to drop-details (activated), dropId:', data.dropId);
+          router.push({ pathname: '/drop-details', params: { dropId: data.dropId } });
+          break;
+        case 'drop_ending':
+          console.log('[PushNotification] Routing to drop-details (ending), dropId:', data.dropId);
+          router.push({ pathname: '/drop-details', params: { dropId: data.dropId } });
+          break;
+        case 'drop_completed':
+          console.log('[PushNotification] Routing to drop-summary, dropId:', data.dropId);
+          router.push({ pathname: '/drop-summary', params: { dropId: data.dropId } });
+          break;
+        case 'order_ready':
+          console.log('[PushNotification] Routing to my-bookings, orderId:', data.orderId);
+          router.push('/(tabs)/my-bookings');
+          break;
+        case 'general':
+          console.log('[PushNotification] Routing to notifications tab');
+          router.push('/(tabs)/notifications');
+          break;
+        default:
+          console.log('[PushNotification] Unhandled notification type:', data.type);
+      }
+    });
+
+    return () => subscription.remove();
+  }, []);
+
   useEffect(() => {
     if (loaded && !showCustomSplash) {
       SplashScreen.hideAsync();
@@ -308,6 +346,9 @@ export default function RootLayout() {
 
                   {/* Drop Details */}
                   <Stack.Screen name="drop-details" options={{ headerShown: false }} />
+
+                  {/* Drop Summary */}
+                  <Stack.Screen name="drop-summary" options={{ headerShown: false }} />
 
                   {/* Profile Screens */}
                   <Stack.Screen name="edit-profile" options={{ headerShown: false }} />

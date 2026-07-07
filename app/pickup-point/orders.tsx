@@ -52,6 +52,10 @@ interface Order {
     status: string;
     completed_at?: string;
   };
+  pickup_points?: {
+    name: string;
+    city: string;
+  } | null;
 }
 
 export default function OrdersScreen() {
@@ -95,6 +99,10 @@ export default function OrdersScreen() {
           drops (
             status,
             completed_at
+          ),
+          pickup_points (
+            name,
+            city
           ),
           order_items (
             id,
@@ -376,10 +384,14 @@ export default function OrdersScreen() {
                 let notificationsFailed = 0;
 
                 for (const userId of userIds) {
+                  const pickupName = order.pickup_points?.name ?? 'il punto di ritiro';
+                  const pickupCity = order.pickup_points?.city ? ` - ${order.pickup_points.city}` : '';
+                  const pickupLabel = `${pickupName}${pickupCity}`;
+                  console.log(`[Orders] Invio notifica ordine pronto a utente ${userId}, pickup: ${pickupLabel}`);
                   const success = await sendNotificationToUser(
                     userId,
-                    '🎉 Ordine Pronto per il Ritiro!',
-                    `Il tuo ordine ${order.order_number} è arrivato ed è pronto per il ritiro presso il punto di ritiro. Ricorda di portare un documento d'identità valido.`,
+                    `🎉 Ordine Pronto per il Ritiro presso ${pickupLabel}!`,
+                    `Il tuo ordine ${order.order_number} è arrivato ed è pronto per il ritiro presso ${pickupLabel}. Ricorda di portare un documento d'identità valido.`,
                     order.id
                   );
 
@@ -398,11 +410,11 @@ export default function OrdersScreen() {
                       .single();
 
                     if (profile?.push_token) {
-                      console.log(`[Orders] Invio push order_ready a utente ${userId}`);
+                      console.log(`[Orders] Invio push order_ready a utente ${userId}, pickup: ${pickupLabel}`);
                       await sendPushNotification(
                         profile.push_token,
                         'Ordine Pronto 📦',
-                        `Il tuo ordine ${order.order_number} è pronto per il ritiro!`,
+                        `Il tuo ordine ${order.order_number} è pronto per il ritiro presso ${pickupLabel}!`,
                         { type: 'order_ready', orderId: order.id }
                       );
                     }

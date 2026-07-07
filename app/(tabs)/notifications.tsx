@@ -134,6 +134,7 @@ export default function NotificationsScreen() {
   };
 
   const handleNotificationPress = async (notification: Notification) => {
+    console.log('[Notifications] Notification pressed:', notification.id, 'type:', notification.type);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
     // Mark as read
@@ -142,12 +143,17 @@ export default function NotificationsScreen() {
     }
 
     // Navigate based on notification type
-    if (notification.related_type === 'drop' && notification.related_id) {
+    if (notification.type === 'drop_completed' && notification.related_id) {
+      console.log('[Notifications] Navigating to drop-summary for drop:', notification.related_id);
+      router.push({ pathname: '/drop-summary', params: { dropId: notification.related_id } });
+    } else if (notification.related_type === 'drop' && notification.related_id) {
+      console.log('[Notifications] Navigating to drop-details for drop:', notification.related_id);
       router.push({
         pathname: '/drop-details',
         params: { dropId: notification.related_id },
       });
     } else if (notification.related_type === 'order' && notification.related_id) {
+      console.log('[Notifications] Navigating to my-bookings for order:', notification.related_id);
       router.push('/(tabs)/my-bookings');
     }
   };
