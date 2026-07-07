@@ -18,6 +18,7 @@ import {
   Animated,
   useColorScheme,
   Pressable,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { IconSymbol } from '@/components/IconSymbol';
@@ -201,7 +202,7 @@ export default function DropsScreen() {
   const [drops, setDrops] = useState<Drop[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const [userPickupPointId, setUserPickupPointId] = useState<string | null>(null);
   const unreadCount = useUnreadNotifications();
 
@@ -434,6 +435,36 @@ export default function DropsScreen() {
         options={{
           title: 'Drop Attivi',
           headerShown: true,
+          headerLeft: () => (
+            <Pressable
+              onPress={() => {
+                console.log('[Drops] Logout button pressed');
+                Alert.alert(
+                  'Esci',
+                  'Sei sicuro di voler uscire?',
+                  [
+                    { text: 'Annulla', style: 'cancel' },
+                    {
+                      text: 'Esci',
+                      style: 'destructive',
+                      onPress: () => {
+                        console.log('[Drops] Logout confirmed');
+                        logout();
+                      },
+                    },
+                  ]
+                );
+              }}
+              style={{ marginLeft: 8 }}
+            >
+              <IconSymbol
+                ios_icon_name="rectangle.portrait.and.arrow.right"
+                android_material_icon_name="logout"
+                size={24}
+                color={colors.text}
+              />
+            </Pressable>
+          ),
           headerRight: () => (
             <Pressable
               onPress={() => {
