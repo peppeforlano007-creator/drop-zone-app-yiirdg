@@ -298,7 +298,6 @@ export default function DropCard({ drop, deliveryMinDays, deliveryMaxDays }: Dro
           <View style={styles.progressSection}>
             <View style={styles.progressHeader}>
               <Text style={styles.progressLabel}>Progresso Obiettivo</Text>
-              <Text style={styles.progressPercentage}>{Math.floor(valueProgress)}%</Text>
             </View>
             <View style={styles.progressBarContainer}>
               <View style={[styles.progressBarFill, { width: `${valueProgress}%` }]} />
