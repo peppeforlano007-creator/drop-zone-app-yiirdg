@@ -8,6 +8,7 @@ import {
   StyleSheet,
   ScrollView,
   Pressable,
+  TouchableOpacity,
   Alert,
   TextInput,
   Switch,
@@ -725,11 +726,10 @@ export default function SettingsScreen() {
             </Pressable>
           </View>
 
-          <Pressable
-            style={({ pressed }) => [
+          <TouchableOpacity
+            style={[
               styles.saveButton,
               saving && styles.saveButtonDisabled,
-              pressed && styles.saveButtonPressed,
             ]}
             onPress={handleSaveSettings}
             disabled={saving}
@@ -747,7 +747,7 @@ export default function SettingsScreen() {
                 <Text style={styles.saveButtonText}>Salva Impostazioni</Text>
               </>
             )}
-          </Pressable>
+          </TouchableOpacity>
         </ScrollView>
       </SafeAreaView>
     </>
