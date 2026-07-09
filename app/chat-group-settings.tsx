@@ -249,6 +249,38 @@ export default function ChatGroupSettingsScreen() {
       ]);
       setSearchResults((prev) => prev.filter((r) => r.id !== profile.id));
       setSearchQuery('');
+
+      // Notifica il nuovo membro (fire-and-forget)
+      console.log('[GroupSettings] Sending push notification to new member:', profile.id);
+      (async () => {
+        try {
+          const { data: profileData } = await supabase
+            .from('profiles')
+            .select('push_token')
+            .eq('user_id', profile.id)
+            .single();
+
+          if (profileData?.push_token) {
+            console.log('[GroupSettings] Push token found, sending notification to:', profile.id);
+            await fetch('https://exp.host/--/api/v2/push/send', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                to: profileData.push_token,
+                title: 'Sei stato aggiunto a un gruppo',
+                body: `Sei stato aggiunto al gruppo "${groupName}"`,
+                data: { groupId, type: 'group_invite' },
+                channelId: 'default',
+              }),
+            });
+            console.log('[GroupSettings] Push notification sent to new member:', profile.id);
+          } else {
+            console.log('[GroupSettings] No push token for new member:', profile.id);
+          }
+        } catch (e) {
+          console.warn('[GroupSettings] Notifica nuovo membro fallita (non-fatal):', e);
+        }
+      })();
     }
   };
 
