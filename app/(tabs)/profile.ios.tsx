@@ -426,7 +426,7 @@ export default function ProfileScreen() {
                 <View style={styles.loyaltyHeader}>
                   <IconSymbol ios_icon_name="star.circle.fill" android_material_icon_name="stars" size={32} color="#FFD700" />
                   <View style={styles.loyaltyInfo}>
-                    <Text style={styles.loyaltyTitle}>Saldo Spendibile</Text>
+                    <Text style={styles.loyaltyTitle}>Totale Punti</Text>
                     <Text style={styles.loyaltyPoints}>{pointsBalance} punti</Text>
                   </View>
                 </View>
