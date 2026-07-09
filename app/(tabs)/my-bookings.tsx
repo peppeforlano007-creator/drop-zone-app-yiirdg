@@ -436,7 +436,7 @@ export default function MyBookingsScreen() {
                         <Text style={styles.finalPriceLabel}>Da pagare al ritiro:</Text>
                         <Text style={styles.finalPriceValue}>€{finalPrice.toFixed(2)}</Text>
                       </View>
-                      <Text style={styles.cashPaymentHint}>ℹ️ Paga in contanti al momento del ritiro</Text>
+                      <Text style={styles.cashPaymentHint}>ℹ️ Paga al momento del ritiro</Text>
                     </>
                   )}
                   {!isDropCompleted && finalPrice > 0 && (

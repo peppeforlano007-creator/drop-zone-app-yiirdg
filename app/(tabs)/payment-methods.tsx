@@ -202,7 +202,7 @@ export default function PickupPointsScreen() {
                 <View style={styles.stepContent}>
                   <Text style={styles.stepTitle}>Ritira e paga</Text>
                   <Text style={styles.stepText}>
-                    Ritira il tuo ordine al punto di ritiro e paga in contanti
+                    Ritira il tuo ordine al punto di ritiro e paga al momento del ritiro
                   </Text>
                 </View>
               </View>
@@ -334,7 +334,7 @@ export default function PickupPointsScreen() {
                 {'\n\n'}
                 I resi sono possibili al punto di ritiro, ma ogni reso scala dal saldo l'intero valore in punti dell'ordine restituito.
                 {'\n\n'}
-                Il pagamento avviene in contanti al momento del ritiro.
+                Il pagamento avviene al momento del ritiro.
               </Text>
             </View>
           </View>
