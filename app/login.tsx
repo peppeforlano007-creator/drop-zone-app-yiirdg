@@ -350,27 +350,30 @@ export default function LoginScreen() {
                   autoComplete="tel"
                   editable={!loading}
                 />
+                <Pressable
+                  style={styles.phoneInfoButton}
+                  onPress={() => {
+                    console.log('[Login] Phone hint toggled:', !showPhoneHint);
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setShowPhoneHint(v => !v);
+                  }}
+                  hitSlop={8}
+                >
+                  <IconSymbol
+                    ios_icon_name={showPhoneHint ? 'info.circle.fill' : 'info.circle'}
+                    android_material_icon_name="info"
+                    size={18}
+                    color={showPhoneHint ? colors.primary : colors.textTertiary}
+                  />
+                </Pressable>
               </View>
-              <Pressable
-                style={[styles.phoneHintBox, showPhoneHint && styles.phoneHintBoxExpanded]}
-                onPress={() => {
-                  console.log('[Login] Phone hint toggled:', !showPhoneHint);
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  setShowPhoneHint(v => !v);
-                }}
-              >
-                <IconSymbol
-                  ios_icon_name={showPhoneHint ? 'info.circle.fill' : 'info.circle'}
-                  android_material_icon_name="info"
-                  size={16}
-                  color={colors.primary}
-                />
-                {showPhoneHint && (
+              {showPhoneHint && (
+                <View style={styles.phoneHintInline}>
                   <Text style={styles.phoneHint}>
                     Tocca il prefisso per cambiare paese. Inserisci il numero senza il prefisso.
                   </Text>
-                )}
-              </Pressable>
+                </View>
+              )}
 
               <Text style={styles.inputLabel}>Password</Text>
               <View style={styles.passwordInputContainer}>
@@ -591,7 +594,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 12,
     marginBottom: 8,
-    alignItems: 'stretch',
+    alignItems: 'center',
   },
   phoneInput: {
     flex: 1,
@@ -605,27 +608,25 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     height: 56,
   },
-  phoneHintBox: {
-    flexDirection: 'row',
+  phoneInfoButton: {
+    justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: colors.primary + '10',
-    borderRadius: 8,
-    padding: 10,
-    marginBottom: 16,
-    gap: 8,
-    borderWidth: 1,
-    borderColor: colors.primary + '30',
-    alignSelf: 'flex-start',
+    paddingHorizontal: 4,
   },
-  phoneHintBoxExpanded: {
-    alignSelf: 'stretch',
-    padding: 12,
+  phoneHintInline: {
+    backgroundColor: colors.primary + '10',
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    marginTop: -4,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: colors.primary + '25',
   },
   phoneHint: {
-    flex: 1,
-    fontSize: 13,
-    color: colors.text,
-    lineHeight: 18,
+    fontSize: 12,
+    color: colors.textSecondary,
+    lineHeight: 17,
   },
   passwordInputContainer: {
     flexDirection: 'row',
