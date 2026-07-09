@@ -13,6 +13,7 @@ import {
   TextInput,
   Switch,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
 import { supabase } from '@/app/integrations/supabase/client';
 import * as Haptics from 'expo-haptics';
@@ -84,6 +85,10 @@ export default function SettingsScreen() {
           max_drop_value: parseInt(settingsMap.get('max_drop_value') || String(prev.max_drop_value)),
           platform_commission_rate: parseInt(settingsMap.get('platform_commission_rate') || String(prev.platform_commission_rate)),
           min_users_for_drop_suggestion: parseInt(settingsMap.get('min_users_for_drop_suggestion') || String(prev.min_users_for_drop_suggestion)),
+          auto_approve_drops: settingsMap.has('auto_approve_drops') ? settingsMap.get('auto_approve_drops') === 'true' : prev.auto_approve_drops,
+          auto_complete_drops: settingsMap.has('auto_complete_drops') ? settingsMap.get('auto_complete_drops') === 'true' : prev.auto_complete_drops,
+          enable_notifications: settingsMap.has('enable_notifications') ? settingsMap.get('enable_notifications') === 'true' : prev.enable_notifications,
+          maintenance_mode: settingsMap.has('maintenance_mode') ? settingsMap.get('maintenance_mode') === 'true' : prev.maintenance_mode,
         }));
         
         console.log('Settings loaded from database:', {
@@ -98,6 +103,150 @@ export default function SettingsScreen() {
       Alert.alert('Errore', 'Impossibile caricare le impostazioni');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const executeSave = async () => {
+    try {
+      setSaving(true);
+      console.log('Saving settings:', settings);
+
+      // Define all settings to save
+      const settingsToSave = [
+        {
+          key: 'whatsapp_support_number',
+          value: settings.whatsapp_support_number,
+          description: 'Numero WhatsApp per il supporto clienti (formato: codice paese + numero senza + o spazi)',
+        },
+        {
+          key: 'invite_link',
+          value: settings.invite_link,
+          description: 'Link di invito app mostrato nel messaggio Invita amici e parenti nella sezione Gruppi',
+        },
+        {
+          key: 'drop_duration_days',
+          value: String(settings.drop_duration_days),
+          description: 'Durata predefinita di un drop in giorni',
+        },
+        {
+          key: 'min_drop_value',
+          value: String(settings.min_drop_value),
+          description: 'Valore minimo per attivare un drop (in euro)',
+        },
+        {
+          key: 'max_drop_value',
+          value: String(settings.max_drop_value),
+          description: 'Valore massimo per un drop (in euro)',
+        },
+        {
+          key: 'platform_commission_rate',
+          value: String(settings.platform_commission_rate),
+          description: 'Percentuale di commissione della piattaforma',
+        },
+        {
+          key: 'min_users_for_drop_suggestion',
+          value: String(settings.min_users_for_drop_suggestion),
+          description: 'Numero minimo di utenti interessati per suggerire un drop',
+        },
+        {
+          key: 'auto_approve_drops',
+          value: settings.auto_approve_drops ? 'true' : 'false',
+          description: 'Approvazione automatica dei nuovi drop',
+        },
+        {
+          key: 'auto_complete_drops',
+          value: settings.auto_complete_drops ? 'true' : 'false',
+          description: 'Completamento automatico dei drop scaduti',
+        },
+        {
+          key: 'enable_notifications',
+          value: settings.enable_notifications ? 'true' : 'false',
+          description: 'Abilita invio di notifiche push agli utenti',
+        },
+        {
+          key: 'maintenance_mode',
+          value: settings.maintenance_mode ? 'true' : 'false',
+          description: 'Modalità manutenzione — disabilita accesso alla piattaforma',
+        },
+      ];
+
+      // Save each setting
+      for (const setting of settingsToSave) {
+        // Check if the setting exists
+        const { data: existingData, error: checkError } = await supabase
+          .from('app_settings')
+          .select('id')
+          .eq('setting_key', setting.key)
+          .maybeSingle();
+
+        if (checkError) {
+          console.error(`Error checking existing setting ${setting.key}:`, checkError);
+          throw new Error(`Errore durante la verifica delle impostazioni: ${checkError.message}`);
+        }
+
+        if (existingData) {
+          // Update existing setting
+          console.log(`Updating setting ${setting.key}:`, setting.value);
+          const { error } = await supabase
+            .from('app_settings')
+            .update({ 
+              setting_value: setting.value,
+              updated_at: new Date().toISOString()
+            })
+            .eq('setting_key', setting.key);
+          
+          if (error) {
+            console.error(`Error updating setting ${setting.key}:`, error);
+            throw new Error(`Errore durante l'aggiornamento di ${setting.key}: ${error.message}`);
+          }
+        } else {
+          // Insert new setting
+          console.log(`Inserting new setting ${setting.key}:`, setting.value);
+          const { error } = await supabase
+            .from('app_settings')
+            .insert({
+              setting_key: setting.key,
+              setting_value: setting.value,
+              description: setting.description,
+            });
+          
+          if (error) {
+            console.error(`Error inserting setting ${setting.key}:`, error);
+            throw new Error(`Errore durante l'inserimento di ${setting.key}: ${error.message}`);
+          }
+        }
+      }
+
+      console.log('All settings saved successfully');
+      
+      // Log activity (non-blocking - don't fail if this fails)
+      try {
+        await logActivity({
+          action: 'update_settings',
+          description: 'Impostazioni piattaforma aggiornate',
+          metadata: {
+            whatsapp_support_number: settings.whatsapp_support_number,
+            drop_duration_days: settings.drop_duration_days,
+            min_drop_value: settings.min_drop_value,
+            max_drop_value: settings.max_drop_value,
+            platform_commission_rate: settings.platform_commission_rate,
+          }
+        });
+      } catch (logError) {
+        console.error('Failed to log activity (non-critical):', logError);
+      }
+
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setHasChanges(false);
+      Alert.alert('Successo', 'Impostazioni salvate con successo!');
+    } catch (error) {
+      console.error('Exception saving settings:', error);
+      Alert.alert(
+        'Errore',
+        error instanceof Error ? error.message : 'Si è verificato un errore imprevisto durante il salvataggio'
+      );
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -137,140 +286,21 @@ export default function SettingsScreen() {
       return;
     }
 
-    Alert.alert(
-      'Salva Impostazioni',
-      'Sei sicuro di voler salvare le modifiche?',
-      [
-        { text: 'Annulla', style: 'cancel' },
-        {
-          text: 'Salva',
-          style: 'default',
-          onPress: async () => {
-            try {
-              setSaving(true);
-              console.log('Saving settings:', settings);
+    console.log('handleSaveSettings: prompting user for confirmation');
 
-              // Define all settings to save
-              const settingsToSave = [
-                {
-                  key: 'whatsapp_support_number',
-                  value: settings.whatsapp_support_number,
-                  description: 'Numero WhatsApp per il supporto clienti (formato: codice paese + numero senza + o spazi)',
-                },
-                {
-                  key: 'invite_link',
-                  value: settings.invite_link,
-                  description: 'Link di invito app mostrato nel messaggio Invita amici e parenti nella sezione Gruppi',
-                },
-                {
-                  key: 'drop_duration_days',
-                  value: String(settings.drop_duration_days),
-                  description: 'Durata predefinita di un drop in giorni',
-                },
-                {
-                  key: 'min_drop_value',
-                  value: String(settings.min_drop_value),
-                  description: 'Valore minimo per attivare un drop (in euro)',
-                },
-                {
-                  key: 'max_drop_value',
-                  value: String(settings.max_drop_value),
-                  description: 'Valore massimo per un drop (in euro)',
-                },
-                {
-                  key: 'platform_commission_rate',
-                  value: String(settings.platform_commission_rate),
-                  description: 'Percentuale di commissione della piattaforma',
-                },
-                {
-                  key: 'min_users_for_drop_suggestion',
-                  value: String(settings.min_users_for_drop_suggestion),
-                  description: 'Numero minimo di utenti interessati per suggerire un drop',
-                },
-              ];
-
-              // Save each setting
-              for (const setting of settingsToSave) {
-                // Check if the setting exists
-                const { data: existingData, error: checkError } = await supabase
-                  .from('app_settings')
-                  .select('id')
-                  .eq('setting_key', setting.key)
-                  .maybeSingle();
-
-                if (checkError) {
-                  console.error(`Error checking existing setting ${setting.key}:`, checkError);
-                  throw new Error(`Errore durante la verifica delle impostazioni: ${checkError.message}`);
-                }
-
-                if (existingData) {
-                  // Update existing setting
-                  console.log(`Updating setting ${setting.key}:`, setting.value);
-                  const { error } = await supabase
-                    .from('app_settings')
-                    .update({ 
-                      setting_value: setting.value,
-                      updated_at: new Date().toISOString()
-                    })
-                    .eq('setting_key', setting.key);
-                  
-                  if (error) {
-                    console.error(`Error updating setting ${setting.key}:`, error);
-                    throw new Error(`Errore durante l'aggiornamento di ${setting.key}: ${error.message}`);
-                  }
-                } else {
-                  // Insert new setting
-                  console.log(`Inserting new setting ${setting.key}:`, setting.value);
-                  const { error } = await supabase
-                    .from('app_settings')
-                    .insert({
-                      setting_key: setting.key,
-                      setting_value: setting.value,
-                      description: setting.description,
-                    });
-                  
-                  if (error) {
-                    console.error(`Error inserting setting ${setting.key}:`, error);
-                    throw new Error(`Errore durante l'inserimento di ${setting.key}: ${error.message}`);
-                  }
-                }
-              }
-
-              console.log('All settings saved successfully');
-              
-              // Log activity (non-blocking - don't fail if this fails)
-              try {
-                await logActivity({
-                  action: 'update_settings',
-                  description: 'Impostazioni piattaforma aggiornate',
-                  metadata: {
-                    whatsapp_support_number: settings.whatsapp_support_number,
-                    drop_duration_days: settings.drop_duration_days,
-                    min_drop_value: settings.min_drop_value,
-                    max_drop_value: settings.max_drop_value,
-                    platform_commission_rate: settings.platform_commission_rate,
-                  }
-                });
-              } catch (logError) {
-                console.error('Failed to log activity (non-critical):', logError);
-              }
-
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-              setHasChanges(false);
-              Alert.alert('Successo', 'Impostazioni salvate con successo!');
-            } catch (error) {
-              console.error('Exception saving settings:', error);
-              Alert.alert(
-                'Errore',
-                error instanceof Error ? error.message : 'Si è verificato un errore imprevisto durante il salvataggio'
-              );
-            } finally {
-              setSaving(false);
-            }
-          },
-        },
-      ]
-    );
+    if (Platform.OS === 'web') {
+      const confirmed = window.confirm('Sei sicuro di voler salvare le modifiche?');
+      if (confirmed) await executeSave();
+    } else {
+      Alert.alert(
+        'Salva Impostazioni',
+        'Sei sicuro di voler salvare le modifiche?',
+        [
+          { text: 'Annulla', style: 'cancel' },
+          { text: 'Salva', style: 'default', onPress: executeSave },
+        ]
+      );
+    }
   };
 
   const updateSetting = <K extends keyof PlatformSettings>(
