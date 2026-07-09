@@ -37,7 +37,7 @@ export default function ProfileScreen() {
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('points_total, loyalty_points, account_blocked')
+        .select('loyalty_points, points_balance, points_total, account_blocked')
         .eq('user_id', user.id)
         .maybeSingle();
 
@@ -49,11 +49,11 @@ export default function ProfileScreen() {
       }
 
       if (data) {
-        const pts = (data as any).points_total ?? data.loyalty_points ?? 0;
+        const pts = (data as any).loyalty_points ?? (data as any).points_balance ?? (data as any).points_total ?? 0;
         setPointsBalance(pts);
         setAccountBlocked((data as any).account_blocked ?? false);
         setProfileError(null);
-        console.log('Profile: Loaded points_total:', pts);
+        console.log('Profile: Loaded loyalty_points:', pts);
       } else {
         setProfileError('Profilo non trovato');
       }

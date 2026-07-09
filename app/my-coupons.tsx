@@ -37,16 +37,16 @@ export default function MyPointsScreen() {
 
       const { data, error } = await supabase
         .from('profiles')
-        .select('points_balance, loyalty_points')
+        .select('loyalty_points, points_balance, points_total')
         .eq('user_id', user.id)
         .maybeSingle();
 
       if (error) {
         console.error('MyPoints: Error loading profile:', error);
       } else {
-        const points = (data as any)?.points_balance ?? data?.loyalty_points ?? 0;
+        const points = (data as any)?.loyalty_points ?? (data as any)?.points_balance ?? (data as any)?.points_total ?? 0;
         setLoyaltyPoints(points);
-        console.log('MyPoints: points_balance:', points);
+        console.log('MyPoints: loyalty_points:', points);
       }
     } catch (error) {
       console.error('MyPoints: Exception loading data:', error);
