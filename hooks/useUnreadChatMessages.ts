@@ -144,10 +144,32 @@ export function useUnreadChatMessages(userId: string | undefined) {
   }, [userId, computeUnread]);
 
   const markGroupAsRead = useCallback(async (groupId: string) => {
-    const now = new Date().toISOString();
-    console.log('[useUnreadChatMessages] Marking group as read:', groupId, 'at', now);
+    console.log('[useUnreadChatMessages] Marking group as read:', groupId);
 
-    const updated: LastReadMap = { ...lastReadRef.current, [groupId]: now };
+    // Use the server-side timestamp of the latest message to avoid device clock skew
+    let serverNow: string;
+    try {
+      const { data, error } = await supabase
+        .from('chat_messages')
+        .select('created_at')
+        .eq('group_id', groupId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (!error && data?.created_at) {
+        serverNow = data.created_at;
+      } else {
+        // Fallback: use device time if no messages or error
+        serverNow = new Date().toISOString();
+      }
+    } catch {
+      serverNow = new Date().toISOString();
+    }
+
+    console.log('[useUnreadChatMessages] Last read timestamp set to:', serverNow);
+
+    const updated: LastReadMap = { ...lastReadRef.current, [groupId]: serverNow };
     lastReadRef.current = updated;
 
     try {
@@ -162,7 +184,7 @@ export function useUnreadChatMessages(userId: string | undefined) {
       setTotalUnread(Math.min(total, 99));
       return next;
     });
-  }, []);
+  }, [userId]);
 
   return { unreadByGroup, totalUnread, markGroupAsRead };
 }
