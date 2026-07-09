@@ -123,6 +123,7 @@ export default function ChatIndexScreen() {
   const [groups, setGroups] = useState<ChatGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [inviteLink, setInviteLink] = useState('https://rdnstreet.app');
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const { unreadByGroup, markGroupAsRead } = useUnreadChat();
@@ -217,6 +218,26 @@ export default function ChatIndexScreen() {
     loadGroups().finally(() => setLoading(false));
   }, [loadGroups]);
 
+  useEffect(() => {
+    const fetchInviteLink = async () => {
+      console.log('[Chat] Fetching invite link from app_settings');
+      const { data, error } = await supabase
+        .from('app_settings')
+        .select('setting_value')
+        .eq('setting_key', 'invite_link')
+        .maybeSingle();
+      if (error) {
+        console.error('[Chat] Error fetching invite link:', error);
+        return;
+      }
+      if (data?.setting_value) {
+        console.log('[Chat] Invite link loaded:', data.setting_value);
+        setInviteLink(data.setting_value);
+      }
+    };
+    fetchInviteLink();
+  }, []);
+
   const onRefresh = useCallback(async () => {
     console.log('[Chat] Pull-to-refresh triggered');
     setRefreshing(true);
@@ -230,11 +251,11 @@ export default function ChatIndexScreen() {
   };
 
   const handleInviteFriends = async () => {
-    console.log('[Chat] Invite friends button pressed');
+    console.log('[Chat] Invite friends button pressed, inviteLink:', inviteLink);
     try {
       const result = await Share.share({
-        message: 'Scarica RDN e unisciti ai miei gruppi! 🔥 Prenota articoli scontati con amici e parenti.',
-        url: 'https://rdnstreet.app',
+        message: `Scarica RDN e unisciti ai miei gruppi! 🔥 Prenota articoli scontati con amici e parenti.\n${inviteLink}`,
+        url: inviteLink,
       });
       console.log('[Chat] Share result:', result.action);
     } catch (err) {

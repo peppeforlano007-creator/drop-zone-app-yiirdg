@@ -29,6 +29,7 @@ interface PlatformSettings {
   enable_notifications: boolean;
   maintenance_mode: boolean;
   whatsapp_support_number: string;
+  invite_link: string;
   min_users_for_drop_suggestion: number;
 }
 
@@ -44,6 +45,7 @@ export default function SettingsScreen() {
     enable_notifications: true,
     maintenance_mode: false,
     whatsapp_support_number: '',
+    invite_link: '',
     min_users_for_drop_suggestion: 5,
   });
   const [loading, setLoading] = useState(true);
@@ -75,6 +77,7 @@ export default function SettingsScreen() {
         setSettings(prev => ({
           ...prev,
           whatsapp_support_number: settingsMap.get('whatsapp_support_number') || prev.whatsapp_support_number,
+          invite_link: settingsMap.get('invite_link') || prev.invite_link,
           drop_duration_days: parseInt(settingsMap.get('drop_duration_days') || String(prev.drop_duration_days)),
           min_drop_value: parseInt(settingsMap.get('min_drop_value') || String(prev.min_drop_value)),
           max_drop_value: parseInt(settingsMap.get('max_drop_value') || String(prev.max_drop_value)),
@@ -152,6 +155,11 @@ export default function SettingsScreen() {
                   key: 'whatsapp_support_number',
                   value: settings.whatsapp_support_number,
                   description: 'Numero WhatsApp per il supporto clienti (formato: codice paese + numero senza + o spazi)',
+                },
+                {
+                  key: 'invite_link',
+                  value: settings.invite_link,
+                  description: 'Link di invito app mostrato nel messaggio Invita amici e parenti nella sezione Gruppi',
                 },
                 {
                   key: 'drop_duration_days',
@@ -361,6 +369,50 @@ export default function SettingsScreen() {
                   </Text>
                 </View>
               )}
+            </View>
+          </View>
+
+          {/* Invite Link Section */}
+          <View style={styles.highlightedSection}>
+            <View style={styles.sectionHeader}>
+              <IconSymbol
+                ios_icon_name="link"
+                android_material_icon_name="link"
+                size={24}
+                color={colors.primary}
+              />
+              <Text style={styles.highlightedSectionTitle}>Link Invito App</Text>
+            </View>
+
+            <View style={styles.highlightedCard}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Link di invito</Text>
+                <Text style={styles.settingDescription}>
+                  Questo link viene condiviso quando un utente invita amici nella sezione Gruppi
+                </Text>
+              </View>
+              <TextInput
+                style={styles.textInput}
+                value={settings.invite_link}
+                onChangeText={(text) => updateSetting('invite_link', text)}
+                placeholder="https://..."
+                placeholderTextColor={colors.textTertiary}
+                keyboardType="url"
+                autoCapitalize="none"
+              />
+              {settings.invite_link ? (
+                <View style={styles.previewBox}>
+                  <IconSymbol
+                    ios_icon_name="checkmark.circle.fill"
+                    android_material_icon_name="check_circle"
+                    size={16}
+                    color={colors.success}
+                  />
+                  <Text style={styles.previewText}>
+                    Link configurato: {settings.invite_link}
+                  </Text>
+                </View>
+              ) : null}
             </View>
           </View>
 
