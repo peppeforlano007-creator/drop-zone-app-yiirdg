@@ -5,9 +5,11 @@ import { Stack, router } from 'expo-router';
 import FloatingTabBar, { TabBarItem } from '@/components/FloatingTabBar';
 import { colors } from '@/styles/commonStyles';
 import { useAuth } from '@/contexts/AuthContext';
+import { useUnreadChatMessages } from '@/hooks/useUnreadChatMessages';
 
 export default function TabLayout() {
   const { user, isAuthenticated } = useAuth();
+  const { totalUnread } = useUnreadChatMessages(user?.id);
 
   useEffect(() => {
     if (!isAuthenticated || user?.role !== 'consumer') {
@@ -32,6 +34,7 @@ export default function TabLayout() {
       label: 'Gruppi',
       icon: 'message.fill',
       androidIcon: 'chat',
+      badge: totalUnread,
     },
     {
       route: '/(tabs)/profile',

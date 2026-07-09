@@ -25,6 +25,7 @@ export interface TabBarItem {
   label: string;
   icon: string;
   androidIcon?: string;
+  badge?: number;
 }
 
 interface FloatingTabBarProps {
@@ -113,6 +114,10 @@ export default function FloatingTabBar({
             const isActive = currentIndex === index;
             const androidIconName = tab.androidIcon || iconMapping[tab.icon] || tab.icon;
             
+            const badgeCount = tab.badge ?? 0;
+            const badgeLabel = badgeCount > 99 ? '99+' : String(badgeCount);
+            const showBadge = badgeCount > 0;
+
             return (
               <TouchableOpacity
                 key={tab.route}
@@ -120,12 +125,19 @@ export default function FloatingTabBar({
                 onPress={() => handleTabPress(tab.route, index)}
                 activeOpacity={0.7}
               >
-                <IconSymbol
-                  ios_icon_name={tab.icon}
-                  android_material_icon_name={androidIconName}
-                  size={26}
-                  color={isActive ? colors.text : colors.textSecondary}
-                />
+                <View style={styles.iconWrapper}>
+                  <IconSymbol
+                    ios_icon_name={tab.icon}
+                    android_material_icon_name={androidIconName}
+                    size={26}
+                    color={isActive ? colors.text : colors.textSecondary}
+                  />
+                  {showBadge && (
+                    <View style={[styles.badge, badgeLabel.length > 2 && styles.badgeWide]}>
+                      <Text style={styles.badgeText}>{badgeLabel}</Text>
+                    </View>
+                  )}
+                </View>
                 <Text
                   style={[
                     styles.label,
@@ -193,5 +205,31 @@ const styles = StyleSheet.create({
     height: '100%',
     backgroundColor: colors.backgroundSecondary,
     margin: 4,
+  },
+  iconWrapper: {
+    position: 'relative',
+  },
+  badge: {
+    position: 'absolute',
+    top: -6,
+    right: -8,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#FF3B30',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 3,
+  },
+  badgeWide: {
+    minWidth: 22,
+    borderRadius: 8,
+  },
+  badgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '700',
+    fontFamily: 'System',
+    lineHeight: 12,
   },
 });

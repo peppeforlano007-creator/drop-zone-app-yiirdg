@@ -18,6 +18,7 @@ import { supabase } from '@/app/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { colors, layout } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
+import { useUnreadChatMessages } from '@/hooks/useUnreadChatMessages';
 
 interface ChatGroup {
   id: string;
@@ -48,7 +49,15 @@ function formatTime(dateStr: string): string {
   return date.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit' });
 }
 
-function GroupRow({ group, onPress }: { group: ChatGroup; onPress: () => void }) {
+function GroupRow({
+  group,
+  onPress,
+  unreadCount,
+}: {
+  group: ChatGroup;
+  onPress: () => void;
+  unreadCount: number;
+}) {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
 
@@ -71,6 +80,8 @@ function GroupRow({ group, onPress }: { group: ChatGroup; onPress: () => void })
     : 'Nessun messaggio ancora';
 
   const timeText = group.lastMessage ? formatTime(group.lastMessage.created_at) : '';
+  const showBadge = unreadCount > 0;
+  const badgeLabel = unreadCount > 99 ? '99+' : String(unreadCount);
 
   return (
     <TouchableOpacity
@@ -98,6 +109,11 @@ function GroupRow({ group, onPress }: { group: ChatGroup; onPress: () => void })
           <Ionicons name="people-outline" size={13} color={subtitleColor} />
         </View>
       </View>
+      {showBadge && (
+        <View style={[styles.groupBadge, badgeLabel.length > 2 && styles.groupBadgeWide]}>
+          <Text style={styles.groupBadgeText}>{badgeLabel}</Text>
+        </View>
+      )}
     </TouchableOpacity>
   );
 }
@@ -109,6 +125,7 @@ export default function ChatIndexScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
+  const { unreadByGroup, markGroupAsRead } = useUnreadChatMessages(user?.id);
 
   const bgColor = isDark ? '#000000' : '#F8F8F8';
   const headerBg = isDark ? '#1C1C1E' : '#FFFFFF';
@@ -247,6 +264,7 @@ export default function ChatIndexScreen() {
 
   const handleGroupPress = (groupId: string, groupName: string) => {
     console.log('[Chat] Group pressed:', groupId, groupName);
+    markGroupAsRead(groupId);
     router.push({ pathname: '/(tabs)/chat/[groupId]', params: { groupId, groupName } });
   };
 
@@ -271,6 +289,7 @@ export default function ChatIndexScreen() {
             <GroupRow
               group={item}
               onPress={() => handleGroupPress(item.id, item.name)}
+              unreadCount={unreadByGroup[item.id] ?? 0}
             />
           )}
           ListHeaderComponent={InviteBanner}
@@ -383,6 +402,27 @@ const styles = StyleSheet.create({
   memberCount: {
     fontSize: 12,
     fontFamily: 'System',
+  },
+  groupBadge: {
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#FF3B30',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 5,
+    marginLeft: 8,
+  },
+  groupBadgeWide: {
+    minWidth: 28,
+    borderRadius: 10,
+  },
+  groupBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '700',
+    fontFamily: 'System',
+    lineHeight: 13,
   },
   centered: {
     flex: 1,

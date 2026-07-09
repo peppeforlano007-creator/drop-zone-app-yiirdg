@@ -21,6 +21,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/app/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { colors } from '@/styles/commonStyles';
+import { useUnreadChatMessages } from '@/hooks/useUnreadChatMessages';
 
 interface Profile {
   full_name: string | null;
@@ -356,6 +357,7 @@ export default function GroupChatScreen() {
   const flatListRef = useRef<FlatList>(null);
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
+  const { markGroupAsRead } = useUnreadChatMessages(user?.id);
 
   const insets = useSafeAreaInsets();
 
@@ -449,6 +451,13 @@ export default function GroupChatScreen() {
     loadMessages().finally(() => setLoading(false));
   }, [loadMessages]);
 
+  // Mark group as read when screen opens
+  useEffect(() => {
+    if (!groupId) return;
+    console.log('[Chat] Marking group as read on open:', groupId);
+    markGroupAsRead(groupId);
+  }, [groupId, markGroupAsRead]);
+
   // Realtime subscription
   useEffect(() => {
     if (!groupId) return;
@@ -472,6 +481,11 @@ export default function GroupChatScreen() {
             if (exists) return prev;
             return [...prev, newMsg];
           });
+          // User is already in the chat — mark as read immediately
+          if (groupId) {
+            console.log('[Chat] Auto-marking group as read after realtime message:', groupId);
+            markGroupAsRead(groupId);
+          }
           setTimeout(() => {
             flatListRef.current?.scrollToEnd({ animated: true });
           }, 100);
@@ -483,7 +497,7 @@ export default function GroupChatScreen() {
       console.log('[Chat] Unsubscribing from realtime channel');
       supabase.removeChannel(channel);
     };
-  }, [groupId, buildMessage]);
+  }, [groupId, buildMessage, markGroupAsRead]);
 
   const sendMessage = async () => {
     const text = inputText.trim();
@@ -503,7 +517,36 @@ export default function GroupChatScreen() {
       console.error('[Chat] Error sending message:', error);
       Alert.alert('Errore', 'Impossibile inviare il messaggio. Riprova.');
       setInputText(text);
+      setSending(false);
+      return;
     }
+
+    // Fire-and-forget: invia notifiche push agli altri membri
+    console.log('[Chat] Invoking send-chat-notification for group:', groupId);
+    (async () => {
+      try {
+        const senderProfile = await supabase
+          .from('profiles')
+          .select('full_name')
+          .eq('user_id', user.id)
+          .single();
+
+        await supabase.functions.invoke('send-chat-notification', {
+          body: {
+            groupId,
+            senderId: user.id,
+            senderName: senderProfile.data?.full_name || 'Utente',
+            groupName: groupName || 'Gruppo',
+            messageContent: text,
+            messageType: 'text',
+          },
+        });
+        console.log('[Chat] send-chat-notification invoked successfully');
+      } catch (e) {
+        console.warn('[Chat] send-chat-notification error (non-fatal):', e);
+      }
+    })();
+
     setSending(false);
   };
 
@@ -524,7 +567,34 @@ export default function GroupChatScreen() {
     if (error) {
       console.error('[Chat] Error sending drop message:', error);
       Alert.alert('Errore', 'Impossibile condividere il drop. Riprova.');
+      return;
     }
+
+    // Fire-and-forget: invia notifiche push agli altri membri
+    console.log('[Chat] Invoking send-chat-notification (drop) for group:', groupId);
+    (async () => {
+      try {
+        const senderProfile = await supabase
+          .from('profiles')
+          .select('full_name')
+          .eq('user_id', user.id)
+          .single();
+
+        await supabase.functions.invoke('send-chat-notification', {
+          body: {
+            groupId,
+            senderId: user.id,
+            senderName: senderProfile.data?.full_name || 'Utente',
+            groupName: groupName || 'Gruppo',
+            messageContent: 'Drop condiviso',
+            messageType: 'drop',
+          },
+        });
+        console.log('[Chat] send-chat-notification (drop) invoked successfully');
+      } catch (e) {
+        console.warn('[Chat] send-chat-notification error (non-fatal):', e);
+      }
+    })();
   };
 
   const handleSettingsPress = () => {
