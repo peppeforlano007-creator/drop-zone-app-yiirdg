@@ -32,6 +32,7 @@ export default function LoginScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [whatsappNumber, setWhatsappNumber] = useState('');
   const [loadingWhatsapp, setLoadingWhatsapp] = useState(true);
+  const [showPhoneHint, setShowPhoneHint] = useState(false);
 
   useEffect(() => {
     loadWhatsAppNumber();
@@ -350,17 +351,26 @@ export default function LoginScreen() {
                   editable={!loading}
                 />
               </View>
-              <View style={styles.phoneHintBox}>
+              <Pressable
+                style={[styles.phoneHintBox, showPhoneHint && styles.phoneHintBoxExpanded]}
+                onPress={() => {
+                  console.log('[Login] Phone hint toggled:', !showPhoneHint);
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setShowPhoneHint(v => !v);
+                }}
+              >
                 <IconSymbol
-                  ios_icon_name="info.circle.fill"
+                  ios_icon_name={showPhoneHint ? 'info.circle.fill' : 'info.circle'}
                   android_material_icon_name="info"
                   size={16}
                   color={colors.primary}
                 />
-                <Text style={styles.phoneHint}>
-                  Tocca il prefisso per cambiare paese. Inserisci il numero senza il prefisso.
-                </Text>
-              </View>
+                {showPhoneHint && (
+                  <Text style={styles.phoneHint}>
+                    Tocca il prefisso per cambiare paese. Inserisci il numero senza il prefisso.
+                  </Text>
+                )}
+              </Pressable>
 
               <Text style={styles.inputLabel}>Password</Text>
               <View style={styles.passwordInputContainer}>
@@ -600,11 +610,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: colors.primary + '10',
     borderRadius: 8,
-    padding: 12,
+    padding: 10,
     marginBottom: 16,
     gap: 8,
     borderWidth: 1,
     borderColor: colors.primary + '30',
+    alignSelf: 'flex-start',
+  },
+  phoneHintBoxExpanded: {
+    alignSelf: 'stretch',
+    padding: 12,
   },
   phoneHint: {
     flex: 1,
