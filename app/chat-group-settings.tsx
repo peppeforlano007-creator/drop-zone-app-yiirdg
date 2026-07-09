@@ -217,6 +217,7 @@ export default function ChatGroupSettingsScreen() {
         .from('profiles')
         .select('user_id, full_name, phone')
         .or(`full_name.ilike.%${q}%,phone.ilike.%${q}%`)
+        .eq('role', 'consumer')
         .neq('user_id', user?.id ?? '')
         .limit(20);
 
