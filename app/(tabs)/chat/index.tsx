@@ -18,7 +18,7 @@ import { supabase } from '@/app/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { colors, layout } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
-import { useUnreadChatMessages } from '@/hooks/useUnreadChatMessages';
+import { useUnreadChat } from '@/contexts/UnreadChatContext';
 
 interface ChatGroup {
   id: string;
@@ -125,7 +125,7 @@ export default function ChatIndexScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
-  const { unreadByGroup, markGroupAsRead } = useUnreadChatMessages(user?.id);
+  const { unreadByGroup, markGroupAsRead } = useUnreadChat();
 
   const bgColor = isDark ? '#000000' : '#F8F8F8';
   const headerBg = isDark ? '#1C1C1E' : '#FFFFFF';

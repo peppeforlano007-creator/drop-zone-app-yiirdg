@@ -5,11 +5,11 @@ import { Stack, router } from 'expo-router';
 import FloatingTabBar, { TabBarItem } from '@/components/FloatingTabBar';
 import { colors } from '@/styles/commonStyles';
 import { useAuth } from '@/contexts/AuthContext';
-import { useUnreadChatMessages } from '@/hooks/useUnreadChatMessages';
+import { UnreadChatProvider, useUnreadChat } from '@/contexts/UnreadChatContext';
 
-export default function TabLayout() {
+function TabLayoutInner() {
   const { user, isAuthenticated } = useAuth();
-  const { totalUnread } = useUnreadChatMessages(user?.id);
+  const { totalUnread } = useUnreadChat();
 
   useEffect(() => {
     if (!isAuthenticated || user?.role !== 'consumer') {
@@ -57,5 +57,13 @@ export default function TabLayout() {
       <Stack screenOptions={{ headerShown: true }} />
       <FloatingTabBar tabs={tabs} />
     </>
+  );
+}
+
+export default function TabLayout() {
+  return (
+    <UnreadChatProvider>
+      <TabLayoutInner />
+    </UnreadChatProvider>
   );
 }

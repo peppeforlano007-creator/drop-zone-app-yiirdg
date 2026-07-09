@@ -21,7 +21,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/app/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { colors } from '@/styles/commonStyles';
-import { useUnreadChatMessages } from '@/hooks/useUnreadChatMessages';
+import { useUnreadChat } from '@/contexts/UnreadChatContext';
 
 interface Profile {
   full_name: string | null;
@@ -357,7 +357,7 @@ export default function GroupChatScreen() {
   const flatListRef = useRef<FlatList>(null);
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
-  const { markGroupAsRead } = useUnreadChatMessages(user?.id);
+  const { markGroupAsRead } = useUnreadChat();
 
   const insets = useSafeAreaInsets();
 
