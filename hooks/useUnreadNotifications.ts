@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import * as Notifications from 'expo-notifications';
 import { supabase } from '@/app/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -23,7 +24,16 @@ export function useUnreadNotifications() {
           .select('*', { count: 'exact', head: true })
           .eq('user_id', user.id)
           .eq('read', false);
-        if (isMounted) setUnreadCount(count || 0);
+        if (isMounted) {
+          const unread = count || 0;
+          setUnreadCount(unread);
+          console.log('[useUnreadNotifications] Badge sync:', unread);
+          try {
+            await Notifications.setBadgeCountAsync(unread);
+          } catch (e) {
+            console.warn('[useUnreadNotifications] setBadgeCountAsync error:', e);
+          }
+        }
       } catch (e) {
         console.warn('[useUnreadNotifications] loadCount error:', e);
       }

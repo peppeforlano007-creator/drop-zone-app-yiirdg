@@ -12,7 +12,7 @@ try {
     handleNotification: async () => ({
       shouldShowAlert: true,
       shouldPlaySound: true,
-      shouldSetBadge: true,
+      shouldSetBadge: false, // badge gestito manualmente tramite setBadgeCountAsync
     }),
   });
   console.log('[PushNotifications] setNotificationHandler registered');
