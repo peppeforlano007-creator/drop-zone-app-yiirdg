@@ -52,11 +52,23 @@ export function validatePhoneNumber(
     : cleanPhone;
   
   // Check if phone number has the correct length for the country
-  if (phoneWithoutLeadingZero.length !== country.digits) {
-    return { 
-      valid: false, 
-      message: `Il numero deve contenere ${country.digits} cifre per ${country.country}` 
-    };
+  if (countryCode === '39') {
+    // Numeri italiani: 9 o 10 cifre
+    if (phoneWithoutLeadingZero.length < 9 || phoneWithoutLeadingZero.length > 10) {
+      console.log('[validatePhoneNumber] Italian number length invalid:', phoneWithoutLeadingZero.length);
+      return {
+        valid: false,
+        message: `Il numero deve contenere 9 o 10 cifre per l'Italia`,
+      };
+    }
+  } else {
+    if (phoneWithoutLeadingZero.length !== country.digits) {
+      console.log('[validatePhoneNumber] Number length invalid:', phoneWithoutLeadingZero.length, 'expected:', country.digits);
+      return { 
+        valid: false, 
+        message: `Il numero deve contenere ${country.digits} cifre per ${country.country}` 
+      };
+    }
   }
   
   // Specific validation for Italian numbers

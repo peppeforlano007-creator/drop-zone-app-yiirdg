@@ -13,7 +13,7 @@ export interface CountryCode {
 }
 
 export const COUNTRY_CODES: CountryCode[] = [
-  { code: '39', country: 'Italia', flag: '🇮🇹', digits: 10 },
+  { code: '39', country: 'Italia', flag: '🇮🇹', digits: 9 },
   { code: '1', country: 'USA/Canada', flag: '🇺🇸', digits: 10 },
   { code: '44', country: 'Regno Unito', flag: '🇬🇧', digits: 10 },
   { code: '33', country: 'Francia', flag: '🇫🇷', digits: 9 },
