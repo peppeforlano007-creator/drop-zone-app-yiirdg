@@ -505,18 +505,7 @@ export default function LoginScreen() {
                 />
               </Pressable>
 
-              <View style={styles.infoBox}>
-                <IconSymbol
-                  ios_icon_name="info.circle.fill"
-                  android_material_icon_name="info"
-                  size={18}
-                  color={colors.info}
-                />
-                <Text style={styles.infoText}>
-                  Sei un punto di ritiro o un amministratore? Le credenziali di accesso ti verranno fornite dall&apos;amministratore. 
-                  Gli account amministratore e punto di ritiro utilizzano l&apos;email per l&apos;accesso.
-                </Text>
-              </View>
+
             </View>
 
             {/* Admin/Pickup Point Login Link - More visible but still discreet */}
@@ -700,23 +689,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: colors.primary,
   },
-  infoBox: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    backgroundColor: colors.info + '10',
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: colors.info + '30',
-    gap: 12,
-    marginBottom: 24,
-  },
-  infoText: {
-    flex: 1,
-    fontSize: 13,
-    color: colors.text,
-    lineHeight: 20,
-  },
+
   divider: {
     flexDirection: 'row',
     alignItems: 'center',
