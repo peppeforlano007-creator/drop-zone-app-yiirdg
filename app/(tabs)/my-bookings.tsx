@@ -12,7 +12,6 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  Platform,
   Pressable,
   Alert,
   RefreshControl,
@@ -24,25 +23,23 @@ interface Booking {
   id: string;
   product_id: string;
   drop_id: string;
+  pickup_point_id: string;
   original_price: number;
   authorized_amount: number;
   discount_percentage: number;
   final_price: number;
-  payment_status: 'pending' | 'authorized' | 'captured' | 'failed' | 'refunded';
+  loyalty_discount: number;
+  payment_status: string;
   status: 'active' | 'confirmed' | 'cancelled' | 'completed';
   created_at: string;
-  updated_at: string;
-  loyalty_discount: number;
-  products: {
-    name: string;
-    image_url: string;
-  } | null;
+  products: { name: string; image_url: string } | null;
   drops: {
     name: string;
     current_discount: number;
     current_value: number;
     end_time: string;
     status: string;
+    final_discount_percentage?: number | null;
     supplier_lists: {
       name: string;
       max_discount: number;
@@ -51,61 +48,174 @@ interface Booking {
       max_reservation_value: number;
     } | null;
   } | null;
+  pickup_points: { name: string; address: string; city: string } | null;
+  order_items: { pickup_status: string | null; picked_up_at: string | null }[];
+}
+
+interface PickupGroup {
+  pickupPointId: string;
+  pickupPointName: string;
+  pickupPointAddress: string;
+  bookings: Booking[];
+  subtotal: number;
+  allPickedUp: boolean;
+}
+
+interface DropGroup {
+  dropId: string;
+  dropName: string;
+  dropStatus: string;
+  pickupGroups: PickupGroup[];
+  allPickedUp: boolean;
+}
+
+function buildDropGroups(bookings: Booking[]): DropGroup[] {
+  const dropMap = new Map<string, DropGroup>();
+
+  for (const booking of bookings) {
+    const dropId = booking.drop_id;
+    const dropName = booking.drops?.name ?? 'Drop';
+    const dropStatus = booking.drops?.status ?? 'unknown';
+    const pickupPointId = booking.pickup_point_id ?? 'unknown';
+    const pickupPointName = booking.pickup_points?.name ?? 'Punto di ritiro';
+    const pickupPointAddress = booking.pickup_points
+      ? `${booking.pickup_points.address}, ${booking.pickup_points.city}`
+      : '';
+
+    if (!dropMap.has(dropId)) {
+      dropMap.set(dropId, {
+        dropId,
+        dropName,
+        dropStatus,
+        pickupGroups: [],
+        allPickedUp: false,
+      });
+    }
+
+    const dropGroup = dropMap.get(dropId)!;
+    let pickupGroup = dropGroup.pickupGroups.find(
+      (pg) => pg.pickupPointId === pickupPointId
+    );
+
+    if (!pickupGroup) {
+      pickupGroup = {
+        pickupPointId,
+        pickupPointName,
+        pickupPointAddress,
+        bookings: [],
+        subtotal: 0,
+        allPickedUp: false,
+      };
+      dropGroup.pickupGroups.push(pickupGroup);
+    }
+
+    pickupGroup.bookings.push(booking);
+  }
+
+  // Compute subtotals and allPickedUp flags
+  for (const dropGroup of dropMap.values()) {
+    for (const pg of dropGroup.pickupGroups) {
+      pg.allPickedUp = pg.bookings.every(
+        (b) => b.order_items[0]?.pickup_status === 'picked_up'
+      );
+      pg.subtotal = pg.bookings
+        .filter((b) => b.order_items[0]?.pickup_status !== 'picked_up')
+        .reduce((sum, b) => sum + (typeof b.final_price === 'number' ? b.final_price : 0), 0);
+    }
+    dropGroup.allPickedUp = dropGroup.pickupGroups.every((pg) => pg.allPickedUp);
+  }
+
+  const groups = Array.from(dropMap.values());
+
+  // Sort: active first, then completed non-picked-up, then fully picked-up last
+  groups.sort((a, b) => {
+    const order = (g: DropGroup) => {
+      if (g.allPickedUp) return 2;
+      if (g.dropStatus === 'active') return 0;
+      return 1;
+    };
+    return order(a) - order(b);
+  });
+
+  return groups;
+}
+
+function getDropBadgeLabel(status: string): string {
+  switch (status) {
+    case 'active':
+      return 'IN CORSO';
+    case 'completed':
+      return 'COMPLETATO';
+    case 'expired':
+      return 'SCADUTO';
+    case 'underfunded':
+      return 'NON FINANZIATO';
+    case 'cancelled':
+      return 'ANNULLATO';
+    default:
+      return status.toUpperCase();
+  }
+}
+
+function getDropBadgeColor(status: string): string {
+  switch (status) {
+    case 'active':
+      return colors.success;
+    case 'completed':
+      return colors.info;
+    case 'expired':
+    case 'underfunded':
+    case 'cancelled':
+      return colors.error;
+    default:
+      return colors.textSecondary;
+  }
 }
 
 export default function MyBookingsScreen() {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [historyExpanded, setHistoryExpanded] = useState(false);
   const { user } = useAuth();
   const unreadCount = useUnreadNotifications();
 
   const loadBookings = useCallback(async () => {
     if (!user) {
-      console.log('No user, skipping bookings load');
+      console.log('[MyBookings] No user, skipping bookings load');
       setLoading(false);
       return;
     }
 
     try {
-      console.log('Loading bookings for user:', user.id);
-      
+      console.log('[MyBookings] Loading bookings for user:', user.id);
+
       const { data, error } = await supabase
         .from('bookings')
         .select(`
           *,
-          products (
-            name,
-            image_url
-          ),
+          products (name, image_url),
           drops (
-            name,
-            current_discount,
-            current_value,
-            end_time,
-            status,
-            supplier_lists (
-              name,
-              max_discount,
-              min_discount,
-              min_reservation_value,
-              max_reservation_value
-            )
-          )
+            name, current_discount, current_value, end_time, status, final_discount_percentage,
+            supplier_lists (name, max_discount, min_discount, min_reservation_value, max_reservation_value)
+          ),
+          pickup_points (name, address, city),
+          order_items (pickup_status, picked_up_at)
         `)
         .eq('user_id', user.id)
+        .neq('status', 'cancelled')
         .order('created_at', { ascending: false });
 
       if (error) {
-        console.error('Error loading bookings:', error);
+        console.error('[MyBookings] Error loading bookings:', error);
         Alert.alert('Errore', 'Impossibile caricare le prenotazioni');
         return;
       }
 
-      console.log('Bookings loaded:', data?.length);
-      setBookings(data || []);
-    } catch (error) {
-      console.error('Error in loadBookings:', error);
+      console.log('[MyBookings] Bookings loaded:', data?.length);
+      setBookings((data as Booking[]) || []);
+    } catch (err) {
+      console.error('[MyBookings] Error in loadBookings:', err);
       Alert.alert('Errore', 'Si è verificato un errore');
     } finally {
       setLoading(false);
@@ -118,11 +228,13 @@ export default function MyBookingsScreen() {
   }, [loadBookings]);
 
   const handleRefresh = () => {
+    console.log('[MyBookings] Pull-to-refresh triggered');
     setRefreshing(true);
     loadBookings();
   };
 
   const handleCancelBooking = (bookingId: string, productName: string) => {
+    console.log('[MyBookings] Cancel booking pressed:', bookingId, productName);
     Alert.alert(
       'Annulla Prenotazione',
       `Sei sicuro di voler annullare la prenotazione per "${productName}"?`,
@@ -133,6 +245,7 @@ export default function MyBookingsScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
+              console.log('[MyBookings] Confirming cancel for booking:', bookingId);
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
               const { error } = await supabase
@@ -145,16 +258,17 @@ export default function MyBookingsScreen() {
                 .eq('id', bookingId);
 
               if (error) {
-                console.error('Error cancelling booking:', error);
+                console.error('[MyBookings] Error cancelling booking:', error);
                 Alert.alert('Errore', 'Impossibile annullare la prenotazione');
                 return;
               }
 
+              console.log('[MyBookings] Booking cancelled successfully:', bookingId);
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
               Alert.alert('Successo', 'Prenotazione annullata con successo.');
               loadBookings();
-            } catch (error) {
-              console.error('Error in handleCancelBooking:', error);
+            } catch (err) {
+              console.error('[MyBookings] Error in handleCancelBooking:', err);
               Alert.alert('Errore', 'Si è verificato un errore');
             }
           },
@@ -165,104 +279,50 @@ export default function MyBookingsScreen() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'active':
-        return colors.success;
-      case 'confirmed':
-        return colors.primary;
-      case 'cancelled':
-        return colors.error;
-      case 'completed':
-        return colors.info;
-      default:
-        return colors.textSecondary;
+      case 'active': return colors.success;
+      case 'confirmed': return colors.primary;
+      case 'cancelled': return colors.error;
+      case 'completed': return colors.info;
+      default: return colors.textSecondary;
     }
   };
 
   const getStatusText = (status: string) => {
     switch (status) {
-      case 'active':
-        return 'Attiva';
-      case 'confirmed':
-        return 'Confermata';
-      case 'cancelled':
-        return 'Annullata';
-      case 'completed':
-        return 'Completata';
-      default:
-        return status;
+      case 'active': return 'Attiva';
+      case 'confirmed': return 'Confermata';
+      case 'cancelled': return 'Annullata';
+      case 'completed': return 'Completata';
+      default: return status;
     }
   };
 
   const getPaymentStatusColor = (status: string) => {
     switch (status) {
-      case 'pending':
-        return colors.warning;
-      case 'authorized':
-        return colors.info;
-      case 'captured':
-        return colors.success;
-      case 'failed':
-        return colors.error;
-      case 'refunded':
-        return colors.textSecondary;
-      default:
-        return colors.textSecondary;
+      case 'pending': return colors.warning;
+      case 'authorized': return colors.info;
+      case 'captured': return colors.success;
+      case 'failed': return colors.error;
+      case 'refunded': return colors.textSecondary;
+      default: return colors.textSecondary;
     }
   };
 
   const getPaymentStatusText = (status: string) => {
     switch (status) {
-      case 'pending':
-        return 'In Attesa';
-      case 'authorized':
-        return 'Autorizzato';
-      case 'captured':
-        return 'Addebitato';
-      case 'failed':
-        return 'Fallito';
-      case 'refunded':
-        return 'Rimborsato';
-      default:
-        return status;
+      case 'pending': return 'In Attesa';
+      case 'authorized': return 'Autorizzato';
+      case 'captured': return 'Addebitato';
+      case 'failed': return 'Fallito';
+      case 'refunded': return 'Rimborsato';
+      default: return status;
     }
-  };
-
-  const getDropStatusMessage = (drop: any) => {
-    if (!drop) return null;
-    
-    if (drop.status === 'underfunded') {
-      return {
-        text: '⚠️ Drop non finanziato',
-        color: '#FF6B35',
-        description: 'Questo drop non ha raggiunto l\'ordine minimo. La prenotazione è stata annullata e non verrà addebitato nulla.',
-      };
-    }
-    if (drop.status === 'expired') {
-      return {
-        text: '⏰ Drop scaduto',
-        color: colors.error,
-        description: 'Questo drop è scaduto senza raggiungere l\'obiettivo.',
-      };
-    }
-    if (drop.status === 'cancelled') {
-      return {
-        text: '❌ Drop annullato',
-        color: colors.error,
-        description: 'Questo drop è stato annullato.',
-      };
-    }
-    return null;
   };
 
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
-        <Stack.Screen
-          options={{
-            title: 'Le Mie Prenotazioni',
-            headerShown: true,
-          }}
-        />
+        <Stack.Screen options={{ title: 'Le Mie Prenotazioni', headerShown: true }} />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={colors.primary} />
           <Text style={styles.loadingText}>Caricamento prenotazioni...</Text>
@@ -274,14 +334,14 @@ export default function MyBookingsScreen() {
   if (!user) {
     return (
       <SafeAreaView style={styles.container}>
-        <Stack.Screen
-          options={{
-            title: 'Le Mie Prenotazioni',
-            headerShown: true,
-          }}
-        />
+        <Stack.Screen options={{ title: 'Le Mie Prenotazioni', headerShown: true }} />
         <View style={styles.emptyContainer}>
-          <IconSymbol ios_icon_name="person.crop.circle.badge.exclamationmark" android_material_icon_name="account_circle" size={64} color={colors.textSecondary} />
+          <IconSymbol
+            ios_icon_name="person.crop.circle.badge.exclamationmark"
+            android_material_icon_name="account_circle"
+            size={64}
+            color={colors.textSecondary}
+          />
           <Text style={styles.emptyTitle}>Accesso richiesto</Text>
           <Text style={styles.emptyText}>
             Effettua l&apos;accesso per visualizzare le tue prenotazioni
@@ -291,7 +351,200 @@ export default function MyBookingsScreen() {
     );
   }
 
-  const bookingsBellCountText = unreadCount > 99 ? '99+' : String(unreadCount);
+  const dropGroups = buildDropGroups(bookings);
+  const activeGroups = dropGroups.filter((g) => !g.allPickedUp);
+  const historyGroups = dropGroups.filter((g) => g.allPickedUp);
+
+  // Total to pay: confirmed bookings not yet picked up
+  const totalToPay = bookings
+    .filter(
+      (b) =>
+        b.status === 'confirmed' &&
+        b.order_items[0]?.pickup_status !== 'picked_up'
+    )
+    .reduce(
+      (sum, b) => sum + (typeof b.final_price === 'number' ? b.final_price : 0),
+      0
+    );
+
+  const bellCountText = unreadCount > 99 ? '99+' : String(unreadCount);
+
+  const renderBookingRow = (booking: Booking) => {
+    const isPickedUp = booking.order_items[0]?.pickup_status === 'picked_up';
+    const productName = booking.products?.name ?? 'Prodotto';
+    const dropStatus = booking.drops?.status ?? 'unknown';
+    const isDropCompleted = dropStatus === 'completed';
+    const originalPrice = typeof booking.original_price === 'number' ? booking.original_price : 0;
+    const finalPrice = typeof booking.final_price === 'number' ? booking.final_price : 0;
+    const authorizedAmount = typeof booking.authorized_amount === 'number' ? booking.authorized_amount : 0;
+    const discountPercentage = typeof booking.discount_percentage === 'number' ? booking.discount_percentage : 0;
+    const loyaltyDiscount = Number(booking.loyalty_discount ?? 0);
+    const currentDiscount = booking.drops?.current_discount ?? 0;
+    const maxDiscount = booking.drops?.supplier_lists?.max_discount ?? 100;
+    const canCancel = booking.status === 'active' && dropStatus === 'active';
+    const isRefunded = booking.payment_status === 'refunded';
+
+    const discountBadgeText = `-${discountPercentage.toFixed(1)}%`;
+    const originalPriceText = `€${originalPrice.toFixed(2)}`;
+    const finalPriceText = `€${finalPrice.toFixed(2)}`;
+    const authorizedAmountText = `€${authorizedAmount.toFixed(2)}`;
+    const progressWidth = maxDiscount > 0 ? `${Math.min((currentDiscount / maxDiscount) * 100, 100)}%` as `${number}%` : '0%' as `${number}%`;
+
+    console.log('[MyBookings] Rendering booking row:', {
+      bookingId: booking.id,
+      productName,
+      isPickedUp,
+      discountPercentage,
+      loyaltyDiscount,
+      finalPrice,
+    });
+
+    return (
+      <View key={booking.id} style={styles.bookingRow}>
+        {/* Product name + status badges */}
+        <View style={styles.bookingRowHeader}>
+          <Text style={styles.bookingProductName}>{productName}</Text>
+          <View style={styles.rowBadges}>
+            <View style={[styles.statusBadge, { backgroundColor: getStatusColor(booking.status) + '20' }]}>
+              <Text style={[styles.statusText, { color: getStatusColor(booking.status) }]}>
+                {getStatusText(booking.status)}
+              </Text>
+            </View>
+            <View style={[styles.statusBadge, { backgroundColor: getPaymentStatusColor(booking.payment_status) + '20' }]}>
+              <Text style={[styles.statusText, { color: getPaymentStatusColor(booking.payment_status) }]}>
+                {getPaymentStatusText(booking.payment_status)}
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Price line */}
+        {isPickedUp ? (
+          <View style={styles.pickedUpRow}>
+            <Text style={styles.pickedUpBadge}>
+              ✅ Ritirato
+            </Text>
+            <Text style={styles.pickedUpPrice}>{finalPriceText}</Text>
+          </View>
+        ) : (
+          <View style={styles.priceLineRow}>
+            <View style={styles.priceLineLeft}>
+              <Text style={styles.originalPriceText}>{originalPriceText}</Text>
+              <Text style={styles.arrowText}>→</Text>
+              <Text style={styles.finalPriceInline}>{finalPriceText}</Text>
+              {discountPercentage > 0 && (
+                <View style={styles.discountBadge}>
+                  <Text style={styles.discountBadgeText}>{discountBadgeText}</Text>
+                </View>
+              )}
+            </View>
+          </View>
+        )}
+
+        {/* Loyalty discount */}
+        {isDropCompleted && loyaltyDiscount > 0 && (
+          <Text style={styles.loyaltyLine}>
+            Sconto fedeltà: +{loyaltyDiscount.toFixed(1)}%
+          </Text>
+        )}
+
+        {/* Authorized amount (non-completed drops) */}
+        {!isDropCompleted && (
+          <View style={styles.authorizedRow}>
+            <Text style={styles.authorizedLabel}>Importo prenotato:</Text>
+            <Text style={[styles.authorizedValue, isRefunded && styles.refundedAmount]}>
+              {authorizedAmountText}
+              {isRefunded ? ' (Annullato)' : ''}
+            </Text>
+          </View>
+        )}
+
+        {/* Active drop progress bar */}
+        {dropStatus === 'active' && !isPickedUp && (
+          <View style={styles.discountProgress}>
+            <Text style={styles.discountProgressLabel}>
+              Sconto attuale: {currentDiscount.toFixed(1)}%
+              {' '}(max {maxDiscount}%)
+            </Text>
+            <View style={styles.progressBar}>
+              <View style={[styles.progressFill, { width: progressWidth }]} />
+            </View>
+            <Text style={styles.discountHint}>
+              💡 Condividi il drop per aumentare lo sconto!
+            </Text>
+          </View>
+        )}
+
+        {/* Cancel button */}
+        {canCancel && (
+          <Pressable
+            style={({ pressed }) => [styles.cancelButton, pressed && styles.cancelButtonPressed]}
+            onPress={() => {
+              console.log('[MyBookings] Cancel button pressed for booking:', booking.id);
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              handleCancelBooking(booking.id, productName);
+            }}
+          >
+            <IconSymbol
+              ios_icon_name="xmark.circle"
+              android_material_icon_name="cancel"
+              size={16}
+              color={colors.error}
+            />
+            <Text style={styles.cancelButtonText}>Annulla Prenotazione</Text>
+          </Pressable>
+        )}
+      </View>
+    );
+  };
+
+  const renderPickupGroup = (pg: PickupGroup, dimmed: boolean) => {
+    const subtotalText = `€${pg.subtotal.toFixed(2)}`;
+    return (
+      <View key={pg.pickupPointId} style={[styles.pickupGroup, dimmed && styles.dimmed]}>
+        <View style={styles.pickupGroupHeader}>
+          <IconSymbol
+            ios_icon_name="mappin.circle.fill"
+            android_material_icon_name="location_on"
+            size={16}
+            color={colors.textSecondary}
+          />
+          <Text style={styles.pickupGroupName}>{pg.pickupPointName}</Text>
+          {pg.pickupPointAddress ? (
+            <Text style={styles.pickupGroupAddress}>{pg.pickupPointAddress}</Text>
+          ) : null}
+        </View>
+
+        {pg.bookings.map((b) => renderBookingRow(b))}
+
+        {!pg.allPickedUp && (
+          <View style={styles.subtotalRow}>
+            <Text style={styles.subtotalLabel}>Subtotale:</Text>
+            <Text style={styles.subtotalValue}>{subtotalText}</Text>
+          </View>
+        )}
+      </View>
+    );
+  };
+
+  const renderDropGroup = (group: DropGroup, dimmed: boolean) => {
+    const badgeLabel = getDropBadgeLabel(group.dropStatus);
+    const badgeColor = getDropBadgeColor(group.dropStatus);
+
+    return (
+      <View key={group.dropId} style={[styles.dropGroupCard, dimmed && styles.dimmed]}>
+        <View style={styles.dropGroupHeader}>
+          <Text style={styles.dropGroupIcon}>📦</Text>
+          <Text style={styles.dropGroupName}>{group.dropName}</Text>
+          <View style={[styles.dropBadge, { backgroundColor: badgeColor + '22' }]}>
+            <Text style={[styles.dropBadgeText, { color: badgeColor }]}>{badgeLabel}</Text>
+          </View>
+        </View>
+
+        {group.pickupGroups.map((pg) => renderPickupGroup(pg, dimmed))}
+      </View>
+    );
+  };
 
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>
@@ -315,9 +568,7 @@ export default function MyBookingsScreen() {
               />
               {unreadCount > 0 && (
                 <View style={styles.bellBadge}>
-                  <Text style={styles.bellBadgeText}>
-                    {bookingsBellCountText}
-                  </Text>
+                  <Text style={styles.bellBadgeText}>{bellCountText}</Text>
                 </View>
               )}
             </Pressable>
@@ -327,7 +578,12 @@ export default function MyBookingsScreen() {
 
       {bookings.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <IconSymbol ios_icon_name="bag" android_material_icon_name="shopping_bag" size={64} color={colors.textSecondary} />
+          <IconSymbol
+            ios_icon_name="bag"
+            android_material_icon_name="shopping_bag"
+            size={64}
+            color={colors.textSecondary}
+          />
           <Text style={styles.emptyTitle}>Nessuna prenotazione</Text>
           <Text style={styles.emptyText}>
             Le tue prenotazioni appariranno qui quando prenoti un prodotto in un drop attivo
@@ -346,168 +602,46 @@ export default function MyBookingsScreen() {
             />
           }
         >
-          {bookings.map((booking) => {
-            const dropStatusMessage = getDropStatusMessage(booking.drops);
-            const canCancel = booking.status === 'active' && booking.drops?.status === 'active';
-            const isRefunded = booking.payment_status === 'refunded';
-            
-            // Safe access to nested properties with null checks and fallbacks
-            const productName = booking.products?.name || 'Prodotto';
-            const dropName = booking.drops?.name || 'Drop';
-            const supplierName = booking.drops?.supplier_lists?.name || 'Fornitore';
-            const currentDiscount = booking.drops?.current_discount ?? 0;
-            const maxDiscount = booking.drops?.supplier_lists?.max_discount ?? 100;
-            const dropStatus = booking.drops?.status || 'unknown';
-            const isDropCompleted = dropStatus === 'completed';
+          {/* Total to pay banner */}
+          {totalToPay > 0 && (
+            <View style={styles.totalBanner}>
+              <Text style={styles.totalBannerLabel}>💰 TOTALE DA PAGARE AL RITIRO</Text>
+              <Text style={styles.totalBannerAmount}>€{totalToPay.toFixed(2)}</Text>
+            </View>
+          )}
 
-            // Always use the stored discount_percentage — for completed drops this is the
-            // uniform final discount set by capture-drop-payments; for active drops it is
-            // the discount at booking time (shown as current progress).
-            const displayDiscountPercentage = typeof booking.discount_percentage === 'number' ? booking.discount_percentage : 0;
-            
-            // Safe number handling with fallbacks
-            const originalPrice = typeof booking.original_price === 'number' ? booking.original_price : 0;
-            const authorizedAmount = typeof booking.authorized_amount === 'number' ? booking.authorized_amount : 0;
-            const discountPercentage = displayDiscountPercentage;
-            const finalPrice = typeof booking.final_price === 'number' ? booking.final_price : 0;
-            const loyaltyDiscount = Number(booking.loyalty_discount ?? 0);
-            console.log('[MyBookings] Booking discount details:', { bookingId: booking.id, loyaltyDiscount, discountPercentage, finalPrice });
+          {/* Active / non-picked-up drop groups */}
+          {activeGroups.map((g) => renderDropGroup(g, false))}
 
-            return (
-              <View key={booking.id} style={styles.bookingCard}>
-                <View style={styles.bookingHeader}>
-                  <View style={styles.bookingInfo}>
-                    <Text style={styles.productName}>{productName}</Text>
-                    <Text style={styles.dropName}>
-                      Drop: {dropName}
-                    </Text>
-                    <Text style={styles.supplierName}>
-                      {supplierName}
-                    </Text>
-                  </View>
-                  <View style={styles.statusBadges}>
-                    <View style={[styles.statusBadge, { backgroundColor: getStatusColor(booking.status) + '20' }]}>
-                      <Text style={[styles.statusText, { color: getStatusColor(booking.status) }]}>
-                        {getStatusText(booking.status)}
-                      </Text>
-                    </View>
-                    <View style={[styles.statusBadge, { backgroundColor: getPaymentStatusColor(booking.payment_status) + '20' }]}>
-                      <Text style={[styles.statusText, { color: getPaymentStatusColor(booking.payment_status) }]}>
-                        {getPaymentStatusText(booking.payment_status)}
-                      </Text>
-                    </View>
-                  </View>
-                </View>
-
-                {dropStatusMessage && (
-                  <View style={[styles.dropStatusMessage, { backgroundColor: dropStatusMessage.color + '20' }]}>
-                    <Text style={[styles.dropStatusText, { color: dropStatusMessage.color }]}>
-                      {dropStatusMessage.text}
-                    </Text>
-                    <Text style={styles.dropStatusDescription}>
-                      {dropStatusMessage.description}
-                    </Text>
-                  </View>
-                )}
-
-                <View style={styles.priceInfo}>
-                  <View style={styles.priceRow}>
-                    <Text style={styles.priceLabel}>Prezzo originale:</Text>
-                    <Text style={styles.priceValue}>€{originalPrice.toFixed(2)}</Text>
-                  </View>
-                  <View style={styles.priceRow}>
-                    <Text style={styles.priceLabel}>{isDropCompleted && finalPrice > 0 ? 'Sconto drop:' : 'Sconto prenotazione:'}</Text>
-                    <Text style={styles.discountValue}>{discountPercentage.toFixed(1)}%</Text>
-                  </View>
-                  {isDropCompleted && finalPrice > 0 && loyaltyDiscount > 0 && (
-                    <View style={styles.priceRow}>
-                      <Text style={styles.priceLabel}>Sconto fedeltà:</Text>
-                      <Text style={styles.loyaltyDiscountValue}>−{loyaltyDiscount.toFixed(1)}%</Text>
-                    </View>
-                  )}
-                  <View style={styles.priceRow}>
-                    <Text style={styles.priceLabel}>Importo prenotato:</Text>
-                    <Text style={[styles.priceValue, isRefunded && styles.refundedAmount]}>
-                      €{authorizedAmount.toFixed(2)}
-                      {isRefunded && ' (Annullato)'}
-                    </Text>
-                  </View>
-                  {isDropCompleted && finalPrice > 0 && (
-                    <>
-                      <View style={[styles.priceRow, styles.finalPriceRow]}>
-                        <Text style={styles.finalPriceLabel}>Da pagare al ritiro:</Text>
-                        <Text style={styles.finalPriceValue}>€{finalPrice.toFixed(2)}</Text>
-                      </View>
-                      <Text style={styles.cashPaymentHint}>ℹ️ Paga al momento del ritiro</Text>
-                    </>
-                  )}
-                  {!isDropCompleted && finalPrice > 0 && (
-                    <View style={[styles.priceRow, styles.finalPriceRow]}>
-                      <Text style={styles.finalPriceLabel}>Importo finale:</Text>
-                      <Text style={styles.finalPriceValue}>€{finalPrice.toFixed(2)}</Text>
-                    </View>
-                  )}
-                </View>
-
-                {isDropCompleted ? (
-                  <View style={styles.completedDropSummary}>
-                    <Text style={styles.completedDropSummaryText}>
-                      ✅ Drop completato — Sconto finale: {discountPercentage.toFixed(1)}%{loyaltyDiscount > 0 ? ` + ${loyaltyDiscount.toFixed(1)}% fedeltà` : ''}
-                    </Text>
-                  </View>
-                ) : dropStatus === 'active' ? (
-                  <View style={styles.discountProgress}>
-                    <Text style={styles.discountProgressLabel}>
-                      Sconto attuale: {currentDiscount.toFixed(1)}% 
-                      {' '}(max {maxDiscount}%)
-                    </Text>
-                    <View style={styles.progressBar}>
-                      <View 
-                        style={[
-                          styles.progressFill, 
-                          { width: `${(currentDiscount / maxDiscount) * 100}%` }
-                        ]} 
-                      />
-                    </View>
-                    <Text style={styles.discountHint}>
-                      💡 Condividi il drop per aumentare lo sconto!
-                    </Text>
-                  </View>
-                ) : null}
-
-                {canCancel && (
-                  <Pressable
-                    style={({ pressed }) => [
-                      styles.cancelButton,
-                      pressed && styles.cancelButtonPressed,
-                    ]}
-                    onPress={() => {
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                      handleCancelBooking(booking.id, productName);
-                    }}
-                  >
-                    <IconSymbol
-                      ios_icon_name="xmark.circle"
-                      android_material_icon_name="cancel"
-                      size={18}
-                      color={colors.error}
-                    />
-                    <Text style={styles.cancelButtonText}>Annulla Prenotazione</Text>
-                  </Pressable>
-                )}
-
-                <Text style={styles.bookingDate}>
-                  Prenotato il {new Date(booking.created_at).toLocaleDateString('it-IT', {
-                    day: 'numeric',
-                    month: 'long',
-                    year: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })}
+          {/* History section */}
+          {historyGroups.length > 0 && (
+            <View style={styles.historySection}>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.historyHeader,
+                  pressed && styles.historyHeaderPressed,
+                ]}
+                onPress={() => {
+                  console.log('[MyBookings] History section toggled, expanded:', !historyExpanded);
+                  setHistoryExpanded((v) => !v);
+                }}
+              >
+                <Text style={styles.historySeparatorLine} />
+                <Text style={styles.historyHeaderText}>
+                  Ordini Ritirati ({historyGroups.length})
                 </Text>
-              </View>
-            );
-          })}
+                <IconSymbol
+                  ios_icon_name={historyExpanded ? 'chevron.up' : 'chevron.down'}
+                  android_material_icon_name={historyExpanded ? 'expand_less' : 'expand_more'}
+                  size={18}
+                  color={colors.textSecondary}
+                />
+              </Pressable>
+
+              {historyExpanded &&
+                historyGroups.map((g) => renderDropGroup(g, true))}
+            </View>
+          )}
         </ScrollView>
       )}
     </SafeAreaView>
@@ -528,7 +662,6 @@ const styles = StyleSheet.create({
     marginTop: 16,
     fontSize: 16,
     color: colors.textSecondary,
-    fontFamily: 'System',
   },
   emptyContainer: {
     flex: 1,
@@ -541,14 +674,12 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.text,
     marginTop: 16,
-    fontFamily: 'System',
   },
   emptyText: {
     fontSize: 16,
     color: colors.textSecondary,
     textAlign: 'center',
     marginTop: 8,
-    fontFamily: 'System',
   },
   scrollView: {
     flex: 1,
@@ -557,141 +688,228 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingBottom: layout.contentPaddingBottom,
   },
-  bookingCard: {
+
+  // ── Total banner ──────────────────────────────────────────────
+  totalBanner: {
+    backgroundColor: colors.primary,
+    borderRadius: 14,
+    paddingVertical: 20,
+    paddingHorizontal: 24,
+    marginBottom: 20,
+    alignItems: 'center',
+  },
+  totalBannerLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    letterSpacing: 0.8,
+    marginBottom: 6,
+  },
+  totalBannerAmount: {
+    fontSize: 36,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+
+  // ── Drop group card ───────────────────────────────────────────
+  dropGroupCard: {
     backgroundColor: colors.card,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: colors.border,
+    marginBottom: 16,
+    overflow: 'hidden',
   },
-  bookingHeader: {
+  dropGroupHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 12,
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: colors.backgroundSecondary,
+    gap: 8,
   },
-  bookingInfo: {
-    flex: 1,
-    marginRight: 12,
-  },
-  productName: {
+  dropGroupIcon: {
     fontSize: 18,
+  },
+  dropGroupName: {
+    flex: 1,
+    fontSize: 16,
     fontWeight: '700',
     color: colors.text,
-    marginBottom: 4,
-    fontFamily: 'System',
   },
-  dropName: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    marginBottom: 2,
-    fontFamily: 'System',
+  dropBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 10,
   },
-  supplierName: {
-    fontSize: 13,
-    color: colors.textTertiary,
-    fontFamily: 'System',
+  dropBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.5,
   },
-  statusBadges: {
+
+  // ── Pickup group ──────────────────────────────────────────────
+  pickupGroup: {
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  pickupGroupHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingTop: 10,
+    paddingBottom: 8,
     gap: 6,
   },
+  pickupGroupName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.text,
+    flex: 1,
+  },
+  pickupGroupAddress: {
+    fontSize: 12,
+    color: colors.textSecondary,
+  },
+
+  // ── Booking row ───────────────────────────────────────────────
+  bookingRow: {
+    paddingVertical: 10,
+    borderTopWidth: 1,
+    borderTopColor: colors.border + '80',
+  },
+  bookingRowHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+    gap: 8,
+  },
+  bookingProductName: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  rowBadges: {
+    flexDirection: 'row',
+    gap: 4,
+    flexShrink: 0,
+  },
   statusBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 10,
   },
   statusText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
-    fontFamily: 'System',
   },
-  dropStatusMessage: {
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 12,
-  },
-  dropStatusText: {
-    fontSize: 14,
-    fontWeight: '700',
-    marginBottom: 4,
-    fontFamily: 'System',
-  },
-  dropStatusDescription: {
-    fontSize: 13,
-    color: colors.text,
-    fontFamily: 'System',
-  },
-  priceInfo: {
-    backgroundColor: colors.background,
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 12,
-  },
-  priceRow: {
+
+  // Price line
+  priceLineRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 4,
   },
-  priceLabel: {
+  priceLineLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flexWrap: 'wrap',
+  },
+  originalPriceText: {
     fontSize: 14,
     color: colors.textSecondary,
-    fontFamily: 'System',
+    textDecorationLine: 'line-through',
   },
-  priceValue: {
+  arrowText: {
     fontSize: 14,
-    fontWeight: '600',
+    color: colors.textSecondary,
+  },
+  finalPriceInline: {
+    fontSize: 15,
+    fontWeight: '700',
     color: colors.text,
-    fontFamily: 'System',
   },
-  discountValue: {
-    fontSize: 14,
+  discountBadge: {
+    backgroundColor: colors.success + '22',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  discountBadgeText: {
+    fontSize: 12,
     fontWeight: '700',
     color: colors.success,
-    fontFamily: 'System',
+  },
+
+  // Picked up
+  pickedUpRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  pickedUpBadge: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.success,
+  },
+  pickedUpPrice: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    textDecorationLine: 'line-through',
+  },
+
+  // Loyalty
+  loyaltyLine: {
+    fontSize: 13,
+    color: colors.success,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+
+  // Authorized amount
+  authorizedRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  authorizedLabel: {
+    fontSize: 13,
+    color: colors.textSecondary,
+  },
+  authorizedValue: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.text,
   },
   refundedAmount: {
     color: colors.textTertiary,
     textDecorationLine: 'line-through',
   },
-  finalPriceRow: {
-    marginTop: 8,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    marginBottom: 0,
-  },
-  finalPriceLabel: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.text,
-    fontFamily: 'System',
-  },
-  finalPriceValue: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: colors.primary,
-    fontFamily: 'System',
-  },
+
+  // Progress bar
   discountProgress: {
-    backgroundColor: colors.background,
+    backgroundColor: colors.backgroundSecondary,
     borderRadius: 8,
-    padding: 12,
-    marginBottom: 12,
+    padding: 10,
+    marginTop: 6,
+    marginBottom: 4,
   },
   discountProgressLabel: {
     fontSize: 13,
     color: colors.text,
-    marginBottom: 8,
-    fontFamily: 'System',
+    marginBottom: 6,
   },
   progressBar: {
-    height: 8,
+    height: 7,
     backgroundColor: colors.border,
     borderRadius: 4,
     overflow: 'hidden',
-    marginBottom: 8,
+    marginBottom: 6,
   },
   progressFill: {
     height: '100%',
@@ -702,62 +920,81 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.textSecondary,
     fontStyle: 'italic',
-    fontFamily: 'System',
   },
-  loyaltyDiscountValue: {
+
+  // Subtotal
+  subtotalRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  subtotalLabel: {
     fontSize: 14,
-    fontWeight: '700',
-    color: colors.success,
-    fontFamily: 'System',
-  },
-  cashPaymentHint: {
-    fontSize: 12,
+    fontWeight: '600',
     color: colors.textSecondary,
-    textAlign: 'center',
-    marginTop: 6,
-    fontFamily: 'System',
   },
-  completedDropSummary: {
-    backgroundColor: colors.success + '18',
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: colors.success + '40',
+  subtotalValue: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: colors.text,
   },
-  completedDropSummaryText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: colors.success,
-    textAlign: 'center',
-    fontFamily: 'System',
-  },
+
+  // Cancel button
   cancelButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.error + '20',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
+    backgroundColor: colors.error + '18',
+    paddingVertical: 10,
+    paddingHorizontal: 14,
     borderRadius: 8,
-    marginBottom: 12,
-    gap: 8,
+    marginTop: 8,
+    gap: 6,
   },
   cancelButtonPressed: {
     opacity: 0.7,
   },
   cancelButtonText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
     color: colors.error,
-    fontFamily: 'System',
   },
-  bookingDate: {
-    fontSize: 12,
-    color: colors.textTertiary,
-    textAlign: 'center',
-    fontFamily: 'System',
+
+  // History section
+  historySection: {
+    marginTop: 8,
   },
+  historyHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    gap: 10,
+  },
+  historyHeaderPressed: {
+    opacity: 0.6,
+  },
+  historySeparatorLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: colors.border,
+  },
+  historyHeaderText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.textSecondary,
+    flexShrink: 0,
+  },
+
+  // Dimmed (history items)
+  dimmed: {
+    opacity: 0.55,
+  },
+
+  // Bell badge
   bellBadge: {
     position: 'absolute',
     top: -4,
