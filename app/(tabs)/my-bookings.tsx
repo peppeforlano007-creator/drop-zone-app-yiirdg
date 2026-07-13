@@ -32,6 +32,7 @@ interface Booking {
   status: 'active' | 'confirmed' | 'cancelled' | 'completed';
   created_at: string;
   updated_at: string;
+  loyalty_discount: number;
   products: {
     name: string;
     image_url: string;
@@ -369,7 +370,8 @@ export default function MyBookingsScreen() {
             const authorizedAmount = typeof booking.authorized_amount === 'number' ? booking.authorized_amount : 0;
             const discountPercentage = displayDiscountPercentage;
             const finalPrice = typeof booking.final_price === 'number' ? booking.final_price : 0;
-            const loyaltyDiscount = Number((booking as any).loyalty_discount ?? 0);
+            const loyaltyDiscount = Number(booking.loyalty_discount ?? 0);
+            console.log('[MyBookings] Booking discount details:', { bookingId: booking.id, loyaltyDiscount, discountPercentage, finalPrice });
 
             return (
               <View key={booking.id} style={styles.bookingCard}>

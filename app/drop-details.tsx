@@ -148,6 +148,7 @@ export default function DropDetailsScreen() {
           supplier_list_id,
           pickup_point_id,
           updated_at,
+          final_discount_percentage,
           pickup_points (
             name,
             city
@@ -429,6 +430,7 @@ export default function DropDetailsScreen() {
         current_value: updatedDrop.current_value ?? prevDrop.current_value,
         status: updatedDrop.status ?? prevDrop.status,
         updated_at: updatedDrop.updated_at,
+        final_discount_percentage: updatedDrop.final_discount_percentage ?? prevDrop.final_discount_percentage,
       };
       
       console.log('✅ Drop state updated:', {
