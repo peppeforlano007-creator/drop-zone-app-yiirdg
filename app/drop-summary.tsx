@@ -22,6 +22,7 @@ interface BookingItem {
   original_price: number;
   final_price: number;
   discount_percentage: number;
+  loyalty_discount: number;
   status: string;
   pickup_point_id: string;
   products: {
@@ -68,7 +69,7 @@ export default function DropSummaryScreen() {
           .single(),
         supabase
           .from('bookings')
-          .select('id, product_id, original_price, final_price, discount_percentage, status, pickup_point_id, products(id, name, image_url)')
+          .select('id, product_id, original_price, final_price, discount_percentage, loyalty_discount, status, pickup_point_id, products(id, name, image_url)')
           .eq('drop_id', dropId)
           .eq('user_id', user.id)
           .eq('status', 'confirmed'),
@@ -149,7 +150,8 @@ export default function DropSummaryScreen() {
   const totalAmountDisplay = totalAmount.toFixed(2);
   const totalSavingsDisplay = totalSavings.toFixed(2);
 
-  const loyaltyDiscount = drop?.current_discount ?? 0;
+  // Loyalty discount: prendi il valore dalla prima booking (è uguale per tutte le booking dello stesso utente)
+  const loyaltyDiscount = bookings.length > 0 ? Number(bookings[0].loyalty_discount ?? 0) : 0;
   const hasLoyaltyDiscount = loyaltyDiscount > 0;
 
   if (loading) {
