@@ -473,7 +473,7 @@ export default function LoginScreen() {
             </View>
 
             <View style={styles.registerSection}>
-              <Text style={styles.registerTitle}>Registrati come:</Text>
+              <Text style={styles.registerTitle}>Registrati</Text>
               
               <Pressable
                 style={({ pressed }) => [
