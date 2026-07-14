@@ -41,9 +41,9 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const iconMapping: Record<string, string> = {
   'star.fill': 'star',
   'flame.fill': 'local-fire-department',
-  'location.fill': 'location_on',
+  'location.fill': 'location-on',
   'person.fill': 'person',
-  'creditcard.fill': 'credit_card',
+  'creditcard.fill': 'credit-card',
   'storefront.fill': 'store',
 };
 

@@ -1,11 +1,89 @@
 
 import React, { useEffect } from 'react';
-import { Platform } from 'react-native';
+import { Platform, View, Text, Pressable, StyleSheet } from 'react-native';
 import { Stack, router } from 'expo-router';
 import FloatingTabBar, { TabBarItem } from '@/components/FloatingTabBar';
 import { colors } from '@/styles/commonStyles';
 import { useAuth } from '@/contexts/AuthContext';
 import { UnreadChatProvider, useUnreadChat } from '@/contexts/UnreadChatContext';
+import { IconSymbol } from '@/components/IconSymbol';
+import { useUnreadNotifications } from '@/hooks/useUnreadNotifications';
+import * as Haptics from 'expo-haptics';
+
+function ProfileHeaderRight() {
+  const unreadCount = useUnreadNotifications();
+  const { logout } = useAuth();
+  const bellCountText = unreadCount > 99 ? '99+' : String(unreadCount);
+
+  const handleBellPress = () => {
+    console.log('[ProfileHeader] Bell icon pressed, navigating to notifications');
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push('/(tabs)/notifications');
+  };
+
+  const handleLogout = async () => {
+    console.log('[ProfileHeader] Logout button pressed');
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    await logout();
+    router.replace('/login');
+  };
+
+  return (
+    <View style={headerStyles.row}>
+      <Pressable onPress={handleBellPress} style={headerStyles.bellWrapper}>
+        <IconSymbol
+          ios_icon_name="bell.fill"
+          android_material_icon_name="notifications"
+          size={24}
+          color={colors.text}
+        />
+        {unreadCount > 0 && (
+          <View style={headerStyles.badge}>
+            <Text style={headerStyles.badgeText}>{bellCountText}</Text>
+          </View>
+        )}
+      </Pressable>
+      <Pressable onPress={handleLogout} style={headerStyles.logoutWrapper}>
+        <IconSymbol
+          ios_icon_name="rectangle.portrait.and.arrow.right"
+          android_material_icon_name="logout"
+          size={24}
+          color={colors.text}
+        />
+      </Pressable>
+    </View>
+  );
+}
+
+const headerStyles = StyleSheet.create({
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginRight: 8,
+  },
+  bellWrapper: {
+    position: 'relative',
+  },
+  logoutWrapper: {},
+  badge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    backgroundColor: '#FF3B30',
+    borderRadius: 8,
+    minWidth: 16,
+    height: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 3,
+  },
+  badgeText: {
+    color: 'white',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+});
 
 function TabLayoutInner() {
   const { user, isAuthenticated } = useAuth();
@@ -43,6 +121,8 @@ function TabLayoutInner() {
     },
   ];
 
+  const profileHeaderRight = () => <ProfileHeaderRight />;
+
   if (Platform.OS === 'ios') {
     return (
       <>
@@ -54,7 +134,14 @@ function TabLayoutInner() {
 
   return (
     <>
-      <Stack screenOptions={{ headerShown: true }} />
+      <Stack
+        screenOptions={({ route }) => ({
+          headerShown: true,
+          headerStyle: { backgroundColor: colors.background },
+          headerTintColor: colors.text,
+          headerRight: route.name === 'profile' ? profileHeaderRight : undefined,
+        })}
+      />
       <FloatingTabBar tabs={tabs} />
     </>
   );
