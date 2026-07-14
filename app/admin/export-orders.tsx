@@ -53,9 +53,12 @@ interface OrderData {
   quantity: number;
   selected_size?: string;
   selected_color?: string;
+  unit_price: number;
   final_price: number;
   customer_name: string;
   customer_phone: string;
+  customer_email: string;
+  customer_pickup_point: string;
 }
 
 export default function ExportOrdersScreen() {
@@ -202,9 +205,10 @@ export default function ExportOrdersScreen() {
       console.log('Exporting orders for drop:', drop.id);
 
       // Get all bookings for this drop with status 'confirmed' or 'completed'
+      console.log('[ExportOrders] Loading bookings for drop:', drop.id);
       const { data: bookings, error: bookingsError } = await supabase
         .from('bookings')
-        .select('id, product_id, final_price, user_id')
+        .select('id, product_id, final_price, user_id, selected_size, selected_color, quantity, discount_percentage, loyalty_discount')
         .eq('drop_id', drop.id)
         .in('status', ['confirmed', 'completed']);
 
@@ -234,48 +238,58 @@ export default function ExportOrdersScreen() {
 
       // Get user details
       const userIds = [...new Set(bookings.map(b => b.user_id))];
+      console.log('[ExportOrders] Loading profiles for', userIds.length, 'users');
       const { data: usersData, error: usersError } = await supabase
         .from('profiles')
-        .select('user_id, full_name, phone')
+        .select('user_id, full_name, phone, email, pickup_point_id')
         .in('user_id', userIds);
 
       if (usersError) {
         console.error('Error loading users:', usersError);
       }
 
+      // Load pickup points for users
+      const userPickupPointIds = [...new Set((usersData || []).map(u => u.pickup_point_id).filter(Boolean))];
+      let pickupPointsMap = new Map<string, string>();
+      if (userPickupPointIds.length > 0) {
+        console.log('[ExportOrders] Loading pickup points for users:', userPickupPointIds.length);
+        const { data: userPickupPointsData, error: userPickupPointsError } = await supabase
+          .from('pickup_points')
+          .select('id, name')
+          .in('id', userPickupPointIds);
+        if (userPickupPointsError) {
+          console.error('Error loading user pickup points:', userPickupPointsError);
+        }
+        userPickupPointsData?.forEach(pp => pickupPointsMap.set(pp.id, pp.name));
+      }
+
       // Create maps
       const productsMap = new Map(productsData?.map(p => [p.id, p]) || []);
       const usersMap = new Map(usersData?.map(u => [u.user_id, u]) || []);
 
-      // Group bookings by product
-      const ordersByProduct = new Map<string, OrderData>();
-
-      bookings.forEach((booking: any) => {
-        const productId = booking.product_id;
-        const product = productsMap.get(productId);
+      // Build flat array — one row per booking
+      const ordersArray: OrderData[] = bookings.map((booking: any) => {
+        const product = productsMap.get(booking.product_id);
         const user = usersMap.get(booking.user_id);
-        const productName = product?.name || 'Prodotto Sconosciuto';
-        
-        if (ordersByProduct.has(productId)) {
-          const existing = ordersByProduct.get(productId)!;
-          existing.quantity += 1;
-        } else {
-          ordersByProduct.set(productId, {
-            product_id: productId,
-            product_name: productName,
-            lot: product?.lot || null,
-            quantity: 1,
-            selected_size: product?.available_sizes?.[0],
-            selected_color: product?.available_colors?.[0],
-            final_price: booking.final_price,
-            customer_name: user?.full_name || 'N/A',
-            customer_phone: user?.phone || 'N/A',
-          });
-        }
+        const pickupPointName = user?.pickup_point_id ? pickupPointsMap.get(user.pickup_point_id) || 'N/A' : 'N/A';
+        const qty = booking.quantity ?? 1;
+        return {
+          product_id: booking.product_id,
+          product_name: product?.name || 'Prodotto Sconosciuto',
+          lot: product?.lot || null,
+          quantity: qty,
+          selected_size: booking.selected_size || 'N/A',
+          selected_color: booking.selected_color || 'N/A',
+          unit_price: booking.final_price,
+          final_price: booking.final_price * qty,
+          customer_name: user?.full_name || 'N/A',
+          customer_phone: user?.phone || 'N/A',
+          customer_email: user?.email || 'N/A',
+          customer_pickup_point: pickupPointName,
+        };
       });
 
-      // Convert to array for export
-      const ordersArray = Array.from(ordersByProduct.values());
+      console.log('[ExportOrders] Built orders array with', ordersArray.length, 'rows');
 
       // Create Excel workbook
       const worksheet = utils.json_to_sheet(
@@ -283,11 +297,15 @@ export default function ExportOrdersScreen() {
           '#': index + 1,
           'Prodotto': order.product_name,
           'Lotto': order.lot || 'N/A',
+          'Taglia': order.selected_size,
+          'Colore': order.selected_color,
           'Quantità': order.quantity,
-          'Taglia': order.selected_size || 'N/A',
-          'Colore': order.selected_color || 'N/A',
-          'Prezzo Unitario': `€${order.final_price.toFixed(2)}`,
-          'Totale': `€${(order.final_price * order.quantity).toFixed(2)}`,
+          'Prezzo Unitario': `€${Number(order.unit_price).toFixed(2)}`,
+          'Totale Riga': `€${Number(order.final_price).toFixed(2)}`,
+          'Cliente': order.customer_name,
+          'Telefono': order.customer_phone,
+          'Email': order.customer_email,
+          'Punto di Ritiro Cliente': order.customer_pickup_point,
         }))
       );
 
@@ -295,7 +313,7 @@ export default function ExportOrdersScreen() {
       utils.book_append_sheet(workbook, worksheet, 'Ordini');
 
       // Add summary sheet
-      const totalValue = ordersArray.reduce((sum, order) => sum + (order.final_price * order.quantity), 0);
+      const totalValue = ordersArray.reduce((sum, order) => sum + order.final_price, 0);
       const totalItems = ordersArray.reduce((sum, order) => sum + order.quantity, 0);
 
       const supplierList = supplierLists.get(drop.supplier_list_id);
