@@ -4,7 +4,7 @@
       "appVersionSource": "local"
     },
     "name": "RDN STREET STOCK MARKET",
-    "slug": "drop-zone",
+    "slug": "drop-zone-app-yiirdg",
     "version": "2.6.0",
     "orientation": "portrait",
     "icon": "./assets/images/rdnstreetstockmarket-icon.png",
@@ -44,7 +44,8 @@
         "RECEIVE_BOOT_COMPLETED",
         "VIBRATE",
         "POST_NOTIFICATIONS"
-      ]
+      ],
+      "versionCode": 4
     },
     "web": {
       "favicon": "./assets/images/final_quest_240x240.png",
