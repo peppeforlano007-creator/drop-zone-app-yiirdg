@@ -32,7 +32,7 @@ interface Booking {
   payment_status: string;
   status: 'active' | 'confirmed' | 'cancelled' | 'completed';
   created_at: string;
-  products: { name: string; image_url: string } | null;
+  products: { name: string; image_url: string } | { name: string; image_url: string }[] | null;
   drops: {
     name: string;
     current_discount: number;
@@ -371,13 +371,17 @@ export default function MyBookingsScreen() {
 
   const renderBookingRow = (booking: Booking) => {
     const isPickedUp = booking.order_items[0]?.pickup_status === 'picked_up';
-    const productName = booking.products?.name ?? 'Prodotto';
+    const productsData = Array.isArray(booking.products) ? booking.products[0] : booking.products;
+    const productName = productsData?.name ?? 'Prodotto';
     const dropStatus = booking.drops?.status ?? 'unknown';
     const isDropCompleted = dropStatus === 'completed';
     const originalPrice = typeof booking.original_price === 'number' ? booking.original_price : 0;
     const finalPrice = typeof booking.final_price === 'number' ? booking.final_price : 0;
     const authorizedAmount = typeof booking.authorized_amount === 'number' ? booking.authorized_amount : 0;
-    const discountPercentage = typeof booking.discount_percentage === 'number' ? booking.discount_percentage : 0;
+    const dropFinalDiscount = booking.drops?.final_discount_percentage;
+    const discountPercentage = (isDropCompleted && dropFinalDiscount != null)
+      ? Number(dropFinalDiscount)
+      : (typeof booking.discount_percentage === 'number' ? booking.discount_percentage : 0);
     const loyaltyDiscount = Number(booking.loyalty_discount ?? 0);
     const currentDiscount = booking.drops?.current_discount ?? 0;
     const maxDiscount = booking.drops?.supplier_lists?.max_discount ?? 100;
