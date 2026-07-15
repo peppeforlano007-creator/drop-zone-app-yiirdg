@@ -50,7 +50,6 @@ interface OrderData {
   product_name: string;
   product_id: string;
   lot?: string | null;
-  quantity: number;
   selected_size?: string;
   selected_color?: string;
   unit_price: number;
@@ -208,7 +207,7 @@ export default function ExportOrdersScreen() {
       console.log('[ExportOrders] Loading bookings for drop:', drop.id);
       const { data: bookings, error: bookingsError } = await supabase
         .from('bookings')
-        .select('id, product_id, final_price, user_id, selected_size, selected_color, quantity, discount_percentage, loyalty_discount')
+        .select('id, product_id, final_price, user_id, selected_size, selected_color, discount_percentage, loyalty_discount')
         .eq('drop_id', drop.id)
         .in('status', ['confirmed', 'completed']);
 
@@ -272,7 +271,7 @@ export default function ExportOrdersScreen() {
         const product = productsMap.get(booking.product_id);
         const user = usersMap.get(booking.user_id);
         const pickupPointName = user?.pickup_point_id ? pickupPointsMap.get(user.pickup_point_id) || 'N/A' : 'N/A';
-        const qty = booking.quantity ?? 1;
+        const qty = 1;
         return {
           product_id: booking.product_id,
           product_name: product?.name || 'Prodotto Sconosciuto',
