@@ -231,7 +231,7 @@ export default function DropSummaryScreen() {
                     <View style={styles.discountBadge}>
                       <Text style={styles.discountBadgeText}>
                         {'-'}
-                        {discountPct}
+                        {Math.round(discountPct)}
                         {'%'}
                       </Text>
                     </View>
