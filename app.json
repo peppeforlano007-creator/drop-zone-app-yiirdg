@@ -25,6 +25,7 @@
           "remote-notification"
         ],
         "NSPhotoLibraryUsageDescription": "Questa app accede alla tua libreria foto per caricare immagini dei prodotti.",
+        "NSUserNotificationUsageDescription": "Ricevi notifiche su nuovi drop, aggiornamenti degli ordini e messaggi importanti.",
         "LSApplicationQueriesSchemes": [
           "whatsapp",
           "https"
@@ -41,7 +42,8 @@
       "permissions": [
         "READ_MEDIA_IMAGES",
         "RECEIVE_BOOT_COMPLETED",
-        "VIBRATE"
+        "VIBRATE",
+        "POST_NOTIFICATIONS"
       ]
     },
     "web": {

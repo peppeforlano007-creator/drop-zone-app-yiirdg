@@ -107,9 +107,9 @@ serve(async (req) => {
 
     // Create Supabase client with service role key for admin operations
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    const supabaseAdminKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
-    if (!supabaseUrl || !supabaseServiceKey) {
+    if (!supabaseUrl || !supabaseAdminKey) {
       console.error('❌ Missing environment variables');
       return new Response(
         JSON.stringify({ 
@@ -120,7 +120,7 @@ serve(async (req) => {
       );
     }
 
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const supabase = createClient(supabaseUrl, supabaseAdminKey);
 
     // Parse request body
     let dropId: string;
