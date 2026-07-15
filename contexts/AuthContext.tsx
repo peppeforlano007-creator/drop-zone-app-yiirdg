@@ -295,7 +295,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         email,
         password,
         options: {
-          emailRedirectTo: 'https://natively.dev/email-confirmed',
+          emailRedirectTo: 'rdnstreetstockmarket://email-confirmed',
           data: {
             full_name: fullName,
             phone,
