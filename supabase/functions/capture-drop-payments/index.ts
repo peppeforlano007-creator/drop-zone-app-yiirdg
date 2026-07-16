@@ -266,6 +266,7 @@ serve(async (req) => {
         .update({
           status: 'completed',
           current_discount: finalDiscount,
+          final_discount_percentage: finalDiscount,
           completed_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         })
@@ -343,6 +344,7 @@ serve(async (req) => {
           .update({
             final_price: loyaltyFinalPrice,
             discount_percentage: finalDiscount,
+            loyalty_discount: loyaltyDiscount,
             payment_status: 'pending',
             status: 'confirmed',
             updated_at: new Date().toISOString(),
@@ -635,6 +637,7 @@ serve(async (req) => {
       .update({
         status: 'completed',
         current_discount: finalDiscount,
+        final_discount_percentage: finalDiscount,
         completed_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
