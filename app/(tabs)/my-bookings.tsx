@@ -32,7 +32,7 @@ interface Booking {
   payment_status: string;
   status: 'active' | 'confirmed' | 'cancelled' | 'completed';
   created_at: string;
-  products: { name: string; image_url: string } | { name: string; image_url: string }[] | null;
+  products: { name: string; image_url: string } | null;
   drops: {
     name: string;
     current_discount: number;
@@ -194,7 +194,7 @@ export default function MyBookingsScreen() {
         .from('bookings')
         .select(`
           *,
-          products (name, image_url),
+          products!bookings_product_id_fkey (name, image_url),
           drops (
             name, current_discount, current_value, end_time, status, final_discount_percentage,
             supplier_lists (name, max_discount, min_discount, min_reservation_value, max_reservation_value)
@@ -371,8 +371,7 @@ export default function MyBookingsScreen() {
 
   const renderBookingRow = (booking: Booking) => {
     const isPickedUp = booking.order_items[0]?.pickup_status === 'picked_up';
-    const productsData = Array.isArray(booking.products) ? booking.products[0] : booking.products;
-    const productName = productsData?.name ?? 'Prodotto';
+    const productName = booking.products?.name ?? 'Prodotto';
     const dropStatus = booking.drops?.status ?? 'unknown';
     const isDropCompleted = dropStatus === 'completed';
     const originalPrice = typeof booking.original_price === 'number' ? booking.original_price : 0;

@@ -25,7 +25,7 @@ interface BookingItem {
   loyalty_discount: number;
   status: string;
   pickup_point_id: string;
-  products: { id: string; name: string; image_url: string | null } | { id: string; name: string; image_url: string | null }[] | null;
+  products: { id: string; name: string; image_url: string | null } | null;
 }
 
 interface Drop {
@@ -66,7 +66,7 @@ export default function DropSummaryScreen() {
           .single(),
         supabase
           .from('bookings')
-          .select('id, product_id, original_price, final_price, discount_percentage, loyalty_discount, status, pickup_point_id, products(id, name, image_url)')
+          .select('id, product_id, original_price, final_price, discount_percentage, loyalty_discount, status, pickup_point_id, products!bookings_product_id_fkey(id, name, image_url)')
           .eq('drop_id', dropId)
           .eq('user_id', user.id)
           .eq('status', 'confirmed'),
@@ -214,8 +214,7 @@ export default function DropSummaryScreen() {
           </View>
         ) : (
           bookings.map((booking) => {
-            const productsData = Array.isArray(booking.products) ? booking.products[0] : booking.products;
-            const productName = productsData?.name ?? 'Prodotto';
+            const productName = booking.products?.name ?? 'Prodotto';
             const originalPrice = Number(booking.original_price).toFixed(2);
             const finalPrice = Number(booking.final_price).toFixed(2);
             const savings = (Number(booking.original_price) - Number(booking.final_price)).toFixed(2);
