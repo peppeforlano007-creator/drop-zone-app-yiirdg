@@ -244,7 +244,10 @@ export default function ExportOrdersScreen() {
         .in('user_id', userIds);
 
       if (usersError) {
-        console.error('Error loading users:', usersError);
+        console.error('[ExportOrders] Error loading user profiles:', usersError.message, usersError.code);
+        console.warn('[ExportOrders] Profile data may be missing due to RLS. Apply migration: supabase/migrations/20240104000001_admin_rls_profiles_pickup_points.sql');
+      } else {
+        console.log('[ExportOrders] Profiles loaded:', usersData?.length, 'records');
       }
 
       // Load pickup points for users
@@ -296,9 +299,9 @@ export default function ExportOrdersScreen() {
           '#': index + 1,
           'Prodotto': order.product_name,
           'Lotto': order.lot || 'N/A',
+          'Quantità': order.quantity,
           'Taglia': order.selected_size,
           'Colore': order.selected_color,
-          'Quantità': order.quantity,
           'Prezzo Unitario': `€${Number(order.unit_price).toFixed(2)}`,
           'Totale Riga': `€${Number(order.final_price).toFixed(2)}`,
           'Cliente': order.customer_name,
@@ -454,7 +457,10 @@ export default function ExportOrdersScreen() {
 
         <Pressable
           style={[styles.exportButton, isExporting && styles.exportButtonDisabled]}
-          onPress={() => exportDropOrders(drop)}
+          onPress={() => {
+            console.log('[ExportOrders] Export button pressed for drop:', drop.id, drop.name);
+            exportDropOrders(drop);
+          }}
           disabled={isExporting}
         >
           {isExporting ? (
