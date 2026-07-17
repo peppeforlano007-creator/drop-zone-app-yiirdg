@@ -78,7 +78,7 @@ export function useUnreadNotifications() {
         channelRef.current = null;
       }
     };
-  }, [user?.id]);
+  }, [user]);
 
   return unreadCount;
 }

@@ -756,17 +756,6 @@ export default function DropDetailsScreen() {
   }, []);
   const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 50 }).current;
 
-  const handleShare = () => {
-    if (!drop) return;
-    const currentProduct = products[currentProductIndex];
-    console.log('[drop-details] Share button pressed — currentProductIndex:', currentProductIndex, 'product:', currentProduct?.id, currentProduct?.name);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    if (currentProduct) {
-      setShareProduct({ id: currentProduct.id, name: currentProduct.name });
-    }
-    setShowShareModal(true);
-  };
-
   const renderProduct = useCallback(({ item }: { item: ProductData }) => {
     const isBooked = userBookings.has(item.id);
 
@@ -827,11 +816,20 @@ export default function DropDetailsScreen() {
           dropId={dropId}
           dropBookingDisabled={isDropBookingDisabled}
           dropStatus={drop?.status}
-          onShare={handleShare}
+          onShare={() => {
+            if (!drop) return;
+            const currentProduct = products[currentProductIndex];
+            console.log('[drop-details] Share button pressed — currentProductIndex:', currentProductIndex, 'product:', currentProduct?.id, currentProduct?.name);
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            if (currentProduct) {
+              setShareProduct({ id: currentProduct.id, name: currentProduct.name });
+            }
+            setShowShareModal(true);
+          }}
         />
       </View>
     );
-  }, [drop, userBookings, handleBook, dropId, isDropBookingDisabled, handleShare]);
+  }, [drop, userBookings, handleBook, dropId, isDropBookingDisabled, products, currentProductIndex]);
 
   if (loading) {
     return (

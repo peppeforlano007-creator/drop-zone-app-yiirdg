@@ -82,7 +82,7 @@ export default function NotificationsScreen() {
       channel.unsubscribe();
       supabase.removeChannel(channel);
     };
-  }, [user]);
+  }, [user, loadNotifications]);
 
   const handleRefresh = () => {
     setRefreshing(true);
