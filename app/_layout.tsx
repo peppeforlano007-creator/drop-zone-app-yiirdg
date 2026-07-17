@@ -26,6 +26,7 @@ import { supabase } from "@/app/integrations/supabase/client";
 
 // Import font
 import SpaceMonoFont from "../assets/fonts/SpaceMono-Regular.ttf";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -138,6 +139,8 @@ export default function RootLayout() {
   const networkState = useNetworkState();
   const [loaded] = useFonts({
     SpaceMono: SpaceMonoFont,
+    ...Ionicons.font,
+    ...MaterialCommunityIcons.font,
   });
   const [showCustomSplash, setShowCustomSplash] = useState(true);
 
