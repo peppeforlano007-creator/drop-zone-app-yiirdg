@@ -876,15 +876,20 @@ const styles = StyleSheet.create({
     height: SCREEN_HEIGHT * 0.42,
     position: 'relative',
     backgroundColor: colors.backgroundSecondary,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   imagePressable: {
     width: '100%',
     height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   image: {
     width: '100%',
     height: '100%',
     aspectRatio: STANDARD_IMAGE_TEMPLATE.aspectRatio,
+    alignSelf: 'center',
   },
   imagePlaceholder: {
     width: '100%',
