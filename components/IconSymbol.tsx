@@ -143,6 +143,7 @@ const MAPPING = {
   "timer": "timer",
 
   // User & Profile
+  "person.badge.plus": "person-add",
   "person": "person",
   "person.fill": "person",
   "person.2.fill": "group",
