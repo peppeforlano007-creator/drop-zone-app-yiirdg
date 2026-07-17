@@ -338,7 +338,7 @@ export default function MyBookingsScreen() {
         <View style={styles.emptyContainer}>
           <IconSymbol
             ios_icon_name="person.crop.circle.badge.exclamationmark"
-            android_material_icon_name="account_circle"
+            android_material_icon_name="account-circle"
             size={64}
             color={colors.textSecondary}
           />
@@ -508,7 +508,7 @@ export default function MyBookingsScreen() {
         <View style={styles.pickupGroupHeader}>
           <IconSymbol
             ios_icon_name="mappin.circle.fill"
-            android_material_icon_name="location_on"
+            android_material_icon_name="location-on"
             size={16}
             color={colors.textSecondary}
           />
@@ -583,7 +583,7 @@ export default function MyBookingsScreen() {
         <View style={styles.emptyContainer}>
           <IconSymbol
             ios_icon_name="bag"
-            android_material_icon_name="shopping_bag"
+            android_material_icon_name="shopping-bag"
             size={64}
             color={colors.textSecondary}
           />

@@ -333,7 +333,7 @@ export default function ListProductsScreen() {
           <View style={styles.emptyContainer}>
             <IconSymbol
               ios_icon_name="tray.fill"
-              android_material_icon_name="inventory_2"
+              android_material_icon_name="inventory-2"
               size={64}
               color={colors.textSecondary}
             />
@@ -352,7 +352,7 @@ export default function ListProductsScreen() {
                 <View style={styles.completionBadge}>
                   <IconSymbol
                     ios_icon_name="checkmark.circle.fill"
-                    android_material_icon_name="check_circle"
+                    android_material_icon_name="check-circle"
                     size={16}
                     color="#4CAF50"
                   />

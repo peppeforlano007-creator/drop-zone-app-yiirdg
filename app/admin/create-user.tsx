@@ -356,7 +356,7 @@ export default function CreateUserScreen() {
                       <View style={styles.checkmark}>
                         <IconSymbol
                           ios_icon_name="checkmark.circle.fill"
-                          android_material_icon_name="check_circle"
+                          android_material_icon_name="check-circle"
                           size={20}
                           color={colors.primary}
                         />
@@ -403,7 +403,7 @@ export default function CreateUserScreen() {
                       {selectedPickupPointId === point.id && (
                         <IconSymbol
                           ios_icon_name="checkmark.circle.fill"
-                          android_material_icon_name="check_circle"
+                          android_material_icon_name="check-circle"
                           size={24}
                           color={colors.primary}
                         />
@@ -415,7 +415,7 @@ export default function CreateUserScreen() {
                 <View style={styles.emptyPickupPoints}>
                   <IconSymbol
                     ios_icon_name="mappin.slash"
-                    android_material_icon_name="location_off"
+                    android_material_icon_name="location-off"
                     size={48}
                     color={colors.textTertiary}
                   />
@@ -454,7 +454,7 @@ export default function CreateUserScreen() {
               <>
                 <IconSymbol
                   ios_icon_name="person.badge.plus"
-                  android_material_icon_name="person_add"
+                  android_material_icon_name="person-add"
                   size={20}
                   color="#FFF"
                 />

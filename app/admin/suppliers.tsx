@@ -246,7 +246,7 @@ export default function SuppliersScreen() {
             </View>
             <IconSymbol
               ios_icon_name="chevron.right"
-              android_material_icon_name="chevron_right"
+              android_material_icon_name="chevron-right"
               size={20}
               color={colors.textTertiary}
             />
@@ -276,7 +276,7 @@ export default function SuppliersScreen() {
             <View style={styles.statItem}>
               <IconSymbol
                 ios_icon_name="bolt.circle.fill"
-                android_material_icon_name="flash_on"
+                android_material_icon_name="flash-on"
                 size={16}
                 color={colors.warning}
               />
@@ -355,7 +355,7 @@ export default function SuppliersScreen() {
             >
               <IconSymbol
                 ios_icon_name="plus.circle.fill"
-                android_material_icon_name="add_circle"
+                android_material_icon_name="add-circle"
                 size={20}
                 color="#FFFFFF"
               />

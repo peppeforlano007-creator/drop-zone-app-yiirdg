@@ -428,7 +428,7 @@ export default function ForceInterestsScreen() {
                 <View style={styles.selectionInfo}>
                   <IconSymbol
                     ios_icon_name="checkmark.circle.fill"
-                    android_material_icon_name="check_circle"
+                    android_material_icon_name="check-circle"
                     size={16}
                     color={colors.success}
                   />
@@ -465,7 +465,7 @@ export default function ForceInterestsScreen() {
                 <View style={styles.selectionInfo}>
                   <IconSymbol
                     ios_icon_name="checkmark.circle.fill"
-                    android_material_icon_name="check_circle"
+                    android_material_icon_name="check-circle"
                     size={16}
                     color={colors.success}
                   />
@@ -567,7 +567,7 @@ export default function ForceInterestsScreen() {
                 <>
                   <IconSymbol
                     ios_icon_name="plus.circle.fill"
-                    android_material_icon_name="add_circle"
+                    android_material_icon_name="add-circle"
                     size={20}
                     color="#fff"
                   />

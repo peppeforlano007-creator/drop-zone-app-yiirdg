@@ -286,7 +286,7 @@ export default function ProductCard({
           <View style={styles.imagePlaceholder}>
             <IconSymbol 
               ios_icon_name="photo" 
-              android_material_icon_name="broken_image" 
+              android_material_icon_name="broken-image" 
               size={100} 
               color={colors.textTertiary} 
             />
@@ -508,7 +508,7 @@ export default function ProductCard({
                     <View style={styles.bookButtonArrow}>
                       <IconSymbol 
                         ios_icon_name="chevron.right" 
-                        android_material_icon_name="chevron_right" 
+                        android_material_icon_name="chevron-right" 
                         size={18} 
                         color="#333" 
                       />

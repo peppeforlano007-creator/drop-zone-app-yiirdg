@@ -614,7 +614,7 @@ export default function EnhancedProductCard({
               <Text style={styles.noDescriptionBannerText}>Cerca info, foto e prezzi su Google</Text>
               <IconSymbol
                 ios_icon_name="chevron.right"
-                android_material_icon_name="chevron_right"
+                android_material_icon_name="chevron-right"
                 size={16}
                 color={colors.textTertiary}
               />
@@ -756,7 +756,7 @@ export default function EnhancedProductCard({
                     </Text>
                     <IconSymbol
                       ios_icon_name="checkmark.circle.fill"
-                      android_material_icon_name="check_circle"
+                      android_material_icon_name="check-circle"
                       size={16}
                       color="#999"
                     />
@@ -790,7 +790,7 @@ export default function EnhancedProductCard({
                     <Text style={styles.bookButtonTitle}>PRENOTA ARTICOLO</Text>
                     <IconSymbol
                       ios_icon_name="arrow.right"
-                      android_material_icon_name="arrow_forward"
+                      android_material_icon_name="arrow-forward"
                       size={16}
                       color="#FFF"
                     />

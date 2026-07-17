@@ -361,7 +361,7 @@ export default function PickupPointsScreen() {
           <View style={styles.pointIconContainer}>
             <IconSymbol
               ios_icon_name="mappin.circle.fill"
-              android_material_icon_name="location_on"
+              android_material_icon_name="location-on"
               size={24}
               color={isPending ? colors.warning : colors.primary}
             />
@@ -424,7 +424,7 @@ export default function PickupPointsScreen() {
           <View style={styles.statItem}>
             <IconSymbol
               ios_icon_name="bolt.circle.fill"
-              android_material_icon_name="flash_on"
+              android_material_icon_name="flash-on"
               size={16}
               color={colors.success}
             />
@@ -454,7 +454,7 @@ export default function PickupPointsScreen() {
             >
               <IconSymbol
                 ios_icon_name="checkmark.circle.fill"
-                android_material_icon_name="check_circle"
+                android_material_icon_name="check-circle"
                 size={20}
                 color={colors.background}
               />
@@ -556,7 +556,7 @@ export default function PickupPointsScreen() {
             >
               <IconSymbol
                 ios_icon_name="plus.circle.fill"
-                android_material_icon_name="add_circle"
+                android_material_icon_name="add-circle"
                 size={28}
                 color={colors.primary}
               />
@@ -614,7 +614,7 @@ export default function PickupPointsScreen() {
             <View style={styles.emptyState}>
               <IconSymbol
                 ios_icon_name="mappin.slash"
-                android_material_icon_name="location_off"
+                android_material_icon_name="location-off"
                 size={64}
                 color={colors.textTertiary}
               />
@@ -631,7 +631,7 @@ export default function PickupPointsScreen() {
               >
                 <IconSymbol
                   ios_icon_name="plus.circle.fill"
-                  android_material_icon_name="add_circle"
+                  android_material_icon_name="add-circle"
                   size={24}
                   color={colors.background}
                 />

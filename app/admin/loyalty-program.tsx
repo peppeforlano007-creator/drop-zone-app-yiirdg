@@ -249,7 +249,7 @@ export default function LoyaltyProgramManagementScreen() {
                     <React.Fragment>
                       <IconSymbol
                         ios_icon_name="lock.open.fill"
-                        android_material_icon_name="lock_open"
+                        android_material_icon_name="lock-open"
                         size={20}
                         color={colors.background}
                       />
@@ -263,7 +263,7 @@ export default function LoyaltyProgramManagementScreen() {
             <View style={styles.emptyState}>
               <IconSymbol
                 ios_icon_name="checkmark.circle"
-                android_material_icon_name="check_circle"
+                android_material_icon_name="check-circle"
                 size={64}
                 color={colors.textTertiary}
               />

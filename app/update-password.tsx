@@ -200,7 +200,7 @@ export default function UpdatePasswordScreen() {
               <View style={styles.iconCircle}>
                 <IconSymbol
                   ios_icon_name="key.fill"
-                  android_material_icon_name="vpn_key"
+                  android_material_icon_name="vpn-key"
                   size={40}
                   color={colors.primary}
                 />
@@ -350,7 +350,7 @@ export default function UpdatePasswordScreen() {
                   <>
                     <IconSymbol
                       ios_icon_name="checkmark.circle.fill"
-                      android_material_icon_name="check_circle"
+                      android_material_icon_name="check-circle"
                       size={20}
                       color="#fff"
                     />

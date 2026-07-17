@@ -241,7 +241,7 @@ export default function ForgotPasswordScreen() {
             <View style={styles.header}>
               <IconSymbol
                 ios_icon_name="lock.rotation"
-                android_material_icon_name="lock_reset"
+                android_material_icon_name="lock-reset"
                 size={48}
                 color={colors.primary}
               />
@@ -476,7 +476,7 @@ export default function ForgotPasswordScreen() {
                       <>
                         <IconSymbol
                           ios_icon_name="checkmark.circle.fill"
-                          android_material_icon_name="check_circle"
+                          android_material_icon_name="check-circle"
                           size={20}
                           color="#fff"
                         />
@@ -524,7 +524,7 @@ export default function ForgotPasswordScreen() {
             >
               <IconSymbol
                 ios_icon_name="chevron.left"
-                android_material_icon_name="chevron_left"
+                android_material_icon_name="chevron-left"
                 size={20}
                 color={colors.primary}
               />

@@ -883,7 +883,7 @@ export default function DropDetailsScreen() {
       <SafeAreaView style={styles.container}>
         <Stack.Screen options={{ headerShown: false }} />
         <View style={styles.errorContainer}>
-          <IconSymbol ios_icon_name="cube.box" android_material_icon_name="inventory_2" size={64} color={colors.textTertiary} />
+          <IconSymbol ios_icon_name="cube.box" android_material_icon_name="inventory-2" size={64} color={colors.textTertiary} />
           <Text style={styles.errorText}>Tutti i prodotti sono esauriti</Text>
           <Text style={styles.errorSubtext}>
             Tutti gli articoli di questo drop sono stati prenotati.
@@ -961,7 +961,7 @@ export default function DropDetailsScreen() {
             <View style={[styles.bookingDisabledContent, styles.completedBannerContent]}>
               <IconSymbol
                 ios_icon_name="checkmark.circle.fill"
-                android_material_icon_name="check_circle"
+                android_material_icon_name="check-circle"
                 size={18}
                 color="#FFF"
               />
@@ -1123,7 +1123,7 @@ export default function DropDetailsScreen() {
               router.back();
             }}
           >
-            <IconSymbol ios_icon_name="chevron.left" android_material_icon_name="arrow_back" size={24} color="#FFF" />
+            <IconSymbol ios_icon_name="chevron.left" android_material_icon_name="arrow-back" size={24} color="#FFF" />
           </Pressable>
         </SafeAreaView>
       </View>
@@ -1142,7 +1142,7 @@ export default function DropDetailsScreen() {
             <View style={styles.infoChip} pointerEvents="none">
               <IconSymbol
                 ios_icon_name="mappin.fill"
-                android_material_icon_name="location_on"
+                android_material_icon_name="location-on"
                 size={12}
                 color="#FFF"
               />

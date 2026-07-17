@@ -429,7 +429,7 @@ Per informazioni: [inserire email]`;
                   <>
                     <IconSymbol
                       ios_icon_name="checkmark.circle.fill"
-                      android_material_icon_name="check_circle"
+                      android_material_icon_name="check-circle"
                       size={20}
                       color="#fff"
                     />
@@ -541,7 +541,7 @@ Per informazioni: [inserire email]`;
                     >
                       <IconSymbol
                         ios_icon_name="plus.circle.fill"
-                        android_material_icon_name="add_circle"
+                        android_material_icon_name="add-circle"
                         size={20}
                         color="#fff"
                       />

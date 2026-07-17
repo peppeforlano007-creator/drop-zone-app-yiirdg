@@ -428,7 +428,7 @@ export default function ExportOrdersScreen() {
             <Text style={styles.dropDetail}>
               <IconSymbol 
                 ios_icon_name="mappin.circle.fill" 
-                android_material_icon_name="location_on" 
+                android_material_icon_name="location-on" 
                 size={14} 
                 color={colors.textSecondary} 
               />
@@ -437,7 +437,7 @@ export default function ExportOrdersScreen() {
             <Text style={styles.dropDetail}>
               <IconSymbol 
                 ios_icon_name="calendar" 
-                android_material_icon_name="calendar_today" 
+                android_material_icon_name="calendar-today" 
                 size={14} 
                 color={colors.textSecondary} 
               />

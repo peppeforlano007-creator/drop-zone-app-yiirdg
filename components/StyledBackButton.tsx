@@ -42,7 +42,7 @@ export default function StyledBackButton({
     >
       <IconSymbol 
         ios_icon_name="chevron.left" 
-        android_material_icon_name="arrow_back" 
+        android_material_icon_name="arrow-back" 
         size={size * 0.6} 
         color={color} 
       />

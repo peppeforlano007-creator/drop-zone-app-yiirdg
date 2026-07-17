@@ -251,7 +251,7 @@ export default function DropCard({ drop, deliveryMinDays, deliveryMaxDays }: Dro
           <View style={styles.locationRow}>
             <IconSymbol 
               ios_icon_name="mappin.circle.fill" 
-              android_material_icon_name="location_on" 
+              android_material_icon_name="location-on" 
               size={16} 
               color={isCompleted ? colors.textSecondary : colors.primary} 
             />
@@ -445,7 +445,7 @@ export default function DropCard({ drop, deliveryMinDays, deliveryMaxDays }: Dro
               <Text style={styles.viewButtonText}>Sfoglia</Text>
               <IconSymbol 
                 ios_icon_name="chevron.right" 
-                android_material_icon_name="chevron_right" 
+                android_material_icon_name="chevron-right" 
                 size={16} 
                 color="#FFF" 
               />

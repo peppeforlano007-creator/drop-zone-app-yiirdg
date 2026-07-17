@@ -922,7 +922,7 @@ export default function CreateListScreen() {
             >
               <IconSymbol
                 ios_icon_name="plus.circle.fill"
-                android_material_icon_name="add_circle"
+                android_material_icon_name="add-circle"
                 size={24}
                 color="#FFFFFF"
               />
@@ -955,7 +955,7 @@ export default function CreateListScreen() {
               <View style={styles.iconContainer}>
                 <IconSymbol 
                   ios_icon_name="list.bullet.rectangle.fill" 
-                  android_material_icon_name="list_alt"
+                  android_material_icon_name="list-alt"
                   size={48} 
                   color={colors.primary} 
                 />
@@ -1037,7 +1037,7 @@ export default function CreateListScreen() {
                   >
                     <IconSymbol
                       ios_icon_name="arrow.down.doc.fill"
-                      android_material_icon_name="file_download"
+                      android_material_icon_name="file-download"
                       size={24}
                       color="#FFFFFF"
                     />
@@ -1334,7 +1334,7 @@ export default function CreateListScreen() {
                   <>
                     <IconSymbol
                       ios_icon_name="plus.circle.fill"
-                      android_material_icon_name="add_circle"
+                      android_material_icon_name="add-circle"
                       size={24}
                       color="#FFFFFF"
                     />

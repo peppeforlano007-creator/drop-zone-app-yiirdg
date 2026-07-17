@@ -499,7 +499,7 @@ export default function LoginScreen() {
                 </View>
                 <IconSymbol
                   ios_icon_name="chevron.right"
-                  android_material_icon_name="chevron_right"
+                  android_material_icon_name="chevron-right"
                   size={20}
                   color={colors.textSecondary}
                 />
@@ -519,7 +519,7 @@ export default function LoginScreen() {
             >
               <IconSymbol
                 ios_icon_name="lock.shield"
-                android_material_icon_name="admin_panel_settings"
+                android_material_icon_name="admin-panel-settings"
                 size={14}
                 color={colors.textTertiary}
               />

@@ -315,7 +315,7 @@ export default function UsersScreen() {
             </View>
             <IconSymbol
               ios_icon_name="chevron.right"
-              android_material_icon_name="chevron_right"
+              android_material_icon_name="chevron-right"
               size={20}
               color={colors.textTertiary}
             />
@@ -454,7 +454,7 @@ export default function UsersScreen() {
             >
               <IconSymbol
                 ios_icon_name="plus.circle.fill"
-                android_material_icon_name="add_circle"
+                android_material_icon_name="add-circle"
                 size={20}
                 color="#FFF"
               />
@@ -468,7 +468,7 @@ export default function UsersScreen() {
             <View style={styles.emptyState}>
               <IconSymbol
                 ios_icon_name="person.slash"
-                android_material_icon_name="person_off"
+                android_material_icon_name="person-off"
                 size={64}
                 color={colors.textTertiary}
               />

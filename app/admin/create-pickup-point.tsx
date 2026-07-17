@@ -254,7 +254,7 @@ export default function CreatePickupPointScreen() {
               <View style={styles.iconContainer}>
                 <IconSymbol 
                   ios_icon_name="mappin.circle.fill" 
-                  android_material_icon_name="location_on"
+                  android_material_icon_name="location-on"
                   size={48} 
                   color={colors.primary} 
                 />
@@ -383,7 +383,7 @@ export default function CreatePickupPointScreen() {
               <View style={styles.infoBox}>
                 <IconSymbol
                   ios_icon_name="key.fill"
-                  android_material_icon_name="vpn_key"
+                  android_material_icon_name="vpn-key"
                   size={20}
                   color={colors.success}
                 />
@@ -406,7 +406,7 @@ export default function CreatePickupPointScreen() {
                   <>
                     <IconSymbol
                       ios_icon_name="plus.circle.fill"
-                      android_material_icon_name="add_circle"
+                      android_material_icon_name="add-circle"
                       size={24}
                       color={colors.background}
                     />
@@ -431,7 +431,7 @@ export default function CreatePickupPointScreen() {
                 <View style={styles.modalIconContainer}>
                   <IconSymbol
                     ios_icon_name="checkmark.circle.fill"
-                    android_material_icon_name="check_circle"
+                    android_material_icon_name="check-circle"
                     size={48}
                     color={colors.success}
                   />
@@ -461,7 +461,7 @@ export default function CreatePickupPointScreen() {
                       >
                         <IconSymbol
                           ios_icon_name="doc.on.doc.fill"
-                          android_material_icon_name="content_copy"
+                          android_material_icon_name="content-copy"
                           size={18}
                           color={colors.primary}
                         />
@@ -481,7 +481,7 @@ export default function CreatePickupPointScreen() {
                       >
                         <IconSymbol
                           ios_icon_name="doc.on.doc.fill"
-                          android_material_icon_name="content_copy"
+                          android_material_icon_name="content-copy"
                           size={18}
                           color={colors.primary}
                         />

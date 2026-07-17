@@ -358,7 +358,7 @@ export default function SettingsScreen() {
             <View style={styles.sectionHeader}>
               <IconSymbol
                 ios_icon_name="bubble.left.and.bubble.right.fill"
-                android_material_icon_name="support_agent"
+                android_material_icon_name="support-agent"
                 size={24}
                 color={colors.primary}
               />
@@ -391,7 +391,7 @@ export default function SettingsScreen() {
                 <View style={styles.previewBox}>
                   <IconSymbol
                     ios_icon_name="checkmark.circle.fill"
-                    android_material_icon_name="check_circle"
+                    android_material_icon_name="check-circle"
                     size={16}
                     color={colors.success}
                   />
@@ -435,7 +435,7 @@ export default function SettingsScreen() {
                 <View style={styles.previewBox}>
                   <IconSymbol
                     ios_icon_name="checkmark.circle.fill"
-                    android_material_icon_name="check_circle"
+                    android_material_icon_name="check-circle"
                     size={16}
                     color={colors.success}
                   />
@@ -682,7 +682,7 @@ export default function SettingsScreen() {
               </View>
               <IconSymbol
                 ios_icon_name="chevron.right"
-                android_material_icon_name="chevron_right"
+                android_material_icon_name="chevron-right"
                 size={20}
                 color={colors.textSecondary}
               />
@@ -770,7 +770,7 @@ export default function SettingsScreen() {
               <>
                 <IconSymbol
                   ios_icon_name="checkmark.circle.fill"
-                  android_material_icon_name="check_circle"
+                  android_material_icon_name="check-circle"
                   size={20}
                   color="#fff"
                 />

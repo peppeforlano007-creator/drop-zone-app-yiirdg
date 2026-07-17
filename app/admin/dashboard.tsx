@@ -305,13 +305,13 @@ export default function AdminDashboard() {
           </View>
 
           <View style={styles.statCard}>
-            <IconSymbol ios_icon_name="bolt.circle.fill" android_material_icon_name="flash_on" size={28} color="#FF9500" />
+            <IconSymbol ios_icon_name="bolt.circle.fill" android_material_icon_name="flash-on" size={28} color="#FF9500" />
             <Text style={styles.statValue}>{stats.activeDrops}</Text>
             <Text style={styles.statLabel}>Drop Attivi</Text>
           </View>
 
           <View style={styles.statCard}>
-            <IconSymbol ios_icon_name="shippingbox.fill" android_material_icon_name="local_shipping" size={28} color="#FF3B30" />
+            <IconSymbol ios_icon_name="shippingbox.fill" android_material_icon_name="local-shipping" size={28} color="#FF3B30" />
             <Text style={styles.statValue}>{stats.pendingOrders}</Text>
             <Text style={styles.statLabel}>Ordini Pendenti</Text>
           </View>

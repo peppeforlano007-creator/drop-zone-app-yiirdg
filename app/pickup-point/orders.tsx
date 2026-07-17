@@ -1026,7 +1026,7 @@ export default function OrdersScreen() {
               >
                 <IconSymbol 
                   ios_icon_name="checkmark.circle.fill" 
-                  android_material_icon_name="check_circle"
+                  android_material_icon_name="check-circle"
                   size={20} 
                   color={colors.background} 
                 />
@@ -1045,7 +1045,7 @@ export default function OrdersScreen() {
                   >
                     <IconSymbol 
                       ios_icon_name="checkmark.circle.fill" 
-                      android_material_icon_name="check_circle"
+                      android_material_icon_name="check-circle"
                       size={20} 
                       color={colors.background} 
                     />
@@ -1130,7 +1130,7 @@ export default function OrdersScreen() {
                       <View style={styles.pickedUpInfo}>
                         <IconSymbol 
                           ios_icon_name="checkmark.circle.fill" 
-                          android_material_icon_name="check_circle"
+                          android_material_icon_name="check-circle"
                           size={16} 
                           color={colors.success} 
                         />
@@ -1278,7 +1278,7 @@ export default function OrdersScreen() {
           <Text style={styles.tapHintText}>Tocca per gestire</Text>
           <IconSymbol 
             ios_icon_name="chevron.right" 
-            android_material_icon_name="chevron_right"
+            android_material_icon_name="chevron-right"
             size={16} 
             color={colors.textTertiary} 
           />
@@ -1378,7 +1378,7 @@ export default function OrdersScreen() {
             <View style={styles.emptyState}>
               <IconSymbol 
                 ios_icon_name="shippingbox" 
-                android_material_icon_name="inventory_2"
+                android_material_icon_name="inventory-2"
                 size={64} 
                 color={colors.textTertiary} 
               />

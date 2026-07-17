@@ -236,7 +236,7 @@ export default function NotificationsScreen() {
     <View style={styles.emptyContainer}>
       <IconSymbol
         ios_icon_name="bell.slash"
-        android_material_icon_name="notifications_off"
+        android_material_icon_name="notifications-off"
         size={64}
         color={colors.textTertiary}
       />

@@ -58,7 +58,7 @@ export default function SubscriptionsScreen() {
             <View style={styles.featureRow}>
               <IconSymbol
                 ios_icon_name="checkmark.circle.fill"
-                android_material_icon_name="check_circle"
+                android_material_icon_name="check-circle"
                 size={24}
                 color={colors.success}
               />
@@ -68,7 +68,7 @@ export default function SubscriptionsScreen() {
             <View style={styles.featureRow}>
               <IconSymbol
                 ios_icon_name="checkmark.circle.fill"
-                android_material_icon_name="check_circle"
+                android_material_icon_name="check-circle"
                 size={24}
                 color={colors.success}
               />
@@ -78,7 +78,7 @@ export default function SubscriptionsScreen() {
             <View style={styles.featureRow}>
               <IconSymbol
                 ios_icon_name="checkmark.circle.fill"
-                android_material_icon_name="check_circle"
+                android_material_icon_name="check-circle"
                 size={24}
                 color={colors.success}
               />
@@ -88,7 +88,7 @@ export default function SubscriptionsScreen() {
             <View style={styles.featureRow}>
               <IconSymbol
                 ios_icon_name="checkmark.circle.fill"
-                android_material_icon_name="check_circle"
+                android_material_icon_name="check-circle"
                 size={24}
                 color={colors.success}
               />
@@ -98,7 +98,7 @@ export default function SubscriptionsScreen() {
             <View style={styles.featureRow}>
               <IconSymbol
                 ios_icon_name="checkmark.circle.fill"
-                android_material_icon_name="check_circle"
+                android_material_icon_name="check-circle"
                 size={24}
                 color={colors.success}
               />
@@ -108,7 +108,7 @@ export default function SubscriptionsScreen() {
             <View style={styles.featureRow}>
               <IconSymbol
                 ios_icon_name="checkmark.circle.fill"
-                android_material_icon_name="check_circle"
+                android_material_icon_name="check-circle"
                 size={24}
                 color={colors.success}
               />
@@ -129,7 +129,7 @@ export default function SubscriptionsScreen() {
           </View>
 
           <Pressable style={styles.viewPlansButton} onPress={handleViewPlans}>
-            <IconSymbol ios_icon_name="sparkles" android_material_icon_name="auto_awesome" size={24} color={colors.background} />
+            <IconSymbol ios_icon_name="sparkles" android_material_icon_name="auto-awesome" size={24} color={colors.background} />
             <Text style={styles.viewPlansButtonText}>
               Scopri di Più
             </Text>

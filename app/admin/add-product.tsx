@@ -342,7 +342,7 @@ export default function AddProductScreen() {
                   <>
                     <IconSymbol
                       ios_icon_name="plus.circle.fill"
-                      android_material_icon_name="add_circle"
+                      android_material_icon_name="add-circle"
                       size={24}
                       color="#FFFFFF"
                     />

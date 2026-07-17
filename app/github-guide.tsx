@@ -237,7 +237,7 @@ export default function GitHubGuideScreen() {
               >
                 <IconSymbol
                   ios_icon_name="arrow.up.right.circle.fill"
-                  android_material_icon_name="open_in_new"
+                  android_material_icon_name="open-in-new"
                   size={20}
                   color={colors.background}
                 />
@@ -321,7 +321,7 @@ export default function GitHubGuideScreen() {
             <View style={styles.dividerIconContainer}>
               <IconSymbol
                 ios_icon_name="arrow.down.circle.fill"
-                android_material_icon_name="arrow_downward"
+                android_material_icon_name="arrow-downward"
                 size={32}
                 color={colors.primary}
               />
@@ -350,7 +350,7 @@ export default function GitHubGuideScreen() {
           <View style={styles.successCard}>
             <IconSymbol
               ios_icon_name="checkmark.circle.fill"
-              android_material_icon_name="check_circle"
+              android_material_icon_name="check-circle"
               size={48}
               color={colors.success}
             />
@@ -375,7 +375,7 @@ export default function GitHubGuideScreen() {
             >
               <IconSymbol
                 ios_icon_name="arrow.left.circle.fill"
-                android_material_icon_name="arrow_back"
+                android_material_icon_name="arrow-back"
                 size={20}
                 color={colors.background}
               />

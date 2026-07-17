@@ -122,7 +122,7 @@ export default function CompleteDropScreen() {
           <View style={styles.iconContainer}>
             <IconSymbol 
               ios_icon_name="checkmark.circle.fill" 
-              android_material_icon_name="check_circle" 
+              android_material_icon_name="check-circle" 
               size={80} 
               color="#4CAF50" 
             />
@@ -238,7 +238,7 @@ export default function CompleteDropScreen() {
               <>
                 <IconSymbol 
                   ios_icon_name="checkmark.circle.fill" 
-                  android_material_icon_name="check_circle" 
+                  android_material_icon_name="check-circle" 
                   size={20} 
                   color="#FFF" 
                 />

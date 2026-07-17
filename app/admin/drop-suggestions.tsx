@@ -182,7 +182,7 @@ export default function DropSuggestionsScreen() {
             <View style={styles.interestCardLocation}>
               <IconSymbol
                 ios_icon_name="mappin.circle.fill"
-                android_material_icon_name="location_on"
+                android_material_icon_name="location-on"
                 size={13}
                 color={colors.textSecondary}
               />
@@ -200,7 +200,7 @@ export default function DropSuggestionsScreen() {
         >
           <IconSymbol
             ios_icon_name="bolt.fill"
-            android_material_icon_name="flash_on"
+            android_material_icon_name="flash-on"
             size={16}
             color="#FFF"
           />
@@ -253,7 +253,7 @@ export default function DropSuggestionsScreen() {
                 <View style={styles.sectionHeader}>
                   <IconSymbol
                     ios_icon_name="chart.bar.fill"
-                    android_material_icon_name="bar_chart"
+                    android_material_icon_name="bar-chart"
                     size={22}
                     color="#E11D48"
                   />
@@ -267,7 +267,7 @@ export default function DropSuggestionsScreen() {
               <View style={styles.emptyState}>
                 <IconSymbol
                   ios_icon_name="heart.slash"
-                  android_material_icon_name="heart_broken"
+                  android_material_icon_name="heart-broken"
                   size={64}
                   color={colors.textTertiary}
                 />

@@ -89,7 +89,7 @@ export default function LoyaltyProgramScreen() {
               <View style={styles.cardHeader}>
                 <IconSymbol
                   ios_icon_name="chart.bar.fill"
-                  android_material_icon_name="bar_chart"
+                  android_material_icon_name="bar-chart"
                   size={24}
                   color="#9C27B0"
                 />

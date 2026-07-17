@@ -278,7 +278,7 @@ export default function WishlistScreen() {
         <View style={styles.emptyContainer}>
           <IconSymbol
             ios_icon_name="person.crop.circle.badge.exclamationmark"
-            android_material_icon_name="account_circle"
+            android_material_icon_name="account-circle"
             size={64}
             color={colors.textTertiary}
           />
@@ -311,7 +311,7 @@ export default function WishlistScreen() {
         <View style={styles.emptyContainer}>
           <IconSymbol
             ios_icon_name="heart.slash"
-            android_material_icon_name="heart_broken"
+            android_material_icon_name="heart-broken"
             size={64}
             color={colors.textTertiary}
           />

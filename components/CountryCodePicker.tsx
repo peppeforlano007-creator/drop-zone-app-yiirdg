@@ -104,7 +104,7 @@ export default function CountryCodePicker({
         {isSelected && (
           <IconSymbol
             ios_icon_name="checkmark.circle.fill"
-            android_material_icon_name="check_circle"
+            android_material_icon_name="check-circle"
             size={24}
             color={colors.primary}
           />
@@ -128,7 +128,7 @@ export default function CountryCodePicker({
           <Text style={styles.code}>+{selectedCountry.code}</Text>
           <IconSymbol
             ios_icon_name="chevron.down"
-            android_material_icon_name="arrow_drop_down"
+            android_material_icon_name="arrow-drop-down"
             size={18}
             color={disabled ? colors.textTertiary : colors.text}
           />

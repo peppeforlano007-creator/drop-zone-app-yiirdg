@@ -365,7 +365,7 @@ export default function ListDetailsScreen() {
               <View style={styles.skuBadge}>
                 <IconSymbol
                   ios_icon_name="barcode"
-                  android_material_icon_name="qr_code"
+                  android_material_icon_name="qr-code"
                   size={10}
                   color={colors.primary}
                 />
@@ -414,7 +414,7 @@ export default function ListDetailsScreen() {
             <View style={styles.variantsSectionHeader}>
               <IconSymbol
                 ios_icon_name="square.grid.2x2"
-                android_material_icon_name="grid_view"
+                android_material_icon_name="grid-view"
                 size={14}
                 color={colors.primary}
               />
@@ -588,7 +588,7 @@ export default function ListDetailsScreen() {
               <View style={styles.listIconContainer}>
                 <IconSymbol
                   ios_icon_name="list.bullet.rectangle"
-                  android_material_icon_name="list_alt"
+                  android_material_icon_name="list-alt"
                   size={32}
                   color={colors.primary}
                 />
@@ -621,7 +621,7 @@ export default function ListDetailsScreen() {
                 <View style={styles.listStatItem}>
                   <IconSymbol
                     ios_icon_name="square.grid.2x2"
-                    android_material_icon_name="grid_view"
+                    android_material_icon_name="grid-view"
                     size={20}
                     color={colors.textSecondary}
                   />
@@ -657,7 +657,7 @@ export default function ListDetailsScreen() {
                 <View style={styles.listStatItem}>
                   <IconSymbol
                     ios_icon_name="shippingbox"
-                    android_material_icon_name="local_shipping"
+                    android_material_icon_name="local-shipping"
                     size={20}
                     color={colors.textSecondary}
                   />
@@ -728,7 +728,7 @@ export default function ListDetailsScreen() {
               >
                 <IconSymbol
                   ios_icon_name="plus.circle.fill"
-                  android_material_icon_name="add_circle"
+                  android_material_icon_name="add-circle"
                   size={20}
                   color="#FFFFFF"
                 />

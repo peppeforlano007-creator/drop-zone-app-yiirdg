@@ -222,7 +222,7 @@ export default function SupplierDetailsScreen() {
             <View style={styles.listIconContainer}>
               <IconSymbol
                 ios_icon_name="list.bullet.rectangle"
-                android_material_icon_name="list_alt"
+                android_material_icon_name="list-alt"
                 size={24}
                 color={colors.primary}
               />
@@ -278,7 +278,7 @@ export default function SupplierDetailsScreen() {
           <View style={styles.listFooter}>
             <IconSymbol
               ios_icon_name="chevron.right"
-              android_material_icon_name="chevron_right"
+              android_material_icon_name="chevron-right"
               size={20}
               color={colors.textTertiary}
             />
@@ -420,7 +420,7 @@ export default function SupplierDetailsScreen() {
               >
                 <IconSymbol
                   ios_icon_name="plus.circle.fill"
-                  android_material_icon_name="add_circle"
+                  android_material_icon_name="add-circle"
                   size={20}
                   color="#FFFFFF"
                 />

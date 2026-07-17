@@ -341,7 +341,7 @@ export default function ReturnsScreen() {
             <Text style={styles.returnDetail}>
               <IconSymbol 
                 ios_icon_name="mappin.circle.fill" 
-                android_material_icon_name="location_on" 
+                android_material_icon_name="location-on" 
                 size={12} 
                 color={colors.textSecondary} 
               />
@@ -369,7 +369,7 @@ export default function ReturnsScreen() {
           <View style={styles.processedBadge}>
             <IconSymbol
               ios_icon_name="checkmark.circle.fill"
-              android_material_icon_name="check_circle"
+              android_material_icon_name="check-circle"
               size={14}
               color={colors.success}
             />
@@ -385,7 +385,7 @@ export default function ReturnsScreen() {
           >
             <IconSymbol
               ios_icon_name="minus.circle.fill"
-              android_material_icon_name="remove_circle"
+              android_material_icon_name="remove-circle"
               size={14}
               color="#fff"
             />
@@ -521,7 +521,7 @@ export default function ReturnsScreen() {
             <View style={styles.emptyState}>
               <IconSymbol
                 ios_icon_name="arrow.uturn.backward.circle"
-                android_material_icon_name="assignment_return"
+                android_material_icon_name="assignment-return"
                 size={64}
                 color={colors.textTertiary}
               />

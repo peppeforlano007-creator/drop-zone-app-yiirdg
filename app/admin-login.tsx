@@ -179,7 +179,7 @@ export default function AdminLoginScreen() {
             >
               <IconSymbol
                 ios_icon_name="chevron.left"
-                android_material_icon_name="chevron_left"
+                android_material_icon_name="chevron-left"
                 size={24}
                 color={colors.text}
               />
@@ -189,7 +189,7 @@ export default function AdminLoginScreen() {
               <View style={styles.iconContainer}>
                 <IconSymbol
                   ios_icon_name="lock.shield.fill"
-                  android_material_icon_name="admin_panel_settings"
+                  android_material_icon_name="admin-panel-settings"
                   size={48}
                   color={colors.primary}
                 />

@@ -334,7 +334,7 @@ export default function PickupPointDashboardScreen() {
             <View style={styles.statCard}>
               <IconSymbol
                 ios_icon_name="shippingbox.fill"
-                android_material_icon_name="inventory_2"
+                android_material_icon_name="inventory-2"
                 size={32}
                 color={colors.primary}
               />
@@ -356,7 +356,7 @@ export default function PickupPointDashboardScreen() {
             <View style={styles.statCard}>
               <IconSymbol
                 ios_icon_name="checkmark.circle.fill"
-                android_material_icon_name="check_circle"
+                android_material_icon_name="check-circle"
                 size={32}
                 color={colors.success}
               />
@@ -389,7 +389,7 @@ export default function PickupPointDashboardScreen() {
             <View style={styles.statCard}>
               <IconSymbol
                 ios_icon_name="cart.fill"
-                android_material_icon_name="shopping_cart"
+                android_material_icon_name="shopping-cart"
                 size={32}
                 color={colors.success}
               />
@@ -415,7 +415,7 @@ export default function PickupPointDashboardScreen() {
               <View style={styles.actionIcon}>
                 <IconSymbol
                   ios_icon_name="list.bullet.rectangle"
-                  android_material_icon_name="list_alt"
+                  android_material_icon_name="list-alt"
                   size={24}
                   color={colors.primary}
                 />
@@ -428,7 +428,7 @@ export default function PickupPointDashboardScreen() {
               </View>
               <IconSymbol
                 ios_icon_name="chevron.right"
-                android_material_icon_name="chevron_right"
+                android_material_icon_name="chevron-right"
                 size={20}
                 color={colors.textSecondary}
               />
@@ -460,7 +460,7 @@ export default function PickupPointDashboardScreen() {
               </View>
               <IconSymbol
                 ios_icon_name="chevron.right"
-                android_material_icon_name="chevron_right"
+                android_material_icon_name="chevron-right"
                 size={20}
                 color={colors.textSecondary}
               />
@@ -479,7 +479,7 @@ export default function PickupPointDashboardScreen() {
               <View style={styles.actionIcon}>
                 <IconSymbol
                   ios_icon_name="chart.bar.fill"
-                  android_material_icon_name="bar_chart"
+                  android_material_icon_name="bar-chart"
                   size={24}
                   color={colors.success}
                 />
@@ -492,7 +492,7 @@ export default function PickupPointDashboardScreen() {
               </View>
               <IconSymbol
                 ios_icon_name="chevron.right"
-                android_material_icon_name="chevron_right"
+                android_material_icon_name="chevron-right"
                 size={20}
                 color={colors.textSecondary}
               />
@@ -507,7 +507,7 @@ export default function PickupPointDashboardScreen() {
                 <View style={styles.infoRow}>
                   <IconSymbol
                     ios_icon_name="location.fill"
-                    android_material_icon_name="location_on"
+                    android_material_icon_name="location-on"
                     size={20}
                     color={colors.textSecondary}
                   />

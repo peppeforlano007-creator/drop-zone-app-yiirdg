@@ -286,7 +286,7 @@ export default function AdminSubscriptionsScreen() {
                     </View>
 
                     <View style={styles.detailRow}>
-                      <IconSymbol ios_icon_name="calendar" android_material_icon_name="calendar_today" size={16} color={colors.textSecondary} />
+                      <IconSymbol ios_icon_name="calendar" android_material_icon_name="calendar-today" size={16} color={colors.textSecondary} />
                       <Text style={styles.detailText}>
                         Rinnovo: {formatDate(subscription.current_period_end)}
                       </Text>
@@ -325,7 +325,7 @@ export default function AdminSubscriptionsScreen() {
                     }}
                   >
                     <Text style={styles.viewStripeButtonText}>Visualizza in Stripe</Text>
-                    <IconSymbol ios_icon_name="arrow.up.right" android_material_icon_name="open_in_new" size={16} color={colors.text} />
+                    <IconSymbol ios_icon_name="arrow.up.right" android_material_icon_name="open-in-new" size={16} color={colors.text} />
                   </Pressable>
                 </View>
               ))

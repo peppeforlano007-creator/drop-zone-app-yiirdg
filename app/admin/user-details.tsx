@@ -398,7 +398,7 @@ export default function UserDetailsScreen() {
                 <View style={styles.pickupPointHeader}>
                   <IconSymbol
                     ios_icon_name="mappin.circle.fill"
-                    android_material_icon_name="location_on"
+                    android_material_icon_name="location-on"
                     size={20}
                     color={colors.info}
                   />

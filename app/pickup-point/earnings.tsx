@@ -254,7 +254,7 @@ export default function EarningsScreen() {
             <View style={styles.summaryCard}>
               <IconSymbol 
                 ios_icon_name="shippingbox.fill" 
-                android_material_icon_name="inventory_2"
+                android_material_icon_name="inventory-2"
                 size={32} 
                 color={colors.primary} 
               />
@@ -278,7 +278,7 @@ export default function EarningsScreen() {
             <View style={styles.summaryCard}>
               <IconSymbol 
                 ios_icon_name="chart.line.uptrend.xyaxis" 
-                android_material_icon_name="trending_up"
+                android_material_icon_name="trending-up"
                 size={32} 
                 color="#10B981" 
               />
@@ -327,7 +327,7 @@ export default function EarningsScreen() {
                       <View style={styles.earningsItem}>
                         <IconSymbol 
                           ios_icon_name="shippingbox" 
-                          android_material_icon_name="inventory_2"
+                          android_material_icon_name="inventory-2"
                           size={18} 
                           color={colors.textSecondary} 
                         />
@@ -386,7 +386,7 @@ export default function EarningsScreen() {
             <View style={styles.emptyState}>
               <IconSymbol 
                 ios_icon_name="chart.bar" 
-                android_material_icon_name="bar_chart"
+                android_material_icon_name="bar-chart"
                 size={64} 
                 color={colors.textTertiary} 
               />
@@ -404,7 +404,7 @@ export default function EarningsScreen() {
             <View style={styles.bankHeader}>
               <IconSymbol 
                 ios_icon_name="creditcard.fill" 
-                android_material_icon_name="credit_card"
+                android_material_icon_name="credit-card"
                 size={24} 
                 color={colors.text} 
               />

@@ -71,7 +71,7 @@ export function DevMenu({ visible, onClose }: DevMenuProps) {
             <Pressable style={styles.menuItem} onPress={handleOpenDebugger}>
               <IconSymbol
                 ios_icon_name="ant.fill"
-                android_material_icon_name="bug_report"
+                android_material_icon_name="bug-report"
                 size={24}
                 color={colors.primary}
               />

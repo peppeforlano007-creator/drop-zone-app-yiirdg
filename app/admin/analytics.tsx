@@ -326,7 +326,7 @@ export default function AnalyticsScreen() {
               <View style={styles.statCard}>
                 <IconSymbol
                   ios_icon_name="bolt.circle.fill"
-                  android_material_icon_name="flash_on"
+                  android_material_icon_name="flash-on"
                   size={28}
                   color={colors.success}
                 />
@@ -427,7 +427,7 @@ export default function AnalyticsScreen() {
               <View style={styles.metricItem}>
                 <IconSymbol
                   ios_icon_name="chart.line.uptrend.xyaxis"
-                  android_material_icon_name="trending_up"
+                  android_material_icon_name="trending-up"
                   size={24}
                   color={colors.success}
                 />
@@ -437,7 +437,7 @@ export default function AnalyticsScreen() {
               <View style={styles.metricItem}>
                 <IconSymbol
                   ios_icon_name="checkmark.circle.fill"
-                  android_material_icon_name="check_circle"
+                  android_material_icon_name="check-circle"
                   size={24}
                   color={colors.primary}
                 />

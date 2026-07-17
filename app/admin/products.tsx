@@ -473,7 +473,7 @@ export default function ProductsScreen() {
                 <View style={styles.endMessageContainer}>
                   <IconSymbol
                     ios_icon_name="checkmark.circle.fill"
-                    android_material_icon_name="check_circle"
+                    android_material_icon_name="check-circle"
                     size={24}
                     color={colors.success}
                   />

@@ -764,7 +764,7 @@ export default function ConsumerRegisterScreen() {
                       <>
                         <IconSymbol
                           ios_icon_name="person.badge.plus.fill"
-                          android_material_icon_name="person_add"
+                          android_material_icon_name="person-add"
                           size={20}
                           color="#fff"
                         />
@@ -798,7 +798,7 @@ export default function ConsumerRegisterScreen() {
             >
               <IconSymbol
                 ios_icon_name="chevron.left"
-                android_material_icon_name="chevron_left"
+                android_material_icon_name="chevron-left"
                 size={20}
                 color={colors.primary}
               />

@@ -321,7 +321,7 @@ export default function NotificationsScreen() {
                 {selectedTemplate === template.id && (
                   <IconSymbol
                     ios_icon_name="checkmark.circle.fill"
-                    android_material_icon_name="check_circle"
+                    android_material_icon_name="check-circle"
                     size={24}
                     color={colors.primary}
                   />
@@ -407,7 +407,7 @@ export default function NotificationsScreen() {
                       <View style={styles.templateIcon}>
                         <IconSymbol
                           ios_icon_name="shippingbox.fill"
-                          android_material_icon_name="inventory_2"
+                          android_material_icon_name="inventory-2"
                           size={24}
                           color={isSelected ? colors.primary : colors.textSecondary}
                         />
@@ -425,7 +425,7 @@ export default function NotificationsScreen() {
                       {isSelected && (
                         <IconSymbol
                           ios_icon_name="checkmark.circle.fill"
-                          android_material_icon_name="check_circle"
+                          android_material_icon_name="check-circle"
                           size={24}
                           color={colors.primary}
                         />

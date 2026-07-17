@@ -438,7 +438,7 @@ export default function BookingsScreen() {
             <View style={styles.emptyState}>
               <IconSymbol
                 ios_icon_name="cart"
-                android_material_icon_name="shopping_cart"
+                android_material_icon_name="shopping-cart"
                 size={64}
                 color={colors.textTertiary}
               />

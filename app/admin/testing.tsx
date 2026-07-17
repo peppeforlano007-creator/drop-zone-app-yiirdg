@@ -286,7 +286,7 @@ export default function TestingScreen() {
                 onPress={handleCreateTestData}
                 disabled={isRunning}
               >
-                <IconSymbol ios_icon_name="plus.circle.fill" android_material_icon_name="add_circle" size={20} color="#FFF" />
+                <IconSymbol ios_icon_name="plus.circle.fill" android_material_icon_name="add-circle" size={20} color="#FFF" />
                 <Text style={styles.dataButtonText}>Crea Dati Test</Text>
               </Pressable>
               
@@ -339,7 +339,7 @@ export default function TestingScreen() {
         {/* Quick Actions */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <IconSymbol ios_icon_name="bolt.fill" android_material_icon_name="flash_on" size={24} color={colors.text} />
+            <IconSymbol ios_icon_name="bolt.fill" android_material_icon_name="flash-on" size={24} color={colors.text} />
             <Text style={styles.sectionTitle}>Azioni Rapide</Text>
           </View>
           
@@ -348,7 +348,7 @@ export default function TestingScreen() {
             onPress={runAllTestsSuite}
             disabled={isRunning}
           >
-            <IconSymbol ios_icon_name="play.circle.fill" android_material_icon_name="play_circle" size={24} color="#FFF" />
+            <IconSymbol ios_icon_name="play.circle.fill" android_material_icon_name="play-circle" size={24} color="#FFF" />
             <Text style={styles.actionButtonText}>Esegui Tutti i Test</Text>
           </Pressable>
 
@@ -367,7 +367,7 @@ export default function TestingScreen() {
               onPress={showPerformanceMetrics}
               disabled={isRunning}
             >
-              <IconSymbol ios_icon_name="chart.bar" android_material_icon_name="bar_chart" size={20} color={colors.text} />
+              <IconSymbol ios_icon_name="chart.bar" android_material_icon_name="bar-chart" size={20} color={colors.text} />
               <Text style={styles.secondaryButtonText}>Performance</Text>
             </Pressable>
           </View>
@@ -408,7 +408,7 @@ export default function TestingScreen() {
             disabled={isRunning}
           >
             <Text style={styles.testButtonText}>Test Autenticazione</Text>
-            <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="chevron_right" size={20} color={colors.textSecondary} />
+            <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="chevron-right" size={20} color={colors.textSecondary} />
           </Pressable>
 
           <Pressable
@@ -417,7 +417,7 @@ export default function TestingScreen() {
             disabled={isRunning}
           >
             <Text style={styles.testButtonText}>Test Navigazione Prodotti</Text>
-            <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="chevron_right" size={20} color={colors.textSecondary} />
+            <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="chevron-right" size={20} color={colors.textSecondary} />
           </Pressable>
 
           <Pressable
@@ -426,7 +426,7 @@ export default function TestingScreen() {
             disabled={isRunning}
           >
             <Text style={styles.testButtonText}>Test Funzionalità Drop</Text>
-            <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="chevron_right" size={20} color={colors.textSecondary} />
+            <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="chevron-right" size={20} color={colors.textSecondary} />
           </Pressable>
 
           <Pressable
@@ -435,7 +435,7 @@ export default function TestingScreen() {
             disabled={isRunning}
           >
             <Text style={styles.testButtonText}>Test RLS Policies</Text>
-            <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="chevron_right" size={20} color={colors.textSecondary} />
+            <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="chevron-right" size={20} color={colors.textSecondary} />
           </Pressable>
 
           <Pressable
@@ -444,7 +444,7 @@ export default function TestingScreen() {
             disabled={isRunning}
           >
             <Text style={styles.testButtonText}>Test Performance Database</Text>
-            <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="chevron_right" size={20} color={colors.textSecondary} />
+            <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="chevron-right" size={20} color={colors.textSecondary} />
           </Pressable>
 
           <Pressable
@@ -453,7 +453,7 @@ export default function TestingScreen() {
             disabled={isRunning}
           >
             <Text style={styles.testButtonText}>Test Realtime</Text>
-            <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="chevron_right" size={20} color={colors.textSecondary} />
+            <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="chevron-right" size={20} color={colors.textSecondary} />
           </Pressable>
 
           <Pressable
@@ -462,7 +462,7 @@ export default function TestingScreen() {
             disabled={isRunning}
           >
             <Text style={styles.testButtonText}>Test Caricamento Immagini</Text>
-            <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="chevron_right" size={20} color={colors.textSecondary} />
+            <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="chevron-right" size={20} color={colors.textSecondary} />
           </Pressable>
 
           <Pressable
@@ -471,7 +471,7 @@ export default function TestingScreen() {
             disabled={isRunning}
           >
             <Text style={styles.testButtonText}>Test Calcolo Sconti Drop</Text>
-            <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="chevron_right" size={20} color={colors.textSecondary} />
+            <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="chevron-right" size={20} color={colors.textSecondary} />
           </Pressable>
 
           <Pressable
@@ -480,7 +480,7 @@ export default function TestingScreen() {
             disabled={isRunning}
           >
             <Text style={styles.testButtonText}>Test Transizioni Stato Drop</Text>
-            <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="chevron_right" size={20} color={colors.textSecondary} />
+            <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="chevron-right" size={20} color={colors.textSecondary} />
           </Pressable>
 
           <Pressable
@@ -489,7 +489,7 @@ export default function TestingScreen() {
             disabled={isRunning}
           >
             <Text style={styles.testButtonText}>Test Validazione Liste Fornitori</Text>
-            <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="chevron_right" size={20} color={colors.textSecondary} />
+            <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="chevron-right" size={20} color={colors.textSecondary} />
           </Pressable>
 
           <Pressable
@@ -498,7 +498,7 @@ export default function TestingScreen() {
             disabled={isRunning}
           >
             <Text style={styles.testButtonText}>Test Parsing Excel</Text>
-            <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="chevron_right" size={20} color={colors.textSecondary} />
+            <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="chevron-right" size={20} color={colors.textSecondary} />
           </Pressable>
         </View>
 
@@ -506,7 +506,7 @@ export default function TestingScreen() {
         {testResults.length > 0 && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <IconSymbol ios_icon_name="checkmark.circle" android_material_icon_name="check_circle" size={24} color={colors.text} />
+              <IconSymbol ios_icon_name="checkmark.circle" android_material_icon_name="check-circle" size={24} color={colors.text} />
               <Text style={styles.sectionTitle}>Risultati Test</Text>
             </View>
 

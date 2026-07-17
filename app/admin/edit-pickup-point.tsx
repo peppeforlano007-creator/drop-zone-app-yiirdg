@@ -402,7 +402,7 @@ export default function EditPickupPointScreen() {
               <>
                 <IconSymbol
                   ios_icon_name="checkmark.circle.fill"
-                  android_material_icon_name="check_circle"
+                  android_material_icon_name="check-circle"
                   size={20}
                   color="#FFF"
                 />

@@ -480,7 +480,7 @@ export default function ManageDropsScreen() {
             >
               <IconSymbol
                 ios_icon_name="checkmark.circle.fill"
-                android_material_icon_name="check_circle"
+                android_material_icon_name="check-circle"
                 size={18}
                 color="#fff"
               />
@@ -502,7 +502,7 @@ export default function ManageDropsScreen() {
             >
               <IconSymbol
                 ios_icon_name="bolt.circle.fill"
-                android_material_icon_name="flash_on"
+                android_material_icon_name="flash-on"
                 size={18}
                 color="#fff"
               />
@@ -524,7 +524,7 @@ export default function ManageDropsScreen() {
             >
               <IconSymbol
                 ios_icon_name="pause.circle.fill"
-                android_material_icon_name="pause_circle"
+                android_material_icon_name="pause-circle"
                 size={18}
                 color="#fff"
               />
@@ -543,7 +543,7 @@ export default function ManageDropsScreen() {
             >
               <IconSymbol
                 ios_icon_name="checkmark.circle.fill"
-                android_material_icon_name="check_circle"
+                android_material_icon_name="check-circle"
                 size={18}
                 color="#fff"
               />
@@ -616,7 +616,7 @@ export default function ManageDropsScreen() {
           >
             <IconSymbol
               ios_icon_name="plus.circle.fill"
-              android_material_icon_name="add_circle"
+              android_material_icon_name="add-circle"
               size={20}
               color="#fff"
             />
@@ -697,7 +697,7 @@ export default function ManageDropsScreen() {
               >
                 <IconSymbol
                   ios_icon_name="plus.circle"
-                  android_material_icon_name="add_circle"
+                  android_material_icon_name="add-circle"
                   size={20}
                   color={colors.primary}
                 />

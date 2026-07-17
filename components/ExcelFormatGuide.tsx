@@ -169,7 +169,7 @@ export default function ExcelFormatGuide({ onClose }: ExcelFormatGuideProps) {
             <View style={styles.sizesExampleHeader}>
               <IconSymbol
                 ios_icon_name="figure.walk"
-                android_material_icon_name="directions_walk"
+                android_material_icon_name="directions-walk"
                 size={16}
                 color="#FF9800"
               />
@@ -184,7 +184,7 @@ export default function ExcelFormatGuide({ onClose }: ExcelFormatGuideProps) {
             <View style={styles.sizesExampleHeader}>
               <IconSymbol
                 ios_icon_name="shoe.fill"
-                android_material_icon_name="shopping_bag"
+                android_material_icon_name="shopping-bag"
                 size={16}
                 color="#9C27B0"
               />
@@ -199,7 +199,7 @@ export default function ExcelFormatGuide({ onClose }: ExcelFormatGuideProps) {
             <View style={styles.sizesExampleHeader}>
               <IconSymbol
                 ios_icon_name="bag.fill"
-                android_material_icon_name="shopping_bag"
+                android_material_icon_name="shopping-bag"
                 size={16}
                 color="#F44336"
               />
@@ -231,7 +231,7 @@ export default function ExcelFormatGuide({ onClose }: ExcelFormatGuideProps) {
           <View style={styles.sectionHeader}>
             <IconSymbol
               ios_icon_name="square.grid.3x3.fill"
-              android_material_icon_name="grid_view"
+              android_material_icon_name="grid-view"
               size={20}
               color="#FFA500"
             />

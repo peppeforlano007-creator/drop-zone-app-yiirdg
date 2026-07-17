@@ -317,7 +317,7 @@ export default function DropAnalyticsScreen() {
               <View style={styles.metricCard}>
                 <IconSymbol
                   ios_icon_name="cart.fill"
-                  android_material_icon_name="shopping_cart"
+                  android_material_icon_name="shopping-cart"
                   size={28}
                   color={colors.primary}
                 />
@@ -350,7 +350,7 @@ export default function DropAnalyticsScreen() {
               <View style={styles.metricCard}>
                 <IconSymbol
                   ios_icon_name="chart.line.uptrend.xyaxis"
-                  android_material_icon_name="trending_up"
+                  android_material_icon_name="trending-up"
                   size={28}
                   color={colors.warning}
                 />
@@ -390,7 +390,7 @@ export default function DropAnalyticsScreen() {
               <View style={styles.emptyState}>
                 <IconSymbol
                   ios_icon_name="mappin.slash"
-                  android_material_icon_name="location_off"
+                  android_material_icon_name="location-off"
                   size={40}
                   color={colors.textTertiary}
                 />
@@ -443,7 +443,7 @@ export default function DropAnalyticsScreen() {
                     <View style={styles.bookingUser}>
                       <IconSymbol
                         ios_icon_name="person.circle.fill"
-                        android_material_icon_name="account_circle"
+                        android_material_icon_name="account-circle"
                         size={20}
                         color={colors.primary}
                       />

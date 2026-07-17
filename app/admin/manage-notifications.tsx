@@ -397,7 +397,7 @@ export default function ManageNotificationsScreen() {
             style={[styles.actionButton, styles.secondaryButton]}
             onPress={() => setShowCreateForm(!showCreateForm)}
           >
-            <IconSymbol ios_icon_name="plus.circle.fill" android_material_icon_name="add_circle" size={20} color={colors.text} />
+            <IconSymbol ios_icon_name="plus.circle.fill" android_material_icon_name="add-circle" size={20} color={colors.text} />
             <Text style={styles.secondaryButtonText}>Nuovo Flusso</Text>
           </Pressable>
         </View>
@@ -540,7 +540,7 @@ export default function ManageNotificationsScreen() {
         {showCreateForm && (
           <View style={styles.formCard}>
             <View style={styles.formHeader}>
-              <IconSymbol ios_icon_name="plus.circle.fill" android_material_icon_name="add_circle" size={24} color={colors.primary} />
+              <IconSymbol ios_icon_name="plus.circle.fill" android_material_icon_name="add-circle" size={24} color={colors.primary} />
               <Text style={styles.formTitle}>Crea Nuovo Flusso</Text>
             </View>
 
@@ -679,7 +679,7 @@ export default function ManageNotificationsScreen() {
           
           {flows.length === 0 ? (
             <View style={styles.emptyState}>
-              <IconSymbol ios_icon_name="bell.slash" android_material_icon_name="notifications_off" size={48} color={colors.textTertiary} />
+              <IconSymbol ios_icon_name="bell.slash" android_material_icon_name="notifications-off" size={48} color={colors.textTertiary} />
               <Text style={styles.emptyStateText}>Nessun flusso di notifica configurato</Text>
             </View>
           ) : (
@@ -702,7 +702,7 @@ export default function ManageNotificationsScreen() {
 
                 <View style={styles.flowDetails}>
                   <View style={styles.flowBadge}>
-                    <IconSymbol ios_icon_name="bolt.fill" android_material_icon_name="flash_on" size={14} color={colors.primary} />
+                    <IconSymbol ios_icon_name="bolt.fill" android_material_icon_name="flash-on" size={14} color={colors.primary} />
                     <Text style={styles.flowBadgeText}>{getTriggerTypeLabel(flow.trigger_type)}</Text>
                   </View>
 

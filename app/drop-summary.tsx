@@ -176,7 +176,7 @@ export default function DropSummaryScreen() {
         <Pressable onPress={handleBack} style={styles.backButton} hitSlop={8}>
           <IconSymbol
             ios_icon_name="chevron.left"
-            android_material_icon_name="chevron_left"
+            android_material_icon_name="chevron-left"
             size={24}
             color={colors.text}
           />
@@ -299,7 +299,7 @@ export default function DropSummaryScreen() {
             <View style={styles.pickupIconRow}>
               <IconSymbol
                 ios_icon_name="mappin.circle.fill"
-                android_material_icon_name="location_on"
+                android_material_icon_name="location-on"
                 size={20}
                 color={colors.text}
               />

@@ -420,7 +420,7 @@ export default function MyDataScreen() {
             >
               <IconSymbol
                 ios_icon_name="person.circle.fill"
-                android_material_icon_name="account_circle"
+                android_material_icon_name="account-circle"
                 size={24}
                 color={colors.primary}
               />
@@ -432,7 +432,7 @@ export default function MyDataScreen() {
               </View>
               <IconSymbol
                 ios_icon_name="chevron.right"
-                android_material_icon_name="chevron_right"
+                android_material_icon_name="chevron-right"
                 size={20}
                 color={colors.textSecondary}
               />
@@ -466,7 +466,7 @@ export default function MyDataScreen() {
                   </View>
                   <IconSymbol
                     ios_icon_name="chevron.right"
-                    android_material_icon_name="chevron_right"
+                    android_material_icon_name="chevron-right"
                     size={20}
                     color={colors.textSecondary}
                   />
@@ -497,7 +497,7 @@ export default function MyDataScreen() {
               <Text style={styles.legalButtonText}>Privacy Policy</Text>
               <IconSymbol
                 ios_icon_name="chevron.right"
-                android_material_icon_name="chevron_right"
+                android_material_icon_name="chevron-right"
                 size={18}
                 color={colors.textSecondary}
               />
@@ -522,7 +522,7 @@ export default function MyDataScreen() {
               <Text style={styles.legalButtonText}>Termini e Condizioni</Text>
               <IconSymbol
                 ios_icon_name="chevron.right"
-                android_material_icon_name="chevron_right"
+                android_material_icon_name="chevron-right"
                 size={18}
                 color={colors.textSecondary}
               />
@@ -547,7 +547,7 @@ export default function MyDataScreen() {
               <Text style={styles.legalButtonText}>Cookie Policy</Text>
               <IconSymbol
                 ios_icon_name="chevron.right"
-                android_material_icon_name="chevron_right"
+                android_material_icon_name="chevron-right"
                 size={18}
                 color={colors.textSecondary}
               />
@@ -574,7 +574,7 @@ export default function MyDataScreen() {
                 <>
                   <IconSymbol
                     ios_icon_name="trash.fill"
-                    android_material_icon_name="delete_forever"
+                    android_material_icon_name="delete-forever"
                     size={24}
                     color={colors.error}
                   />

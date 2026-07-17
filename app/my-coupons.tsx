@@ -148,7 +148,7 @@ export default function MyPointsScreen() {
               <Text style={styles.learnMoreText}>Scopri come funziona il programma fedeltà</Text>
               <IconSymbol
                 ios_icon_name="chevron.right"
-                android_material_icon_name="chevron_right"
+                android_material_icon_name="chevron-right"
                 size={16}
                 color={colors.primary}
               />

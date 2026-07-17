@@ -53,7 +53,7 @@ export default function CachedImage({ uri, showPlaceholder = true, style, ...pro
           <View style={styles.placeholder}>
             <IconSymbol 
               ios_icon_name="photo" 
-              android_material_icon_name="broken_image" 
+              android_material_icon_name="broken-image" 
               size={48} 
               color={colors.textTertiary} 
             />
@@ -92,7 +92,7 @@ export default function CachedImage({ uri, showPlaceholder = true, style, ...pro
         <View style={styles.placeholder}>
           <IconSymbol 
             ios_icon_name="photo" 
-            android_material_icon_name="broken_image" 
+            android_material_icon_name="broken-image" 
             size={48} 
             color={colors.textTertiary} 
           />
