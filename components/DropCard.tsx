@@ -151,6 +151,10 @@ export default function DropCard({ drop, deliveryMinDays, deliveryMaxDays }: Dro
     ? Math.min((currentValue / maxReservationValue) * 100, 100) 
     : 0;
 
+  const excessValue = currentValue > maxReservationValue ? currentValue - maxReservationValue : 0;
+  const currentValueDisplay = excessValue > 0 ? `+${formatEuro(excessValue)}` : formatEuro(currentValue);
+  const currentValueColor = excessValue > 0 ? '#16A34A' : colors.text;
+
   const discountRemaining = maxDiscount - currentDiscount;
   const discountRemainingText = discountRemaining > 0 
     ? `Mancano ${Math.floor(discountRemaining)}% per lo sconto massimo!` 
@@ -291,7 +295,7 @@ export default function DropCard({ drop, deliveryMinDays, deliveryMaxDays }: Dro
             <View style={styles.statDivider} />
             <View style={styles.statItem}>
               <Text style={styles.statLabel}>Valore Attuale</Text>
-              <Text style={styles.statValue}>{formatEuro(currentValue)}</Text>
+              <Text style={[styles.statValue, { color: currentValueColor }]}>{currentValueDisplay}</Text>
             </View>
           </View>
 
@@ -303,7 +307,7 @@ export default function DropCard({ drop, deliveryMinDays, deliveryMaxDays }: Dro
               <View style={[styles.progressBarFill, { width: `${valueProgress}%` }]} />
             </View>
             <View style={styles.progressFooter}>
-              <Text style={styles.progressText}>{formatEuro(currentValue)}</Text>
+              <Text style={[styles.progressText, { color: currentValueColor }]}>{currentValueDisplay}</Text>
               <Text style={styles.progressText}>{formatEuro(maxReservationValue)}</Text>
             </View>
           </View>
