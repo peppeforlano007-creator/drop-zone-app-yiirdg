@@ -1011,7 +1011,7 @@ export default function DropDetailsScreen() {
               >
                 <IconSymbol
                   ios_icon_name={isInterested(dropId) ? 'heart.fill' : 'heart'}
-                  android_material_icon_name={isInterested(dropId) ? 'favorite' : 'favorite_border'}
+                  android_material_icon_name={isInterested(dropId) ? 'favorite' : 'favorite-border'}
                   size={14}
                   color="#E11D48"
                 />

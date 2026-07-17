@@ -530,7 +530,7 @@ export default function EnhancedProductCard({
               ) : (
                 <IconSymbol
                   ios_icon_name={isInWishlist ? 'heart.fill' : 'heart'}
-                  android_material_icon_name={isInWishlist ? 'favorite' : 'favorite_border'}
+                  android_material_icon_name={isInWishlist ? 'favorite' : 'favorite-border'}
                   size={26}
                   color={isInWishlist ? '#FF6B6B' : '#FFF'}
                 />

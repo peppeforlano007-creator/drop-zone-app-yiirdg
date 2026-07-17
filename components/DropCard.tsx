@@ -431,7 +431,7 @@ export default function DropCard({ drop, deliveryMinDays, deliveryMaxDays }: Dro
             >
               <IconSymbol
                 ios_icon_name={isInterested(drop.id) ? 'heart.fill' : 'heart'}
-                android_material_icon_name={isInterested(drop.id) ? 'favorite' : 'favorite_border'}
+                android_material_icon_name={isInterested(drop.id) ? 'favorite' : 'favorite-border'}
                 size={14}
                 color="#E11D48"
               />
