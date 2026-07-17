@@ -126,7 +126,7 @@ export default function ChatIndexScreen() {
   const [inviteLink, setInviteLink] = useState('https://rdnstreet.app');
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
-  const { unreadByGroup, markGroupAsRead } = useUnreadChat();
+  const { unreadByGroup } = useUnreadChat();
 
   const bgColor = isDark ? '#000000' : '#F8F8F8';
   const headerBg = isDark ? '#1C1C1E' : '#FFFFFF';
@@ -284,8 +284,8 @@ export default function ChatIndexScreen() {
   );
 
   const handleGroupPress = (groupId: string, groupName: string) => {
-    console.log('[Chat] Group pressed:', groupId, groupName);
-    markGroupAsRead(groupId);
+    console.log('[Chat] Group pressed, navigating to chat:', groupId, groupName);
+    // markGroupAsRead is called on mount inside [groupId].tsx, not here
     router.push({ pathname: '/(tabs)/chat/[groupId]', params: { groupId, groupName } });
   };
 

@@ -2,7 +2,8 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/app/integrations/supabase/client';
 
-const STORAGE_KEY = 'chat_last_read';
+// Key is user-specific to prevent cross-user contamination on shared devices
+const storageKey = (userId: string) => `chat_last_read_${userId}`;
 
 type LastReadMap = Record<string, string>; // groupId -> ISO timestamp
 
@@ -52,6 +53,7 @@ export function useUnreadChatMessages(userId: string | undefined) {
             .neq('sender_id', userId);
 
           if (lastReadTs) {
+            // lastReadTs is already +1ms past the last read message, so gt is correct
             query = query.gt('created_at', lastReadTs);
           }
 
@@ -75,7 +77,7 @@ export function useUnreadChatMessages(userId: string | undefined) {
     }
   }, [userId]);
 
-  // Load from AsyncStorage and compute on mount / userId change
+  // Load from AsyncStorage + Supabase and compute on mount / userId change
   useEffect(() => {
     if (!userId) {
       setUnreadByGroup({});
@@ -87,15 +89,40 @@ export function useUnreadChatMessages(userId: string | undefined) {
 
     const init = async () => {
       try {
-        const raw = await AsyncStorage.getItem(STORAGE_KEY);
-        const lastRead: LastReadMap = raw ? JSON.parse(raw) : {};
-        lastReadRef.current = lastRead;
-        console.log('[useUnreadChatMessages] Loaded lastRead from AsyncStorage');
+        // Load from user-specific AsyncStorage key
+        const raw = await AsyncStorage.getItem(storageKey(userId));
+        const localLastRead: LastReadMap = raw ? JSON.parse(raw) : {};
+        console.log('[useUnreadChatMessages] Loaded lastRead from AsyncStorage for user:', userId);
+
+        // Also load from Supabase chat_read_receipts for cross-device persistence
+        const { data: receipts, error: receiptsErr } = await supabase
+          .from('chat_read_receipts')
+          .select('group_id, last_read_at')
+          .eq('user_id', userId);
+
+        if (receiptsErr) {
+          console.warn('[useUnreadChatMessages] Error loading receipts from Supabase:', receiptsErr);
+        }
+
+        // Merge: take the more recent timestamp for each group
+        const merged: LastReadMap = { ...localLastRead };
+        if (receipts) {
+          for (const row of receipts) {
+            const existing = merged[row.group_id];
+            if (!existing || row.last_read_at > existing) {
+              merged[row.group_id] = row.last_read_at;
+            }
+          }
+        }
+
+        lastReadRef.current = merged;
+        console.log('[useUnreadChatMessages] Merged lastRead from local + remote, groups:', Object.keys(merged).length);
+
         if (isMounted) {
-          await computeUnread(lastRead);
+          await computeUnread(merged);
         }
       } catch (err) {
-        console.warn('[useUnreadChatMessages] AsyncStorage read error:', err);
+        console.warn('[useUnreadChatMessages] Init error:', err);
         if (isMounted) {
           await computeUnread({});
         }
@@ -144,10 +171,12 @@ export function useUnreadChatMessages(userId: string | undefined) {
   }, [userId, computeUnread]);
 
   const markGroupAsRead = useCallback(async (groupId: string) => {
-    console.log('[useUnreadChatMessages] Marking group as read:', groupId);
+    if (!userId) return;
+    console.log('[useUnreadChatMessages] Marking group as read:', groupId, 'for user:', userId);
 
-    // Use the server-side timestamp of the latest message to avoid device clock skew
-    let serverNow: string;
+    // Use the server-side timestamp of the latest message to avoid device clock skew.
+    // Add 1ms so that `gt(created_at, threshold)` strictly excludes the last read message.
+    let threshold: string;
     try {
       const { data, error } = await supabase
         .from('chat_messages')
@@ -158,24 +187,44 @@ export function useUnreadChatMessages(userId: string | undefined) {
         .maybeSingle();
 
       if (!error && data?.created_at) {
-        serverNow = data.created_at;
+        // +1ms ensures the saved timestamp is strictly after the last message,
+        // so gt('created_at', threshold) will never re-count it
+        threshold = new Date(new Date(data.created_at).getTime() + 1).toISOString();
       } else {
-        // Fallback: use device time if no messages or error
-        serverNow = new Date().toISOString();
+        threshold = new Date(new Date().getTime() + 1).toISOString();
       }
     } catch {
-      serverNow = new Date().toISOString();
+      threshold = new Date(new Date().getTime() + 1).toISOString();
     }
 
-    console.log('[useUnreadChatMessages] Last read timestamp set to:', serverNow);
+    console.log('[useUnreadChatMessages] Last read threshold set to:', threshold);
 
-    const updated: LastReadMap = { ...lastReadRef.current, [groupId]: serverNow };
+    const updated: LastReadMap = { ...lastReadRef.current, [groupId]: threshold };
     lastReadRef.current = updated;
 
+    // Persist to user-specific AsyncStorage key
     try {
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+      await AsyncStorage.setItem(storageKey(userId), JSON.stringify(updated));
+      console.log('[useUnreadChatMessages] Saved to AsyncStorage key:', storageKey(userId));
     } catch (err) {
       console.warn('[useUnreadChatMessages] AsyncStorage write error:', err);
+    }
+
+    // Persist to Supabase for cross-device sync
+    try {
+      const { error: upsertErr } = await supabase
+        .from('chat_read_receipts')
+        .upsert(
+          { user_id: userId, group_id: groupId, last_read_at: threshold },
+          { onConflict: 'user_id,group_id' }
+        );
+      if (upsertErr) {
+        console.warn('[useUnreadChatMessages] Supabase upsert error:', upsertErr);
+      } else {
+        console.log('[useUnreadChatMessages] Upserted read receipt to Supabase for group:', groupId);
+      }
+    } catch (err) {
+      console.warn('[useUnreadChatMessages] Supabase upsert exception:', err);
     }
 
     setUnreadByGroup((prev) => {
