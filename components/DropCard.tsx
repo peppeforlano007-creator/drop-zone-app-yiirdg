@@ -152,7 +152,7 @@ export default function DropCard({ drop, deliveryMinDays, deliveryMaxDays }: Dro
     : 0;
 
   const isOverfunded = currentValue > maxReservationValue;
-  const currentValueDisplay = isOverfunded ? `+${formatEuro(currentValue)}` : formatEuro(currentValue);
+  const currentValueDisplay = isOverfunded ? `+${formatEuro(maxReservationValue)}` : formatEuro(currentValue);
   const currentValueColor = isOverfunded ? '#16A34A' : colors.text;
 
   const discountRemaining = maxDiscount - currentDiscount;
