@@ -151,9 +151,9 @@ export default function DropCard({ drop, deliveryMinDays, deliveryMaxDays }: Dro
     ? Math.min((currentValue / maxReservationValue) * 100, 100) 
     : 0;
 
-  const excessValue = currentValue > maxReservationValue ? currentValue - maxReservationValue : 0;
-  const currentValueDisplay = excessValue > 0 ? `+${formatEuro(excessValue)}` : formatEuro(currentValue);
-  const currentValueColor = excessValue > 0 ? '#16A34A' : colors.text;
+  const isOverfunded = currentValue > maxReservationValue;
+  const currentValueDisplay = isOverfunded ? `+${formatEuro(currentValue)}` : formatEuro(currentValue);
+  const currentValueColor = isOverfunded ? '#16A34A' : colors.text;
 
   const discountRemaining = maxDiscount - currentDiscount;
   const discountRemainingText = discountRemaining > 0 
