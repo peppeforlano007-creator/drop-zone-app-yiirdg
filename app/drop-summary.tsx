@@ -218,19 +218,23 @@ export default function DropSummaryScreen() {
             const originalPrice = Number(booking.original_price).toFixed(2);
             const finalPrice = Number(booking.final_price).toFixed(2);
             const savings = (Number(booking.original_price) - Number(booking.final_price)).toFixed(2);
-            const discountPct = drop?.final_discount_percentage != null
+            const dropFinalDiscount = drop?.final_discount_percentage != null
               ? Number(drop.final_discount_percentage)
               : Number(booking.discount_percentage);
+            const loyaltyPct = Number(booking.loyalty_discount ?? 0);
+            const totalDiscountPct = loyaltyPct > 0
+              ? (1 - (1 - dropFinalDiscount / 100) * (1 - loyaltyPct / 100)) * 100
+              : dropFinalDiscount;
 
             return (
               <View key={booking.id} style={styles.itemCard}>
                 <View style={styles.itemHeader}>
                   <Text style={styles.itemName}>{productName}</Text>
-                  {discountPct > 0 && (
+                  {totalDiscountPct > 0 && (
                     <View style={styles.discountBadge}>
                       <Text style={styles.discountBadgeText}>
                         {'-'}
-                        {Math.round(discountPct)}
+                        {totalDiscountPct.toFixed(1)}
                         {'%'}
                       </Text>
                     </View>

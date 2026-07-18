@@ -392,7 +392,7 @@ export default function MyBookingsScreen() {
     const totalDiscountPercentage = isDropCompleted && loyaltyDiscount > 0
       ? (1 - (1 - discountPercentage / 100) * (1 - loyaltyDiscount / 100)) * 100
       : discountPercentage;
-    const discountBadgeText = `-${Math.round(totalDiscountPercentage)}%`;
+    const discountBadgeText = `-${totalDiscountPercentage.toFixed(1)}%`;
     const originalPriceText = `€${originalPrice.toFixed(2)}`;
     const finalPriceText = `€${finalPrice.toFixed(2)}`;
     const authorizedAmountText = `€${authorizedAmount.toFixed(2)}`;
