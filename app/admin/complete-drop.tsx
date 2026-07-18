@@ -118,8 +118,8 @@ export default function CompleteDropScreen() {
           headerTintColor: colors.text,
         }}
       />
-      <SafeAreaView style={styles.container}>
-        <ScrollView style={styles.scrollView} contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
+      <SafeAreaView style={styles.container} edges={['bottom']}>
+        <ScrollView style={styles.scrollView} contentContainerStyle={{ padding: 20, paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
         <View style={styles.content}>
           <View style={styles.iconContainer}>
             <IconSymbol 
