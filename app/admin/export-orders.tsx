@@ -29,6 +29,7 @@ interface DropData {
   supplier_list_id: string;
   pickup_point_id: string;
   current_discount: number;
+  final_discount_percentage?: number | null;
 }
 
 interface SupplierListData {
@@ -52,8 +53,12 @@ interface OrderData {
   lot?: string | null;
   selected_size?: string;
   selected_color?: string;
+  original_price: number;
   unit_price: number;
   final_price: number;
+  drop_discount_pct: number;
+  loyalty_discount_pct: number;
+  net_price: number;
   customer_name: string;
   customer_phone: string;
   customer_email: string;
@@ -75,7 +80,7 @@ export default function ExportOrdersScreen() {
       // Load completed drops - try with completed_at first, fallback to updated_at
       const { data: dropsData, error: dropsError } = await supabase
         .from('drops')
-        .select('id, name, status, updated_at, completed_at, supplier_list_id, pickup_point_id, current_discount')
+        .select('id, name, status, updated_at, completed_at, supplier_list_id, pickup_point_id, current_discount, final_discount_percentage')
         .eq('status', 'completed')
         .order('completed_at', { ascending: false, nullsFirst: false })
         .limit(50);
@@ -88,7 +93,7 @@ export default function ExportOrdersScreen() {
           console.log('Retrying without completed_at field...');
           const { data: retryData, error: retryError } = await supabase
             .from('drops')
-            .select('id, name, status, updated_at, supplier_list_id, pickup_point_id, current_discount')
+            .select('id, name, status, updated_at, supplier_list_id, pickup_point_id, current_discount, final_discount_percentage')
             .eq('status', 'completed')
             .order('updated_at', { ascending: false })
             .limit(50);
@@ -207,7 +212,7 @@ export default function ExportOrdersScreen() {
       console.log('[ExportOrders] Loading bookings for drop:', drop.id);
       const { data: bookings, error: bookingsError } = await supabase
         .from('bookings')
-        .select('id, product_id, final_price, user_id, selected_size, selected_color, discount_percentage, loyalty_discount')
+        .select('id, product_id, original_price, final_price, user_id, selected_size, selected_color, discount_percentage, loyalty_discount')
         .eq('drop_id', drop.id)
         .in('status', ['confirmed', 'completed']);
 
@@ -275,6 +280,13 @@ export default function ExportOrdersScreen() {
         const user = usersMap.get(booking.user_id);
         const pickupPointName = user?.pickup_point_id ? pickupPointsMap.get(user.pickup_point_id) || 'N/A' : 'N/A';
         const qty = 1;
+
+        const dropDiscountPct = drop.final_discount_percentage != null
+          ? Number(drop.final_discount_percentage)
+          : Number(booking.discount_percentage ?? 0);
+        const loyaltyPct = Number(booking.loyalty_discount ?? 0);
+        const netPrice = Number(booking.original_price) * (1 - dropDiscountPct / 100) * (1 - loyaltyPct / 100);
+
         return {
           product_id: booking.product_id,
           product_name: product?.name || 'Prodotto Sconosciuto',
@@ -282,8 +294,12 @@ export default function ExportOrdersScreen() {
           quantity: qty,
           selected_size: booking.selected_size || 'N/A',
           selected_color: booking.selected_color || 'N/A',
+          original_price: Number(booking.original_price ?? booking.final_price),
           unit_price: booking.final_price,
           final_price: booking.final_price * qty,
+          drop_discount_pct: dropDiscountPct,
+          loyalty_discount_pct: loyaltyPct,
+          net_price: netPrice,
           customer_name: user?.full_name || 'N/A',
           customer_phone: user?.phone || 'N/A',
           customer_email: user?.email || 'N/A',
@@ -304,6 +320,10 @@ export default function ExportOrdersScreen() {
           'Colore': order.selected_color,
           'Prezzo Unitario': `€${Number(order.unit_price).toFixed(2)}`,
           'Totale Riga': `€${Number(order.final_price).toFixed(2)}`,
+          'Prezzo Lordo': `€${Number(order.original_price).toFixed(2)}`,
+          'Sconto Drop %': `${Number(order.drop_discount_pct).toFixed(2)}%`,
+          'Sconto Fedeltà %': `${Number(order.loyalty_discount_pct).toFixed(1)}%`,
+          'Prezzo Netto al Ritiro': `€${Number(order.net_price).toFixed(2)}`,
           'Cliente': order.customer_name,
           'Telefono': order.customer_phone,
           'Email': order.customer_email,
@@ -316,6 +336,7 @@ export default function ExportOrdersScreen() {
 
       // Add summary sheet
       const totalValue = ordersArray.reduce((sum, order) => sum + order.final_price, 0);
+      const totalNetValue = ordersArray.reduce((sum, order) => sum + order.net_price, 0);
       const totalItems = ordersArray.reduce((sum, order) => sum + order.quantity, 0);
 
       const supplierList = supplierLists.get(drop.supplier_list_id);
@@ -334,6 +355,7 @@ export default function ExportOrdersScreen() {
         { 'Campo': 'Data Completamento', 'Valore': completionDate ? new Date(completionDate).toLocaleDateString('it-IT') : 'N/A' },
         { 'Campo': 'Totale Articoli', 'Valore': totalItems.toString() },
         { 'Campo': 'Valore Totale', 'Valore': `€${totalValue.toFixed(2)}` },
+        { 'Campo': 'Valore Netto Totale al Ritiro', 'Valore': `€${totalNetValue.toFixed(2)}` },
       ];
 
       const summarySheet = utils.json_to_sheet(summaryData);
