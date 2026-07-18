@@ -7,6 +7,7 @@ import {
   Pressable,
   Alert,
   ActivityIndicator,
+  ScrollView,
 } from 'react-native';
 import { Stack, useLocalSearchParams, router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -118,6 +119,7 @@ export default function CompleteDropScreen() {
         }}
       />
       <SafeAreaView style={styles.container}>
+        <ScrollView style={styles.scrollView} contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
         <View style={styles.content}>
           <View style={styles.iconContainer}>
             <IconSymbol 
@@ -255,6 +257,7 @@ export default function CompleteDropScreen() {
             <Text style={styles.cancelButtonText}>Annulla</Text>
           </Pressable>
         </View>
+        </ScrollView>
       </SafeAreaView>
     </>
   );
@@ -265,10 +268,10 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  content: {
+  scrollView: {
     flex: 1,
-    padding: 20,
-    justifyContent: 'center',
+  },
+  content: {
   },
   iconContainer: {
     alignItems: 'center',
