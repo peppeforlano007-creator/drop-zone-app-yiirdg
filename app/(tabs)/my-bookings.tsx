@@ -387,7 +387,10 @@ export default function MyBookingsScreen() {
     const canCancel = booking.status === 'active' && dropStatus === 'active';
     const isRefunded = booking.payment_status === 'refunded';
 
-    const discountBadgeText = `-${Math.round(discountPercentage)}%`;
+    const totalDiscountPercentage = isDropCompleted && loyaltyDiscount > 0
+      ? (1 - (1 - discountPercentage / 100) * (1 - loyaltyDiscount / 100)) * 100
+      : discountPercentage;
+    const discountBadgeText = `-${Math.round(totalDiscountPercentage)}%`;
     const originalPriceText = `€${originalPrice.toFixed(2)}`;
     const finalPriceText = `€${finalPrice.toFixed(2)}`;
     const authorizedAmountText = `€${authorizedAmount.toFixed(2)}`;
@@ -447,7 +450,7 @@ export default function MyBookingsScreen() {
         {/* Loyalty discount */}
         {isDropCompleted && loyaltyDiscount > 0 && (
           <Text style={styles.loyaltyLine}>
-            Sconto fedeltà: +{Math.round(loyaltyDiscount)}%
+            Sconto fedeltà: +{loyaltyDiscount.toFixed(1)}%
           </Text>
         )}
 
