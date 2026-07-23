@@ -522,7 +522,7 @@ export default function OrdersScreen() {
 
                 const { error: loyaltyUpdateError } = await supabase
                   .from('profiles')
-                  .update({ loyalty_points: newPoints, loyalty_level: newLevel })
+                  .update({ loyalty_points: newPoints, points_total: newPoints, loyalty_level: newLevel })
                   .eq('user_id', userId);
 
                 if (loyaltyUpdateError) {
