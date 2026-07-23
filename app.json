@@ -1,10 +1,7 @@
 {
   "expo": {
-    "cli": {
-      "appVersionSource": "local"
-    },
     "name": "RDN STREET STOCK MARKET",
-    "slug": "drop-zone-app-yiirdg",
+    "slug": "drop-zone",
     "version": "2.7.0",
     "orientation": "portrait",
     "icon": "./assets/images/rdnstreetstockmarket-icon.png",
