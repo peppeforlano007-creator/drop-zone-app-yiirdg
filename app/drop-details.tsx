@@ -541,7 +541,7 @@ export default function DropDetailsScreen() {
     const valueProgress = (newValue - minReservationValue) / valueRange;
     const newDiscount = minDiscount + (discountRange * valueProgress);
 
-    return Math.round(newDiscount * 100) / 100;
+    return Math.round(newDiscount);
   }, [drop]);
 
   const handleBook = useCallback(async (productId: string, variantId?: string) => {

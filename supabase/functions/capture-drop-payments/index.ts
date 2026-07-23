@@ -93,7 +93,7 @@ function calculateFinalDiscount(
   const valueProgress = currentValue - minReservationValue;
   const discountProgress = (valueProgress / valueRange) * discountRange;
   
-  return minDiscount + discountProgress;
+  return Math.round(minDiscount + discountProgress);
 }
 
 serve(async (req) => {
