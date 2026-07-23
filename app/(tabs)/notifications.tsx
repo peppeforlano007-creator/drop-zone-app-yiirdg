@@ -156,9 +156,12 @@ export default function NotificationsScreen() {
     } else if (notification.related_type === 'drop' && notification.related_id) {
       console.log('[Notifications] Navigating to drop-details via related_type for drop:', notification.related_id);
       router.push({ pathname: '/drop-details', params: { dropId: notification.related_id } });
+    } else if (notification.type === 'order_ready') {
+      console.log('[Notifications] order_ready notification tapped, navigating to pickup points tab for order:', notification.related_id);
+      router.push('/(tabs)/payment-methods');
     } else if (notification.related_type === 'order' && notification.related_id) {
-      console.log('[Notifications] Navigating to my-bookings for order:', notification.related_id);
-      router.push('/(tabs)/my-bookings');
+      console.log('[Notifications] Navigating to pickup points tab for order:', notification.related_id);
+      router.push('/(tabs)/payment-methods');
     } else {
       console.log('[Notifications] No navigation target for notification:', notification.id, '(type:', notification.type, ', related_type:', notification.related_type, ')');
     }
