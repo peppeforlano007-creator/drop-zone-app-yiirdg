@@ -304,7 +304,7 @@ export default function OrdersScreen() {
     }
   };
 
-  const sendNotificationToUser = async (userId: string, title: string, message: string, orderId: string) => {
+  const sendNotificationToUser = async (userId: string, title: string, message: string, orderId: string, notificationType: string = 'order_ready') => {
     try {
       console.log(`Sending notification to user ${userId}: ${title}`);
       
@@ -314,7 +314,7 @@ export default function OrdersScreen() {
           user_id: userId,
           title: title,
           message: message,
-          type: 'order_ready',
+          type: notificationType,
           related_id: orderId,
           related_type: 'order',
           read: false,
@@ -542,7 +542,8 @@ export default function OrdersScreen() {
                   userId,
                   '✅ Ordine Consegnato con Successo',
                   `L'ordine ${order.order_number} è stato consegnato con successo presso il punto di ritiro. Grazie per aver utilizzato il nostro servizio! Hai guadagnato ${pointsEarned} punti fedeltà.`,
-                  order.id
+                  order.id,
+                  'order_delivered'
                 );
 
                 if (success) {
