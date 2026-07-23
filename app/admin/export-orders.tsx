@@ -282,11 +282,17 @@ export default function ExportOrdersScreen() {
         const pickupPointName = user?.pickup_point_id ? pickupPointsMap.get(user.pickup_point_id) || 'N/A' : 'N/A';
         const qty = 1;
 
-        const dropDiscountPct = drop.final_discount_percentage != null
-          ? Number(drop.final_discount_percentage)
-          : Number(booking.discount_percentage ?? 0);
         const loyaltyPct = Number(booking.loyalty_discount ?? 0);
-        const netPrice = Number(booking.original_price) * (1 - dropDiscountPct / 100) * (1 - loyaltyPct / 100);
+        const grossPrice = Number(booking.original_price);
+        const netPrice = Number(booking.final_price);
+
+        let dropDiscountPct: number;
+        if (grossPrice === 0 || loyaltyPct >= 100) {
+          dropDiscountPct = Number(drop.final_discount_percentage ?? booking.discount_percentage ?? 0);
+        } else {
+          const priceAfterLoyalty = netPrice / (1 - loyaltyPct / 100);
+          dropDiscountPct = (1 - priceAfterLoyalty / grossPrice) * 100;
+        }
 
         return {
           product_id: booking.product_id,
