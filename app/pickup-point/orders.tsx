@@ -788,7 +788,7 @@ export default function OrdersScreen() {
 
                 const { error: loyaltyDeductError } = await supabase
                   .from('profiles')
-                  .update({ loyalty_points: newPoints, loyalty_level: newLevel })
+                  .update({ loyalty_points: newPoints, points_total: newPoints, loyalty_level: newLevel })
                   .eq('user_id', item.user_id);
 
                 if (loyaltyDeductError) {
