@@ -138,11 +138,13 @@ export default function ProfileScreen() {
     loadWishlistCount();
   }, [loadPickupPoints, loadWhatsAppNumber, loadUserProfile, loadWishlistCount]);
 
-  // Refresh wishlist count when screen is focused
+  // Refresh profile data and wishlist count when screen is focused
   useFocusEffect(
     useCallback(() => {
+      console.log('[Profile] Screen focused - refreshing profile data and wishlist count');
+      loadUserProfile();
       loadWishlistCount();
-    }, [loadWishlistCount])
+    }, [loadUserProfile, loadWishlistCount])
   );
 
   useEffect(() => {
