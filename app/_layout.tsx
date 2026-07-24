@@ -128,7 +128,7 @@ function CustomSplashScreen({ onFinish }: { onFinish: () => void }) {
 
         {/* Tagline */}
         <Animated.Text style={[splashStyles.tagline, { color: sloganColor as any, opacity: sloganOpacityAnim }]}>
-          Più condividi, più risparmi
+          Più acquistate, più risparmi
         </Animated.Text>
       </Animated.View>
     </Animated.View>
