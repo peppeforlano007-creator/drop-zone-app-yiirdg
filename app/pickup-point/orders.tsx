@@ -58,6 +58,18 @@ interface Order {
   } | null;
 }
 
+interface CustomerOrder {
+  key: string;
+  order: Order;
+  userId: string;
+  customerName: string;
+  customerPhone: string;
+  customerEmail: string;
+  customerOrderNumber: string;
+  items: OrderItem[];
+  totalValue: number;
+}
+
 export default function OrdersScreen() {
   const { user } = useAuth();
   const [selectedTab, setSelectedTab] = useState<'pending' | 'ready' | 'completed'>('pending');
@@ -67,6 +79,7 @@ export default function OrdersScreen() {
   const [readyOrders, setReadyOrders] = useState<Order[]>([]);
   const [completedOrders, setCompletedOrders] = useState<Order[]>([]);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [selectedCustomerOrder, setSelectedCustomerOrder] = useState<CustomerOrder | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
 
   const loadOrders = useCallback(async () => {
@@ -232,6 +245,36 @@ export default function OrdersScreen() {
   useEffect(() => {
     loadOrders();
   }, [loadOrders]);
+
+  const explodeOrdersByCustomer = (orders: Order[]): CustomerOrder[] => {
+    const result: CustomerOrder[] = [];
+    for (const order of orders) {
+      const byUser = new Map<string, OrderItem[]>();
+      for (const item of order.order_items || []) {
+        const uid = item.user_id || 'unknown';
+        if (!byUser.has(uid)) byUser.set(uid, []);
+        byUser.get(uid)!.push(item);
+      }
+      const userIds = Array.from(byUser.keys());
+      userIds.forEach((uid, idx) => {
+        const items = byUser.get(uid)!;
+        const first = items[0];
+        const suffix = userIds.length > 1 ? ` (${idx + 1}/${userIds.length})` : '';
+        result.push({
+          key: `${order.id}-${uid}`,
+          order,
+          userId: uid,
+          customerName: first.customer_name || 'Cliente',
+          customerPhone: first.customer_phone || 'N/A',
+          customerEmail: first.customer_email || 'N/A',
+          customerOrderNumber: `${order.order_number}${suffix}`,
+          items,
+          totalValue: items.reduce((s, i) => s + Number(i.final_price || 0), 0),
+        });
+      });
+    }
+    return result;
+  };
 
   const handleRefresh = () => {
     setRefreshing(true);
@@ -986,6 +1029,7 @@ export default function OrdersScreen() {
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                 setModalVisible(false);
+                setSelectedCustomerOrder(null);
               }}
             >
               <IconSymbol
@@ -1000,7 +1044,7 @@ export default function OrdersScreen() {
           <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
             {/* Order Info */}
             <View style={styles.modalSection}>
-              <Text style={styles.modalOrderNumber}>{selectedOrder.order_number}</Text>
+              <Text style={styles.modalOrderNumber}>{selectedCustomerOrder?.customerOrderNumber ?? selectedOrder.order_number}</Text>
               <View style={[styles.statusBadge, { backgroundColor: getStatusColor(selectedOrder.status) + '20' }]}>
                 <IconSymbol 
                   ios_icon_name={getStatusIcon(selectedOrder.status)} 
@@ -1074,9 +1118,9 @@ export default function OrdersScreen() {
 
             {/* Order Items */}
             <View style={styles.modalSection}>
-              <Text style={styles.sectionTitle}>Articoli ({selectedOrder.order_items?.length || 0})</Text>
-              {selectedOrder.order_items && selectedOrder.order_items.length > 0 ? (
-                selectedOrder.order_items.map((item, index) => (
+              <Text style={styles.sectionTitle}>Articoli ({(selectedCustomerOrder?.items ?? selectedOrder.order_items)?.length || 0})</Text>
+              {(selectedCustomerOrder?.items ?? selectedOrder.order_items) && (selectedCustomerOrder?.items ?? selectedOrder.order_items).length > 0 ? (
+                (selectedCustomerOrder?.items ?? selectedOrder.order_items).map((item, index) => (
                   <View key={index} style={styles.itemCard}>
                     {/* Item Info */}
                     <View style={styles.itemHeader}>
@@ -1184,7 +1228,7 @@ export default function OrdersScreen() {
               <Text style={styles.sectionTitle}>Riepilogo</Text>
               <View style={styles.summaryRow}>
                 <Text style={styles.summaryLabel}>Valore Totale:</Text>
-                <Text style={styles.summaryValue}>€{selectedOrder.total_value.toFixed(2)}</Text>
+                <Text style={styles.summaryValue}>€{(selectedCustomerOrder?.totalValue ?? selectedOrder.total_value).toFixed(2)}</Text>
               </View>
               {selectedOrder.arrived_at && (
                 <View style={styles.summaryRow}>
@@ -1205,84 +1249,77 @@ export default function OrdersScreen() {
     );
   };
 
-  const renderOrder = (order: Order) => {
-    const daysInStorage = calculateDaysInStorage(order.arrived_at);
-    const hasItems = order.order_items && order.order_items.length > 0;
-    const uniqueCustomers = hasItems 
-      ? [...new Set(order.order_items.map(item => item.customer_name || 'Cliente'))]
-      : [];
+  const renderCustomerOrder = (co: CustomerOrder) => {
+    const daysInStorage = calculateDaysInStorage(co.order.arrived_at);
+    const itemsLabel = co.items.length === 1 ? co.items[0].product_name : `${co.items.length} articoli`;
+    const totalDisplay = co.totalValue.toFixed(2);
+    const statusColor = getStatusColor(co.order.status);
+    const statusIcon = getStatusIcon(co.order.status);
+    const statusLabel = getStatusText(co.order.status);
+    const showDays = daysInStorage > 0 && co.order.status !== 'completed' && co.order.status !== 'cancelled';
+    const showPhone = co.customerPhone !== 'N/A';
 
     return (
       <Pressable
-        key={order.id}
-        style={({ pressed }) => [
-          styles.orderCard,
-          pressed && styles.orderCardPressed,
-        ]}
-        onPress={() => handleOrderPress(order)}
+        key={co.key}
+        style={({ pressed }) => [styles.orderCard, pressed && styles.orderCardPressed]}
+        onPress={() => {
+          console.log('[renderCustomerOrder] card pressed:', co.customerOrderNumber, 'userId:', co.userId);
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          setSelectedOrder(co.order);
+          setSelectedCustomerOrder(co);
+          setModalVisible(true);
+        }}
       >
         {/* Header */}
         <View style={styles.orderHeader}>
           <View style={styles.orderHeaderLeft}>
-            <Text style={styles.orderNumber}>{order.order_number}</Text>
-            <View style={[styles.statusBadge, { backgroundColor: getStatusColor(order.status) + '20' }]}>
-              <IconSymbol 
-                ios_icon_name={getStatusIcon(order.status)} 
+            <Text style={styles.orderNumber}>{co.customerOrderNumber}</Text>
+            <View style={[styles.statusBadge, { backgroundColor: statusColor + '20' }]}>
+              <IconSymbol
+                ios_icon_name={statusIcon}
                 android_material_icon_name="circle"
-                size={14} 
-                color={getStatusColor(order.status)} 
+                size={14}
+                color={statusColor}
               />
-              <Text style={[styles.statusText, { color: getStatusColor(order.status) }]}>
-                {getStatusText(order.status)}
+              <Text style={[styles.statusText, { color: statusColor }]}>
+                {statusLabel}
               </Text>
             </View>
           </View>
-          {daysInStorage > 0 && order.status !== 'completed' && order.status !== 'cancelled' && (
+          {showDays && (
             <View style={styles.daysInStorage}>
               <Text style={styles.daysInStorageText}>{daysInStorage} giorni</Text>
             </View>
           )}
         </View>
 
-        {/* Customers */}
-        {uniqueCustomers.length > 0 && (
-          <View style={styles.customersSection}>
-            <IconSymbol 
-              ios_icon_name="person.2.fill" 
-              android_material_icon_name="people"
-              size={16} 
-              color={colors.textSecondary} 
-            />
-            <Text style={styles.customersText}>
-              {uniqueCustomers.length === 1 
-                ? uniqueCustomers[0]
-                : `${uniqueCustomers.length} clienti`}
+        {/* Customer */}
+        <View style={styles.customersSection}>
+          <IconSymbol ios_icon_name="person.fill" android_material_icon_name="person" size={16} color={colors.textSecondary} />
+          <Text style={styles.customersText}>{co.customerName}</Text>
+          {showPhone && (
+            <Text style={[styles.customersText, { color: colors.textTertiary, marginLeft: 4 }]}>
+              {'\u2022 '}{co.customerPhone}
             </Text>
-          </View>
-        )}
+          )}
+        </View>
 
         {/* Products Summary */}
         <View style={styles.productsSection}>
-          <Text style={styles.productsLabel}>
-            {hasItems ? `${order.order_items.length} articoli` : 'Nessun articolo'}
-          </Text>
+          <Text style={styles.productsLabel}>{itemsLabel}</Text>
         </View>
 
         {/* Value */}
         <View style={styles.valueSection}>
-          <Text style={styles.valueLabel}>Valore:</Text>
-          <Text style={styles.valueAmount}>€{order.total_value.toFixed(2)}</Text>
+          <Text style={styles.valueLabel}>Totale:</Text>
+          <Text style={styles.valueAmount}>€{totalDisplay}</Text>
         </View>
 
-        {/* Tap to view */}
+        {/* Tap hint */}
         <View style={styles.tapHint}>
           <Text style={styles.tapHintText}>Tocca per gestire</Text>
-          <IconSymbol 
-            ios_icon_name="chevron.right" 
-            android_material_icon_name="chevron-right"
-            size={16} 
-            color={colors.textTertiary} 
-          />
+          <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="chevron-right" size={16} color={colors.textTertiary} />
         </View>
       </Pressable>
     );
@@ -1298,6 +1335,10 @@ export default function OrdersScreen() {
   }
 
   const currentOrders = selectedTab === 'pending' ? pendingOrders : selectedTab === 'ready' ? readyOrders : completedOrders;
+  const currentCustomerOrders = explodeOrdersByCustomer(currentOrders);
+  const pendingCustomerCount = explodeOrdersByCustomer(pendingOrders).length;
+  const readyCustomerCount = explodeOrdersByCustomer(readyOrders).length;
+  const completedCustomerCount = explodeOrdersByCustomer(completedOrders).length;
 
   return (
     <>
@@ -1313,34 +1354,37 @@ export default function OrdersScreen() {
           <Pressable
             style={[styles.tab, selectedTab === 'pending' && styles.tabActive]}
             onPress={() => {
+              console.log('[OrdersScreen] tab pressed: pending');
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               setSelectedTab('pending');
             }}
           >
             <Text style={[styles.tabText, selectedTab === 'pending' && styles.tabTextActive]}>
-              In Arrivo ({pendingOrders.length})
+              In Arrivo ({pendingCustomerCount})
             </Text>
           </Pressable>
           <Pressable
             style={[styles.tab, selectedTab === 'ready' && styles.tabActive]}
             onPress={() => {
+              console.log('[OrdersScreen] tab pressed: ready');
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               setSelectedTab('ready');
             }}
           >
             <Text style={[styles.tabText, selectedTab === 'ready' && styles.tabTextActive]}>
-              Da Consegnare ({readyOrders.length})
+              Da Consegnare ({readyCustomerCount})
             </Text>
           </Pressable>
           <Pressable
             style={[styles.tab, selectedTab === 'completed' && styles.tabActive]}
             onPress={() => {
+              console.log('[OrdersScreen] tab pressed: completed');
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               setSelectedTab('completed');
             }}
           >
             <Text style={[styles.tabText, selectedTab === 'completed' && styles.tabTextActive]}>
-              Completati ({completedOrders.length})
+              Completati ({completedCustomerCount})
             </Text>
           </Pressable>
         </View>
@@ -1372,10 +1416,10 @@ export default function OrdersScreen() {
 
           {/* Orders List */}
           <View style={styles.ordersContainer}>
-            {currentOrders.map(renderOrder)}
+            {currentCustomerOrders.map(renderCustomerOrder)}
           </View>
 
-          {currentOrders.length === 0 && (
+          {currentCustomerOrders.length === 0 && (
             <View style={styles.emptyState}>
               <IconSymbol 
                 ios_icon_name="shippingbox" 
