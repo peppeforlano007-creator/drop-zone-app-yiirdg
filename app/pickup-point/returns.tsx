@@ -182,7 +182,7 @@ export default function ReturnsScreen() {
               const { data: profileData, error: profileError } = await supabase
                 .from('profiles')
                 .select('loyalty_points')
-                .eq('id', item.user_id)
+                .eq('user_id', item.user_id)
                 .single();
 
               if (!profileError && profileData) {
@@ -192,8 +192,8 @@ export default function ReturnsScreen() {
                 console.log('[Returns] Aggiornamento punti fedeltà:', currentPoints, '->', newPoints, 'livello:', newLevel);
                 await supabase
                   .from('profiles')
-                  .update({ loyalty_points: newPoints, loyalty_level: newLevel })
-                  .eq('id', item.user_id);
+                  .update({ loyalty_points: newPoints, points_total: newPoints, points_balance: newPoints, loyalty_level: newLevel })
+                  .eq('user_id', item.user_id);
               } else if (profileError) {
                 console.warn('[Returns] Impossibile caricare profilo per punti fedeltà:', profileError);
               }

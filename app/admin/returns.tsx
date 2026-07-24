@@ -274,7 +274,7 @@ export default function ReturnsScreen() {
 
               const { error: updateError } = await supabase
                 .from('profiles')
-                .update({ loyalty_points: newPoints, loyalty_level: newLevel })
+                .update({ loyalty_points: newPoints, points_total: newPoints, points_balance: newPoints, loyalty_level: newLevel })
                 .eq('user_id', returnItem.user_id);
 
               if (updateError) {

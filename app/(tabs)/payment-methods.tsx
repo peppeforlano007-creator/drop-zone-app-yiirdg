@@ -372,7 +372,7 @@ export default function PickupPointsScreen() {
                     <Text style={styles.loyaltyBadgeText}>VIP</Text>
                   </View>
                   <Text style={styles.loyaltyRange}>300 – 699 pt</Text>
-                  <Text style={styles.loyaltyDiscount}>−5%</Text>
+                  <Text style={styles.loyaltyDiscount}>−6%</Text>
                 </View>
                 <View style={styles.loyaltyRow}>
                   <View style={[styles.loyaltyBadge, { backgroundColor: '#FFD700' }]}>
