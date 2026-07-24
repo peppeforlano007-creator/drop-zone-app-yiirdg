@@ -17,6 +17,7 @@ import { IconSymbol } from '@/components/IconSymbol';
 import * as Haptics from 'expo-haptics';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/app/integrations/supabase/client';
+import { getLoyaltyLevel } from '@/utils/loyaltyHelpers';
 
 interface OrderItem {
   id: string;
@@ -30,13 +31,6 @@ interface OrderItem {
   picked_up_at?: string;
   returned_to_sender?: boolean;
   returned_at?: string;
-}
-
-function getLoyaltyLevel(points: number): string {
-  if (points >= 500) return 'Top';
-  if (points >= 200) return 'VIP';
-  if (points >= 50) return 'Fedele';
-  return 'Nuovo';
 }
 
 interface Order {
