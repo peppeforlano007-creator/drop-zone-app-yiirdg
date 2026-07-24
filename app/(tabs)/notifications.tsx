@@ -170,6 +170,8 @@ export default function NotificationsScreen() {
     } else if (notification.type === 'order_ready') {
       console.log('[Notifications] order_ready notification tapped, navigating to pickup points tab for order:', notification.related_id);
       router.push('/(tabs)/payment-methods');
+    } else if (notification.related_type === 'order' && notification.related_id && notification.title === 'Articolo Reso') {
+      router.push('/(tabs)/my-bookings');
     } else if (notification.related_type === 'order' && notification.related_id) {
       console.log('[Notifications] Navigating to pickup points tab for order:', notification.related_id);
       router.push('/(tabs)/payment-methods');
