@@ -1,5 +1,5 @@
 
-export type ProductCondition = 'nuovo' | 'reso da cliente' | 'packaging rovinato';
+export type ProductCondition = string;
 
 export type DropStatus = 
   | 'pending_approval' 
