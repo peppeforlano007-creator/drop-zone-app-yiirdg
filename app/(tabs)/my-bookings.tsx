@@ -380,10 +380,11 @@ export default function MyBookingsScreen() {
     const finalPrice = typeof booking.final_price === 'number' ? booking.final_price : 0;
     const authorizedAmount = typeof booking.authorized_amount === 'number' ? booking.authorized_amount : 0;
     const dropFinalDiscount = drops?.final_discount_percentage;
+    const loyaltyDiscount = Number(booking.loyalty_discount ?? 0);
+    const rawDiscount = typeof booking.discount_percentage === 'number' ? booking.discount_percentage : 0;
     const discountPercentage = (isDropCompleted && dropFinalDiscount != null)
       ? Number(dropFinalDiscount)
-      : (typeof booking.discount_percentage === 'number' ? booking.discount_percentage : 0);
-    const loyaltyDiscount = Number(booking.loyalty_discount ?? 0);
+      : Math.max(0, rawDiscount - loyaltyDiscount);
     const currentDiscount = drops?.current_discount ?? 0;
     const maxDiscount = drops?.supplier_lists?.max_discount ?? 100;
     const canCancel = booking.status === 'active' && dropStatus === 'active';
