@@ -21,6 +21,7 @@ export default function ProfileScreen() {
   const [whatsappNumber, setWhatsappNumber] = useState('393123456789');
   const [loadingWhatsapp, setLoadingWhatsapp] = useState(true);
   const [pointsBalance, setPointsBalance] = useState(0);
+  const [dbLoyaltyLevel, setDbLoyaltyLevel] = useState<string | null>(null);
   const [accountBlocked, setAccountBlocked] = useState(false);
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [wishlistCount, setWishlistCount] = useState(0);
@@ -37,7 +38,7 @@ export default function ProfileScreen() {
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('loyalty_points, points_balance, points_total, account_blocked')
+        .select('loyalty_points, points_balance, points_total, account_blocked, loyalty_level')
         .eq('user_id', user.id)
         .maybeSingle();
 
@@ -51,9 +52,10 @@ export default function ProfileScreen() {
       if (data) {
         const balance = (data as any).loyalty_points ?? (data as any).points_balance ?? (data as any).points_total ?? 0;
         setPointsBalance(balance);
+        setDbLoyaltyLevel((data as any).loyalty_level ?? null);
         setAccountBlocked((data as any).account_blocked ?? false);
         setProfileError(null);
-        console.log('Profile (iOS): Loaded loyalty_points:', balance);
+        console.log('Profile (iOS): Loaded loyalty_points:', balance, 'loyalty_level (DB):', (data as any).loyalty_level ?? 'null (will use fallback)');
       } else {
         setProfileError('Profilo non trovato');
       }
@@ -322,7 +324,7 @@ export default function ProfileScreen() {
     );
   }
 
-  const loyaltyLevel = getLoyaltyLevel(pointsBalance);
+  const loyaltyLevel = (dbLoyaltyLevel as import('@/utils/loyaltyHelpers').LoyaltyLevel | null) ?? getLoyaltyLevel(pointsBalance);
   const loyaltyLevelColor = getLoyaltyLevelColor(loyaltyLevel);
   const nextLevelInfo = getNextLevelInfo(pointsBalance);
   const progressMax = loyaltyLevel === 'Nuovo' ? 100 : loyaltyLevel === 'Fedele' ? 200 : loyaltyLevel === 'VIP' ? 400 : 700;
