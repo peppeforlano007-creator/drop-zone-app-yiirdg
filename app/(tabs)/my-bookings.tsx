@@ -638,7 +638,7 @@ export default function MyBookingsScreen() {
                 </Text>
                 <IconSymbol
                   ios_icon_name={historyExpanded ? 'chevron.up' : 'chevron.down'}
-                  android_material_icon_name={historyExpanded ? 'expand_less' : 'expand_more'}
+                  android_material_icon_name={historyExpanded ? 'expand-less' : 'expand-more'}
                   size={18}
                   color={colors.textSecondary}
                 />
