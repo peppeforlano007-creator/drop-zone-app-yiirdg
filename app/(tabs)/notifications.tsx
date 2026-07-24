@@ -182,12 +182,14 @@ export default function NotificationsScreen() {
         return { ios: 'flame.fill', android: 'local-fire-department', color: '#FF6B35' };
       case 'drop_ending':
         return { ios: 'clock.fill', android: 'schedule', color: '#FFB800' };
+      case 'drop_completed':
+        return { ios: 'checkmark.circle.fill', android: 'check-circle', color: '#34C759' };
       case 'order_ready':
-        return { ios: 'checkmark.circle.fill', android: 'check_circle', color: '#34C759' };
+        return { ios: 'checkmark.circle.fill', android: 'check-circle', color: '#34C759' };
       case 'order_delivered':
-        return { ios: 'bag.fill', android: 'local-mall', color: '#34C759' };
+        return { ios: 'bag.fill', android: 'shopping-bag', color: '#34C759' };
       case 'order_shipped':
-        return { ios: 'shippingbox.fill', android: 'local_shipping', color: '#007AFF' };
+        return { ios: 'shippingbox.fill', android: 'local-shipping', color: '#007AFF' };
       case 'payment_captured':
         return { ios: 'creditcard.fill', android: 'payment', color: '#5856D6' };
       default:

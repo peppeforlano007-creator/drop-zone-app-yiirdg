@@ -181,6 +181,10 @@ const MAPPING = {
   "tag": "label",
   "building.2": "store",
   "wrench.and.screwdriver.fill": "build",
+
+  // Additional mappings for notification icons
+  "flame.fill": "local-fire-department",
+  "shippingbox.fill": "local-shipping",
 } as Partial<
   Record<
     import("expo-symbols").SymbolViewProps["name"],
@@ -221,7 +225,7 @@ export function IconSymbol({
 
   if (!materialIconName) {
     console.warn(`IconSymbol: No mapping found for icon "${iconName}"`);
-    return null;
+    return <MaterialIcons color={color} size={size} name="help-outline" style={style as StyleProp<TextStyle>} />;
   }
 
   return (
