@@ -436,7 +436,7 @@ export default function MyBookingsScreen() {
           <View style={styles.priceLineRow}>
             <View style={styles.priceLineLeft}>
               <Text style={styles.originalPriceText}>{originalPriceText}</Text>
-              <Text style={styles.arrowText}>→</Text>
+              <IconSymbol ios_icon_name="arrow.right" android_material_icon_name="arrow-forward" size={14} color="#888" style={styles.arrowIcon} />
               <Text style={styles.finalPriceInline}>{finalPriceText}</Text>
               {discountPercentage > 0 && (
                 <View style={styles.discountBadge}>
@@ -830,9 +830,8 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     textDecorationLine: 'line-through',
   },
-  arrowText: {
-    fontSize: 14,
-    color: colors.textSecondary,
+  arrowIcon: {
+    marginHorizontal: 4,
   },
   finalPriceInline: {
     fontSize: 15,

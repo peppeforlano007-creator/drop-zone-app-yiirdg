@@ -185,7 +185,7 @@ export default function NotificationsScreen() {
       case 'order_ready':
         return { ios: 'checkmark.circle.fill', android: 'check_circle', color: '#34C759' };
       case 'order_delivered':
-        return { ios: 'bag.fill', android: 'shopping_bag', color: '#34C759' };
+        return { ios: 'bag.fill', android: 'local-mall', color: '#34C759' };
       case 'order_shipped':
         return { ios: 'shippingbox.fill', android: 'local_shipping', color: '#007AFF' };
       case 'payment_captured':
