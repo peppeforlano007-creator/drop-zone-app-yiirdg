@@ -42,6 +42,7 @@ export default function LoyaltyProgramManagementScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [blockedUsers, setBlockedUsers] = useState<BlockedUser[]>([]);
   const [unblocking, setUnblocking] = useState<string | null>(null);
+  const [resettingPoints, setResettingPoints] = useState(false);
 
   const loadData = useCallback(async () => {
     console.log('AdminLoyalty: Loading blocked users');
@@ -122,6 +123,58 @@ export default function LoyaltyProgramManagementScreen() {
     );
   };
 
+  const handleResetAllPoints = () => {
+    console.log('AdminLoyalty: User tapped Azzera Punti Fedeltà a Tutti');
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    Alert.alert(
+      '⚠️ Azzera Punti Fedeltà',
+      'Questa operazione azzererà i punti fedeltà di TUTTI gli utenti dell\'app e riporterà il loro livello a "Nuovo". L\'operazione è irreversibile.',
+      [
+        { text: 'Annulla', style: 'cancel' },
+        {
+          text: 'Continua',
+          style: 'destructive',
+          onPress: () => {
+            Alert.alert(
+              'Conferma Definitiva',
+              'Sei sicuro? Tutti gli utenti ripartiranno da 0 punti.',
+              [
+                { text: 'Annulla', style: 'cancel' },
+                {
+                  text: 'Azzera Tutto',
+                  style: 'destructive',
+                  onPress: async () => {
+                    try {
+                      setResettingPoints(true);
+                      console.log('AdminLoyalty: Resetting all loyalty points');
+                      const { error } = await supabase
+                        .from('profiles')
+                        .update({ loyalty_points: 0, loyalty_level: 'Nuovo' })
+                        .neq('user_id', '00000000-0000-0000-0000-000000000000');
+                      if (error) {
+                        console.error('AdminLoyalty: Error resetting points:', error);
+                        Alert.alert('Errore', 'Impossibile azzerare i punti fedeltà');
+                        return;
+                      }
+                      console.log('AdminLoyalty: All loyalty points reset successfully');
+                      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                      Alert.alert('Completato', 'I punti fedeltà di tutti gli utenti sono stati azzerati.');
+                    } catch (err: any) {
+                      console.error('AdminLoyalty: Error resetting points:', err);
+                      Alert.alert('Errore', 'Si è verificato un errore');
+                    } finally {
+                      setResettingPoints(false);
+                    }
+                  },
+                },
+              ]
+            );
+          },
+        },
+      ]
+    );
+  };
+
   if (loading) {
     return (
       <SafeAreaView style={styles.container} edges={['bottom']}>
@@ -180,6 +233,47 @@ export default function LoyaltyProgramManagementScreen() {
               </View>
             ))}
           </View>
+
+          {/* Reset Punti Fedeltà */}
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Gestione Punti</Text>
+          </View>
+
+          <View style={styles.infoCard}>
+            <IconSymbol
+              ios_icon_name="exclamationmark.triangle.fill"
+              android_material_icon_name="warning"
+              size={20}
+              color={colors.warning}
+            />
+            <Text style={styles.infoText}>
+              Azzera i punti fedeltà di tutti gli utenti e riporta il loro livello a "Nuovo". Operazione irreversibile.
+            </Text>
+          </View>
+
+          <Pressable
+            style={({ pressed }) => [
+              styles.resetButton,
+              pressed && styles.unblockButtonPressed,
+              resettingPoints && styles.unblockButtonDisabled,
+            ]}
+            onPress={handleResetAllPoints}
+            disabled={resettingPoints}
+          >
+            {resettingPoints ? (
+              <ActivityIndicator size="small" color={colors.background} />
+            ) : (
+              <React.Fragment>
+                <IconSymbol
+                  ios_icon_name="arrow.counterclockwise.circle.fill"
+                  android_material_icon_name="refresh"
+                  size={20}
+                  color={colors.background}
+                />
+                <Text style={styles.unblockButtonText}>Azzera Punti a Tutti gli Utenti</Text>
+              </React.Fragment>
+            )}
+          </Pressable>
 
           {/* Blocked Users Section */}
           <View style={styles.sectionHeader}>
@@ -487,6 +581,16 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     color: colors.background,
+  },
+  resetButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: colors.error,
+    borderRadius: 8,
+    paddingVertical: 14,
+    marginBottom: 24,
   },
   emptyState: {
     alignItems: 'center',
