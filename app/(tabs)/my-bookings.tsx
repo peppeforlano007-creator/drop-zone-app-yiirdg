@@ -438,7 +438,7 @@ export default function MyBookingsScreen() {
               <Text style={styles.originalPriceText}>{originalPriceText}</Text>
               <IconSymbol name="arrow.right" size={14} color="#888" style={styles.arrowIcon} />
               <Text style={styles.finalPriceInline}>{finalPriceText}</Text>
-              {discountPercentage > 0 && (
+              {!isDropCompleted && discountPercentage > 0 && (
                 <View style={styles.discountBadge}>
                   <Text style={styles.discountBadgeText}>{discountBadgeText}</Text>
                 </View>
@@ -447,11 +447,24 @@ export default function MyBookingsScreen() {
           </View>
         )}
 
-        {/* Loyalty discount */}
-        {isDropCompleted && loyaltyDiscount > 0 && (
-          <Text style={styles.loyaltyLine}>
-            Sconto fedeltà: +{loyaltyDiscount.toFixed(1)}%
-          </Text>
+        {/* Discount badges row */}
+        {isDropCompleted && (
+          <View style={styles.discountBadgesRow}>
+            {discountPercentage > 0 && (
+              <View style={styles.dropDiscountBadge}>
+                <Text style={styles.dropDiscountBadgeText}>
+                  {'🏷️ Drop -'}{discountPercentage.toFixed(1)}{'%'}
+                </Text>
+              </View>
+            )}
+            {loyaltyDiscount > 0 && (
+              <View style={styles.loyaltyDiscountBadge}>
+                <Text style={styles.loyaltyDiscountBadgeText}>
+                  {'⭐ Fedeltà -'}{loyaltyDiscount.toFixed(1)}{'%'}
+                </Text>
+              </View>
+            )}
+          </View>
         )}
 
         {/* Authorized amount (non-completed drops) */}
@@ -848,6 +861,34 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     color: colors.success,
+  },
+  discountBadgesRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 2,
+  },
+  dropDiscountBadge: {
+    backgroundColor: '#10B98120',
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  dropDiscountBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#10B981',
+  },
+  loyaltyDiscountBadge: {
+    backgroundColor: '#FFF3CD',
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  loyaltyDiscountBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#B8860B',
   },
 
   // Picked up

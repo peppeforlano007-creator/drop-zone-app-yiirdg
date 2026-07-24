@@ -252,6 +252,13 @@ export default function DropSummaryScreen() {
                     {savings}
                   </Text>
                 )}
+                {Number(booking.loyalty_discount ?? 0) > 0 && (
+                  <View style={styles.loyaltyBadge}>
+                    <Text style={styles.loyaltyBadgeText}>
+                      {'⭐ Fedeltà -'}{Number(booking.loyalty_discount).toFixed(1)}{'%'}
+                    </Text>
+                  </View>
+                )}
               </View>
             );
           })
@@ -465,6 +472,18 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.success,
     fontWeight: '500',
+  },
+  loyaltyBadge: {
+    backgroundColor: '#FFF3CD',
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    alignSelf: 'flex-start',
+  },
+  loyaltyBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#B8860B',
   },
   loyaltyCard: {
     backgroundColor: '#FFF8E7',
