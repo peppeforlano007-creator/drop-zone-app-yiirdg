@@ -13,7 +13,7 @@ interface Notification {
   id: string;
   title: string;
   message: string;
-  type: 'drop_activated' | 'drop_ending' | 'drop_completed' | 'order_ready' | 'order_delivered' | 'order_shipped' | 'payment_captured' | 'general';
+  type: 'drop_activated' | 'drop_ending' | 'drop_completed' | 'order_ready' | 'order_delivered' | 'order_shipped' | 'payment_captured' | 'item_returned' | 'general';
   related_id?: string;
   related_type?: 'drop' | 'order' | 'booking' | 'product';
   read: boolean;
@@ -165,6 +165,8 @@ export default function NotificationsScreen() {
     } else if (notification.type === 'order_delivered' && notification.related_id) {
       console.log('[Notifications] order_delivered notification tapped, navigating to my-bookings for order:', notification.related_id);
       router.push('/(tabs)/my-bookings');
+    } else if (notification.type === 'item_returned') {
+      router.push('/(tabs)/my-bookings');
     } else if (notification.type === 'order_ready') {
       console.log('[Notifications] order_ready notification tapped, navigating to pickup points tab for order:', notification.related_id);
       router.push('/(tabs)/payment-methods');
@@ -192,6 +194,8 @@ export default function NotificationsScreen() {
         return { ios: 'shippingbox.fill', android: 'local-shipping', color: '#007AFF' };
       case 'payment_captured':
         return { ios: 'creditcard.fill', android: 'payment', color: '#5856D6' };
+      case 'item_returned':
+        return { ios: 'arrow.uturn.left.circle.fill', android: 'assignment-return', color: '#FF9500' };
       default:
         return { ios: 'bell.fill', android: 'notifications', color: colors.text };
     }
