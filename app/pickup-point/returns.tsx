@@ -200,7 +200,7 @@ export default function ReturnsScreen() {
                   user_id: item.user_id,
                   title: 'Articolo Reso',
                   message: `L'articolo "${item.product_name}" è stato reso. Sono stati scalati ${pointsToDeduct} punti fedeltà.`,
-                  type: 'general',
+                  type: 'item_returned',
                   related_id: item.id,
                   related_type: 'order',
                   read: false,
