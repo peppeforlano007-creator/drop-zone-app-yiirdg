@@ -286,13 +286,8 @@ export default function ExportOrdersScreen() {
         const grossPrice = Number(booking.original_price);
         const netPrice = Number(booking.final_price);
 
-        let dropDiscountPct: number;
-        if (grossPrice === 0 || loyaltyPct >= 100) {
-          dropDiscountPct = Number(drop.final_discount_percentage ?? booking.discount_percentage ?? 0);
-        } else {
-          const priceAfterLoyalty = netPrice / (1 - loyaltyPct / 100);
-          dropDiscountPct = (1 - priceAfterLoyalty / grossPrice) * 100;
-        }
+        console.log('[export-orders] dropDiscountPct source', { drop_id: drop.id, final_discount_percentage: drop.final_discount_percentage, booking_discount_percentage: booking.discount_percentage });
+        const dropDiscountPct = Number(drop.final_discount_percentage ?? booking.discount_percentage ?? 0);
 
         return {
           product_id: booking.product_id,
