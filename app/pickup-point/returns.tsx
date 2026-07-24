@@ -1,5 +1,5 @@
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -45,24 +45,23 @@ export default function ReturnsScreen() {
   const [loading, setLoading] = useState(false);
   const [order, setOrder] = useState<Order | null>(null);
   const [processing, setProcessing] = useState<string | null>(null);
+  const [searchResults, setSearchResults] = useState<Order[]>([]);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const searchOrder = useCallback(async () => {
-    if (!orderNumber.trim()) {
-      Alert.alert('Errore', 'Inserisci un numero ordine');
+  const searchOrder = useCallback(async (query?: string) => {
+    const q = (query ?? orderNumber).trim();
+    if (!q || q.length < 2) {
+      setSearchResults([]);
+      setOrder(null);
       return;
     }
-
-    if (!user?.pickupPointId) {
-      Alert.alert('Errore', 'Nessun punto di ritiro associato');
-      return;
-    }
+    if (!user?.pickupPointId) return;
 
     try {
       setLoading(true);
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      console.log('[searchOrder] Ricerca live per query:', q);
 
-      // Search for order
-      const { data: orderData, error: orderError } = await supabase
+      const { data: ordersData, error: ordersError } = await supabase
         .from('orders')
         .select(`
           id,
@@ -78,59 +77,66 @@ export default function ReturnsScreen() {
             returned_to_sender
           )
         `)
-        .eq('order_number', orderNumber.trim())
+        .ilike('order_number', `%${q}%`)
         .eq('pickup_point_id', user.pickupPointId)
-        .single();
+        .limit(10);
 
-      if (orderError || !orderData) {
-        console.error('Error searching order:', orderError);
-        Alert.alert('Ordine Non Trovato', 'Nessun ordine trovato con questo numero per il tuo punto di ritiro.');
+      if (ordersError || !ordersData || ordersData.length === 0) {
+        console.log('[searchOrder] Nessun risultato per query:', q);
+        setSearchResults([]);
         setOrder(null);
         return;
       }
 
-      // Fetch customer data for each order item
-      const userIds = [...new Set(orderData.order_items.map((item: any) => item.user_id).filter(Boolean))];
-      
-      let profileMap = new Map();
-      if (userIds.length > 0) {
-        const { data: profiles, error: profilesError } = await supabase
-          .from('profiles')
-          .select('user_id, full_name, phone')
-          .in('user_id', userIds);
-        
-        if (profilesError) {
-          console.warn('Error loading customer profiles:', profilesError);
-        } else if (profiles) {
-          profiles.forEach(profile => {
-            profileMap.set(profile.user_id, profile);
-          });
-        }
-      }
-      
-      // Enrich order items with customer data
-      const itemsWithCustomers = orderData.order_items.map((item: any) => {
-        const profile = profileMap.get(item.user_id);
-        return {
-          ...item,
-          customer_name: profile?.full_name || 'Cliente',
-          customer_phone: profile?.phone || 'N/A',
-        };
-      });
+      console.log('[searchOrder] Trovati', ordersData.length, 'ordini per query:', q);
 
-      setOrder({
-        ...orderData,
-        order_items: itemsWithCustomers,
-      });
+      // Enrich all orders with customer data
+      const enriched: Order[] = [];
+      for (const orderData of ordersData) {
+        const userIds = [...new Set(orderData.order_items.map((item: any) => item.user_id).filter(Boolean))];
+        let profileMap = new Map();
+        if (userIds.length > 0) {
+          const { data: profiles } = await supabase
+            .from('profiles')
+            .select('user_id, full_name, phone')
+            .in('user_id', userIds);
+          profiles?.forEach((p: any) => profileMap.set(p.user_id, p));
+        }
+        enriched.push({
+          ...orderData,
+          order_items: orderData.order_items.map((item: any) => ({
+            ...item,
+            customer_name: profileMap.get(item.user_id)?.full_name || 'Cliente',
+            customer_phone: profileMap.get(item.user_id)?.phone || 'N/A',
+          })),
+        });
+      }
+
+      if (enriched.length === 1) {
+        setOrder(enriched[0]);
+        setSearchResults([]);
+      } else {
+        setSearchResults(enriched);
+        setOrder(null);
+      }
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error: any) {
       console.error('Error searching order:', error);
-      Alert.alert('Errore', 'Si è verificato un errore durante la ricerca');
     } finally {
       setLoading(false);
     }
   }, [orderNumber, user?.pickupPointId]);
+
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      searchOrder(orderNumber);
+    }, 400);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [orderNumber]);
 
   const handleReturnItem = async (item: OrderItem) => {
     console.log('[handleReturnItem] Registra Reso pressed for item:', item.id, 'picked_up_at:', item.picked_up_at);
@@ -257,11 +263,11 @@ export default function ReturnsScreen() {
             <View style={styles.searchContainer}>
               <TextInput
                 style={styles.searchInput}
-                placeholder="Inserisci numero ordine (es. ORD-123456)"
+                placeholder="Cerca per numero ordine o ultime cifre..."
                 placeholderTextColor={colors.textTertiary}
                 value={orderNumber}
                 onChangeText={setOrderNumber}
-                autoCapitalize="characters"
+                autoCapitalize="none"
                 autoCorrect={false}
               />
               <Pressable
@@ -289,6 +295,33 @@ export default function ReturnsScreen() {
               </Pressable>
             </View>
           </View>
+
+          {/* Risultati multipli */}
+          {searchResults.length > 1 && (
+            <View style={styles.resultsSection}>
+              <Text style={styles.sectionTitle}>
+                Risultati (
+                {searchResults.length}
+                )
+              </Text>
+              {searchResults.map((result) => (
+                <Pressable
+                  key={result.id}
+                  style={({ pressed }) => [styles.resultCard, pressed && { opacity: 0.7 }]}
+                  onPress={() => {
+                    console.log('[searchResults] Ordine selezionato:', result.order_number);
+                    setOrder(result);
+                    setSearchResults([]);
+                    setOrderNumber(result.order_number);
+                  }}
+                >
+                  <Text style={styles.resultOrderNumber}>{result.order_number}</Text>
+                  <Text style={styles.resultItemCount}>{result.order_items.length} articoli</Text>
+                  <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="chevron-right" size={16} color={colors.textTertiary} />
+                </Pressable>
+              ))}
+            </View>
+          )}
 
           {/* Order Items */}
           {order && (
@@ -371,7 +404,7 @@ export default function ReturnsScreen() {
           )}
 
           {/* Empty State */}
-          {!order && !loading && (
+          {!order && !loading && searchResults.length === 0 && (
             <View style={styles.emptyState}>
               <IconSymbol 
                 ios_icon_name="magnifyingglass" 
@@ -571,6 +604,31 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     color: colors.error,
+  },
+  resultsSection: {
+    marginBottom: 16,
+    paddingHorizontal: 12,
+  },
+  resultCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.card,
+    borderRadius: 10,
+    padding: 14,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: 8,
+  },
+  resultOrderNumber: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  resultItemCount: {
+    fontSize: 13,
+    color: colors.textSecondary,
   },
   emptyState: {
     alignItems: 'center',
