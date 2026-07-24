@@ -49,7 +49,7 @@ export default function ReturnsScreen() {
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const searchOrder = useCallback(async (query?: string) => {
-    const q = (query ?? orderNumber).trim();
+    const q = String(query ?? orderNumber ?? '').trim();
     if (!q || q.length < 2) {
       setSearchResults([]);
       setOrder(null);
