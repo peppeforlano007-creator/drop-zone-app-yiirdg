@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, FlatList, Pressable, RefreshControl, ActivityIndicator, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Stack, router } from 'expo-router';
+import { Stack, router, useFocusEffect } from 'expo-router';
 import { colors, layout } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 import { useAuth } from '@/contexts/AuthContext';
@@ -13,7 +13,7 @@ interface Notification {
   id: string;
   title: string;
   message: string;
-  type: 'drop_activated' | 'drop_ending' | 'drop_completed' | 'order_ready' | 'order_shipped' | 'payment_captured' | 'general';
+  type: 'drop_activated' | 'drop_ending' | 'drop_completed' | 'order_ready' | 'order_delivered' | 'order_shipped' | 'payment_captured' | 'general';
   related_id?: string;
   related_type?: 'drop' | 'order' | 'booking' | 'product';
   read: boolean;
@@ -52,6 +52,12 @@ export default function NotificationsScreen() {
       setRefreshing(false);
     }
   }, [user]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadNotifications();
+    }, [loadNotifications])
+  );
 
   useEffect(() => {
     loadNotifications();
@@ -156,6 +162,9 @@ export default function NotificationsScreen() {
     } else if (notification.related_type === 'drop' && notification.related_id) {
       console.log('[Notifications] Navigating to drop-details via related_type for drop:', notification.related_id);
       router.push({ pathname: '/drop-details', params: { dropId: notification.related_id } });
+    } else if (notification.type === 'order_delivered' && notification.related_id) {
+      console.log('[Notifications] order_delivered notification tapped, navigating to my-bookings for order:', notification.related_id);
+      router.push('/(tabs)/my-bookings');
     } else if (notification.type === 'order_ready') {
       console.log('[Notifications] order_ready notification tapped, navigating to pickup points tab for order:', notification.related_id);
       router.push('/(tabs)/payment-methods');
@@ -175,6 +184,8 @@ export default function NotificationsScreen() {
         return { ios: 'clock.fill', android: 'schedule', color: '#FFB800' };
       case 'order_ready':
         return { ios: 'checkmark.circle.fill', android: 'check_circle', color: '#34C759' };
+      case 'order_delivered':
+        return { ios: 'bag.fill', android: 'shopping_bag', color: '#34C759' };
       case 'order_shipped':
         return { ios: 'shippingbox.fill', android: 'local_shipping', color: '#007AFF' };
       case 'payment_captured':
