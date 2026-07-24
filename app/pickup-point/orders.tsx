@@ -377,17 +377,20 @@ export default function OrdersScreen() {
     }
   };
 
-  const handleMarkAsReceived = async (order: Order) => {
+  const handleMarkAsReceived = async (order: Order, customerOrder?: CustomerOrder | null) => {
+    console.log('[handleMarkAsReceived] pressed for order:', order.id, order.order_number, 'customerOrder:', customerOrder?.customerOrderNumber ?? null);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    const confirmMessage = `Confermi che l'ordine ${customerOrder?.customerOrderNumber ?? order.order_number} è arrivato nel punto di ritiro?\n\n${customerOrder ? customerOrder.customerName : 'I clienti'} ricever${customerOrder ? 'à' : 'anno'} una notifica che l'ordine è pronto per il ritiro.`;
     Alert.alert(
       'Ordine Ricevuto in Store',
-      `Confermi che l'ordine ${order.order_number} è arrivato nel punto di ritiro?\n\nI clienti riceveranno una notifica che l'ordine è pronto per il ritiro.`,
+      confirmMessage,
       [
         { text: 'Annulla', style: 'cancel' },
         {
           text: 'Conferma',
           onPress: async () => {
             try {
+              console.log('[handleMarkAsReceived] confirmed for order:', order.id, 'customerOrder:', customerOrder?.userId ?? 'all');
               const now = new Date().toISOString();
               
               // Update order status to ready_for_pickup
@@ -419,9 +422,10 @@ export default function OrdersScreen() {
                 console.error('Error updating order items:', itemsError);
               }
 
-              // Send notification to each customer (deduplicated by user_id)
+              // Send notification — only to the selected customer if customerOrder is present, otherwise to all
               if (order.order_items && order.order_items.length > 0) {
-                const userIds = [...new Set(order.order_items.map(item => item.user_id).filter(Boolean))];
+                const allUserIds = [...new Set(order.order_items.map(item => item.user_id).filter(Boolean))];
+                const userIds = customerOrder ? allUserIds.filter(uid => uid === customerOrder.userId) : allUserIds;
                 
                 let notificationsSent = 0;
                 let notificationsFailed = 0;
@@ -495,24 +499,25 @@ export default function OrdersScreen() {
     );
   };
 
-  const handleMarkOrderAsDelivered = async (order: Order) => {
-    console.log('[handleMarkOrderAsDelivered] pressed for order:', order.id, order.order_number);
+  const handleMarkOrderAsDelivered = async (order: Order, customerOrder?: CustomerOrder | null) => {
+    console.log('[handleMarkOrderAsDelivered] pressed for order:', order.id, order.order_number, 'customerOrder:', customerOrder?.customerOrderNumber ?? null);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     
+    const confirmMessage = `Confermi che gli articoli di ${customerOrder?.customerName ?? 'tutti i clienti'} (${customerOrder?.customerOrderNumber ?? order.order_number}) sono stati consegnati?\n\nIl cliente riceverà una notifica di conferma.`;
     Alert.alert(
       'Ordine Consegnato',
-      `Confermi che l'intero ordine ${order.order_number} è stato consegnato ai clienti?\n\nI clienti riceveranno una notifica di conferma della consegna.`,
+      confirmMessage,
       [
         { text: 'Annulla', style: 'cancel' },
         {
           text: 'Conferma',
           onPress: async () => {
             try {
-              console.log('[handleMarkOrderAsDelivered] confirmed for order:', order.id);
+              console.log('[handleMarkOrderAsDelivered] confirmed for order:', order.id, 'customerOrder:', customerOrder?.userId ?? 'all');
               const now = new Date().toISOString();
               
-              // Get all items that haven't been picked up yet
-              const itemsToUpdate = order.order_items.filter(
+              // Get items to update — only the selected customer's items if customerOrder is present
+              const itemsToUpdate = (customerOrder ? customerOrder.items : order.order_items).filter(
                 item => !item.picked_up_at && !item.returned_to_sender
               );
 
@@ -521,7 +526,7 @@ export default function OrdersScreen() {
                 return;
               }
 
-              // Update all order items to picked_up
+              // Update items to picked_up
               const { error: itemsError } = await supabase
                 .from('order_items')
                 .update({
@@ -620,15 +625,23 @@ export default function OrdersScreen() {
 
               console.log(`Delivery notifications sent: ${notificationsSent}, failed: ${notificationsFailed}`);
 
-              // Mark entire order as completed
-              await supabase
-                .from('orders')
-                .update({
-                  status: 'completed',
-                  completed_at: now,
-                  updated_at: now,
-                })
-                .eq('id', order.id);
+              // Mark order as completed only if ALL items across the entire order are now handled
+              const { data: allItems } = await supabase
+                .from('order_items')
+                .select('id, picked_up_at, returned_to_sender')
+                .eq('order_id', order.id);
+
+              const allHandled = allItems && allItems.length > 0 && allItems.every(
+                i => i.picked_up_at || i.returned_to_sender
+              );
+
+              if (allHandled) {
+                console.log('[handleMarkOrderAsDelivered] all items handled, marking order as completed:', order.id);
+                await supabase
+                  .from('orders')
+                  .update({ status: 'completed', completed_at: now, updated_at: now })
+                  .eq('id', order.id);
+              }
               
               if (notificationsFailed > 0) {
                 Alert.alert(
@@ -654,12 +667,14 @@ export default function OrdersScreen() {
     );
   };
 
-  const handleMarkOrderAsReturned = async (order: Order) => {
+  const handleMarkOrderAsReturned = async (order: Order, customerOrder?: CustomerOrder | null) => {
+    console.log('[handleMarkOrderAsReturned] pressed for order:', order.id, order.order_number, 'customerOrder:', customerOrder?.customerOrderNumber ?? null);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     
+    const confirmMessage = `Vuoi segnare gli articoli di ${customerOrder?.customerName ?? 'tutti i clienti'} (${customerOrder?.customerOrderNumber ?? order.order_number}) come non ritirati e da rispedire al fornitore?\n\nQuesta azione ridurrà il rating del cliente.`;
     Alert.alert(
       'Rispedisci Ordine al Fornitore',
-      `Vuoi segnare l'intero ordine ${order.order_number} come non ritirato e da rispedire al fornitore?\n\nQuesta azione ridurrà il rating di tutti i clienti coinvolti e dopo 5 ordini non ritirati gli account verranno bloccati.\n\nI clienti riceveranno una notifica.`,
+      confirmMessage,
       [
         { text: 'Annulla', style: 'cancel' },
         {
@@ -667,10 +682,11 @@ export default function OrdersScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
+              console.log('[handleMarkOrderAsReturned] confirmed for order:', order.id, 'customerOrder:', customerOrder?.userId ?? 'all');
               const now = new Date().toISOString();
               
-              // Get all items that haven't been returned yet
-              const itemsToUpdate = order.order_items.filter(
+              // Get items to update — only the selected customer's items if customerOrder is present
+              const itemsToUpdate = (customerOrder ? customerOrder.items : order.order_items).filter(
                 item => !item.picked_up_at && !item.returned_to_sender
               );
 
@@ -679,7 +695,7 @@ export default function OrdersScreen() {
                 return;
               }
 
-              // Update all order items as returned
+              // Update items as returned
               const { error: itemsError } = await supabase
                 .from('order_items')
                 .update({
@@ -751,15 +767,23 @@ export default function OrdersScreen() {
 
               console.log(`Return notifications sent: ${notificationsSent}, failed: ${notificationsFailed}`);
 
-              // Mark entire order as completed
-              await supabase
-                .from('orders')
-                .update({
-                  status: 'completed',
-                  completed_at: now,
-                  updated_at: now,
-                })
-                .eq('id', order.id);
+              // Mark order as completed only if ALL items across the entire order are now handled
+              const { data: allItems } = await supabase
+                .from('order_items')
+                .select('id, picked_up_at, returned_to_sender')
+                .eq('order_id', order.id);
+
+              const allHandled = allItems && allItems.length > 0 && allItems.every(
+                i => i.picked_up_at || i.returned_to_sender
+              );
+
+              if (allHandled) {
+                console.log('[handleMarkOrderAsReturned] all items handled, marking order as completed:', order.id);
+                await supabase
+                  .from('orders')
+                  .update({ status: 'completed', completed_at: now, updated_at: now })
+                  .eq('id', order.id);
+              }
 
               Alert.alert(
                 'Successo',
@@ -1067,7 +1091,7 @@ export default function OrdersScreen() {
             {isPending && (
               <Pressable
                 style={styles.primaryActionButton}
-                onPress={() => handleMarkAsReceived(selectedOrder)}
+                onPress={() => handleMarkAsReceived(selectedOrder, selectedCustomerOrder)}
               >
                 <IconSymbol 
                   ios_icon_name="checkmark.circle.fill" 
@@ -1086,7 +1110,7 @@ export default function OrdersScreen() {
                 <View style={styles.orderActionsContainer}>
                   <Pressable
                     style={styles.orderActionButton}
-                    onPress={() => handleMarkOrderAsDelivered(selectedOrder)}
+                    onPress={() => handleMarkOrderAsDelivered(selectedOrder, selectedCustomerOrder)}
                   >
                     <IconSymbol 
                       ios_icon_name="checkmark.circle.fill" 
