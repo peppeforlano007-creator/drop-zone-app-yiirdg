@@ -46,7 +46,12 @@ export default function ReturnsScreen() {
   const [order, setOrder] = useState<Order | null>(null);
   const [processing, setProcessing] = useState<string | null>(null);
   const [searchResults, setSearchResults] = useState<Order[]>([]);
+  const [customerFilter, setCustomerFilter] = useState('');
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    setCustomerFilter('');
+  }, [order]);
 
   const searchOrder = useCallback(async (query?: string) => {
     const q = String(query ?? orderNumber ?? '').trim();
@@ -230,6 +235,18 @@ export default function ReturnsScreen() {
     );
   };
 
+  const filteredItems = order
+    ? customerFilter.trim().length > 0
+      ? order.order_items.filter(item =>
+          (item.customer_name ?? '').toLowerCase().includes(customerFilter.trim().toLowerCase())
+        )
+      : order.order_items
+    : [];
+
+  const itemCountLabel = customerFilter.trim().length > 0
+    ? `${filteredItems.length} di ${order?.order_items.length ?? 0} articoli`
+    : `${order?.order_items.length ?? 0} articoli`;
+
   return (
     <>
       <Stack.Screen
@@ -328,10 +345,38 @@ export default function ReturnsScreen() {
             <View style={styles.orderSection}>
               <View style={styles.orderHeader}>
                 <Text style={styles.sectionTitle}>Ordine: {order.order_number}</Text>
-                <Text style={styles.itemCount}>{order.order_items.length} articoli</Text>
+                <Text style={styles.itemCount}>{itemCountLabel}</Text>
               </View>
 
-              {order.order_items.map((item, index) => (
+              {/* Customer Filter */}
+              <View style={styles.customerFilterWrapper}>
+                <IconSymbol
+                  ios_icon_name="person.fill"
+                  android_material_icon_name="person"
+                  size={18}
+                  color={colors.textSecondary}
+                />
+                <TextInput
+                  style={styles.customerFilterInput}
+                  placeholder="Filtra per nome cliente..."
+                  placeholderTextColor={colors.textTertiary}
+                  value={customerFilter}
+                  onChangeText={(text) => {
+                    console.log('[customerFilter] Filtro cliente aggiornato:', text);
+                    setCustomerFilter(text);
+                  }}
+                  autoCapitalize="words"
+                  autoCorrect={false}
+                />
+              </View>
+
+              {filteredItems.length === 0 && customerFilter.trim().length > 0 && (
+                <Text style={[styles.emptyStateText, { marginVertical: 24 }]}>
+                  Nessun articolo trovato per questo cliente
+                </Text>
+              )}
+
+              {filteredItems.map((item, index) => (
                 <View key={index} style={styles.itemCard}>
                   {/* Item Info */}
                   <View style={styles.itemHeader}>
@@ -604,6 +649,23 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     color: colors.error,
+  },
+  customerFilterWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    marginBottom: 12,
+    gap: 10,
+  },
+  customerFilterInput: {
+    flex: 1,
+    paddingVertical: 14,
+    fontSize: 15,
+    color: colors.text,
   },
   resultsSection: {
     marginBottom: 16,
