@@ -869,7 +869,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
     flexDirection: 'column',
     justifyContent: 'center',
-    paddingVertical: SCREEN_HEIGHT * 0.08,
+    paddingTop: SCREEN_HEIGHT * 0.13,
+    paddingBottom: SCREEN_HEIGHT * 0.03,
   },
   imageWrapper: {
     width: '100%',
