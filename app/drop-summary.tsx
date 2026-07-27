@@ -227,15 +227,7 @@ export default function DropSummaryScreen() {
               <View key={booking.id} style={styles.itemCard}>
                 <View style={styles.itemHeader}>
                   <Text style={styles.itemName}>{productName}</Text>
-                  {dropFinalDiscount > 0 && (
-                    <View style={styles.discountBadge}>
-                      <Text style={styles.discountBadgeText}>
-                        {'-'}
-                        {dropFinalDiscount.toFixed(1)}
-                        {'%'}
-                      </Text>
-                    </View>
-                  )}
+
                 </View>
                 <View style={styles.itemPriceRow}>
                   <Text style={styles.originalPrice}>
