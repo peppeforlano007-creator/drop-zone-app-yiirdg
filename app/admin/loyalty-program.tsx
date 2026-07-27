@@ -149,7 +149,7 @@ export default function LoyaltyProgramManagementScreen() {
                       console.log('AdminLoyalty: Resetting all loyalty points');
                       const { error } = await supabase
                         .from('profiles')
-                        .update({ loyalty_points: 0, loyalty_level: 'Nuovo' })
+                        .update({ loyalty_points: 0, points_total: 0, points_balance: 0, loyalty_level: 'Nuovo' })
                         .neq('user_id', '00000000-0000-0000-0000-000000000000');
                       if (error) {
                         console.error('AdminLoyalty: Error resetting points:', error);
