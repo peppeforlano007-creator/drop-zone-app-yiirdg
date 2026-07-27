@@ -283,14 +283,7 @@ export default function DropsScreen() {
         .or('archived.is.null,archived.eq.false')
         .order('created_at', { ascending: false });
 
-      // Filtra per punto di ritiro se l'utente ne ha uno selezionato
-      const pickupId = profile?.pickup_point_id ?? null;
-      if (pickupId) {
-        console.log('[drops] filtering by pickup_point_id:', pickupId);
-        query = query.eq('pickup_point_id', pickupId);
-      } else {
-        console.log('[drops] no pickup point selected, showing all drops');
-      }
+      console.log('[drops] loading all active drops for pickup point');
 
       const { data, error } = await query;
 
