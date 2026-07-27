@@ -450,13 +450,7 @@ export default function MyBookingsScreen() {
         {/* Discount badges row */}
         {isDropCompleted && (
           <View style={styles.discountBadgesRow}>
-            {discountPercentage > 0 && (
-              <View style={styles.dropDiscountBadge}>
-                <Text style={styles.dropDiscountBadgeText}>
-                  {'🏷️ Drop -'}{discountPercentage.toFixed(1)}{'%'}
-                </Text>
-              </View>
-            )}
+
             {loyaltyDiscount > 0 && (
               <View style={styles.loyaltyDiscountBadge}>
                 <Text style={styles.loyaltyDiscountBadgeText}>
