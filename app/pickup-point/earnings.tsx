@@ -64,7 +64,7 @@ export default function EarningsScreen() {
         setPickupPoint(ppData);
       }
 
-      const commissionRate = ppData?.commission_rate || 5;
+      const commissionRate = ppData?.commission_rate != null ? ppData.commission_rate : 5;
 
       // Load all completed orders
       const { data: ordersData, error: ordersError } = await supabase
@@ -175,7 +175,7 @@ export default function EarningsScreen() {
     .filter(item => item.status === 'pending')
     .reduce((sum, item) => sum + item.commission, 0);
 
-  const commissionPerOrder = pickupPoint?.commission_rate || 5;
+  const commissionPerOrder = pickupPoint?.commission_rate != null ? pickupPoint.commission_rate : 5;
 
   const getStatusColor = (status: string) => {
     switch (status) {
