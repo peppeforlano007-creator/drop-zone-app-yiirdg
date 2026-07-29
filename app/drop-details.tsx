@@ -361,7 +361,7 @@ export default function DropDetailsScreen() {
             .filter(p => p.stock > 0);
         });
       }
-    }, 30000);
+    }, 15000);
 
     return () => clearInterval(interval);
   }, [drop, isExpired]);
@@ -427,6 +427,56 @@ export default function DropDetailsScreen() {
     return () => {
       console.log('🧹 Cleaning up real-time subscription');
       supabase.removeChannel(channel);
+    };
+  }, [drop, isExpired]);
+
+  // Secondo canale: ascolta INSERT su bookings per aggiornare stock immediatamente
+  useEffect(() => {
+    if (!drop || isExpired) return;
+
+    const bookingsChannel = supabase
+      .channel(`bookings_stock_sync_${drop.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'bookings',
+          filter: `drop_id=eq.${drop.id}`,
+        },
+        async (payload) => {
+          console.log('📡 New booking detected, refreshing product stock...');
+          // Ricarica i prodotti con stock > 0
+          const { data } = await supabase
+            .from('products')
+            .select('*')
+            .eq('supplier_list_id', drop.supplier_list_id)
+            .gt('stock', 0)
+            .order('created_at', { ascending: false })
+            .limit(1000);
+
+          if (data) {
+            const available = data.filter((p: any) => p.stock > 0);
+            setProducts(prev => {
+              // Aggiorna stock esistenti e rimuovi esauriti
+              const updated = prev
+                .map(p => {
+                  const fresh = available.find((a: any) => a.id === p.id);
+                  return fresh ? { ...p, stock: fresh.stock, status: fresh.status } : { ...p, stock: 0 };
+                })
+                .filter(p => p.stock > 0);
+              console.log(`✅ Stock refreshed after booking: ${updated.length} products available`);
+              return updated;
+            });
+          }
+        }
+      )
+      .subscribe((status) => {
+        console.log('📶 Bookings sync channel status:', status);
+      });
+
+    return () => {
+      supabase.removeChannel(bookingsChannel);
     };
   }, [drop, isExpired]);
 
