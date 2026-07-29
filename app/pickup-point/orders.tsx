@@ -464,6 +464,8 @@ export default function OrdersScreen() {
                         `Il tuo ordine ${order.order_number} è pronto per il ritiro presso ${pickupLabel}!`,
                         { type: 'order_ready', orderId: order.id }
                       );
+                    } else {
+                      console.warn(`[Orders] push_token NULL per utente ${userId} — push non inviato per ordine ${order.order_number}. L'utente potrebbe non aver concesso i permessi o non aver ancora aperto l'app.`);
                     }
                   } catch (e) {
                     console.error('[Orders] Errore invio push order_ready:', e);
@@ -965,11 +967,16 @@ export default function OrdersScreen() {
               let notificationsSent = 0;
               let notificationsFailed = 0;
 
+              const pickupName = order.pickup_points?.name ?? 'il punto di ritiro';
+              const pickupCity = order.pickup_points?.city ? ` - ${order.pickup_points.city}` : '';
+              const pickupLabel = `${pickupName}${pickupCity}`;
+
               for (const userId of uniqueUserIds) {
+                console.log(`[Orders] handleNotifyAllCustomers — invio notifica a utente ${userId}, ordine ${order.order_number}`);
                 const success = await sendNotificationToUser(
                   userId,
                   '🔔 Promemoria Ritiro Ordine',
-                  `Ti ricordiamo che il tuo ordine ${order.order_number} è pronto per il ritiro presso il punto di ritiro. Passa a ritirarlo quando puoi!`,
+                  `Ti ricordiamo che il tuo ordine ${order.order_number} è pronto per il ritiro presso ${pickupLabel}. Passa a ritirarlo quando puoi!`,
                   order.id
                 );
 
@@ -977,6 +984,29 @@ export default function OrdersScreen() {
                   notificationsSent++;
                 } else {
                   notificationsFailed++;
+                }
+
+                // Invia push notification
+                try {
+                  const { data: profile } = await supabase
+                    .from('profiles')
+                    .select('push_token')
+                    .eq('user_id', userId)
+                    .single();
+
+                  if (profile?.push_token) {
+                    console.log(`[Orders] handleNotifyAllCustomers — invio push a utente ${userId}, token: ${profile.push_token}`);
+                    await sendPushNotification(
+                      profile.push_token,
+                      'Ritira il tuo ordine 📦',
+                      `Il tuo ordine ${order.order_number} è pronto per il ritiro presso ${pickupLabel}!`,
+                      { type: 'order_reminder', orderId: order.id }
+                    );
+                  } else {
+                    console.warn(`[Orders] handleNotifyAllCustomers — push_token NULL per utente ${userId}, ordine ${order.order_number}. Push non inviato.`);
+                  }
+                } catch (e) {
+                  console.error(`[Orders] handleNotifyAllCustomers — errore invio push a utente ${userId}:`, e);
                 }
               }
               
