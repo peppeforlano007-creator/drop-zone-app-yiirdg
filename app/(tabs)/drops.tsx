@@ -3,7 +3,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '@/app/integrations/supabase/client';
 import DropCard from '@/components/DropCard';
 import { Stack, router, useFocusEffect } from 'expo-router';
-import { useNavigation } from '@react-navigation/native';
 import { colors, layout } from '@/styles/commonStyles';
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
@@ -14,12 +13,10 @@ import {
   FlatList,
   RefreshControl,
   ActivityIndicator,
-  Platform,
   TouchableOpacity,
   Animated,
   useColorScheme,
   Pressable,
-  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { IconSymbol } from '@/components/IconSymbol';
@@ -207,7 +204,6 @@ export default function DropsScreen() {
   const { user } = useAuth();
   const [userPickupPointId, setUserPickupPointId] = useState<string | null>(null);
   const unreadCount = useUnreadNotifications();
-  const navigation = useNavigation();
 
   // Show loyalty onboarding only once
   useFocusEffect(
@@ -392,6 +388,7 @@ export default function DropsScreen() {
   });
 
   const handleRefresh = () => {
+    console.log('[Drops] Pull-to-refresh triggered');
     setRefreshing(true);
     loadDrops();
   };
@@ -414,15 +411,79 @@ export default function DropsScreen() {
 
   const bellCountText = unreadCount > 99 ? '99+' : String(unreadCount);
 
-  useEffect(() => {
-    navigation.setOptions({
-      headerRight: () => (
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginRight: 8 }}>
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+        <Stack.Screen options={{ headerShown: false }} />
+        {/* Header custom */}
+        <View style={styles.customHeader}>
+          <Text style={styles.customHeaderTitle}>Drop Attivi</Text>
+          <View style={styles.customHeaderRight}>
+            {!userPickupPointId && (
+              <Pressable
+                onPress={() => {
+                  console.log('[Drops] My bookings icon pressed (loading state), navigating to my-bookings');
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  router.push('/(tabs)/my-bookings');
+                }}
+                hitSlop={8}
+              >
+                <IconSymbol
+                  ios_icon_name="list.bullet.clipboard"
+                  android_material_icon_name="assignment"
+                  size={24}
+                  color={colors.text}
+                />
+              </Pressable>
+            )}
+            <Pressable
+              onPress={() => {
+                console.log('[Drops] Bell icon pressed (loading state), navigating to notifications');
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.push('/(tabs)/notifications');
+              }}
+              style={{ position: 'relative' }}
+              hitSlop={8}
+            >
+              <IconSymbol
+                ios_icon_name="bell.fill"
+                android_material_icon_name="notifications"
+                size={24}
+                color={colors.text}
+              />
+              {unreadCount > 0 && (
+                <View style={styles.bellBadge}>
+                  <Text style={styles.bellBadgeText}>{bellCountText}</Text>
+                </View>
+              )}
+            </Pressable>
+          </View>
+        </View>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={styles.loadingText}>Caricamento drops...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+      <Stack.Screen options={{ headerShown: false }} />
+
+      {/* Header custom */}
+      <View style={styles.customHeader}>
+        <Text style={styles.customHeaderTitle}>Drop Attivi</Text>
+        <View style={styles.customHeaderRight}>
           {!userPickupPointId && (
-            <Pressable onPress={() => {
-              console.log('[Drops] My bookings icon pressed, navigating to my-bookings');
-              router.push('/(tabs)/my-bookings');
-            }}>
+            <Pressable
+              onPress={() => {
+                console.log('[Drops] My bookings icon pressed, navigating to my-bookings');
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.push('/(tabs)/my-bookings');
+              }}
+              hitSlop={8}
+            >
               <IconSymbol
                 ios_icon_name="list.bullet.clipboard"
                 android_material_icon_name="assignment"
@@ -431,10 +492,15 @@ export default function DropsScreen() {
               />
             </Pressable>
           )}
-          <Pressable onPress={() => {
-            console.log('[Drops] Bell icon pressed, navigating to notifications');
-            router.push('/(tabs)/notifications');
-          }} style={{ position: 'relative' }}>
+          <Pressable
+            onPress={() => {
+              console.log('[Drops] Bell icon pressed, navigating to notifications');
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              router.push('/(tabs)/notifications');
+            }}
+            style={{ position: 'relative' }}
+            hitSlop={8}
+          >
             <IconSymbol
               ios_icon_name="bell.fill"
               android_material_icon_name="notifications"
@@ -448,35 +514,7 @@ export default function DropsScreen() {
             )}
           </Pressable>
         </View>
-      ),
-    });
-  }, [userPickupPointId, unreadCount, bellCountText, navigation]);
-
-  if (loading) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <Stack.Screen
-          options={{
-            title: 'Drop Attivi',
-            headerShown: true,
-          }}
-        />
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={styles.loadingText}>Caricamento drops...</Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
-  return (
-    <SafeAreaView style={styles.container} edges={['bottom']}>
-      <Stack.Screen
-        options={{
-          title: 'Drop Attivi',
-          headerShown: true,
-        }}
-      />
+      </View>
 
       {isConnected && (
         <View style={styles.realtimeIndicator}>
@@ -534,6 +572,24 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: colors.textSecondary,
     fontFamily: 'System',
+  },
+  customHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: colors.background,
+  },
+  customHeaderTitle: {
+    fontSize: 17,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  customHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
   },
   realtimeIndicator: {
     flexDirection: 'row',
