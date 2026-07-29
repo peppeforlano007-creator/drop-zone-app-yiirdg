@@ -1232,12 +1232,7 @@ export default function DropDetailsScreen() {
         <SafeAreaView edges={['bottom']} style={styles.bottomLeftSafeArea}>
           <View style={styles.bottomLeftChipsRow} pointerEvents="box-none">
             <View style={styles.infoChip} pointerEvents="none">
-              <IconSymbol
-                ios_icon_name="mappin.fill"
-                android_material_icon_name="location-on"
-                size={12}
-                color="#FFF"
-              />
+              <MaterialCommunityIcons name="map-marker" size={12} color="#FFF" />
               <Text style={styles.infoChipText} numberOfLines={1}>
                 {cityName}
               </Text>
