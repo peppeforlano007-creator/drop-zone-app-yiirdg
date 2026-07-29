@@ -335,6 +335,37 @@ export default function DropDetailsScreen() {
     }
   }, [scrollToProductId, products]);
 
+  // Fallback polling every 30 seconds in case Realtime channel errors
+  useEffect(() => {
+    if (!drop || isExpired) return;
+
+    const interval = setInterval(async () => {
+      console.log('[drop-details] Polling fallback: refreshing product stock...');
+      const { data } = await supabase
+        .from('products')
+        .select('*')
+        .eq('supplier_list_id', drop.supplier_list_id)
+        .gt('stock', 0)
+        .order('created_at', { ascending: false })
+        .limit(1000);
+
+      if (data) {
+        const available = data.filter((p: ProductData) => p.stock > 0);
+        console.log('[drop-details] Polling fallback: received', available.length, 'available products');
+        setProducts(prev => {
+          return prev
+            .map(p => {
+              const updated = available.find((a: ProductData) => a.id === p.id);
+              return updated ? { ...p, stock: updated.stock } : { ...p, stock: 0 };
+            })
+            .filter(p => p.stock > 0);
+        });
+      }
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, [drop, isExpired]);
+
   // Real-time subscription for product stock updates
   useEffect(() => {
     if (!drop || isExpired) return;
@@ -803,6 +834,8 @@ export default function DropDetailsScreen() {
       })),
     };
     
+    const isSoldOut = item.stock <= 0;
+
     return (
       <View style={styles.productContainer}>
         <EnhancedProductCard
@@ -814,7 +847,7 @@ export default function DropDetailsScreen() {
           onBook={handleBook}
           isInterested={isBooked}
           dropId={dropId}
-          dropBookingDisabled={isDropBookingDisabled}
+          dropBookingDisabled={isDropBookingDisabled || isSoldOut}
           dropStatus={drop?.status}
           onShare={() => {
             if (!drop) return;
@@ -827,6 +860,13 @@ export default function DropDetailsScreen() {
             setShowShareModal(true);
           }}
         />
+        {isSoldOut && (
+          <View style={styles.soldOutOverlay}>
+            <View style={styles.soldOutBadge}>
+              <Text style={styles.soldOutText}>ESAURITO</Text>
+            </View>
+          </View>
+        )}
       </View>
     );
   }, [drop, userBookings, handleBook, dropId, isDropBookingDisabled, products, currentProductIndex]);
@@ -1528,5 +1568,25 @@ const styles = StyleSheet.create({
     height: '100%',
     backgroundColor: 'rgba(156, 163, 175, 0.9)',
     borderRadius: 2,
+  },
+  soldOutOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
+  },
+  soldOutBadge: {
+    backgroundColor: '#FF3B30',
+    paddingHorizontal: 24,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  soldOutText: {
+    color: '#fff',
+    fontWeight: '800',
+    fontSize: 18,
+    letterSpacing: 2,
   },
 });
