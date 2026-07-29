@@ -436,27 +436,44 @@ export default function DropsScreen() {
           title: 'Drop Attivi',
           headerShown: true,
           headerRight: () => (
-            <Pressable
-              onPress={() => {
-                console.log('[Drops] Bell icon pressed, navigating to notifications');
-                router.push('/(tabs)/notifications');
-              }}
-              style={{ marginRight: 8, position: 'relative' }}
-            >
-              <IconSymbol
-                ios_icon_name="bell.fill"
-                android_material_icon_name="notifications"
-                size={24}
-                color={colors.text}
-              />
-              {unreadCount > 0 && (
-                <View style={styles.bellBadge}>
-                  <Text style={styles.bellBadgeText}>
-                    {bellCountText}
-                  </Text>
-                </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginRight: 8 }}>
+              {!userPickupPointId && (
+                <Pressable
+                  onPress={() => {
+                    console.log('[Drops] My bookings icon pressed, navigating to my-bookings');
+                    router.push('/(tabs)/my-bookings');
+                  }}
+                >
+                  <IconSymbol
+                    ios_icon_name="list.bullet.clipboard"
+                    android_material_icon_name="assignment"
+                    size={24}
+                    color={colors.text}
+                  />
+                </Pressable>
               )}
-            </Pressable>
+              <Pressable
+                onPress={() => {
+                  console.log('[Drops] Bell icon pressed, navigating to notifications');
+                  router.push('/(tabs)/notifications');
+                }}
+                style={{ position: 'relative' }}
+              >
+                <IconSymbol
+                  ios_icon_name="bell.fill"
+                  android_material_icon_name="notifications"
+                  size={24}
+                  color={colors.text}
+                />
+                {unreadCount > 0 && (
+                  <View style={styles.bellBadge}>
+                    <Text style={styles.bellBadgeText}>
+                      {bellCountText}
+                    </Text>
+                  </View>
+                )}
+              </Pressable>
+            </View>
           ),
         }}
       />
