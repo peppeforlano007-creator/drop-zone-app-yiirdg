@@ -68,6 +68,7 @@ interface CustomerOrder {
   customerOrderNumber: string;
   items: OrderItem[];
   totalValue: number;
+  effectiveStatus: 'pending' | 'ready' | 'completed';
 }
 
 export default function OrdersScreen() {
@@ -75,9 +76,7 @@ export default function OrdersScreen() {
   const [selectedTab, setSelectedTab] = useState<'pending' | 'ready' | 'completed'>('pending');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [pendingOrders, setPendingOrders] = useState<Order[]>([]);
-  const [readyOrders, setReadyOrders] = useState<Order[]>([]);
-  const [completedOrders, setCompletedOrders] = useState<Order[]>([]);
+  const [allOrders, setAllOrders] = useState<Order[]>([]);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [selectedCustomerOrder, setSelectedCustomerOrder] = useState<CustomerOrder | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
@@ -143,10 +142,7 @@ export default function OrdersScreen() {
 
       console.log('Orders loaded:', allOrders?.length || 0);
 
-      // Separate orders into pending, ready, and completed
-      const pending: Order[] = [];
-      const ready: Order[] = [];
-      const completed: Order[] = [];
+      const enrichedOrders: Order[] = [];
 
       for (const order of allOrders || []) {
         const items = order.order_items || [];
@@ -201,38 +197,14 @@ export default function OrdersScreen() {
           };
         });
         
-        const enrichedOrder = {
+        enrichedOrders.push({
           ...order,
           order_items: itemsWithCustomers,
-        };
-
-        // Categorize orders based on status
-        if (order.status === 'completed' || order.status === 'cancelled') {
-          completed.push(enrichedOrder);
-        } else if (order.status === 'ready_for_pickup' || order.status === 'arrived') {
-          // Check if all items are handled
-          const allItemsHandled = items.length > 0 && items.every(item => 
-            item.pickup_status === 'picked_up' || item.returned_to_sender === true
-          );
-          
-          if (allItemsHandled) {
-            completed.push(enrichedOrder);
-          } else {
-            ready.push(enrichedOrder);
-          }
-        } else {
-          // pending, confirmed, in_transit
-          pending.push(enrichedOrder);
-        }
+        });
       }
 
-      console.log('Pending orders:', pending.length);
-      console.log('Ready orders:', ready.length);
-      console.log('Completed orders:', completed.length);
-      
-      setPendingOrders(pending);
-      setReadyOrders(ready);
-      setCompletedOrders(completed);
+      console.log('Total enriched orders:', enrichedOrders.length);
+      setAllOrders(enrichedOrders);
     } catch (error: any) {
       console.error('Error loading orders:', error);
       Alert.alert('Errore', `Si è verificato un errore: ${error.message}`);
@@ -245,6 +217,17 @@ export default function OrdersScreen() {
   useEffect(() => {
     loadOrders();
   }, [loadOrders]);
+
+  const computeCustomerEffectiveStatus = (items: OrderItem[]): 'pending' | 'ready' | 'completed' => {
+    if (items.length === 0) return 'pending';
+    const allHandled = items.every(i => i.picked_up_at || i.returned_to_sender);
+    if (allHandled) return 'completed';
+    const allReady = items.every(
+      i => i.pickup_status === 'ready' || i.pickup_status === 'picked_up' || i.returned_to_sender
+    );
+    if (allReady) return 'ready';
+    return 'pending';
+  };
 
   const explodeOrdersByCustomer = (orders: Order[]): CustomerOrder[] => {
     const result: CustomerOrder[] = [];
@@ -260,6 +243,7 @@ export default function OrdersScreen() {
         const items = byUser.get(uid)!;
         const first = items[0];
         const suffix = userIds.length > 1 ? ` (${idx + 1}/${userIds.length})` : '';
+        const effectiveStatus = computeCustomerEffectiveStatus(items);
         result.push({
           key: `${order.id}-${uid}`,
           order,
@@ -270,6 +254,7 @@ export default function OrdersScreen() {
           customerOrderNumber: `${order.order_number}${suffix}`,
           items,
           totalValue: items.reduce((s, i) => s + Number(i.final_price || 0), 0),
+          effectiveStatus,
         });
       });
     }
@@ -392,34 +377,59 @@ export default function OrdersScreen() {
             try {
               console.log('[handleMarkAsReceived] confirmed for order:', order.id, 'customerOrder:', customerOrder?.userId ?? 'all');
               const now = new Date().toISOString();
-              
-              // Update order status to ready_for_pickup
-              const { error: orderError } = await supabase
-                .from('orders')
-                .update({
-                  status: 'ready_for_pickup',
-                  arrived_at: now,
-                  updated_at: now,
-                })
-                .eq('id', order.id);
 
-              if (orderError) {
-                console.error('Error updating order:', orderError);
-                Alert.alert('Errore', 'Impossibile aggiornare lo stato dell\'ordine');
-                return;
-              }
-
-              // Update all order items to ready status
-              const { error: itemsError } = await supabase
+              // Step 1: Update only the selected customer's items (or all items for legacy fallback)
+              let itemsQuery = supabase
                 .from('order_items')
-                .update({ 
+                .update({
                   pickup_status: 'ready',
                   customer_notified_at: now,
                 })
                 .eq('order_id', order.id);
 
+              if (customerOrder) {
+                console.log('[handleMarkAsReceived] scoping item update to userId:', customerOrder.userId);
+                itemsQuery = itemsQuery.eq('user_id', customerOrder.userId);
+              }
+
+              const { error: itemsError } = await itemsQuery;
+
               if (itemsError) {
                 console.error('Error updating order items:', itemsError);
+                Alert.alert('Errore', 'Impossibile aggiornare gli articoli dell\'ordine');
+                return;
+              }
+
+              // Step 2: Re-fetch all items for this order and check if ALL are ready/handled
+              const { data: allOrderItems, error: fetchError } = await supabase
+                .from('order_items')
+                .select('id, pickup_status, picked_up_at, returned_to_sender')
+                .eq('order_id', order.id);
+
+              if (fetchError) {
+                console.error('[handleMarkAsReceived] Error re-fetching order items:', fetchError);
+              }
+
+              const allItemsReady = allOrderItems && allOrderItems.length > 0 && allOrderItems.every(
+                i => i.pickup_status === 'ready' || i.pickup_status === 'picked_up' || i.returned_to_sender
+              );
+
+              if (allItemsReady) {
+                console.log('[handleMarkAsReceived] all items ready — updating order status to ready_for_pickup:', order.id);
+                const { error: orderError } = await supabase
+                  .from('orders')
+                  .update({
+                    status: 'ready_for_pickup',
+                    arrived_at: now,
+                    updated_at: now,
+                  })
+                  .eq('id', order.id);
+
+                if (orderError) {
+                  console.error('Error updating order status:', orderError);
+                }
+              } else {
+                console.log('[handleMarkAsReceived] not all items ready yet — order status unchanged for order:', order.id);
               }
 
               // Send notification — only to the selected customer if customerOrder is present, otherwise to all
@@ -1060,8 +1070,14 @@ export default function OrdersScreen() {
     if (!selectedOrder) return null;
 
     const daysInStorage = calculateDaysInStorage(selectedOrder.arrived_at);
-    const isPending = selectedOrder.status === 'pending' || selectedOrder.status === 'confirmed' || selectedOrder.status === 'in_transit';
-    const isReady = selectedOrder.status === 'ready_for_pickup' || selectedOrder.status === 'arrived';
+    // Use per-customer effectiveStatus when a customer card was tapped, otherwise fall back to order-level status
+    const customerEffective = selectedCustomerOrder?.effectiveStatus;
+    const isPending = customerEffective
+      ? customerEffective === 'pending'
+      : (selectedOrder.status === 'pending' || selectedOrder.status === 'confirmed' || selectedOrder.status === 'in_transit');
+    const isReady = customerEffective
+      ? customerEffective === 'ready'
+      : (selectedOrder.status === 'ready_for_pickup' || selectedOrder.status === 'arrived');
     
     // Check if there are any items that haven't been handled yet
     const hasUnhandledItems = selectedOrder.order_items.some(
@@ -1307,10 +1323,12 @@ export default function OrdersScreen() {
     const daysInStorage = calculateDaysInStorage(co.order.arrived_at);
     const itemsLabel = co.items.length === 1 ? co.items[0].product_name : `${co.items.length} articoli`;
     const totalDisplay = co.totalValue.toFixed(2);
-    const statusColor = getStatusColor(co.order.status);
-    const statusIcon = getStatusIcon(co.order.status);
-    const statusLabel = getStatusText(co.order.status);
-    const showDays = daysInStorage > 0 && co.order.status !== 'completed' && co.order.status !== 'cancelled';
+    // Use effectiveStatus for the badge so partially-received orders show the correct per-customer state
+    const effectiveStatusKey = co.effectiveStatus === 'ready' ? 'ready_for_pickup' : co.effectiveStatus;
+    const statusColor = getStatusColor(effectiveStatusKey);
+    const statusIcon = getStatusIcon(effectiveStatusKey);
+    const statusLabel = getStatusText(effectiveStatusKey);
+    const showDays = daysInStorage > 0 && co.effectiveStatus !== 'completed';
     const showPhone = co.customerPhone !== 'N/A';
 
     return (
@@ -1388,11 +1406,17 @@ export default function OrdersScreen() {
     );
   }
 
-  const currentOrders = selectedTab === 'pending' ? pendingOrders : selectedTab === 'ready' ? readyOrders : completedOrders;
-  const currentCustomerOrders = explodeOrdersByCustomer(currentOrders);
-  const pendingCustomerCount = explodeOrdersByCustomer(pendingOrders).length;
-  const readyCustomerCount = explodeOrdersByCustomer(readyOrders).length;
-  const completedCustomerCount = explodeOrdersByCustomer(completedOrders).length;
+  const allCustomerOrders = explodeOrdersByCustomer(allOrders);
+  const pendingCustomerOrders = allCustomerOrders.filter(co => co.effectiveStatus === 'pending');
+  const readyCustomerOrders = allCustomerOrders.filter(co => co.effectiveStatus === 'ready');
+  const completedCustomerOrders = allCustomerOrders.filter(co => co.effectiveStatus === 'completed');
+  const currentCustomerOrders =
+    selectedTab === 'pending' ? pendingCustomerOrders :
+    selectedTab === 'ready' ? readyCustomerOrders :
+    completedCustomerOrders;
+  const pendingCustomerCount = pendingCustomerOrders.length;
+  const readyCustomerCount = readyCustomerOrders.length;
+  const completedCustomerCount = completedCustomerOrders.length;
 
   return (
     <>
