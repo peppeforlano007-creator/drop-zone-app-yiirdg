@@ -379,23 +379,23 @@ export default function OrdersScreen() {
               const now = new Date().toISOString();
 
               // Step 1: Update only the selected customer's items (or all items for legacy fallback)
-              let itemsQuery = supabase
+              // Use item IDs directly to avoid cross-user RLS restrictions on order_items
+              const itemIdsToUpdate = customerOrder
+                ? customerOrder.items.map(i => i.id)
+                : (order.order_items || []).map(i => i.id);
+
+              console.log('[handleMarkAsReceived] updating item IDs:', itemIdsToUpdate);
+
+              const { error: itemsError } = await supabase
                 .from('order_items')
                 .update({
                   pickup_status: 'ready',
                   customer_notified_at: now,
                 })
-                .eq('order_id', order.id);
-
-              if (customerOrder) {
-                console.log('[handleMarkAsReceived] scoping item update to userId:', customerOrder.userId);
-                itemsQuery = itemsQuery.eq('user_id', customerOrder.userId);
-              }
-
-              const { error: itemsError } = await itemsQuery;
+                .in('id', itemIdsToUpdate);
 
               if (itemsError) {
-                console.error('Error updating order items:', itemsError);
+                console.error('Error updating order items:', itemsError.code, itemsError.message);
                 Alert.alert('Errore', 'Impossibile aggiornare gli articoli dell\'ordine');
                 return;
               }
@@ -548,7 +548,7 @@ export default function OrdersScreen() {
                 .in('id', itemsToUpdate.map(item => item.id));
 
               if (itemsError) {
-                console.error('Error updating order items:', itemsError);
+                console.error('Error updating order items:', itemsError.code, itemsError.message);
                 Alert.alert('Errore', 'Impossibile aggiornare gli articoli dell\'ordine');
                 return;
               }
@@ -718,7 +718,7 @@ export default function OrdersScreen() {
                 .in('id', itemsToUpdate.map(item => item.id));
 
               if (itemsError) {
-                console.error('Error updating order items:', itemsError);
+                console.error('Error updating order items:', itemsError.code, itemsError.message);
                 Alert.alert('Errore', 'Impossibile aggiornare gli articoli dell\'ordine');
                 return;
               }

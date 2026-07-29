@@ -165,6 +165,7 @@ export default function DropDetailsScreen() {
         .single();
 
       if (dropError) {
+        console.error('❌ Supabase dropError:', dropError.code, dropError.message, dropError.details);
         console.error('❌ Error loading drop:', dropError);
         Alert.alert('Errore', 'Impossibile caricare i dettagli del drop');
         return;
@@ -260,6 +261,7 @@ export default function DropDetailsScreen() {
       }
     } catch (error) {
       console.error('❌ Error in loadDropDetails:', error);
+      Alert.alert('Errore', 'Impossibile caricare i dettagli del drop');
     } finally {
       setLoading(false);
     }
