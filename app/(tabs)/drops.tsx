@@ -419,7 +419,7 @@ export default function DropsScreen() {
         <View style={styles.customHeader}>
           <Text style={styles.customHeaderTitle}>Drop Attivi</Text>
           <View style={styles.customHeaderRight}>
-            {!userPickupPointId && (
+            {user?.role !== 'pickup_point' && (
               <Pressable
                 onPress={() => {
                   console.log('[Drops] My bookings icon pressed (loading state), navigating to my-bookings');
@@ -475,7 +475,7 @@ export default function DropsScreen() {
       <View style={styles.customHeader}>
         <Text style={styles.customHeaderTitle}>Drop Attivi</Text>
         <View style={styles.customHeaderRight}>
-          {!userPickupPointId && (
+          {user?.role !== 'pickup_point' && (
             <Pressable
               onPress={() => {
                 console.log('[Drops] My bookings icon pressed, navigating to my-bookings');
