@@ -164,14 +164,14 @@ export default function NotificationsScreen() {
       router.push({ pathname: '/drop-details', params: { dropId: notification.related_id } });
     } else if (notification.type === 'order_delivered' && notification.related_id) {
       console.log('[Notifications] order_delivered notification tapped, navigating to my-bookings for order:', notification.related_id);
-      router.push('/(tabs)/my-bookings');
+      router.push('/my-bookings');
     } else if (notification.type === 'item_returned') {
-      router.push('/(tabs)/my-bookings');
+      router.push('/my-bookings');
     } else if (notification.type === 'order_ready') {
       console.log('[Notifications] order_ready notification tapped, navigating to pickup points tab for order:', notification.related_id);
       router.push('/(tabs)/payment-methods');
     } else if (notification.related_type === 'order' && notification.related_id && notification.title === 'Articolo Reso') {
-      router.push('/(tabs)/my-bookings');
+      router.push('/my-bookings');
     } else if (notification.related_type === 'order' && notification.related_id) {
       console.log('[Notifications] Navigating to pickup points tab for order:', notification.related_id);
       router.push('/(tabs)/payment-methods');

@@ -188,7 +188,7 @@ export default function ProfileScreen() {
   const handleViewBookings = () => {
     console.log('Profile: User tapped Le Mie Prenotazioni');
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    router.push('/(tabs)/my-bookings');
+    router.push('/my-bookings');
   };
 
   const handleNotifications = () => {

@@ -424,7 +424,7 @@ export default function DropsScreen() {
                 onPress={() => {
                   console.log('[Drops] My bookings icon pressed (loading state), navigating to my-bookings');
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  router.push('/(tabs)/my-bookings');
+                  router.push('/my-bookings');
                 }}
                 hitSlop={8}
               >
@@ -480,7 +480,7 @@ export default function DropsScreen() {
               onPress={() => {
                 console.log('[Drops] My bookings icon pressed, navigating to my-bookings');
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                router.push('/(tabs)/my-bookings');
+                router.push('/my-bookings');
               }}
               hitSlop={8}
             >

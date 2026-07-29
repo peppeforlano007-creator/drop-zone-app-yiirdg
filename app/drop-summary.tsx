@@ -122,7 +122,7 @@ export default function DropSummaryScreen() {
 
   const handleGoToBookings = () => {
     console.log('[DropSummary] CTA pressed: navigating to my-bookings');
-    router.push('/(tabs)/my-bookings');
+    router.push('/my-bookings');
   };
 
   const handleBack = () => {

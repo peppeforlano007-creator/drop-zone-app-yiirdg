@@ -251,7 +251,7 @@ export default function RootLayout() {
           break;
         case 'order_ready':
           console.log('[PushNotification] Routing to my-bookings, orderId:', data.orderId);
-          router.push('/(tabs)/my-bookings');
+          router.push('/my-bookings');
           break;
         case 'general':
           console.log('[PushNotification] Routing to notifications tab');
@@ -354,6 +354,9 @@ export default function RootLayout() {
 
                   {/* Drop Summary */}
                   <Stack.Screen name="drop-summary" options={{ headerShown: false }} />
+
+                  {/* My Bookings */}
+                  <Stack.Screen name="my-bookings" options={{ headerShown: true, title: 'Le Mie Prenotazioni' }} />
 
                   {/* Profile Screens */}
                   <Stack.Screen name="edit-profile" options={{ headerShown: false }} />
