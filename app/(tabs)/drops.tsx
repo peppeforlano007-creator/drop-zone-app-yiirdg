@@ -3,6 +3,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '@/app/integrations/supabase/client';
 import DropCard from '@/components/DropCard';
 import { Stack, router, useFocusEffect } from 'expo-router';
+import { useNavigation } from '@react-navigation/native';
 import { colors, layout } from '@/styles/commonStyles';
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
@@ -206,6 +207,7 @@ export default function DropsScreen() {
   const { user } = useAuth();
   const [userPickupPointId, setUserPickupPointId] = useState<string | null>(null);
   const unreadCount = useUnreadNotifications();
+  const navigation = useNavigation();
 
   // Show loyalty onboarding only once
   useFocusEffect(
@@ -412,6 +414,44 @@ export default function DropsScreen() {
 
   const bellCountText = unreadCount > 99 ? '99+' : String(unreadCount);
 
+  useEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginRight: 8 }}>
+          {!userPickupPointId && (
+            <Pressable onPress={() => {
+              console.log('[Drops] My bookings icon pressed, navigating to my-bookings');
+              router.push('/(tabs)/my-bookings');
+            }}>
+              <IconSymbol
+                ios_icon_name="list.bullet.clipboard"
+                android_material_icon_name="assignment"
+                size={24}
+                color={colors.text}
+              />
+            </Pressable>
+          )}
+          <Pressable onPress={() => {
+            console.log('[Drops] Bell icon pressed, navigating to notifications');
+            router.push('/(tabs)/notifications');
+          }} style={{ position: 'relative' }}>
+            <IconSymbol
+              ios_icon_name="bell.fill"
+              android_material_icon_name="notifications"
+              size={24}
+              color={colors.text}
+            />
+            {unreadCount > 0 && (
+              <View style={styles.bellBadge}>
+                <Text style={styles.bellBadgeText}>{bellCountText}</Text>
+              </View>
+            )}
+          </Pressable>
+        </View>
+      ),
+    });
+  }, [userPickupPointId, unreadCount, bellCountText, navigation]);
+
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
@@ -435,46 +475,6 @@ export default function DropsScreen() {
         options={{
           title: 'Drop Attivi',
           headerShown: true,
-          headerRight: () => (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginRight: 8 }}>
-              {!userPickupPointId && (
-                <Pressable
-                  onPress={() => {
-                    console.log('[Drops] My bookings icon pressed, navigating to my-bookings');
-                    router.push('/(tabs)/my-bookings');
-                  }}
-                >
-                  <IconSymbol
-                    ios_icon_name="list.bullet.clipboard"
-                    android_material_icon_name="assignment"
-                    size={24}
-                    color={colors.text}
-                  />
-                </Pressable>
-              )}
-              <Pressable
-                onPress={() => {
-                  console.log('[Drops] Bell icon pressed, navigating to notifications');
-                  router.push('/(tabs)/notifications');
-                }}
-                style={{ position: 'relative' }}
-              >
-                <IconSymbol
-                  ios_icon_name="bell.fill"
-                  android_material_icon_name="notifications"
-                  size={24}
-                  color={colors.text}
-                />
-                {unreadCount > 0 && (
-                  <View style={styles.bellBadge}>
-                    <Text style={styles.bellBadgeText}>
-                      {bellCountText}
-                    </Text>
-                  </View>
-                )}
-              </Pressable>
-            </View>
-          ),
         }}
       />
 
