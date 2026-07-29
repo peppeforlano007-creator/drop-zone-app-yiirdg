@@ -136,7 +136,7 @@ function TabLayoutInner() {
     <>
       <Stack
         screenOptions={({ route }) => ({
-          headerShown: true,
+          headerShown: route.name === 'drops' ? false : true,
           headerStyle: { backgroundColor: colors.background },
           headerTintColor: colors.text,
           headerRight: route.name === 'profile' ? profileHeaderRight : undefined,
