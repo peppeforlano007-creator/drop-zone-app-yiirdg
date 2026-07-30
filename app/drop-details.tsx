@@ -121,6 +121,12 @@ export default function DropDetailsScreen() {
   const { isInterested, isLoading: isInterestLoading, loadInterest, toggleInterest } = useDropInterest();
   const flatListRef = useRef<FlatList>(null);
 
+  // --- Debounce + sold-out animation refs ---
+  const pendingUpdatesRef = useRef<Map<string, ProductData | null>>(new Map());
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const soldOutAnimationsRef = useRef<Map<string, Animated.Value>>(new Map());
+  const [soldOutItems, setSoldOutItems] = useState<Set<string>>(new Set());
+
   // Derived: drop is viewable but booking is disabled
   const isDropBookingDisabled = drop?.status === 'approved' || drop?.status === 'pending_approval' || drop?.status === 'inactive';
   const isDropCompleted = drop?.status === 'completed';
@@ -368,6 +374,85 @@ export default function DropDetailsScreen() {
     return () => clearInterval(interval);
   }, [drop, isExpired]);
 
+  // --- Debounce helpers for realtime updates ---
+  const flushPendingUpdates = useCallback(() => {
+    const pending = new Map(pendingUpdatesRef.current);
+    if (pending.size === 0) return;
+    pendingUpdatesRef.current.clear();
+    console.log('[drop-details] flushPendingUpdates: applying', pending.size, 'pending product updates');
+
+    setProducts(prev => {
+      let next = [...prev];
+      pending.forEach((updatedProduct, productId) => {
+        if (updatedProduct === null) {
+          // Remove the product (already fading out via animation)
+          next = next.filter(p => p.id !== productId);
+        } else {
+          const idx = next.findIndex(p => p.id === productId);
+          if (idx >= 0) {
+            next[idx] = updatedProduct;
+          } else if (updatedProduct.stock > 0) {
+            next = [...next, updatedProduct];
+          }
+        }
+      });
+      return next;
+    });
+  }, []);
+
+  const scheduleProductUpdate = useCallback((productId: string, updatedProduct: ProductData | null) => {
+    console.log('[drop-details] scheduleProductUpdate:', productId, updatedProduct === null ? 'REMOVE' : 'stock=' + updatedProduct.stock);
+
+    if (updatedProduct === null) {
+      // Immediately mark as sold-out for instant UI feedback
+      setSoldOutItems(prev => {
+        const next = new Set(prev);
+        next.add(productId);
+        return next;
+      });
+
+      // Create fade animation if not already present
+      if (!soldOutAnimationsRef.current.has(productId)) {
+        soldOutAnimationsRef.current.set(productId, new Animated.Value(1));
+      }
+
+      // After 3s, fade out then remove
+      setTimeout(() => {
+        const anim = soldOutAnimationsRef.current.get(productId);
+        if (anim) {
+          Animated.timing(anim, {
+            toValue: 0,
+            duration: 500,
+            useNativeDriver: true,
+          }).start(() => {
+            console.log('[drop-details] Fade-out complete, removing product:', productId);
+            // Remove from products array
+            setProducts(prev => prev.filter(p => p.id !== productId));
+            // Clean up sold-out tracking
+            setSoldOutItems(prev => {
+              const next = new Set(prev);
+              next.delete(productId);
+              return next;
+            });
+            soldOutAnimationsRef.current.delete(productId);
+          });
+        }
+      }, 3000);
+
+      // Don't add to pending (removal is handled by the animation above)
+      return;
+    }
+
+    // Queue the update and debounce
+    pendingUpdatesRef.current.set(productId, updatedProduct);
+    if (debounceTimerRef.current !== null) {
+      clearTimeout(debounceTimerRef.current);
+    }
+    debounceTimerRef.current = setTimeout(() => {
+      flushPendingUpdates();
+    }, 400);
+  }, [flushPendingUpdates]);
+
   // Real-time subscription for product stock updates
   useEffect(() => {
     if (!drop || isExpired) return;
@@ -387,39 +472,14 @@ export default function DropDetailsScreen() {
         (payload) => {
           console.log('📡 Product stock update received:', payload);
           const updatedProduct = payload.new as ProductData;
-          
-          setProducts(prevProducts => {
-            if (updatedProduct.stock <= 0) {
-              console.log('🗑️ Product out of stock, removing from list:', updatedProduct.id, 'stock:', updatedProduct.stock);
-              const filtered = prevProducts.filter(p => p.id !== updatedProduct.id);
-              
-              if (filtered.length === 0 && prevProducts.length > 0) {
-                console.log('⚠️ Last product removed from drop');
-                setTimeout(() => {
-                  Alert.alert(
-                    'Tutti i prodotti esauriti',
-                    'Tutti gli articoli di questo drop sono stati prenotati.',
-                    [{ text: 'OK', onPress: () => router.back() }]
-                  );
-                }, 500);
-              }
-              
-              return filtered;
-            }
-            
-            const existingIndex = prevProducts.findIndex(p => p.id === updatedProduct.id);
-            if (existingIndex >= 0) {
-              const newProducts = [...prevProducts];
-              newProducts[existingIndex] = updatedProduct;
-              console.log('✅ Product updated in list:', updatedProduct.id, 'stock:', updatedProduct.stock);
-              return newProducts;
-            } else if (updatedProduct.stock > 0) {
-              console.log('✨ Product became available again, adding to list:', updatedProduct.id, 'stock:', updatedProduct.stock);
-              return [...prevProducts, updatedProduct];
-            }
-            
-            return prevProducts;
-          });
+          console.log('[drop-details] Realtime product update — id:', updatedProduct.id, 'stock:', updatedProduct.stock);
+
+          if (updatedProduct.stock <= 0) {
+            console.log('🗑️ Product out of stock, scheduling sold-out animation:', updatedProduct.id);
+            scheduleProductUpdate(updatedProduct.id, null);
+          } else {
+            scheduleProductUpdate(updatedProduct.id, updatedProduct);
+          }
         }
       )
       .subscribe((status) => {
@@ -428,9 +488,10 @@ export default function DropDetailsScreen() {
 
     return () => {
       console.log('🧹 Cleaning up real-time subscription');
+      if (debounceTimerRef.current !== null) clearTimeout(debounceTimerRef.current);
       supabase.removeChannel(channel);
     };
-  }, [drop, isExpired]);
+  }, [drop, isExpired, scheduleProductUpdate]);
 
   // Secondo canale: ascolta INSERT su bookings per aggiornare stock immediatamente
   useEffect(() => {
@@ -459,16 +520,21 @@ export default function DropDetailsScreen() {
 
           if (data) {
             const available = data.filter((p: any) => p.stock > 0);
+            console.log('[drop-details] Bookings sync: received', available.length, 'available products after booking');
+
+            // Use scheduleProductUpdate for each product that changed stock
             setProducts(prev => {
-              // Aggiorna stock esistenti e rimuovi esauriti
-              const updated = prev
-                .map(p => {
-                  const fresh = available.find((a: any) => a.id === p.id);
-                  return fresh ? { ...p, stock: fresh.stock, status: fresh.status } : { ...p, stock: 0 };
-                })
-                .filter(p => p.stock > 0);
-              console.log(`✅ Stock refreshed after booking: ${updated.length} products available`);
-              return updated;
+              prev.forEach(p => {
+                const fresh = available.find((a: any) => a.id === p.id);
+                if (!fresh || fresh.stock <= 0) {
+                  // Product went out of stock
+                  scheduleProductUpdate(p.id, null);
+                } else if (fresh.stock !== p.stock) {
+                  // Stock changed but still available
+                  scheduleProductUpdate(p.id, { ...p, stock: fresh.stock, status: fresh.status });
+                }
+              });
+              return prev; // Don't mutate yet — debounce will apply changes
             });
           }
         }
@@ -478,9 +544,10 @@ export default function DropDetailsScreen() {
       });
 
     return () => {
+      if (debounceTimerRef.current !== null) clearTimeout(debounceTimerRef.current);
       supabase.removeChannel(bookingsChannel);
     };
-  }, [drop, isExpired]);
+  }, [drop, isExpired, scheduleProductUpdate]);
 
   const handleDropUpdate = useCallback((updatedDrop: any) => {
     console.log('🔄 Real-time drop update received in drop-details:', {
@@ -886,10 +953,11 @@ export default function DropDetailsScreen() {
       })),
     };
     
-    const isSoldOut = item.stock <= 0;
+    const isSoldOut = item.stock <= 0 || soldOutItems.has(item.id);
+    const fadeAnim = soldOutAnimationsRef.current.get(item.id);
 
-    return (
-      <View style={styles.productContainer}>
+    const cardContent = (
+      <>
         <EnhancedProductCard
           product={productForCard}
           isInDrop={true}
@@ -919,9 +987,23 @@ export default function DropDetailsScreen() {
             </View>
           </View>
         )}
+      </>
+    );
+
+    if (fadeAnim) {
+      return (
+        <Animated.View style={[styles.productContainer, { opacity: fadeAnim }]}>
+          {cardContent}
+        </Animated.View>
+      );
+    }
+
+    return (
+      <View style={styles.productContainer}>
+        {cardContent}
       </View>
     );
-  }, [drop, userBookings, handleBook, dropId, isDropBookingDisabled, products, currentProductIndex]);
+  }, [drop, userBookings, handleBook, dropId, isDropBookingDisabled, products, currentProductIndex, soldOutItems]);
 
   if (loading) {
     return (
