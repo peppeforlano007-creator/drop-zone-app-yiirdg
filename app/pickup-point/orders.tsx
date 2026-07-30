@@ -769,7 +769,7 @@ export default function OrdersScreen() {
                       profile.push_token,
                       '⚠️ Ordine Rispedito',
                       `L'ordine ${order.order_number} non è stato ritirato e verrà rispedito al fornitore.`,
-                      { type: 'order_returned', orderId: order.id }
+                      { type: 'item_returned', orderId: order.id }
                     );
                   }
                 } catch (e) {
