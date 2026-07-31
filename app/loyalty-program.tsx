@@ -35,6 +35,7 @@ export default function LoyaltyProgramScreen() {
       <Stack.Screen
         options={{
           title: 'Programma Fedeltà',
+          headerBackTitle: '',
           headerStyle: { backgroundColor: colors.background },
           headerTintColor: colors.text,
         }}

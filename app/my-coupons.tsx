@@ -93,6 +93,7 @@ export default function MyPointsScreen() {
         <Stack.Screen
           options={{
             title: 'I Miei Punti',
+            headerBackTitle: '',
             headerStyle: { backgroundColor: colors.background },
             headerTintColor: colors.text,
           }}
@@ -110,6 +111,7 @@ export default function MyPointsScreen() {
       <Stack.Screen
         options={{
           title: 'I Miei Punti',
+          headerBackTitle: '',
           headerStyle: { backgroundColor: colors.background },
           headerTintColor: colors.text,
         }}

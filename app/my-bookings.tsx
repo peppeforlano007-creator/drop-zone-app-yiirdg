@@ -323,7 +323,7 @@ export default function MyBookingsScreen() {
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
-        <Stack.Screen options={{ title: 'Le Mie Prenotazioni', headerShown: true }} />
+        <Stack.Screen options={{ title: 'Le Mie Prenotazioni', headerShown: true, headerBackTitle: '' }} />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={colors.primary} />
           <Text style={styles.loadingText}>Caricamento prenotazioni...</Text>
@@ -335,7 +335,7 @@ export default function MyBookingsScreen() {
   if (!user) {
     return (
       <SafeAreaView style={styles.container}>
-        <Stack.Screen options={{ title: 'Le Mie Prenotazioni', headerShown: true }} />
+        <Stack.Screen options={{ title: 'Le Mie Prenotazioni', headerShown: true, headerBackTitle: '' }} />
         <View style={styles.emptyContainer}>
           <IconSymbol
             ios_icon_name="person.crop.circle.badge.exclamationmark"
@@ -565,6 +565,7 @@ export default function MyBookingsScreen() {
         options={{
           title: 'Le Mie Prenotazioni',
           headerShown: true,
+          headerBackTitle: '',
           headerRight: () => (
             <Pressable
               onPress={() => {

@@ -356,7 +356,16 @@ export default function RootLayout() {
                   <Stack.Screen name="drop-summary" options={{ headerShown: false }} />
 
                   {/* My Bookings */}
-                  <Stack.Screen name="my-bookings" options={{ headerShown: true, title: 'Le Mie Prenotazioni' }} />
+                  <Stack.Screen name="my-bookings" options={{ headerShown: true, title: 'Le Mie Prenotazioni', headerBackTitle: '' }} />
+
+                  {/* Loyalty Program */}
+                  <Stack.Screen name="loyalty-program" options={{ headerShown: true, title: 'Programma Fedeltà', headerBackTitle: '' }} />
+
+                  {/* My Coupons */}
+                  <Stack.Screen name="my-coupons" options={{ headerShown: true, title: 'I Miei Punti', headerBackTitle: '' }} />
+
+                  {/* Wishlist */}
+                  <Stack.Screen name="wishlist" options={{ headerShown: true, title: 'La Mia Wishlist', headerBackTitle: '' }} />
 
                   {/* Profile Screens */}
                   <Stack.Screen name="edit-profile" options={{ headerShown: false }} />
