@@ -152,7 +152,7 @@ export default function LegalDocumentsScreen() {
                   content: editContent.trim(),
                   version: editingDoc.version + 1,
                   is_active: true,
-                  is_visible_to_users: editingDoc.is_visible_to_users,
+                  is_visible_to_users: editingDoc.is_visible_to_users ?? false,
                 });
 
               if (insertError) {
@@ -244,6 +244,12 @@ export default function LegalDocumentsScreen() {
 
             console.log('[LegalDocuments] Visibility updated successfully');
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            // Optimistically update local state immediately for instant UI feedback
+            setDocuments((prev) =>
+              prev.map((d) =>
+                d.id === doc.id ? { ...d, is_visible_to_users: newValue } : d
+              )
+            );
             loadDocuments();
           },
         },

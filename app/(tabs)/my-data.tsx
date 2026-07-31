@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, router } from 'expo-router';
 import {
@@ -20,9 +20,46 @@ import { IconSymbol } from '@/components/IconSymbol';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 
+type VisibleDocument = {
+  document_type: 'privacy_policy' | 'terms_conditions' | 'cookie_policy';
+  title: string;
+  is_visible_to_users: boolean;
+};
+
 export default function MyDataScreen() {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [visibleDocs, setVisibleDocs] = useState<VisibleDocument[]>([]);
+  const [loadingDocs, setLoadingDocs] = useState(true);
+
+  useEffect(() => {
+    const loadVisibleDocuments = async () => {
+      console.log('[MyData] Loading visible legal documents...');
+      try {
+        const { data, error } = await supabase
+          .from('legal_documents')
+          .select('document_type, title, is_visible_to_users')
+          .eq('is_active', true)
+          .eq('is_visible_to_users', true)
+          .order('document_type');
+
+        if (error) {
+          console.error('[MyData] Error loading legal documents:', error);
+          setVisibleDocs([]);
+        } else {
+          console.log('[MyData] Visible legal documents loaded:', data?.length ?? 0);
+          setVisibleDocs((data as VisibleDocument[]) ?? []);
+        }
+      } catch (err) {
+        console.error('[MyData] Exception loading legal documents:', err);
+        setVisibleDocs([]);
+      } finally {
+        setLoadingDocs(false);
+      }
+    };
+
+    loadVisibleDocuments();
+  }, []);
 
   const handleExportData = async () => {
     Alert.alert(
@@ -475,84 +512,64 @@ export default function MyDataScreen() {
             </Pressable>
           </View>
 
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Documenti Legali</Text>
-
-            <Pressable
-              style={({ pressed }) => [
-                styles.legalButton,
-                pressed && styles.legalButtonPressed,
-              ]}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                router.push('/legal/privacy-policy');
-              }}
-            >
-              <IconSymbol
-                ios_icon_name="shield.fill"
-                android_material_icon_name="shield"
-                size={20}
-                color={colors.primary}
-              />
-              <Text style={styles.legalButtonText}>Privacy Policy</Text>
-              <IconSymbol
-                ios_icon_name="chevron.right"
-                android_material_icon_name="chevron-right"
-                size={18}
-                color={colors.textSecondary}
-              />
-            </Pressable>
-
-            <Pressable
-              style={({ pressed }) => [
-                styles.legalButton,
-                pressed && styles.legalButtonPressed,
-              ]}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                router.push('/legal/terms-conditions');
-              }}
-            >
-              <IconSymbol
-                ios_icon_name="doc.text.fill"
-                android_material_icon_name="description"
-                size={20}
-                color={colors.primary}
-              />
-              <Text style={styles.legalButtonText}>Termini e Condizioni</Text>
-              <IconSymbol
-                ios_icon_name="chevron.right"
-                android_material_icon_name="chevron-right"
-                size={18}
-                color={colors.textSecondary}
-              />
-            </Pressable>
-
-            <Pressable
-              style={({ pressed }) => [
-                styles.legalButton,
-                pressed && styles.legalButtonPressed,
-              ]}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                router.push('/legal/cookie-policy');
-              }}
-            >
-              <IconSymbol
-                ios_icon_name="info.circle.fill"
-                android_material_icon_name="cookie"
-                size={20}
-                color={colors.primary}
-              />
-              <Text style={styles.legalButtonText}>Cookie Policy</Text>
-              <IconSymbol
-                ios_icon_name="chevron.right"
-                android_material_icon_name="chevron-right"
-                size={18}
-                color={colors.textSecondary}
-              />
-            </Pressable>
-          </View>
+          {loadingDocs ? (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Documenti Legali</Text>
+              <ActivityIndicator color={colors.primary} style={{ marginVertical: 12 }} />
+            </View>
+          ) : visibleDocs.length > 0 ? (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Documenti Legali</Text>
+              {visibleDocs.map((doc) => {
+                const docRoute =
+                  doc.document_type === 'privacy_policy'
+                    ? '/legal/privacy-policy'
+                    : doc.document_type === 'terms_conditions'
+                    ? '/legal/terms-conditions'
+                    : '/legal/cookie-policy';
+                const iosIcon =
+                  doc.document_type === 'privacy_policy'
+                    ? 'shield.fill'
+                    : doc.document_type === 'terms_conditions'
+                    ? 'doc.text.fill'
+                    : 'info.circle.fill';
+                const androidIcon =
+                  doc.document_type === 'privacy_policy'
+                    ? 'shield'
+                    : doc.document_type === 'terms_conditions'
+                    ? 'description'
+                    : 'cookie';
+                return (
+                  <Pressable
+                    key={doc.document_type}
+                    style={({ pressed }) => [
+                      styles.legalButton,
+                      pressed && styles.legalButtonPressed,
+                    ]}
+                    onPress={() => {
+                      console.log('[MyData] User tapped legal document:', doc.document_type);
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      router.push(docRoute as any);
+                    }}
+                  >
+                    <IconSymbol
+                      ios_icon_name={iosIcon}
+                      android_material_icon_name={androidIcon}
+                      size={20}
+                      color={colors.primary}
+                    />
+                    <Text style={styles.legalButtonText}>{doc.title}</Text>
+                    <IconSymbol
+                      ios_icon_name="chevron.right"
+                      android_material_icon_name="chevron-right"
+                      size={18}
+                      color={colors.textSecondary}
+                    />
+                  </Pressable>
+                );
+              })}
+            </View>
+          ) : null}
 
           <View style={styles.dangerZone}>
             <Text style={styles.dangerZoneTitle}>Zona Pericolosa</Text>
