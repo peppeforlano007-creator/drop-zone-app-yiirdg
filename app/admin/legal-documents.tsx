@@ -11,6 +11,8 @@ import {
   Alert,
   ActivityIndicator,
   TextInput,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { supabase } from '@/app/integrations/supabase/client';
 import * as Haptics from 'expo-haptics';
@@ -25,6 +27,7 @@ interface LegalDocument {
   content: string;
   version: number;
   is_active: boolean;
+  is_visible_to_users: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -67,6 +70,7 @@ export default function LegalDocumentsScreen() {
 
   const loadDocuments = async () => {
     try {
+      console.log('[LegalDocuments] Loading legal documents...');
       setLoading(true);
       
       const { data, error } = await supabase
@@ -76,14 +80,15 @@ export default function LegalDocumentsScreen() {
         .order('document_type', { ascending: true });
 
       if (error) {
-        console.error('Error loading legal documents:', error);
+        console.error('[LegalDocuments] Error loading legal documents:', error);
         Alert.alert('Errore', 'Impossibile caricare i documenti legali');
         return;
       }
 
+      console.log('[LegalDocuments] Loaded', data?.length ?? 0, 'documents');
       setDocuments(data || []);
     } catch (error) {
-      console.error('Exception loading legal documents:', error);
+      console.error('[LegalDocuments] Exception loading legal documents:', error);
       Alert.alert('Errore', 'Si è verificato un errore durante il caricamento');
     } finally {
       setLoading(false);
@@ -91,12 +96,14 @@ export default function LegalDocumentsScreen() {
   };
 
   const handleEdit = (doc: LegalDocument) => {
+    console.log('[LegalDocuments] Edit pressed for:', doc.document_type, 'v' + doc.version);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setEditingDoc(doc);
     setEditContent(doc.content);
   };
 
   const handleCancelEdit = () => {
+    console.log('[LegalDocuments] Cancel edit pressed');
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setEditingDoc(null);
     setEditContent('');
@@ -104,6 +111,8 @@ export default function LegalDocumentsScreen() {
 
   const handleSave = async () => {
     if (!editingDoc) return;
+
+    console.log('[LegalDocuments] Save pressed for:', editingDoc.document_type);
 
     if (!editContent.trim()) {
       Alert.alert('Errore', 'Il contenuto non può essere vuoto');
@@ -120,6 +129,7 @@ export default function LegalDocumentsScreen() {
           onPress: async () => {
             try {
               setSaving(true);
+              console.log('[LegalDocuments] Saving new version for:', editingDoc.document_type, '-> v' + (editingDoc.version + 1));
               
               // Deactivate old version
               const { error: deactivateError } = await supabase
@@ -129,7 +139,7 @@ export default function LegalDocumentsScreen() {
                 .eq('is_active', true);
 
               if (deactivateError) {
-                console.error('Error deactivating old version:', deactivateError);
+                console.error('[LegalDocuments] Error deactivating old version:', deactivateError);
                 throw new Error('Impossibile disattivare la versione precedente');
               }
 
@@ -142,12 +152,15 @@ export default function LegalDocumentsScreen() {
                   content: editContent.trim(),
                   version: editingDoc.version + 1,
                   is_active: true,
+                  is_visible_to_users: editingDoc.is_visible_to_users,
                 });
 
               if (insertError) {
-                console.error('Error inserting new version:', insertError);
+                console.error('[LegalDocuments] Error inserting new version:', insertError);
                 throw new Error('Impossibile salvare la nuova versione');
               }
+
+              console.log('[LegalDocuments] Document saved successfully');
 
               await logActivity({
                 action: 'update_legal_document',
@@ -166,7 +179,7 @@ export default function LegalDocumentsScreen() {
               setEditContent('');
               loadDocuments();
             } catch (error) {
-              console.error('Exception saving document:', error);
+              console.error('[LegalDocuments] Exception saving document:', error);
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
               Alert.alert(
                 'Errore',
@@ -182,6 +195,7 @@ export default function LegalDocumentsScreen() {
   };
 
   const handleCreate = (type: typeof DOCUMENT_TYPES[number]) => {
+    console.log('[LegalDocuments] Create pressed for:', type.type);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     
     const newDoc: LegalDocument = {
@@ -191,12 +205,50 @@ export default function LegalDocumentsScreen() {
       content: getDefaultContent(type.type),
       version: 1,
       is_active: true,
+      is_visible_to_users: false,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
     
     setEditingDoc(newDoc);
     setEditContent(newDoc.content);
+  };
+
+  const handleToggleVisibility = async (doc: LegalDocument) => {
+    const newValue = !doc.is_visible_to_users;
+    console.log('[LegalDocuments] Toggle visibility pressed for:', doc.document_type, '-> is_visible_to_users:', newValue);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    Alert.alert(
+      newValue ? 'Attiva sezione' : 'Disattiva sezione',
+      newValue
+        ? `Vuoi rendere visibile "${doc.title}" agli utenti?`
+        : `Vuoi nascondere "${doc.title}" agli utenti? Non sarà più visibile nell'app.`,
+      [
+        { text: 'Annulla', style: 'cancel' },
+        {
+          text: newValue ? 'Attiva' : 'Disattiva',
+          style: newValue ? 'default' : 'destructive',
+          onPress: async () => {
+            console.log('[LegalDocuments] Updating is_visible_to_users for doc id:', doc.id, '->', newValue);
+            const { error } = await supabase
+              .from('legal_documents')
+              .update({ is_visible_to_users: newValue })
+              .eq('id', doc.id);
+
+            if (error) {
+              console.error('[LegalDocuments] Error updating visibility:', error);
+              Alert.alert('Errore', 'Impossibile aggiornare la visibilità');
+              return;
+            }
+
+            console.log('[LegalDocuments] Visibility updated successfully');
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            loadDocuments();
+          },
+        },
+      ]
+    );
   };
 
   const getDefaultContent = (type: string): string => {
@@ -382,63 +434,74 @@ Per informazioni: [inserire email]`;
           }}
         />
         <SafeAreaView style={styles.safeArea} edges={['bottom']}>
-          <View style={styles.editorContainer}>
-            <View style={styles.editorHeader}>
-              <Text style={styles.editorTitle}>{editingDoc.title}</Text>
-              <Text style={styles.editorVersion}>
-                Versione: {editingDoc.id === 'new' ? '1' : editingDoc.version + 1}
-              </Text>
+          <KeyboardAvoidingView
+            style={{ flex: 1 }}
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+          >
+            <View style={styles.editorContainer}>
+              <View style={styles.editorHeader}>
+                <Text style={styles.editorTitle}>{editingDoc.title}</Text>
+                <Text style={styles.editorVersion}>
+                  Versione: {editingDoc.id === 'new' ? '1' : editingDoc.version + 1}
+                </Text>
+              </View>
+
+              <ScrollView style={styles.editorScroll}>
+                <View style={styles.htmlHintBox}>
+                  <Text style={styles.htmlHintText}>
+                    {'💡 Suggerimento: per tabelle e formattazione avanzata, incolla il contenuto in formato HTML (es. <table>, <tr>, <td>). Il testo semplice viene visualizzato così com\'è.'}
+                  </Text>
+                </View>
+                <TextInput
+                  style={styles.editorInput}
+                  value={editContent}
+                  onChangeText={setEditContent}
+                  multiline
+                  placeholder="Inserisci il contenuto del documento..."
+                  placeholderTextColor={colors.textTertiary}
+                  textAlignVertical="top"
+                />
+              </ScrollView>
+
+              <View style={styles.editorActions}>
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.cancelButton,
+                    pressed && styles.cancelButtonPressed,
+                  ]}
+                  onPress={handleCancelEdit}
+                  disabled={saving}
+                >
+                  <Text style={styles.cancelButtonText}>Annulla</Text>
+                </Pressable>
+
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.saveButton,
+                    pressed && styles.saveButtonPressed,
+                    saving && styles.saveButtonDisabled,
+                  ]}
+                  onPress={handleSave}
+                  disabled={saving}
+                >
+                  {saving ? (
+                    <ActivityIndicator color="#fff" size="small" />
+                  ) : (
+                    <>
+                      <IconSymbol
+                        ios_icon_name="checkmark.circle.fill"
+                        android_material_icon_name="check-circle"
+                        size={20}
+                        color="#fff"
+                      />
+                      <Text style={styles.saveButtonText}>Salva</Text>
+                    </>
+                  )}
+                </Pressable>
+              </View>
             </View>
-
-            <ScrollView style={styles.editorScroll}>
-              <TextInput
-                style={styles.editorInput}
-                value={editContent}
-                onChangeText={setEditContent}
-                multiline
-                placeholder="Inserisci il contenuto del documento..."
-                placeholderTextColor={colors.textTertiary}
-                textAlignVertical="top"
-              />
-            </ScrollView>
-
-            <View style={styles.editorActions}>
-              <Pressable
-                style={({ pressed }) => [
-                  styles.cancelButton,
-                  pressed && styles.cancelButtonPressed,
-                ]}
-                onPress={handleCancelEdit}
-                disabled={saving}
-              >
-                <Text style={styles.cancelButtonText}>Annulla</Text>
-              </Pressable>
-
-              <Pressable
-                style={({ pressed }) => [
-                  styles.saveButton,
-                  pressed && styles.saveButtonPressed,
-                  saving && styles.saveButtonDisabled,
-                ]}
-                onPress={handleSave}
-                disabled={saving}
-              >
-                {saving ? (
-                  <ActivityIndicator color="#fff" size="small" />
-                ) : (
-                  <>
-                    <IconSymbol
-                      ios_icon_name="checkmark.circle.fill"
-                      android_material_icon_name="check-circle"
-                      size={20}
-                      color="#fff"
-                    />
-                    <Text style={styles.saveButtonText}>Salva</Text>
-                  </>
-                )}
-              </Pressable>
-            </View>
-          </View>
+          </KeyboardAvoidingView>
         </SafeAreaView>
       </>
     );
@@ -467,6 +530,11 @@ Per informazioni: [inserire email]`;
 
           {DOCUMENT_TYPES.map((type, index) => {
             const existingDoc = documents.find(d => d.document_type === type.type);
+            const isVisible = existingDoc?.is_visible_to_users ?? false;
+            const visibilityLabel = isVisible ? '● Visibile agli utenti' : '○ Nascosto agli utenti';
+            const toggleLabel = isVisible ? 'Disattiva' : 'Attiva';
+            const toggleIosIcon = isVisible ? 'eye.slash.fill' : 'eye.fill';
+            const toggleAndroidIcon = isVisible ? 'visibility-off' : 'visibility';
             
             return (
               <View key={index} style={styles.documentCard}>
@@ -483,10 +551,17 @@ Per informazioni: [inserire email]`;
                     <Text style={styles.documentTitle}>{type.title}</Text>
                     <Text style={styles.documentDescription}>{type.description}</Text>
                     {existingDoc && (
-                      <Text style={styles.documentVersion}>
-                        Versione {existingDoc.version} • Aggiornato il{' '}
-                        {new Date(existingDoc.updated_at).toLocaleDateString('it-IT')}
-                      </Text>
+                      <>
+                        <Text style={styles.documentVersion}>
+                          Versione {existingDoc.version} • Aggiornato il{' '}
+                          {new Date(existingDoc.updated_at).toLocaleDateString('it-IT')}
+                        </Text>
+                        <View style={[styles.statusBadge, isVisible ? styles.statusActive : styles.statusInactive]}>
+                          <Text style={styles.statusBadgeText}>
+                            {visibilityLabel}
+                          </Text>
+                        </View>
+                      </>
                     )}
                   </View>
                 </View>
@@ -497,10 +572,30 @@ Per informazioni: [inserire email]`;
                       <Pressable
                         style={({ pressed }) => [
                           styles.actionButton,
+                          isVisible ? styles.deactivateButton : styles.activateButton,
+                          pressed && styles.actionButtonPressed,
+                        ]}
+                        onPress={() => handleToggleVisibility(existingDoc)}
+                      >
+                        <IconSymbol
+                          ios_icon_name={toggleIosIcon}
+                          android_material_icon_name={toggleAndroidIcon}
+                          size={16}
+                          color="#fff"
+                        />
+                        <Text style={styles.toggleButtonText}>
+                          {toggleLabel}
+                        </Text>
+                      </Pressable>
+
+                      <Pressable
+                        style={({ pressed }) => [
+                          styles.actionButton,
                           styles.viewButton,
                           pressed && styles.actionButtonPressed,
                         ]}
                         onPress={() => {
+                          console.log('[LegalDocuments] View pressed for:', type.type);
                           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                           router.push(`/legal/${type.type.replace('_', '-')}`);
                         }}
@@ -650,6 +745,24 @@ const styles = StyleSheet.create({
     color: colors.textTertiary,
     fontStyle: 'italic',
   },
+  statusBadge: {
+    marginTop: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+    alignSelf: 'flex-start',
+  },
+  statusActive: {
+    backgroundColor: colors.success + '20',
+  },
+  statusInactive: {
+    backgroundColor: colors.textTertiary + '20',
+  },
+  statusBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: colors.textSecondary,
+  },
   documentActions: {
     flexDirection: 'row',
     gap: 8,
@@ -660,11 +773,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 8,
-    padding: 12,
-    gap: 6,
+    padding: 10,
+    gap: 4,
   },
   actionButtonPressed: {
     opacity: 0.7,
+  },
+  activateButton: {
+    backgroundColor: colors.success,
+  },
+  deactivateButton: {
+    backgroundColor: colors.warning,
+  },
+  toggleButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#fff',
   },
   viewButton: {
     backgroundColor: colors.primary + '15',
@@ -672,7 +796,7 @@ const styles = StyleSheet.create({
     borderColor: colors.primary + '30',
   },
   viewButtonText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
     color: colors.primary,
   },
@@ -680,7 +804,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
   },
   editButtonText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
     color: '#fff',
   },
@@ -739,6 +863,20 @@ const styles = StyleSheet.create({
   },
   editorScroll: {
     flex: 1,
+  },
+  htmlHintBox: {
+    margin: 12,
+    marginBottom: 0,
+    padding: 12,
+    backgroundColor: colors.info + '12',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.info + '30',
+  },
+  htmlHintText: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    lineHeight: 18,
   },
   editorInput: {
     flex: 1,

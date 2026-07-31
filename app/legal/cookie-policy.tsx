@@ -9,14 +9,31 @@ import {
   ScrollView,
   ActivityIndicator,
   Alert,
+  useWindowDimensions,
 } from 'react-native';
 import { supabase } from '@/app/integrations/supabase/client';
 import { colors } from '@/styles/commonStyles';
+import RenderHtml from 'react-native-render-html';
+
+function isHtmlContent(text: string): boolean {
+  return (
+    text.includes('<table') ||
+    text.includes('<tr') ||
+    text.includes('<td') ||
+    text.includes('<p>') ||
+    text.includes('<ul') ||
+    text.includes('<ol') ||
+    text.includes('<h1') ||
+    text.includes('<h2') ||
+    text.includes('<h3')
+  );
+}
 
 export default function CookiePolicyScreen() {
   const [content, setContent] = useState('');
   const [loading, setLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<string>('');
+  const { width } = useWindowDimensions();
 
   useEffect(() => {
     loadCookiePolicy();
@@ -24,6 +41,7 @@ export default function CookiePolicyScreen() {
 
   const loadCookiePolicy = async () => {
     try {
+      console.log('[CookiePolicy] Loading cookie policy...');
       setLoading(true);
       
       const { data, error } = await supabase
@@ -36,24 +54,27 @@ export default function CookiePolicyScreen() {
         .maybeSingle();
 
       if (error) {
-        console.error('Error loading cookie policy:', error);
+        console.error('[CookiePolicy] Error loading cookie policy:', error);
         Alert.alert('Errore', 'Impossibile caricare la Cookie Policy');
         return;
       }
 
       if (data) {
+        console.log('[CookiePolicy] Loaded, isHtml:', isHtmlContent(data.content));
         setContent(data.content);
         setLastUpdated(new Date(data.updated_at).toLocaleDateString('it-IT'));
       } else {
         setContent('Cookie Policy non ancora configurata. Contatta l\'amministratore.');
       }
     } catch (error) {
-      console.error('Exception loading cookie policy:', error);
+      console.error('[CookiePolicy] Exception loading cookie policy:', error);
       Alert.alert('Errore', 'Si è verificato un errore durante il caricamento');
     } finally {
       setLoading(false);
     }
   };
+
+  const contentIsHtml = isHtmlContent(content);
 
   if (loading) {
     return (
@@ -84,15 +105,33 @@ export default function CookiePolicyScreen() {
       />
       <SafeAreaView style={styles.safeArea} edges={['bottom']}>
         <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
-          {lastUpdated && (
+          {lastUpdated ? (
             <View style={styles.updateInfo}>
               <Text style={styles.updateText}>
                 Ultimo aggiornamento: {lastUpdated}
               </Text>
             </View>
+          ) : null}
+
+          {contentIsHtml ? (
+            <RenderHtml
+              contentWidth={width - 40}
+              source={{ html: content }}
+              tagsStyles={{
+                body: { color: colors.text, fontSize: 15, lineHeight: 24 },
+                p: { color: colors.text, fontSize: 15, lineHeight: 24 },
+                table: { borderWidth: 1, borderColor: colors.border, width: '100%' },
+                td: { borderWidth: 1, borderColor: colors.border, padding: 8, color: colors.text, fontSize: 14 },
+                th: { borderWidth: 1, borderColor: colors.border, padding: 8, fontWeight: '700', color: colors.text, fontSize: 14, backgroundColor: colors.backgroundSecondary },
+                h1: { color: colors.text, fontSize: 20, fontWeight: '700' },
+                h2: { color: colors.text, fontSize: 18, fontWeight: '700' },
+                h3: { color: colors.text, fontSize: 16, fontWeight: '600' },
+                li: { color: colors.text, fontSize: 15, lineHeight: 24 },
+              }}
+            />
+          ) : (
+            <Text style={styles.content}>{content}</Text>
           )}
-          
-          <Text style={styles.content}>{content}</Text>
         </ScrollView>
       </SafeAreaView>
     </>

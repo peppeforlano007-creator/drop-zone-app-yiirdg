@@ -9,14 +9,31 @@ import {
   ScrollView,
   ActivityIndicator,
   Alert,
+  useWindowDimensions,
 } from 'react-native';
 import { supabase } from '@/app/integrations/supabase/client';
 import { colors } from '@/styles/commonStyles';
+import RenderHtml from 'react-native-render-html';
+
+function isHtmlContent(text: string): boolean {
+  return (
+    text.includes('<table') ||
+    text.includes('<tr') ||
+    text.includes('<td') ||
+    text.includes('<p>') ||
+    text.includes('<ul') ||
+    text.includes('<ol') ||
+    text.includes('<h1') ||
+    text.includes('<h2') ||
+    text.includes('<h3')
+  );
+}
 
 export default function PrivacyPolicyScreen() {
   const [content, setContent] = useState('');
   const [loading, setLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<string>('');
+  const { width } = useWindowDimensions();
 
   useEffect(() => {
     loadPrivacyPolicy();
@@ -24,6 +41,7 @@ export default function PrivacyPolicyScreen() {
 
   const loadPrivacyPolicy = async () => {
     try {
+      console.log('[PrivacyPolicy] Loading privacy policy...');
       setLoading(true);
       
       const { data, error } = await supabase
@@ -36,24 +54,27 @@ export default function PrivacyPolicyScreen() {
         .maybeSingle();
 
       if (error) {
-        console.error('Error loading privacy policy:', error);
+        console.error('[PrivacyPolicy] Error loading privacy policy:', error);
         Alert.alert('Errore', 'Impossibile caricare la Privacy Policy');
         return;
       }
 
       if (data) {
+        console.log('[PrivacyPolicy] Loaded, isHtml:', isHtmlContent(data.content));
         setContent(data.content);
         setLastUpdated(new Date(data.updated_at).toLocaleDateString('it-IT'));
       } else {
         setContent('Privacy Policy non ancora configurata. Contatta l\'amministratore.');
       }
     } catch (error) {
-      console.error('Exception loading privacy policy:', error);
+      console.error('[PrivacyPolicy] Exception loading privacy policy:', error);
       Alert.alert('Errore', 'Si è verificato un errore durante il caricamento');
     } finally {
       setLoading(false);
     }
   };
+
+  const contentIsHtml = isHtmlContent(content);
 
   if (loading) {
     return (
@@ -84,15 +105,33 @@ export default function PrivacyPolicyScreen() {
       />
       <SafeAreaView style={styles.safeArea} edges={['bottom']}>
         <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
-          {lastUpdated && (
+          {lastUpdated ? (
             <View style={styles.updateInfo}>
               <Text style={styles.updateText}>
                 Ultimo aggiornamento: {lastUpdated}
               </Text>
             </View>
+          ) : null}
+
+          {contentIsHtml ? (
+            <RenderHtml
+              contentWidth={width - 40}
+              source={{ html: content }}
+              tagsStyles={{
+                body: { color: colors.text, fontSize: 15, lineHeight: 24 },
+                p: { color: colors.text, fontSize: 15, lineHeight: 24 },
+                table: { borderWidth: 1, borderColor: colors.border, width: '100%' },
+                td: { borderWidth: 1, borderColor: colors.border, padding: 8, color: colors.text, fontSize: 14 },
+                th: { borderWidth: 1, borderColor: colors.border, padding: 8, fontWeight: '700', color: colors.text, fontSize: 14, backgroundColor: colors.backgroundSecondary },
+                h1: { color: colors.text, fontSize: 20, fontWeight: '700' },
+                h2: { color: colors.text, fontSize: 18, fontWeight: '700' },
+                h3: { color: colors.text, fontSize: 16, fontWeight: '600' },
+                li: { color: colors.text, fontSize: 15, lineHeight: 24 },
+              }}
+            />
+          ) : (
+            <Text style={styles.content}>{content}</Text>
           )}
-          
-          <Text style={styles.content}>{content}</Text>
         </ScrollView>
       </SafeAreaView>
     </>
