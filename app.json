@@ -1,8 +1,8 @@
 {
   "expo": {
     "name": "RDN STREET STOCK MARKET",
-    "slug": "rdn-street-stock-market",
-    "version": "2.9.5",
+    "slug": "drop-zone",
+    "version": "2.9.6",
     "orientation": "portrait",
     "icon": "./assets/images/rdnstreetstockmarket-icon.png",
     "userInterfaceStyle": "automatic",
@@ -15,7 +15,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.giuseppeforlano.dropzone",
-      "buildNumber": "31",
+      "buildNumber": "32",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "UIBackgroundModes": [
@@ -42,7 +42,7 @@
         "VIBRATE",
         "POST_NOTIFICATIONS"
       ],
-      "versionCode": 10
+      "versionCode": 11
     },
     "web": {
       "favicon": "./assets/images/final_quest_240x240.png",
