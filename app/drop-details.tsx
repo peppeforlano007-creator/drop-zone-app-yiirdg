@@ -788,29 +788,24 @@ export default function DropDetailsScreen() {
       const originalPrice = product.original_price ?? 0;
       const currentDiscountedPrice = originalPrice * (1 - bookingDiscount / 100);
 
-      const bookingPayload = {
-        user_id: user.id,
-        product_id: productId,
-        variant_id: variantId || null,
-        drop_id: drop.id,
-        pickup_point_id: drop.pickup_point_id,
-        original_price: originalPrice,
-        discount_percentage: bookingDiscount,
-        final_price: currentDiscountedPrice,
-        payment_method: 'cod',
-        payment_status: 'pending',
-        status: 'active',
-      };
-
-      console.log('📤 Sending booking request to Supabase:', bookingPayload);
+      console.log('📤 Sending atomic booking request to Supabase...');
       console.log('📡 Supabase URL:', supabase.supabaseUrl);
       console.log('🔑 User authenticated:', !!user);
 
       const { data: bookingData, error: bookingError } = await supabase
-        .from('bookings')
-        .insert(bookingPayload)
-        .select()
-        .single();
+        .rpc('create_booking_atomic', {
+          p_user_id: user.id,
+          p_product_id: productId,
+          p_variant_id: variantId || null,
+          p_drop_id: drop.id,
+          p_pickup_point_id: drop.pickup_point_id,
+          p_original_price: originalPrice,
+          p_discount_percentage: bookingDiscount,
+          p_final_price: currentDiscountedPrice,
+          p_payment_method: 'cod',
+          p_payment_status: 'pending',
+          p_status: 'active',
+        });
 
       if (bookingError) {
         console.error('❌ Booking error details:', {
