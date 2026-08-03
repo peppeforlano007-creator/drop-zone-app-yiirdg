@@ -319,15 +319,19 @@ export default function MyDataScreen() {
                       }
 
                       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                      
+                      console.log('[MyData] Account deletion requested, signing out user:', user?.id);
+
+                      // Sign out immediately as required by Apple App Store guidelines
+                      await supabase.auth.signOut();
+
                       Alert.alert(
-                        'Richiesta Registrata',
-                        'La tua richiesta di cancellazione è stata registrata. Il tuo account verrà eliminato entro 30 giorni. Riceverai una conferma via email.',
+                        'Richiesta di eliminazione registrata',
+                        'Verrai disconnesso ora. I tuoi dati verranno rimossi entro 30 giorni come previsto dal GDPR.',
                         [
                           {
                             text: 'OK',
-                            onPress: async () => {
-                              await supabase.auth.signOut();
+                            onPress: () => {
+                              console.log('[MyData] User confirmed deletion alert, redirecting to login');
                               router.replace('/login');
                             },
                           },

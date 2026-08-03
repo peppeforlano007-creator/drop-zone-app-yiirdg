@@ -367,6 +367,11 @@ export default function RootLayout() {
                   {/* Wishlist */}
                   <Stack.Screen name="wishlist" options={{ headerShown: true, title: 'La Mia Wishlist', headerBackTitle: '' }} />
 
+                  {/* Legal Screens */}
+                  <Stack.Screen name="legal/privacy-policy" options={{ headerShown: true, title: 'Privacy Policy', headerBackTitle: '' }} />
+                  <Stack.Screen name="legal/terms-conditions" options={{ headerShown: true, title: 'Termini e Condizioni', headerBackTitle: '' }} />
+                  <Stack.Screen name="legal/cookie-policy" options={{ headerShown: true, title: 'Cookie Policy', headerBackTitle: '' }} />
+
                   {/* Profile Screens */}
                   <Stack.Screen name="edit-profile" options={{ headerShown: false }} />
 

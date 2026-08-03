@@ -525,6 +525,24 @@ export default function LoginScreen() {
               />
               <Text style={styles.adminLinkText}>Accesso Amministratori</Text>
             </Pressable>
+
+            {/* Legal Footer */}
+            <View style={styles.legalFooter}>
+              <Text style={styles.legalFooterText}>Continuando accetti i nostri </Text>
+              <Pressable onPress={() => {
+                console.log('[Login] Navigating to Terms and Conditions');
+                router.push('/legal/terms-conditions');
+              }}>
+                <Text style={styles.legalFooterLink}>Termini e Condizioni</Text>
+              </Pressable>
+              <Text style={styles.legalFooterText}> e la nostra </Text>
+              <Pressable onPress={() => {
+                console.log('[Login] Navigating to Privacy Policy');
+                router.push('/legal/privacy-policy');
+              }}>
+                <Text style={styles.legalFooterLink}>Privacy Policy</Text>
+              </Pressable>
+            </View>
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
@@ -772,5 +790,24 @@ const styles = StyleSheet.create({
     color: colors.textTertiary,
     fontWeight: '500',
     letterSpacing: 0.5,
+  },
+  legalFooter: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    marginBottom: 16,
+  },
+  legalFooterText: {
+    fontSize: 12,
+    color: colors.textSecondary,
+  },
+  legalFooterLink: {
+    fontSize: 12,
+    color: colors.primary,
+    fontWeight: '600',
+    textDecorationLine: 'underline',
   },
 });
