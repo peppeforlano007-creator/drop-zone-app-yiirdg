@@ -44,10 +44,12 @@ export default function ShareToGroupModal({ visible, onClose, drop, product }: S
     console.log('[ShareToGroupModal] Loading chat groups for user:', user.id);
     setLoading(true);
     try {
+      console.log('[ShareToGroupModal] loadGroups: fetching active groups for user', user.id);
       const { data, error } = await supabase
         .from('chat_group_members')
         .select('group_id, chat_groups(id, name)')
-        .eq('user_id', user.id);
+        .eq('user_id', user.id)
+        .eq('status', 'active');
 
       if (error) {
         console.error('[ShareToGroupModal] Error loading groups:', error);
