@@ -20,7 +20,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import React, { useState, useEffect } from 'react';
 import * as Haptics from 'expo-haptics';
 import { supabase } from '@/app/integrations/supabase/client';
-import { validateAndFormatPhone, parsePhoneNumber, formatPhoneForDisplay } from '@/utils/phoneValidation';
+import { validateAndFormatPhone } from '@/utils/phoneValidation';
 import CountryCodePicker from '@/components/CountryCodePicker';
 
 export default function LoginScreen() {
@@ -143,146 +143,96 @@ export default function LoginScreen() {
       return;
     }
 
-    // Validate and format phone number
     const phoneValidation = validateAndFormatPhone(phone, countryCode);
     if (!phoneValidation.valid) {
       Alert.alert('Numero Non Valido', phoneValidation.message || 'Inserisci un numero di cellulare valido');
       return;
     }
 
-    const formattedPhone = phoneValidation.formatted!;
-    const displayPhone = phoneValidation.display!;
-    console.log('Phone validated and formatted:', formattedPhone, 'Display:', displayPhone);
-
     if (!password.trim()) {
       Alert.alert('Errore', 'Inserisci la password');
       return;
     }
 
+    console.log('[Login] Login button pressed, phone:', phoneValidation.display);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setLoading(true);
 
     try {
-      console.log('Logging in with phone:', formattedPhone);
-      
-      // Try to find user by phone number in profiles table first
-      // Check multiple formats for backward compatibility
+      const formattedPhone = phoneValidation.formatted!;
+      const displayPhone = phoneValidation.display!;
+
+      // Try multiple phone formats for Supabase Auth
       const possibleFormats = [
-        formattedPhone, // e.g., "393201234567"
-        `+${formattedPhone}`, // e.g., "+393201234567"
-        formattedPhone.substring(countryCode.length), // e.g., "3201234567" (without country code)
+        formattedPhone,                              // e.g. "393201234567"
+        `+${formattedPhone}`,                        // e.g. "+393201234567"
+        formattedPhone.substring(countryCode.length), // e.g. "3201234567"
       ];
-      
-      console.log('Checking phone formats:', possibleFormats);
-      
-      const { data: userData, error: userError } = await supabase
+
+      console.log('[Login] Trying auth with phone formats:', possibleFormats);
+
+      let authData = null;
+      let authError = null;
+
+      for (const phoneFormat of possibleFormats) {
+        console.log('[Login] Attempting signInWithPassword with format:', phoneFormat);
+        const result = await supabase.auth.signInWithPassword({
+          phone: phoneFormat,
+          password: password.trim(),
+        });
+        if (!result.error) {
+          authData = result.data;
+          console.log('[Login] Auth succeeded with format:', phoneFormat);
+          break;
+        }
+        console.log('[Login] Auth failed for format:', phoneFormat, 'error:', result.error.message);
+        authError = result.error;
+      }
+
+      if (!authData) {
+        console.error('[Login] All phone formats failed. Last error:', authError?.message);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        let errorMessage = authError?.message || 'Credenziali non valide';
+        if (errorMessage.toLowerCase().includes('invalid') || errorMessage.toLowerCase().includes('credentials')) {
+          errorMessage = 'Numero o password non corretti. Riprova.';
+        } else if (errorMessage.toLowerCase().includes('not found') || errorMessage.toLowerCase().includes('no user')) {
+          errorMessage = `Numero di cellulare non trovato.\n\nHai provato con: ${displayPhone}\n\nVerifica di aver inserito il numero corretto o registrati.`;
+        }
+        Alert.alert('Errore di Accesso', errorMessage);
+        setLoading(false);
+        return;
+      }
+
+      // Auth succeeded — check role from profile (now authenticated, RLS allows it)
+      console.log('[Login] Fetching profile for user:', authData.user.id);
+      const { data: userData } = await supabase
         .from('profiles')
-        .select('email, phone, user_id, full_name, pickup_point_id, role')
-        .or(possibleFormats.map(format => `phone.eq.${format}`).join(','))
+        .select('role, full_name, pickup_point_id, email')
+        .eq('user_id', authData.user.id)
         .maybeSingle();
 
-      if (userError) {
-        console.error('Error finding user by phone:', userError);
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      console.log('[Login] Profile fetched:', { role: userData?.role, full_name: userData?.full_name });
+
+      // If supplier, sign out and block access
+      if (userData?.role === 'supplier') {
+        console.log('[Login] Supplier login blocked, signing out');
+        await supabase.auth.signOut();
         Alert.alert(
-          'Errore di Accesso',
-          'Si è verificato un errore durante la ricerca dell\'utente. Riprova.'
+          'Accesso Negato',
+          "I fornitori non hanno più accesso diretto all'app. Contatta l'amministratore per assistenza.",
+          [{ text: 'OK' }]
         );
         setLoading(false);
         return;
       }
 
-      if (!userData) {
-        console.log('No user found with phone formats:', possibleFormats);
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-        Alert.alert(
-          'Errore di Accesso',
-          `Numero di cellulare non trovato.\n\nHai provato con: ${displayPhone}\n\nVerifica di aver inserito il numero corretto o registrati.`
-        );
-        setLoading(false);
-        return;
-      }
-
-      console.log('User found in profiles:', {
-        user_id: userData.user_id,
-        phone: userData.phone,
-        full_name: userData.full_name,
-        role: userData.role,
-      });
-
-      // Check if this is an email-based account (admin, pickup_point, or old consumer)
-      if (userData.email && userData.role !== 'consumer') {
-        console.log('User has email-based account, role:', userData.role);
-        Alert.alert(
-          'Account Email',
-          `Questo account utilizza l'email per l'accesso.\n\nEmail: ${userData.email}\n\nSe sei un amministratore o un punto di ritiro, usa l'email per accedere. Se hai dimenticato la password, contatta il supporto.`,
-          [
-            {
-              text: 'Contatta Supporto',
-              onPress: handleSupport,
-            },
-            {
-              text: 'OK',
-              style: 'cancel',
-            }
-          ]
-        );
-        setLoading(false);
-        return;
-      }
-
-      // Check if profile has required data for consumers
-      if (userData.role === 'consumer' && (!userData.full_name || !userData.pickup_point_id)) {
-        console.warn('Consumer profile is incomplete:', userData);
-        Alert.alert(
-          'Profilo Incompleto',
-          'Il tuo profilo non è completo. Contatta il supporto per assistenza.',
-          [
-            {
-              text: 'Contatta Supporto',
-              onPress: handleSupport,
-            },
-            {
-              text: 'Annulla',
-              style: 'cancel',
-            }
-          ]
-        );
-        setLoading(false);
-        return;
-      }
-
-      // Now authenticate with Supabase Auth
-      // Use the exact phone format from the database
-      const authPhone = userData.phone;
-      console.log('Authenticating with phone from database:', authPhone);
-
-      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-        phone: authPhone,
-        password: password.trim(),
-      });
-
-      if (authError) {
-        console.error('Error logging in:', authError);
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-        
-        let errorMessage = authError.message;
-        if (errorMessage.toLowerCase().includes('invalid') || errorMessage.toLowerCase().includes('credentials')) {
-          errorMessage = 'Password non corretta. Riprova o reimposta la password.';
-        } else if (errorMessage.toLowerCase().includes('email not confirmed')) {
-          errorMessage = 'Verifica il tuo numero di cellulare prima di accedere.';
-        }
-        
-        Alert.alert('Errore di Accesso', errorMessage);
-      } else {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        console.log('Login successful');
-        // Navigation will be handled by useEffect when user state updates
-      }
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      console.log('[Login] Login successful, role:', userData?.role);
+      // Navigation handled by useEffect when user state updates
     } catch (error) {
-      console.error('Exception during login:', error);
+      console.error('[Login] Exception during login:', error);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert('Errore', 'Si è verificato un errore durante l\'accesso. Riprova.');
+      Alert.alert('Errore', "Si è verificato un errore durante l'accesso. Riprova.");
     } finally {
       setLoading(false);
     }
