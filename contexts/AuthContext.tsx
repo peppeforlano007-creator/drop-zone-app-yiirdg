@@ -195,9 +195,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false);
 
       // Registra push token in background (solo per consumer)
+      // Always attempt on login (hasRegisteredToken is reset on SIGNED_IN); guard prevents
+      // duplicate calls from AppState foreground events within the same session.
       if (userData.role === 'consumer') {
-        console.log('AuthProvider: Registering push token for consumer:', userId);
-        registerForPushNotificationsAsync(userId).catch(() => {});
+        console.log('[AuthContext] Registering push token for consumer on login:', userId);
+        hasRegisteredToken.current = true;
+        registerForPushNotificationsAsync(userId).catch((err) => {
+          console.warn('[AuthContext] Push token registration failed, will retry on next foreground:', err);
+          // Reset so the AppState handler retries on next foreground
+          hasRegisteredToken.current = false;
+        });
       }
     } catch (error) {
       console.error('AuthProvider: Exception loading profile:', error);
@@ -250,6 +257,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(null);
         setLoading(false);
         return;
+      }
+
+      // Reset token registration flag on every new login so loadUserProfile always
+      // attempts registration for the fresh session.
+      if (_event === 'SIGNED_IN') {
+        console.log('[AuthContext] SIGNED_IN — resetting hasRegisteredToken for fresh session');
+        hasRegisteredToken.current = false;
       }
       
       if (session) {

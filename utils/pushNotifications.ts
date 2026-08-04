@@ -61,14 +61,25 @@ export async function registerForPushNotificationsAsync(userId: string): Promise
     console.log('[PushNotifications] Push token ottenuto:', token);
 
     if (token && userId) {
-      // Salva il token nel profilo utente su Supabase
+      // Salva il token nel profilo utente su Supabase (con un retry in caso di errore)
+      console.log('[PushNotifications] Saving push token to Supabase for user:', userId);
       const { error } = await supabase
         .from('profiles')
         .update({ push_token: token })
         .eq('user_id', userId);
 
       if (error) {
-        console.warn('[PushNotifications] Errore salvataggio push token:', error.message);
+        console.warn('[PushNotifications] Errore salvataggio push token (attempt 1):', error.message, '— retrying in 3s...');
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        const { error: retryError } = await supabase
+          .from('profiles')
+          .update({ push_token: token })
+          .eq('user_id', userId);
+        if (retryError) {
+          console.error('[PushNotifications] Errore salvataggio push token (attempt 2 — giving up):', retryError.message);
+        } else {
+          console.log('[PushNotifications] Push token salvato con successo (retry) per utente:', userId);
+        }
       } else {
         console.log('[PushNotifications] Push token salvato con successo per utente:', userId);
       }
