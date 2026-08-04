@@ -8,6 +8,7 @@ import { IconSymbol } from '@/components/IconSymbol';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/app/integrations/supabase/client';
 import * as Haptics from 'expo-haptics';
+import { updateBadgeCount } from '@/utils/pushNotifications';
 
 interface Notification {
   id: string;
@@ -44,7 +45,9 @@ export default function NotificationsScreen() {
       }
 
       setNotifications(data || []);
-      setUnreadCount(data?.filter(n => !n.read).length || 0);
+      const newUnread = data?.filter(n => !n.read).length || 0;
+      setUnreadCount(newUnread);
+      updateBadgeCount(newUnread);
     } catch (error) {
       console.error('Exception loading notifications:', error);
     } finally {
@@ -78,7 +81,11 @@ export default function NotificationsScreen() {
         (payload) => {
           console.log('New notification received:', payload);
           setNotifications(prev => [payload.new as Notification, ...prev]);
-          setUnreadCount(prev => prev + 1);
+          setUnreadCount(prev => {
+            const next = prev + 1;
+            updateBadgeCount(next);
+            return next;
+          });
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         }
       )
@@ -110,7 +117,11 @@ export default function NotificationsScreen() {
       setNotifications(prev =>
         prev.map(n => (n.id === notificationId ? { ...n, read: true } : n))
       );
-      setUnreadCount(prev => Math.max(0, prev - 1));
+      setUnreadCount(prev => {
+        const next = Math.max(0, prev - 1);
+        updateBadgeCount(next);
+        return next;
+      });
     } catch (error) {
       console.error('Exception marking notification as read:', error);
     }
@@ -135,6 +146,7 @@ export default function NotificationsScreen() {
 
       setNotifications(prev => prev.map(n => ({ ...n, read: true })));
       setUnreadCount(0);
+      updateBadgeCount(0);
     } catch (error) {
       console.error('Exception marking all as read:', error);
     }

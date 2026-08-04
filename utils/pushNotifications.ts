@@ -12,7 +12,7 @@ try {
     handleNotification: async () => ({
       shouldShowAlert: true,
       shouldPlaySound: true,
-      shouldSetBadge: false, // badge gestito manualmente tramite setBadgeCountAsync
+      shouldSetBadge: true,
     }),
   });
   console.log('[PushNotifications] setNotificationHandler registered');
@@ -50,6 +50,7 @@ export async function registerForPushNotificationsAsync(userId: string): Promise
         importance: Notifications.AndroidImportance.MAX,
         vibrationPattern: [0, 250, 250, 250],
         lightColor: '#FF231F7C',
+        showBadge: true,
       });
     }
 
@@ -90,6 +91,15 @@ export async function registerForPushNotificationsAsync(userId: string): Promise
   } catch (error) {
     console.error('[PushNotifications] Push notification registration failed:', error);
     return null;
+  }
+}
+
+export async function updateBadgeCount(count: number): Promise<void> {
+  try {
+    console.log('[PushNotifications] updateBadgeCount:', count);
+    await Notifications.setBadgeCountAsync(count);
+  } catch (e) {
+    console.warn('[PushNotifications] setBadgeCountAsync failed:', e);
   }
 }
 

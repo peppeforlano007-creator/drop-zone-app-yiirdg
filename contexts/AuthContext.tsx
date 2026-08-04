@@ -4,7 +4,7 @@ import { User, UserRole } from '@/types/User';
 import { supabase } from '@/app/integrations/supabase/client';
 import { Session } from '@supabase/supabase-js';
 import { Alert, AppState, AppStateStatus } from 'react-native';
-import { registerForPushNotificationsAsync } from '@/utils/pushNotifications';
+import { registerForPushNotificationsAsync, updateBadgeCount } from '@/utils/pushNotifications';
 
 interface AuthContextType {
   user: User | null;
@@ -256,6 +256,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.log('AuthProvider: User signed out, clearing state');
         setUser(null);
         setLoading(false);
+        updateBadgeCount(0);
         return;
       }
 
