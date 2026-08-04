@@ -383,10 +383,10 @@ export default function DropCard({ drop, deliveryMinDays, deliveryMaxDays }: Dro
           <Ionicons name="car-outline" size={14} color="#666" />
           <Text style={styles.deliveryText}>
             {deliveryMinDays != null && deliveryMaxDays != null
-              ? `Consegna: ${deliveryMinDays}–${deliveryMaxDays} giorni`
+              ? `Ritiro In Store: ${deliveryMinDays}–${deliveryMaxDays} giorni`
               : deliveryMinDays != null
-              ? `Consegna: da ${deliveryMinDays} giorni`
-              : `Consegna: entro ${deliveryMaxDays} giorni`}
+              ? `Ritiro In Store: da ${deliveryMinDays} giorni`
+              : `Ritiro In Store: entro ${deliveryMaxDays} giorni`}
           </Text>
         </View>
       )}
