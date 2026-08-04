@@ -40,6 +40,7 @@ export default function ChatGroupSettingsScreen() {
   const [groupName, setGroupName] = useState(initialGroupName || '');
   const [description, setDescription] = useState('');
   const [createdBy, setCreatedBy] = useState('');
+  const [groupType, setGroupType] = useState<string>('private');
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -65,7 +66,7 @@ export default function ChatGroupSettingsScreen() {
 
     const { data: group, error: groupErr } = await supabase
       .from('chat_groups')
-      .select('id, name, description, created_by')
+      .select('id, name, description, created_by, group_type')
       .eq('id', groupId)
       .single();
 
@@ -77,6 +78,7 @@ export default function ChatGroupSettingsScreen() {
     setGroupName(group.name);
     setDescription(group.description || '');
     setCreatedBy(group.created_by);
+    setGroupType(group.group_type || 'private');
 
     // Query via chat_groups join to avoid triggering the recursive RLS policy
     // on chat_group_members (code 42P17).
@@ -453,7 +455,7 @@ export default function ChatGroupSettingsScreen() {
 
         {/* Leave / Delete */}
         <View style={styles.dangerSection}>
-          {!isCreator && (
+          {!isCreator && groupType !== 'city' && (
             <TouchableOpacity
               style={[styles.dangerButton, { borderColor: colors.error + '44' }]}
               onPress={() => handleRemoveMember(user?.id || '', 'te stesso')}
