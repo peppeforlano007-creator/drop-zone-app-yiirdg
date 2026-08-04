@@ -229,6 +229,13 @@ export default function AdminDashboard() {
       route: '/admin/settings',
       color: '#636366',
     },
+    {
+      title: 'Richieste GDPR',
+      description: 'Gestisci richieste dati utenti',
+      icon: { ios: 'person.badge.minus.fill', android: 'manage_accounts' },
+      route: '/admin/data-requests',
+      color: '#FF3B30',
+    },
   ];
 
   if (loading) {

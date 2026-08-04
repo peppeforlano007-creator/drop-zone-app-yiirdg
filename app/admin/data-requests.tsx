@@ -37,6 +37,7 @@ export default function DataRequestsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState<'all' | 'export' | 'deletion'>('all');
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'processing' | 'completed' | 'failed'>('all');
+  const [processingId, setProcessingId] = useState<string | null>(null);
 
   const loadRequests = useCallback(async () => {
     try {
@@ -86,6 +87,85 @@ export default function DataRequestsScreen() {
   const handleRefresh = () => {
     setRefreshing(true);
     loadRequests();
+  };
+
+  const handleProcessDeletion = (request: DataRequest) => {
+    console.log('[DataRequests] Deletion button pressed for request:', request.id, 'user:', request.user_id);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    const userName = request.profiles?.full_name || 'questo utente';
+    Alert.alert(
+      'Conferma Eliminazione',
+      `Sei sicuro di voler eliminare definitivamente l'account di ${userName}? Questa azione è irreversibile.`,
+      [
+        { text: 'Annulla', style: 'cancel' },
+        {
+          text: 'Elimina',
+          style: 'destructive',
+          onPress: () => executeDeletion(request),
+        },
+      ]
+    );
+  };
+
+  const executeDeletion = async (request: DataRequest) => {
+    console.log('[DataRequests] Executing deletion for request:', request.id, 'user_id:', request.user_id);
+    setProcessingId(request.id);
+    try {
+      // Step 1: set status to processing
+      console.log('[DataRequests] Setting status to processing for request:', request.id);
+      const { error: processingError } = await supabase
+        .from('data_requests')
+        .update({ status: 'processing' })
+        .eq('id', request.id);
+      if (processingError) throw processingError;
+
+      // Step 2: delete user from Supabase Auth
+      console.log('[DataRequests] Deleting user from Supabase Auth, user_id:', request.user_id);
+      const { error: deleteError } = await supabase.auth.admin.deleteUser(request.user_id);
+      if (deleteError) throw deleteError;
+
+      // Step 3: set status to completed
+      console.log('[DataRequests] Deletion successful, setting status to completed for request:', request.id);
+      const { error: completedError } = await supabase
+        .from('data_requests')
+        .update({ status: 'completed', completed_at: new Date().toISOString() })
+        .eq('id', request.id);
+      if (completedError) throw completedError;
+
+      await loadRequests();
+      Alert.alert('Successo', 'Account eliminato con successo');
+    } catch (error: any) {
+      console.error('[DataRequests] Error during deletion for request:', request.id, error);
+      const errorMessage = error?.message || 'Errore sconosciuto';
+      await supabase
+        .from('data_requests')
+        .update({ status: 'failed', notes: `Errore: ${errorMessage}` })
+        .eq('id', request.id);
+      await loadRequests();
+      Alert.alert('Errore', `Impossibile eliminare l'account: ${errorMessage}`);
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const handleMarkExportCompleted = async (request: DataRequest) => {
+    console.log('[DataRequests] Mark export completed pressed for request:', request.id);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setProcessingId(request.id);
+    try {
+      console.log('[DataRequests] Updating export request status to completed:', request.id);
+      const { error } = await supabase
+        .from('data_requests')
+        .update({ status: 'completed', completed_at: new Date().toISOString() })
+        .eq('id', request.id);
+      if (error) throw error;
+      await loadRequests();
+    } catch (error: any) {
+      console.error('[DataRequests] Error marking export as completed:', request.id, error);
+      Alert.alert('Errore', `Impossibile aggiornare la richiesta: ${error?.message || 'Errore sconosciuto'}`);
+    } finally {
+      setProcessingId(null);
+    }
   };
 
   const getStatusColor = (status: string) => {
@@ -212,6 +292,57 @@ export default function DataRequestsScreen() {
               <Text style={styles.notesLabel}>Note:</Text>
               <Text style={styles.notesText}>{request.notes}</Text>
             </View>
+          )}
+
+          {request.request_type === 'deletion' &&
+            (request.status === 'pending' || request.status === 'processing') && (
+              <Pressable
+                style={({ pressed }) => [
+                  styles.actionButton,
+                  styles.actionButtonDanger,
+                  pressed && styles.actionButtonPressed,
+                  processingId === request.id && styles.actionButtonDisabled,
+                ]}
+                onPress={() => handleProcessDeletion(request)}
+                disabled={processingId === request.id}
+              >
+                {processingId === request.id ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <IconSymbol
+                    ios_icon_name="trash.fill"
+                    android_material_icon_name="delete"
+                    size={16}
+                    color="#fff"
+                  />
+                )}
+                <Text style={styles.actionButtonText}>Elabora ed Elimina</Text>
+              </Pressable>
+            )}
+
+          {request.request_type === 'export' && request.status === 'pending' && (
+            <Pressable
+              style={({ pressed }) => [
+                styles.actionButton,
+                styles.actionButtonSuccess,
+                pressed && styles.actionButtonPressed,
+                processingId === request.id && styles.actionButtonDisabled,
+              ]}
+              onPress={() => handleMarkExportCompleted(request)}
+              disabled={processingId === request.id}
+            >
+              {processingId === request.id ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <IconSymbol
+                  ios_icon_name="checkmark.circle.fill"
+                  android_material_icon_name="check_circle"
+                  size={16}
+                  color="#fff"
+                />
+              )}
+              <Text style={styles.actionButtonText}>Segna come Completata</Text>
+            </Pressable>
           )}
         </View>
       </View>
@@ -524,6 +655,33 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.text,
     lineHeight: 18,
+  },
+  actionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    marginTop: 4,
+  },
+  actionButtonDanger: {
+    backgroundColor: colors.error,
+  },
+  actionButtonSuccess: {
+    backgroundColor: colors.success,
+  },
+  actionButtonPressed: {
+    opacity: 0.75,
+  },
+  actionButtonDisabled: {
+    opacity: 0.5,
+  },
+  actionButtonText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#fff',
   },
   emptyState: {
     alignItems: 'center',
