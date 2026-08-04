@@ -53,9 +53,10 @@ export async function registerForPushNotificationsAsync(userId: string): Promise
       });
     }
 
-    console.log('[PushNotifications] Calling getExpoPushTokenAsync with projectId: 587d28f9-01b5-4121-aa8e-4d77ee7b13ae');
+    console.log('[PushNotifications] Calling getExpoPushTokenAsync with projectId: 587d28f9-01b5-4121-aa8e-4d77ee7b13ae, experienceId: @giuseppeforlano/rdn-street-stock-market');
     const tokenData = await Notifications.getExpoPushTokenAsync({
       projectId: '587d28f9-01b5-4121-aa8e-4d77ee7b13ae',
+      experienceId: '@giuseppeforlano/rdn-street-stock-market',
     });
     const token = tokenData.data;
     console.log('[PushNotifications] Push token ottenuto:', token);
