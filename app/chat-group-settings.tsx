@@ -82,7 +82,7 @@ export default function ChatGroupSettingsScreen() {
     // on chat_group_members (code 42P17).
     const { data: groupWithMembers, error: memErr } = await supabase
       .from('chat_groups')
-      .select('chat_group_members(user_id)')
+      .select('chat_group_members(user_id, status)')
       .eq('id', groupId)
       .single();
 
@@ -91,7 +91,7 @@ export default function ChatGroupSettingsScreen() {
       return;
     }
 
-    const memberRows = (groupWithMembers as any)?.chat_group_members ?? [];
+    const memberRows = ((groupWithMembers as any)?.chat_group_members ?? []).filter((m: any) => m.status === 'active' || m.status == null);
 
     if (!memberRows || memberRows.length === 0) {
       setMembers([]);
