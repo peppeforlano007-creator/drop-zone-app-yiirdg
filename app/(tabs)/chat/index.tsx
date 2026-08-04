@@ -26,6 +26,7 @@ interface ChatGroup {
   description: string | null;
   created_by: string;
   created_at: string;
+  group_type?: string;
   memberCount: number;
   lastMessage: {
     content: string;
@@ -82,6 +83,7 @@ function GroupRow({
   const timeText = group.lastMessage ? formatTime(group.lastMessage.created_at) : '';
   const showBadge = unreadCount > 0;
   const badgeLabel = unreadCount > 99 ? '99+' : String(unreadCount);
+  const isCityGroup = group.group_type === 'city';
 
   return (
     <TouchableOpacity
@@ -94,9 +96,16 @@ function GroupRow({
       </View>
       <View style={styles.groupInfo}>
         <View style={styles.groupRowTop}>
-          <Text style={[styles.groupName, { color: titleColor }]} numberOfLines={1}>
-            {group.name}
-          </Text>
+          <View style={styles.groupNameRow}>
+            <Text style={[styles.groupName, { color: titleColor }]} numberOfLines={1}>
+              {group.name}
+            </Text>
+            {isCityGroup && (
+              <View style={styles.cityBadge}>
+                <Text style={styles.cityBadgeText}>📍 Città</Text>
+              </View>
+            )}
+          </View>
           <Text style={[styles.timeText, { color: timeColor }]}>{timeText}</Text>
         </View>
         <View style={styles.groupRowBottom}>
@@ -144,8 +153,9 @@ export default function ChatIndexScreen() {
       // subquery in the chat_group_members policy (code 42P17).
       const { data: rawGroups, error: groupErr } = await supabase
         .from('chat_groups')
-        .select('id, name, description, created_by, created_at, chat_group_members!inner(user_id)')
+        .select('id, name, description, created_by, created_at, group_type, chat_group_members!inner(user_id, status)')
         .eq('chat_group_members.user_id', user.id)
+        .eq('chat_group_members.status', 'active')
         .order('created_at', { ascending: false });
 
       if (groupErr) {
@@ -200,6 +210,7 @@ export default function ChatIndexScreen() {
             description: g.description,
             created_by: g.created_by,
             created_at: g.created_at,
+            group_type: g.group_type,
             memberCount,
             lastMessage,
           };
@@ -399,12 +410,30 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
+  groupNameRow: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginRight: 8,
+  },
   groupName: {
     fontSize: 16,
     fontWeight: '600',
     fontFamily: 'System',
-    flex: 1,
-    marginRight: 8,
+    flexShrink: 1,
+  },
+  cityBadge: {
+    backgroundColor: '#E8F4FD',
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  cityBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    fontFamily: 'System',
+    color: '#1A73E8',
   },
   timeText: {
     fontSize: 12,

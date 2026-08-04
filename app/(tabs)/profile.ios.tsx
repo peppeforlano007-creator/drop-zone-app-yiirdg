@@ -178,7 +178,7 @@ export default function ProfileScreen() {
       setSelectedPickupPoint(pointCity);
 
       console.log('Profile (iOS): Pickup point updated to:', pointCity);
-      Alert.alert('Successo', `Punto di ritiro aggiornato a ${pointCity}`);
+      Alert.alert('Successo', `Punto di ritiro aggiornato a ${pointCity}. Sei stato aggiunto al gruppo della tua città!`);
     } catch (error) {
       console.error('Profile (iOS): Exception updating pickup point:', error);
       Alert.alert('Errore', 'Errore imprevisto durante l\'aggiornamento');
