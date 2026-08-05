@@ -12,6 +12,10 @@ import {
   Alert,
   ActivityIndicator,
   RefreshControl,
+  Modal,
+  TextInput,
+  Platform,
+  KeyboardAvoidingView,
 } from 'react-native';
 import React, { useState, useEffect } from 'react';
 import * as Haptics from 'expo-haptics';
@@ -33,6 +37,7 @@ interface Drop {
   approved_at?: string;
   activated_at?: string;
   deactivated_at?: string;
+  description?: string | null;
   pickup_points?: {
     name: string;
     city: string;
@@ -50,6 +55,8 @@ export default function ManageDropsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState<'all' | 'pending_approval' | 'approved' | 'active' | 'inactive' | 'archived'>('all');
+  const [editDescModal, setEditDescModal] = useState<{ dropId: string; current: string } | null>(null);
+  const [editDescText, setEditDescText] = useState('');
 
   useEffect(() => {
     loadDrops();
@@ -94,6 +101,55 @@ export default function ManageDropsScreen() {
   const handleRefresh = () => {
     setRefreshing(true);
     loadDrops();
+  };
+
+  const handleEditDescription = (dropId: string, currentDescription: string) => {
+    console.log('[ManageDrops] Edit description pressed for drop:', dropId);
+    if (Platform.OS === 'ios') {
+      Alert.prompt(
+        'Descrizione Drop',
+        'Inserisci una breve descrizione visibile agli utenti (max 200 caratteri):',
+        async (newDescription) => {
+          if (newDescription === undefined) return;
+          const trimmed = newDescription.trim().slice(0, 200);
+          console.log('[ManageDrops] Saving description via Alert.prompt:', { dropId, trimmed });
+          const { error } = await supabase
+            .from('drops')
+            .update({ description: trimmed || null })
+            .eq('id', dropId);
+          if (error) {
+            console.error('[ManageDrops] Error updating description:', error);
+            Alert.alert('Errore', 'Impossibile aggiornare la descrizione');
+          } else {
+            console.log('[ManageDrops] Description updated successfully');
+            loadDrops();
+          }
+        },
+        'plain-text',
+        currentDescription
+      );
+    } else {
+      setEditDescText(currentDescription);
+      setEditDescModal({ dropId, current: currentDescription });
+    }
+  };
+
+  const handleSaveDescription = async () => {
+    if (!editDescModal) return;
+    const trimmed = editDescText.trim().slice(0, 200);
+    console.log('[ManageDrops] Saving description via modal:', { dropId: editDescModal.dropId, trimmed });
+    const { error } = await supabase
+      .from('drops')
+      .update({ description: trimmed || null })
+      .eq('id', editDescModal.dropId);
+    if (error) {
+      console.error('[ManageDrops] Error updating description:', error);
+      Alert.alert('Errore', 'Impossibile aggiornare la descrizione');
+    } else {
+      console.log('[ManageDrops] Description updated successfully');
+      setEditDescModal(null);
+      loadDrops();
+    }
   };
 
   const handleCreateDrop = () => {
@@ -416,6 +472,20 @@ export default function ManageDropsScreen() {
             <Text style={styles.dropSupplier}>
               Lista: {drop.supplier_lists?.name || 'N/A'}
             </Text>
+            {drop.description ? (
+              <Text style={styles.dropDescription} numberOfLines={2}>{drop.description}</Text>
+            ) : null}
+            <Pressable
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                handleEditDescription(drop.id, drop.description || '');
+              }}
+              style={styles.editDescriptionBtn}
+            >
+              <Text style={styles.editDescriptionBtnText}>
+                {drop.description ? '✏️ Modifica descrizione' : '+ Aggiungi descrizione'}
+              </Text>
+            </Pressable>
           </View>
           <View style={{ alignItems: 'flex-end' }}>
             <View style={[styles.statusBadge, { backgroundColor: getStatusColor(drop.status) + '20' }]}>
@@ -713,6 +783,55 @@ export default function ManageDropsScreen() {
           )}
         </ScrollView>
       </SafeAreaView>
+
+      {/* Android description edit modal */}
+      <Modal
+        visible={editDescModal !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setEditDescModal(null)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalOverlay}
+        >
+          <View style={styles.modalContainer}>
+            <Text style={styles.modalTitle}>Descrizione Drop</Text>
+            <Text style={styles.modalSubtitle}>
+              Inserisci una breve descrizione visibile agli utenti (max 200 caratteri):
+            </Text>
+            <TextInput
+              style={styles.modalTextInput}
+              value={editDescText}
+              onChangeText={setEditDescText}
+              placeholder="Breve descrizione del drop..."
+              placeholderTextColor={colors.textSecondary}
+              multiline
+              numberOfLines={4}
+              maxLength={200}
+              autoFocus
+            />
+            <Text style={styles.modalCharCount}>{editDescText.length}/200</Text>
+            <View style={styles.modalActions}>
+              <Pressable
+                style={[styles.modalButton, styles.modalButtonCancel]}
+                onPress={() => {
+                  console.log('[ManageDrops] Description edit cancelled');
+                  setEditDescModal(null);
+                }}
+              >
+                <Text style={styles.modalButtonCancelText}>Annulla</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.modalButton, styles.modalButtonSave]}
+                onPress={handleSaveDescription}
+              >
+                <Text style={styles.modalButtonSaveText}>Salva</Text>
+              </Pressable>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </>
   );
 }
@@ -959,5 +1078,89 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     color: colors.primary,
+  },
+  dropDescription: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    marginTop: 4,
+    fontStyle: 'italic',
+  },
+  editDescriptionBtn: {
+    marginTop: 6,
+    alignSelf: 'flex-start',
+  },
+  editDescriptionBtnText: {
+    fontSize: 13,
+    color: colors.primary,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  modalContainer: {
+    backgroundColor: colors.card,
+    borderRadius: 16,
+    padding: 24,
+    width: '100%',
+    maxWidth: 400,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: 8,
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginBottom: 16,
+    lineHeight: 20,
+  },
+  modalTextInput: {
+    backgroundColor: colors.background,
+    borderRadius: 10,
+    padding: 14,
+    color: colors.text,
+    fontSize: 15,
+    borderWidth: 1,
+    borderColor: colors.border,
+    minHeight: 100,
+    textAlignVertical: 'top',
+  },
+  modalCharCount: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    textAlign: 'right',
+    marginTop: 4,
+    marginBottom: 16,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  modalButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  modalButtonCancel: {
+    backgroundColor: colors.border,
+  },
+  modalButtonSave: {
+    backgroundColor: colors.primary,
+  },
+  modalButtonCancelText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  modalButtonSaveText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#fff',
   },
 });

@@ -12,6 +12,7 @@ import {
   Pressable,
   Alert,
   ActivityIndicator,
+  TextInput,
 } from 'react-native';
 import { supabase } from '@/app/integrations/supabase/client';
 import { errorHandler, ErrorCategory, ErrorSeverity } from '@/utils/errorHandler';
@@ -149,6 +150,17 @@ const styles = StyleSheet.create({
     color: colors.text,
     lineHeight: 20,
   },
+  textInput: {
+    backgroundColor: colors.card,
+    borderRadius: 12,
+    padding: 16,
+    color: colors.text,
+    fontSize: 15,
+    borderWidth: 1,
+    borderColor: colors.border,
+    minHeight: 80,
+    textAlignVertical: 'top',
+  },
 });
 
 export default function CreateDropScreen() {
@@ -159,6 +171,7 @@ export default function CreateDropScreen() {
   const [selectedList, setSelectedList] = useState<string | null>(null);
   const [selectedPickupPoint, setSelectedPickupPoint] = useState<string | null>(null);
   const [dropDurationDays, setDropDurationDays] = useState(5); // Default value
+  const [dropDescription, setDropDescription] = useState('');
 
   useEffect(() => {
     loadData();
@@ -310,6 +323,7 @@ export default function CreateDropScreen() {
               endTime.setDate(endTime.getDate() + dropDurationDays);
 
               // Create drop with 'approved' status (ready to be activated)
+              console.log('[CreateDrop] Inserting drop into Supabase', { selectedList, selectedPickupPoint, dropDescription: dropDescription || null });
               const { data: drop, error: dropError } = await supabase
                 .from('drops')
                 .insert({
@@ -324,6 +338,7 @@ export default function CreateDropScreen() {
                   end_time: endTime.toISOString(),
                   approved_at: new Date().toISOString(),
                   approved_by: user?.id,
+                  description: dropDescription.trim() || null,
                 })
                 .select()
                 .single();
@@ -459,6 +474,26 @@ export default function CreateDropScreen() {
               </Pressable>
             ))
           )}
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Descrizione (opzionale)</Text>
+          <TextInput
+            style={styles.textInput}
+            placeholder="Breve descrizione del drop visibile agli utenti..."
+            placeholderTextColor={colors.textSecondary}
+            value={dropDescription}
+            onChangeText={(text) => {
+              console.log('[CreateDrop] Description changed, length:', text.length);
+              setDropDescription(text);
+            }}
+            multiline
+            numberOfLines={3}
+            maxLength={200}
+          />
+          <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 4 }}>
+            {dropDescription.length}/200
+          </Text>
         </View>
 
         <View style={styles.infoBox}>

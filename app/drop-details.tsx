@@ -50,6 +50,7 @@ interface DropData {
   supplier_list_id: string;
   pickup_point_id: string;
   final_discount_percentage?: number | null;
+  description?: string | null;
   pickup_points: {
     name: string;
     city: string;
@@ -155,6 +156,7 @@ export default function DropDetailsScreen() {
           pickup_point_id,
           updated_at,
           final_discount_percentage,
+          description,
           pickup_points (
             name,
             city
@@ -1315,12 +1317,17 @@ export default function DropDetailsScreen() {
               </Text>
             </View>
             <View style={styles.infoChip} pointerEvents="none">
-              <MaterialCommunityIcons name="bullseye-arrow" size={12} color="#FFF" />
+              <MaterialCommunityIcons name="tag" size={12} color="#FFF" />
               <Text style={styles.infoChipText} numberOfLines={1}>
-                {listName}
+                {drop.name}
               </Text>
             </View>
           </View>
+          {drop.description ? (
+            <Text style={styles.dropDescriptionText} numberOfLines={2}>
+              {drop.description}
+            </Text>
+          ) : null}
         </SafeAreaView>
       </View>
 
@@ -1712,5 +1719,12 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     fontSize: 18,
     letterSpacing: 2,
+  },
+  dropDescriptionText: {
+    color: 'rgba(255,255,255,0.85)',
+    fontSize: 12,
+    marginTop: 4,
+    maxWidth: 220,
+    lineHeight: 16,
   },
 });
