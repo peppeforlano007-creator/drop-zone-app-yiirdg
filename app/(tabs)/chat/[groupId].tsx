@@ -673,7 +673,7 @@ export default function GroupChatScreen() {
                   isDark={isDark}
                 />
               )}
-              contentContainerStyle={styles.messagesList}
+              contentContainerStyle={[styles.messagesList, { paddingBottom: insets.bottom + 200 }]}
               onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: false })}
               automaticallyAdjustKeyboardInsets={true}
               keyboardDismissMode="interactive"
@@ -689,7 +689,7 @@ export default function GroupChatScreen() {
           )}
 
           {/* Input bar */}
-          <View style={[styles.inputBar, { backgroundColor: inputBarBg, borderTopColor: inputBorder, paddingBottom: insets.bottom + 80 }]}>
+          <View style={[styles.inputBar, { backgroundColor: inputBarBg, borderTopColor: inputBorder, paddingBottom: 12, marginBottom: insets.bottom + 80 }]}>
             <TouchableOpacity
               style={[styles.dropShareButton, { borderColor: inputBorder }]}
               onPress={() => {
@@ -756,7 +756,7 @@ export default function GroupChatScreen() {
           )}
 
           {/* Input bar */}
-          <View style={[styles.inputBar, { backgroundColor: inputBarBg, borderTopColor: inputBorder, paddingBottom: insets.bottom + 80 }]}>
+          <View style={[styles.inputBar, { backgroundColor: inputBarBg, borderTopColor: inputBorder, paddingBottom: 12, marginBottom: insets.bottom + 80 }]}>
             <TouchableOpacity
               style={[styles.dropShareButton, { borderColor: inputBorder }]}
               onPress={() => {
@@ -839,7 +839,6 @@ const styles = StyleSheet.create({
   messagesList: {
     padding: 12,
     gap: 4,
-    paddingBottom: 160,
   },
   bubbleWrapper: {
     marginVertical: 3,
