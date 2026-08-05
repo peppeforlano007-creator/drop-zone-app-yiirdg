@@ -655,75 +655,142 @@ export default function GroupChatScreen() {
         </TouchableOpacity>
       </View>
 
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={60}
-      >
-        {loading ? (
-          <View style={styles.centered}>
-            <ActivityIndicator size="large" color={colors.primary} />
-          </View>
-        ) : (
-          <FlatList
-            ref={flatListRef}
-            data={messages}
-            keyExtractor={(item) => item.id}
-            renderItem={({ item }) => (
-              <MessageBubble
-                message={item}
-                isOwn={item.sender_id === user?.id}
-                isDark={isDark}
-              />
-            )}
-            contentContainerStyle={styles.messagesList}
-            onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: false })}
-            ListEmptyComponent={
-              <View style={styles.emptyMessages}>
-                <Ionicons name="chatbubble-outline" size={48} color={isDark ? '#3A3A3C' : '#D1D5DB'} />
-                <Text style={[styles.emptyMessagesText, { color: isDark ? '#8E8E93' : '#999999' }]}>
-                  Nessun messaggio ancora.{'\n'}Inizia la conversazione!
-                </Text>
-              </View>
-            }
-          />
-        )}
+      {Platform.OS === 'ios' ? (
+        <View style={styles.flex}>
+          {loading ? (
+            <View style={styles.centered}>
+              <ActivityIndicator size="large" color={colors.primary} />
+            </View>
+          ) : (
+            <FlatList
+              ref={flatListRef}
+              data={messages}
+              keyExtractor={(item) => item.id}
+              renderItem={({ item }) => (
+                <MessageBubble
+                  message={item}
+                  isOwn={item.sender_id === user?.id}
+                  isDark={isDark}
+                />
+              )}
+              contentContainerStyle={styles.messagesList}
+              onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: false })}
+              automaticallyAdjustKeyboardInsets={true}
+              keyboardDismissMode="interactive"
+              ListEmptyComponent={
+                <View style={styles.emptyMessages}>
+                  <Ionicons name="chatbubble-outline" size={48} color={isDark ? '#3A3A3C' : '#D1D5DB'} />
+                  <Text style={[styles.emptyMessagesText, { color: isDark ? '#8E8E93' : '#999999' }]}>
+                    Nessun messaggio ancora.{'\n'}Inizia la conversazione!
+                  </Text>
+                </View>
+              }
+            />
+          )}
 
-        {/* Input bar */}
-        <View style={[styles.inputBar, { backgroundColor: inputBarBg, borderTopColor: inputBorder, paddingBottom: (insets.bottom || 0) + 120 }]}>
-          <TouchableOpacity
-            style={[styles.dropShareButton, { borderColor: inputBorder }]}
-            onPress={() => {
-              console.log('[Chat] Open drop picker pressed');
-              setShowDropPicker(true);
-            }}
-          >
-            <Text style={styles.dropShareIcon}>📦</Text>
-          </TouchableOpacity>
-          <TextInput
-            style={[styles.textInput, { backgroundColor: inputBg, borderColor: inputBorder, color: inputText2 }]}
-            value={inputText}
-            onChangeText={setInputText}
-            placeholder="Scrivi un messaggio..."
-            placeholderTextColor={isDark ? '#636366' : '#999999'}
-            multiline
-            maxLength={1000}
-            returnKeyType="send"
-            onSubmitEditing={sendMessage}
-          />
-          <TouchableOpacity
-            style={[styles.sendButton, { opacity: inputText.trim() ? 1 : 0.4 }]}
-            onPress={sendMessage}
-            disabled={!inputText.trim() || sending}
-          >
-            {sending ? (
-              <ActivityIndicator size="small" color="#FFFFFF" />
-            ) : (
-              <Ionicons name="send" size={18} color="#FFFFFF" />
-            )}
-          </TouchableOpacity>
+          {/* Input bar */}
+          <View style={[styles.inputBar, { backgroundColor: inputBarBg, borderTopColor: inputBorder, paddingBottom: insets.bottom || 8 }]}>
+            <TouchableOpacity
+              style={[styles.dropShareButton, { borderColor: inputBorder }]}
+              onPress={() => {
+                console.log('[Chat] Open drop picker pressed');
+                setShowDropPicker(true);
+              }}
+            >
+              <Text style={styles.dropShareIcon}>📦</Text>
+            </TouchableOpacity>
+            <TextInput
+              style={[styles.textInput, { backgroundColor: inputBg, borderColor: inputBorder, color: inputText2 }]}
+              value={inputText}
+              onChangeText={setInputText}
+              placeholder="Scrivi un messaggio..."
+              placeholderTextColor={isDark ? '#636366' : '#999999'}
+              multiline
+              maxLength={1000}
+              returnKeyType="send"
+              onSubmitEditing={sendMessage}
+            />
+            <TouchableOpacity
+              style={[styles.sendButton, { opacity: inputText.trim() ? 1 : 0.4 }]}
+              onPress={sendMessage}
+              disabled={!inputText.trim() || sending}
+            >
+              {sending ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Ionicons name="send" size={18} color="#FFFFFF" />
+              )}
+            </TouchableOpacity>
+          </View>
         </View>
-      </KeyboardAvoidingView>
+      ) : (
+        <KeyboardAvoidingView style={styles.flex} behavior="height" keyboardVerticalOffset={0}>
+          {loading ? (
+            <View style={styles.centered}>
+              <ActivityIndicator size="large" color={colors.primary} />
+            </View>
+          ) : (
+            <FlatList
+              ref={flatListRef}
+              data={messages}
+              keyExtractor={(item) => item.id}
+              renderItem={({ item }) => (
+                <MessageBubble
+                  message={item}
+                  isOwn={item.sender_id === user?.id}
+                  isDark={isDark}
+                />
+              )}
+              contentContainerStyle={styles.messagesList}
+              onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: false })}
+              keyboardDismissMode="interactive"
+              ListEmptyComponent={
+                <View style={styles.emptyMessages}>
+                  <Ionicons name="chatbubble-outline" size={48} color={isDark ? '#3A3A3C' : '#D1D5DB'} />
+                  <Text style={[styles.emptyMessagesText, { color: isDark ? '#8E8E93' : '#999999' }]}>
+                    Nessun messaggio ancora.{'\n'}Inizia la conversazione!
+                  </Text>
+                </View>
+              }
+            />
+          )}
+
+          {/* Input bar */}
+          <View style={[styles.inputBar, { backgroundColor: inputBarBg, borderTopColor: inputBorder, paddingBottom: insets.bottom || 8 }]}>
+            <TouchableOpacity
+              style={[styles.dropShareButton, { borderColor: inputBorder }]}
+              onPress={() => {
+                console.log('[Chat] Open drop picker pressed');
+                setShowDropPicker(true);
+              }}
+            >
+              <Text style={styles.dropShareIcon}>📦</Text>
+            </TouchableOpacity>
+            <TextInput
+              style={[styles.textInput, { backgroundColor: inputBg, borderColor: inputBorder, color: inputText2 }]}
+              value={inputText}
+              onChangeText={setInputText}
+              placeholder="Scrivi un messaggio..."
+              placeholderTextColor={isDark ? '#636366' : '#999999'}
+              multiline
+              maxLength={1000}
+              returnKeyType="send"
+              onSubmitEditing={sendMessage}
+            />
+            <TouchableOpacity
+              style={[styles.sendButton, { opacity: inputText.trim() ? 1 : 0.4 }]}
+              onPress={sendMessage}
+              disabled={!inputText.trim() || sending}
+            >
+              {sending ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Ionicons name="send" size={18} color="#FFFFFF" />
+              )}
+            </TouchableOpacity>
+          </View>
+        </KeyboardAvoidingView>
+      )}
 
       <DropPickerModal
         visible={showDropPicker}
