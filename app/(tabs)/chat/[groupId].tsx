@@ -689,7 +689,7 @@ export default function GroupChatScreen() {
           )}
 
           {/* Input bar */}
-          <View style={[styles.inputBar, { backgroundColor: inputBarBg, borderTopColor: inputBorder, paddingBottom: insets.bottom || 8 }]}>
+          <View style={[styles.inputBar, { backgroundColor: inputBarBg, borderTopColor: inputBorder, paddingBottom: insets.bottom + 80 }]}>
             <TouchableOpacity
               style={[styles.dropShareButton, { borderColor: inputBorder }]}
               onPress={() => {
@@ -756,7 +756,7 @@ export default function GroupChatScreen() {
           )}
 
           {/* Input bar */}
-          <View style={[styles.inputBar, { backgroundColor: inputBarBg, borderTopColor: inputBorder, paddingBottom: insets.bottom || 8 }]}>
+          <View style={[styles.inputBar, { backgroundColor: inputBarBg, borderTopColor: inputBorder, paddingBottom: insets.bottom + 80 }]}>
             <TouchableOpacity
               style={[styles.dropShareButton, { borderColor: inputBorder }]}
               onPress={() => {
@@ -839,7 +839,7 @@ const styles = StyleSheet.create({
   messagesList: {
     padding: 12,
     gap: 4,
-    paddingBottom: 8,
+    paddingBottom: 160,
   },
   bubbleWrapper: {
     marginVertical: 3,
