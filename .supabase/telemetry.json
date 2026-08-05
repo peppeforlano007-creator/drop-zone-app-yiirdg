@@ -1,6 +1,1 @@
-{
-  "consent": "granted",
-  "device_id": "7c18b1ad-9894-495d-a65e-1eccac589da3",
-  "session_id": "fda7b67d-e3c9-482f-847c-61bb498c146b",
-  "session_last_active": 1785750833103
-}
+{"enabled":true,"device_id":"7c18b1ad-9894-495d-a65e-1eccac589da3","session_id":"ddd2884d-3e63-4fe5-b9a5-e279988cb5fc","session_last_active":"2026-08-05T10:32:03.422Z","schema_version":1}
