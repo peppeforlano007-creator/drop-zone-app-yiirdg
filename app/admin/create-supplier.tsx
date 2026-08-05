@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import {
   View,
@@ -19,6 +18,17 @@ import { IconSymbol } from '@/components/IconSymbol';
 import * as Haptics from 'expo-haptics';
 import { supabase } from '@/app/integrations/supabase/client';
 
+function generateUUID(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
 export default function CreateSupplierScreen() {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
@@ -28,169 +38,55 @@ export default function CreateSupplierScreen() {
   const [loading, setLoading] = useState(false);
 
   const handleCreateSupplier = async () => {
+    console.log('[CreateSupplier] Create supplier button pressed');
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    
-    // Validation
+
     if (!fullName.trim()) {
       Alert.alert('Errore', 'Inserisci il nome completo del fornitore');
       return;
     }
-
-    if (!email.trim()) {
-      Alert.alert('Errore', 'Inserisci l\'email del fornitore');
+    if (!email.trim() || !email.includes('@')) {
+      Alert.alert('Errore', "Inserisci un'email valida");
       return;
     }
-
-    if (!email.includes('@')) {
-      Alert.alert('Errore', 'Inserisci un\'email valida');
-      return;
-    }
-
     if (!phone.trim()) {
       Alert.alert('Errore', 'Inserisci il numero di telefono');
       return;
     }
 
     setLoading(true);
-
     try {
-      console.log('Creating supplier profile...');
-      
-      // Generate a random password (supplier won't need to login)
-      const randomPassword = Math.random().toString(36).slice(-12) + Math.random().toString(36).slice(-12);
-      
-      // Create auth user (but they won't be able to login since we won't share the password)
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: email.trim().toLowerCase(),
-        password: randomPassword,
-        options: {
-          data: {
-            full_name: fullName.trim(),
-            phone: phone.trim(),
-            role: 'supplier',
-            company_name: companyName.trim() || undefined,
-            notes: notes.trim() || undefined,
-          }
-        }
-      });
+      const supplierId = generateUUID();
+      console.log('[CreateSupplier] Inserting supplier profile into DB, id:', supplierId);
 
-      if (authError) {
-        console.error('Error creating supplier auth:', authError);
-        
-        if (authError.message.toLowerCase().includes('already registered')) {
-          Alert.alert('Errore', 'Questo indirizzo email è già registrato nel sistema.');
-        } else {
-          Alert.alert('Errore', `Impossibile creare il fornitore: ${authError.message}`);
-        }
+      const { error } = await supabase
+        .from('profiles')
+        .insert({
+          user_id: supplierId,
+          email: email.trim().toLowerCase(),
+          full_name: fullName.trim(),
+          phone: phone.trim(),
+          role: 'supplier',
+          points_total: 0,
+          points_balance: 0,
+          loyalty_level: 'bronze',
+        });
+
+      if (error) {
+        console.error('[CreateSupplier] Error creating supplier profile:', error);
+        Alert.alert('Errore', `Impossibile creare il fornitore: ${error.message}`);
         return;
       }
 
-      if (!authData.user) {
-        Alert.alert('Errore', 'Errore durante la creazione del fornitore');
-        return;
-      }
-
-      console.log('Supplier auth created successfully:', authData.user.id);
-
-      // Wait for the trigger to create the profile
-      // The deferrable foreign key constraint should handle timing issues
-      console.log('Waiting for trigger to create profile...');
-      await new Promise(resolve => setTimeout(resolve, 2000));
-
-      // Verify the profile was created
-      let profile = null;
-      let profileError = null;
-      
-      // Try multiple times with increasing delays
-      for (let attempt = 1; attempt <= 3; attempt++) {
-        console.log(`Checking for profile (attempt ${attempt}/3)...`);
-        
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('user_id', authData.user.id)
-          .maybeSingle();
-
-        if (data) {
-          profile = data;
-          profileError = null;
-          console.log('Profile found:', profile);
-          break;
-        }
-
-        profileError = error;
-        
-        if (attempt < 3) {
-          console.log(`Profile not found yet, waiting ${attempt * 1000}ms before retry...`);
-          await new Promise(resolve => setTimeout(resolve, attempt * 1000));
-        }
-      }
-
-      if (!profile) {
-        console.error('Profile not found after multiple attempts:', profileError);
-        
-        // Try to create the profile manually as admin
-        console.log('Attempting to create profile manually...');
-        
-        const { data: manualProfile, error: manualError } = await supabase
-          .from('profiles')
-          .insert({
-            user_id: authData.user.id,
-            email: email.trim().toLowerCase(),
-            full_name: fullName.trim(),
-            phone: phone.trim(),
-            role: 'supplier',
-          })
-          .select()
-          .single();
-
-        if (manualError) {
-          console.error('Manual profile creation failed:', manualError);
-          
-          // Provide more specific error message
-          if (manualError.message.includes('profiles_user_id_fkey')) {
-            Alert.alert(
-              'Errore di Sincronizzazione',
-              'Si è verificato un problema di sincronizzazione del database.\n\nIl problema è stato risolto con un aggiornamento recente. Riprova ora e dovrebbe funzionare correttamente.'
-            );
-          } else if (manualError.message.includes('duplicate key')) {
-            // Profile was created by trigger but we couldn't find it
-            console.log('Profile exists but was not found in query, considering success');
-            profile = { user_id: authData.user.id };
-          } else {
-            Alert.alert(
-              'Errore',
-              `Impossibile creare il profilo: ${manualError.message}\n\nContatta il supporto tecnico.`
-            );
-          }
-          
-          if (!profile) {
-            return;
-          }
-        } else {
-          console.log('Profile created manually:', manualProfile);
-          profile = manualProfile;
-        }
-      }
-
-      console.log('Supplier created successfully with profile');
-
+      console.log('[CreateSupplier] Supplier created successfully:', fullName);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert(
         'Fornitore Creato!',
         `Il fornitore ${fullName} è stato creato con successo.\n\nPuoi ora creare liste e prodotti per questo fornitore.`,
-        [
-          {
-            text: 'OK',
-            onPress: () => {
-              // Navigate back to suppliers list
-              router.back();
-            },
-          },
-        ]
+        [{ text: 'OK', onPress: () => router.back() }]
       );
     } catch (error) {
-      console.error('Exception creating supplier:', error);
+      console.error('[CreateSupplier] Exception creating supplier:', error);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       Alert.alert('Errore', 'Si è verificato un errore imprevisto. Riprova.');
     } finally {
@@ -217,11 +113,11 @@ export default function CreateSupplierScreen() {
           >
             <View style={styles.header}>
               <View style={styles.iconContainer}>
-                <IconSymbol 
-                  ios_icon_name="building.2.fill" 
+                <IconSymbol
+                  ios_icon_name="building.2.fill"
                   android_material_icon_name="store"
-                  size={48} 
-                  color={colors.primary} 
+                  size={48}
+                  color={colors.primary}
                 />
               </View>
               <Text style={styles.title}>Nuovo Fornitore</Text>
@@ -304,11 +200,11 @@ export default function CreateSupplierScreen() {
 
               <Text style={styles.requiredNote}>* Campi obbligatori</Text>
 
-              <Pressable 
+              <Pressable
                 style={({ pressed }) => [
                   styles.createButton,
-                  (pressed || loading) && styles.createButtonPressed
-                ]} 
+                  (pressed || loading) && styles.createButtonPressed,
+                ]}
                 onPress={handleCreateSupplier}
                 disabled={loading}
               >
@@ -330,6 +226,7 @@ export default function CreateSupplierScreen() {
               <Pressable
                 style={styles.cancelLink}
                 onPress={() => {
+                  console.log('[CreateSupplier] Cancel pressed');
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   router.back();
                 }}
