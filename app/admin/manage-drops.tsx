@@ -144,7 +144,7 @@ export default function ManageDropsScreen() {
     );
   };
 
-  const handleActivateDrop = async (dropId: string, dropName: string) => {
+  const handleActivateDrop = async (dropId: string, dropName: string, pickupPointId: string | null) => {
     Alert.alert(
       'Attiva Drop',
       `Sei sicuro di voler attivare il drop "${dropName}"?`,
@@ -170,16 +170,22 @@ export default function ManageDropsScreen() {
                 return;
               }
 
-              console.log('[handleActivateDrop] Drop activated, sending notifications for dropId:', dropId);
+              console.log('[handleActivateDrop] Drop activated, sending notifications for dropId:', dropId, 'pickupPointId:', pickupPointId);
 
-              // Send in-app + push notifications to all consumers
+              // Send in-app + push notifications only to consumers at the same pickup point
               try {
-                const { data: consumers } = await supabase
+                let consumersQuery = supabase
                   .from('profiles')
                   .select('user_id, push_token')
                   .eq('role', 'consumer');
 
-                console.log('[handleActivateDrop] Fetched', consumers?.length ?? 0, 'consumers');
+                if (pickupPointId) {
+                  consumersQuery = consumersQuery.eq('pickup_point_id', pickupPointId);
+                }
+
+                const { data: consumers } = await consumersQuery;
+
+                console.log('[handleActivateDrop] Fetched', consumers?.length ?? 0, 'consumers for pickupPointId:', pickupPointId);
 
                 const notifRows = (consumers || []).map(c => ({
                   user_id: c.user_id,
@@ -497,7 +503,7 @@ export default function ManageDropsScreen() {
               ]}
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                handleActivateDrop(drop.id, drop.name);
+                handleActivateDrop(drop.id, drop.name, drop.pickup_point_id);
               }}
             >
               <IconSymbol
