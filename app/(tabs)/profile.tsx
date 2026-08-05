@@ -148,10 +148,10 @@ export default function ProfileScreen() {
   );
 
   useEffect(() => {
-    if (user?.pickupPoint) {
+    if (user?.pickupPoint && pickupPoints.length > 0) {
       setSelectedPickupPoint(user.pickupPoint);
     }
-  }, [user?.pickupPoint]);
+  }, [user?.pickupPoint, pickupPoints]);
 
   const handlePickupPointChange = async (pointId: string, pointCity: string) => {
     if (!user) return;
