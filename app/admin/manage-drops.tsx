@@ -57,6 +57,8 @@ export default function ManageDropsScreen() {
   const [filter, setFilter] = useState<'all' | 'pending_approval' | 'approved' | 'active' | 'inactive' | 'archived'>('all');
   const [editDescModal, setEditDescModal] = useState<{ dropId: string; current: string } | null>(null);
   const [editDescText, setEditDescText] = useState('');
+  const [editNameModal, setEditNameModal] = useState<{ dropId: string; current: string } | null>(null);
+  const [editNameText, setEditNameText] = useState('');
 
   useEffect(() => {
     loadDrops();
@@ -131,6 +133,55 @@ export default function ManageDropsScreen() {
     } else {
       setEditDescText(currentDescription);
       setEditDescModal({ dropId, current: currentDescription });
+    }
+  };
+
+  const handleEditName = (dropId: string, currentName: string) => {
+    console.log('[ManageDrops] Edit name pressed for drop:', dropId);
+    if (Platform.OS === 'ios') {
+      Alert.prompt(
+        'Nome Drop',
+        'Inserisci il nome del drop (max 100 caratteri):',
+        async (newName) => {
+          if (newName === undefined) return;
+          const trimmed = newName.trim().slice(0, 100);
+          console.log('[ManageDrops] Saving name via Alert.prompt:', { dropId, trimmed });
+          const { error } = await supabase
+            .from('drops')
+            .update({ name: trimmed })
+            .eq('id', dropId);
+          if (error) {
+            console.error('[ManageDrops] Error updating name:', error);
+            Alert.alert('Errore', 'Impossibile aggiornare il nome');
+          } else {
+            console.log('[ManageDrops] Name updated successfully');
+            loadDrops();
+          }
+        },
+        'plain-text',
+        currentName
+      );
+    } else {
+      setEditNameText(currentName);
+      setEditNameModal({ dropId, current: currentName });
+    }
+  };
+
+  const handleSaveName = async () => {
+    if (!editNameModal) return;
+    const trimmed = editNameText.trim().slice(0, 100);
+    console.log('[ManageDrops] Saving name via modal:', { dropId: editNameModal.dropId, trimmed });
+    const { error } = await supabase
+      .from('drops')
+      .update({ name: trimmed })
+      .eq('id', editNameModal.dropId);
+    if (error) {
+      console.error('[ManageDrops] Error updating name:', error);
+      Alert.alert('Errore', 'Impossibile aggiornare il nome');
+    } else {
+      console.log('[ManageDrops] Name updated successfully');
+      setEditNameModal(null);
+      loadDrops();
     }
   };
 
@@ -466,6 +517,15 @@ export default function ManageDropsScreen() {
         <View style={styles.dropHeader}>
           <View style={styles.dropInfo}>
             <Text style={styles.dropName}>{drop.name}</Text>
+            <Pressable
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                handleEditName(drop.id, drop.name);
+              }}
+              style={styles.editDescriptionBtn}
+            >
+              <Text style={styles.editDescriptionBtnText}>✏️ Modifica nome</Text>
+            </Pressable>
             <Text style={styles.dropLocation}>
               {drop.pickup_points?.city || 'N/A'} - {drop.pickup_points?.name || 'N/A'}
             </Text>
@@ -783,6 +843,53 @@ export default function ManageDropsScreen() {
           )}
         </ScrollView>
       </SafeAreaView>
+
+      {/* Android name edit modal */}
+      <Modal
+        visible={editNameModal !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setEditNameModal(null)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalOverlay}
+        >
+          <View style={styles.modalContainer}>
+            <Text style={styles.modalTitle}>Nome Drop</Text>
+            <Text style={styles.modalSubtitle}>
+              Inserisci il nome del drop (max 100 caratteri):
+            </Text>
+            <TextInput
+              style={styles.modalSingleLineInput}
+              value={editNameText}
+              onChangeText={setEditNameText}
+              placeholder="Nome del drop..."
+              placeholderTextColor={colors.textSecondary}
+              maxLength={100}
+              autoFocus
+            />
+            <Text style={styles.modalCharCount}>{editNameText.length}/100</Text>
+            <View style={styles.modalActions}>
+              <Pressable
+                style={[styles.modalButton, styles.modalButtonCancel]}
+                onPress={() => {
+                  console.log('[ManageDrops] Name edit cancelled');
+                  setEditNameModal(null);
+                }}
+              >
+                <Text style={styles.modalButtonCancelText}>Annulla</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.modalButton, styles.modalButtonSave]}
+                onPress={handleSaveName}
+              >
+                <Text style={styles.modalButtonSaveText}>Salva</Text>
+              </Pressable>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
 
       {/* Android description edit modal */}
       <Modal
@@ -1129,6 +1236,15 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     minHeight: 100,
     textAlignVertical: 'top',
+  },
+  modalSingleLineInput: {
+    backgroundColor: colors.background,
+    borderRadius: 10,
+    padding: 14,
+    color: colors.text,
+    fontSize: 15,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   modalCharCount: {
     fontSize: 12,

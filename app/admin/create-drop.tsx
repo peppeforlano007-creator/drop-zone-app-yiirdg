@@ -161,6 +161,15 @@ const styles = StyleSheet.create({
     minHeight: 80,
     textAlignVertical: 'top',
   },
+  singleLineInput: {
+    backgroundColor: colors.card,
+    borderRadius: 12,
+    padding: 16,
+    color: colors.text,
+    fontSize: 15,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
 });
 
 export default function CreateDropScreen() {
@@ -172,6 +181,7 @@ export default function CreateDropScreen() {
   const [selectedPickupPoint, setSelectedPickupPoint] = useState<string | null>(null);
   const [dropDurationDays, setDropDurationDays] = useState(5); // Default value
   const [dropDescription, setDropDescription] = useState('');
+  const [dropName, setDropName] = useState('');
 
   useEffect(() => {
     loadData();
@@ -323,13 +333,14 @@ export default function CreateDropScreen() {
               endTime.setDate(endTime.getDate() + dropDurationDays);
 
               // Create drop with 'approved' status (ready to be activated)
-              console.log('[CreateDrop] Inserting drop into Supabase', { selectedList, selectedPickupPoint, dropDescription: dropDescription || null });
+              const resolvedName = dropName.trim() || `${point.city} - ${list.name}`;
+              console.log('[CreateDrop] Inserting drop into Supabase', { selectedList, selectedPickupPoint, resolvedName, dropDescription: dropDescription || null });
               const { data: drop, error: dropError } = await supabase
                 .from('drops')
                 .insert({
                   supplier_list_id: selectedList,
                   pickup_point_id: selectedPickupPoint,
-                  name: `${point.city} - ${list.name}`,
+                  name: resolvedName,
                   current_discount: list.min_discount,
                   current_value: 0,
                   target_value: list.max_reservation_value,
@@ -474,6 +485,24 @@ export default function CreateDropScreen() {
               </Pressable>
             ))
           )}
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Nome Drop (opzionale)</Text>
+          <TextInput
+            style={styles.singleLineInput}
+            placeholder="Es. Drop Estivo Milano..."
+            placeholderTextColor={colors.textSecondary}
+            value={dropName}
+            onChangeText={(text) => {
+              console.log('[CreateDrop] Drop name changed, length:', text.length);
+              setDropName(text);
+            }}
+            maxLength={100}
+          />
+          <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 4 }}>
+            {dropName.length}/100 — lascia vuoto per usare il nome automatico
+          </Text>
         </View>
 
         <View style={styles.section}>
