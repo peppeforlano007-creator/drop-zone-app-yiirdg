@@ -147,15 +147,12 @@ export default function ChatIndexScreen() {
     console.log('[Chat] Loading groups for user:', user.id);
 
     try {
-      // Query chat_groups with an inner join on chat_group_members to avoid
-      // triggering the recursive RLS SELECT policy on chat_group_members.
-      // Querying chat_groups as the primary table bypasses the self-referencing
-      // subquery in the chat_group_members policy (code 42P17).
       const { data: rawGroups, error: groupErr } = await supabase
         .from('chat_group_members')
-        .select('chat_groups!inner(id, name, description, created_by, created_at, group_type, status)')
+        .select('chat_groups!inner(id, name, description, created_by, created_at, group_type, deleted_at)')
         .eq('user_id', user.id)
         .eq('status', 'active')
+        .is('chat_groups.deleted_at', null)
         .order('created_at', { ascending: false, referencedTable: 'chat_groups' });
 
       if (groupErr) {

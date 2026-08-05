@@ -459,8 +459,9 @@ export default function GroupChatScreen() {
 
     supabase
       .from('chat_groups')
-      .select('id')
+      .select('id, deleted_at')
       .eq('id', groupId)
+      .is('deleted_at', null)
       .single()
       .then(({ data, error }) => {
         if (error || !data) {
@@ -469,7 +470,7 @@ export default function GroupChatScreen() {
             { text: 'OK', onPress: () => router.back() },
           ]);
         } else {
-          console.log('[Chat] Group exists, proceeding:', groupId);
+          console.log('[Chat] Group exists and is active, proceeding:', groupId);
         }
       });
   }, [groupId]);

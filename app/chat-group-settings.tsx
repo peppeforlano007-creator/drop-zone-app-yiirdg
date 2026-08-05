@@ -185,10 +185,10 @@ export default function ChatGroupSettingsScreen() {
           text: 'Elimina',
           style: 'destructive',
           onPress: async () => {
-            console.log('[GroupSettings] Deleting group:', groupId);
+            console.log('[GroupSettings] Soft-deleting group:', groupId);
             const { error } = await supabase
               .from('chat_groups')
-              .delete()
+              .update({ deleted_at: new Date().toISOString() })
               .eq('id', groupId);
 
             if (error) {
