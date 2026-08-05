@@ -4,6 +4,7 @@ import { Stack, router } from 'expo-router';
 import FloatingTabBar, { TabBarItem } from '@/components/FloatingTabBar';
 import { useAuth } from '@/contexts/AuthContext';
 import { UnreadChatProvider, useUnreadChat } from '@/contexts/UnreadChatContext';
+import { colors } from '@/styles/commonStyles';
 
 function TabLayoutInner() {
   const { user, isAuthenticated } = useAuth();
@@ -25,7 +26,15 @@ function TabLayoutInner() {
 
   return (
     <>
-      <Stack screenOptions={{ headerShown: false }} />
+      <Stack
+        screenOptions={({ route }) => ({
+          headerShown: !['drops', 'profile', 'chat', 'payment-methods', 'notifications', 'index', 'my-data'].includes(route.name),
+          headerStyle: { backgroundColor: colors.background },
+          headerTintColor: colors.text,
+          headerBackTitle: '',
+          headerBackButtonDisplayMode: 'minimal',
+        })}
+      />
       <FloatingTabBar tabs={tabs} />
     </>
   );

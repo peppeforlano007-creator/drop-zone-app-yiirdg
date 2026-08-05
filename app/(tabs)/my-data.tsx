@@ -362,7 +362,10 @@ export default function MyDataScreen() {
       <Stack.Screen
         options={{
           title: 'I Miei Dati',
-          headerBackTitle: 'Indietro',
+          headerBackTitle: '',
+          headerBackButtonDisplayMode: 'minimal',
+          headerStyle: { backgroundColor: colors.background },
+          headerTintColor: colors.text,
         }}
       />
       <SafeAreaView style={styles.safeArea} edges={['bottom']}>

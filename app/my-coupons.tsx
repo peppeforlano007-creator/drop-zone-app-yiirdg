@@ -94,6 +94,7 @@ export default function MyPointsScreen() {
           options={{
             title: 'I Miei Punti',
             headerBackTitle: '',
+            headerBackButtonDisplayMode: 'minimal',
             headerStyle: { backgroundColor: colors.background },
             headerTintColor: colors.text,
           }}
@@ -112,6 +113,7 @@ export default function MyPointsScreen() {
         options={{
           title: 'I Miei Punti',
           headerBackTitle: '',
+          headerBackButtonDisplayMode: 'minimal',
           headerStyle: { backgroundColor: colors.background },
           headerTintColor: colors.text,
         }}

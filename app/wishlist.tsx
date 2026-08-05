@@ -253,6 +253,7 @@ export default function WishlistScreen() {
             headerShown: true,
             title: 'La mia wishlist',
             headerBackTitle: '',
+            headerBackButtonDisplayMode: 'minimal',
             headerStyle: { backgroundColor: colors.background },
             headerTintColor: colors.text,
           }}
@@ -273,6 +274,7 @@ export default function WishlistScreen() {
             headerShown: true,
             title: 'La mia wishlist',
             headerBackTitle: '',
+            headerBackButtonDisplayMode: 'minimal',
             headerStyle: { backgroundColor: colors.background },
             headerTintColor: colors.text,
           }}
@@ -307,6 +309,7 @@ export default function WishlistScreen() {
             headerShown: true,
             title: 'La mia wishlist',
             headerBackTitle: '',
+            headerBackButtonDisplayMode: 'minimal',
             headerStyle: { backgroundColor: colors.background },
             headerTintColor: colors.text,
           }}
@@ -341,6 +344,7 @@ export default function WishlistScreen() {
           headerShown: true,
           title: 'La mia wishlist',
           headerBackTitle: '',
+          headerBackButtonDisplayMode: 'minimal',
           headerStyle: { backgroundColor: colors.background },
           headerTintColor: colors.text,
         }}

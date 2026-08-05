@@ -36,6 +36,7 @@ export default function LoyaltyProgramScreen() {
         options={{
           title: 'Programma Fedeltà',
           headerBackTitle: '',
+          headerBackButtonDisplayMode: 'minimal',
           headerStyle: { backgroundColor: colors.background },
           headerTintColor: colors.text,
         }}
