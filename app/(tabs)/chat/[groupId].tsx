@@ -451,6 +451,29 @@ export default function GroupChatScreen() {
     loadMessages().finally(() => setLoading(false));
   }, [loadMessages]);
 
+  // Verify the group still exists before doing anything else.
+  // If it has been deleted, show an alert and go back immediately.
+  useEffect(() => {
+    if (!groupId) return;
+    console.log('[Chat] Verifying group exists:', groupId);
+
+    supabase
+      .from('chat_groups')
+      .select('id')
+      .eq('id', groupId)
+      .single()
+      .then(({ data, error }) => {
+        if (error || !data) {
+          console.warn('[Chat] Group not found or deleted, going back:', groupId, error?.message);
+          Alert.alert('Gruppo non disponibile', 'Questo gruppo è stato eliminato.', [
+            { text: 'OK', onPress: () => router.back() },
+          ]);
+        } else {
+          console.log('[Chat] Group exists, proceeding:', groupId);
+        }
+      });
+  }, [groupId]);
+
   // Mark group as read when screen opens
   useEffect(() => {
     if (!groupId) return;
@@ -463,39 +486,53 @@ export default function GroupChatScreen() {
     if (!groupId) return;
     console.log('[Chat] Subscribing to realtime messages for group:', groupId);
 
-    const channel = supabase
-      .channel(`chat_messages:group_id=eq.${groupId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'chat_messages',
-          filter: `group_id=eq.${groupId}`,
-        },
-        async (payload) => {
-          console.log('[Chat] Realtime new message received:', payload.new?.id);
-          const newMsg = await buildMessage(payload.new);
-          setMessages((prev) => {
-            const exists = prev.some((m) => m.id === newMsg.id);
-            if (exists) return prev;
-            return [...prev, newMsg];
-          });
-          // User is already in the chat — mark as read immediately
-          if (groupId) {
-            console.log('[Chat] Auto-marking group as read after realtime message:', groupId);
-            markGroupAsRead(groupId);
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+
+    try {
+      channel = supabase
+        .channel(`chat_messages:group_id=eq.${groupId}`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'chat_messages',
+            filter: `group_id=eq.${groupId}`,
+          },
+          async (payload) => {
+            console.log('[Chat] Realtime new message received:', payload.new?.id);
+            const newMsg = await buildMessage(payload.new);
+            setMessages((prev) => {
+              const exists = prev.some((m) => m.id === newMsg.id);
+              if (exists) return prev;
+              return [...prev, newMsg];
+            });
+            // User is already in the chat — mark as read immediately
+            if (groupId) {
+              console.log('[Chat] Auto-marking group as read after realtime message:', groupId);
+              markGroupAsRead(groupId);
+            }
+            setTimeout(() => {
+              flatListRef.current?.scrollToEnd({ animated: true });
+            }, 100);
           }
-          setTimeout(() => {
-            flatListRef.current?.scrollToEnd({ animated: true });
-          }, 100);
-        }
-      )
-      .subscribe();
+        )
+        .subscribe((status, err) => {
+          if (err) {
+            console.warn('[Chat] Realtime subscribe error (non-fatal):', err);
+          } else {
+            console.log('[Chat] Realtime subscription status:', status);
+          }
+        });
+    } catch (err) {
+      console.warn('[Chat] Failed to set up realtime subscription (non-fatal):', err);
+    }
 
     return () => {
       console.log('[Chat] Unsubscribing from realtime channel');
-      supabase.removeChannel(channel);
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
     };
   }, [groupId, buildMessage, markGroupAsRead]);
 

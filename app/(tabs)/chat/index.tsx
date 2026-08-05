@@ -152,11 +152,11 @@ export default function ChatIndexScreen() {
       // Querying chat_groups as the primary table bypasses the self-referencing
       // subquery in the chat_group_members policy (code 42P17).
       const { data: rawGroups, error: groupErr } = await supabase
-        .from('chat_groups')
-        .select('id, name, description, created_by, created_at, group_type, chat_group_members!inner(user_id, status)')
-        .eq('chat_group_members.user_id', user.id)
-        .eq('chat_group_members.status', 'active')
-        .order('created_at', { ascending: false });
+        .from('chat_group_members')
+        .select('chat_groups!inner(id, name, description, created_by, created_at, group_type, status)')
+        .eq('user_id', user.id)
+        .eq('status', 'active')
+        .order('created_at', { ascending: false, referencedTable: 'chat_groups' });
 
       if (groupErr) {
         console.error('[Chat] Error loading groups:', groupErr);
@@ -169,10 +169,17 @@ export default function ChatIndexScreen() {
         return;
       }
 
-      console.log('[Chat] Found groups:', rawGroups.length);
+      // Unwrap the nested chat_groups object and filter out any null entries
+      // (null means the group row was deleted — inner join should prevent this,
+      // but we guard defensively).
+      const validGroups = rawGroups
+        .map((row: any) => row.chat_groups)
+        .filter(Boolean);
+
+      console.log('[Chat] Found groups:', validGroups.length);
 
       const enriched: ChatGroup[] = await Promise.all(
-        rawGroups.map(async (g: any) => {
+        validGroups.map(async (g: any) => {
           // Get member count via chat_groups join to avoid recursive policy
           const { data: memberRows } = await supabase
             .from('chat_groups')
