@@ -252,6 +252,7 @@ export default function DropsScreen() {
         .select(`
           id,
           name,
+          description,
           current_discount,
           current_value,
           target_value,

@@ -21,6 +21,7 @@ interface DropCardProps {
     start_time: string;
     end_time: string;
     status: string;
+    description?: string | null;
     final_discount_percentage?: number;
     pickup_points: {
       name: string;
@@ -251,7 +252,10 @@ export default function DropCard({ drop, deliveryMinDays, deliveryMaxDays }: Dro
       ) : null}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <Text style={styles.dropName} numberOfLines={1}>{supplierListName}</Text>
+          <Text style={styles.dropName} numberOfLines={1}>{drop.name}</Text>
+          {drop.description ? (
+            <Text style={styles.dropDescription} numberOfLines={2}>{drop.description}</Text>
+          ) : null}
           <View style={styles.locationRow}>
             <IconSymbol 
               ios_icon_name="mappin.circle.fill" 
@@ -553,7 +557,14 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     color: colors.text,
-    marginBottom: 6,
+    marginBottom: 2,
+    fontFamily: 'System',
+  },
+  dropDescription: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    fontStyle: 'italic',
+    marginBottom: 4,
     fontFamily: 'System',
   },
   locationRow: {
