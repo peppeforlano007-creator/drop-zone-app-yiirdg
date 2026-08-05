@@ -263,7 +263,7 @@ export default function DropCard({ drop, deliveryMinDays, deliveryMaxDays }: Dro
               size={16} 
               color={isCompleted ? colors.textSecondary : colors.primary} 
             />
-            <Text style={styles.locationText}>{cityName}</Text>
+            <Text style={styles.locationText}>Ritiro presso store: {cityName}</Text>
           </View>
         </View>
         <View style={timerBadgeStyle}>
