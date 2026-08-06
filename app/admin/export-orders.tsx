@@ -417,8 +417,9 @@ export default function ExportOrdersScreen() {
       console.log('[ExportOrders] Loading products for supplier_list_id:', drop.supplier_list_id);
       const { data: productsData, error: productsError } = await supabase
         .from('products')
-        .select('id, name, lot, stock, available_sizes, available_colors')
-        .eq('supplier_list_id', drop.supplier_list_id);
+        .select('id, name, lot, stock, available_sizes, available_colors, sku, description, image_url, additional_images, original_price, condition, category, brand')
+        .eq('supplier_list_id', drop.supplier_list_id)
+        .order('created_at', { ascending: true });
 
       if (productsError) {
         Alert.alert('Errore', `Impossibile caricare i prodotti: ${productsError.message}`);
@@ -471,10 +472,18 @@ export default function ExportOrdersScreen() {
             const stockIniziale = Number(product.stock) || 0;
             rows.push({
               '#': rowIndex++,
-              'Prodotto': product.name,
-              'Lotto': product.lot || 'N/A',
-              'Taglia': size,
-              'Colore': color,
+              'SKU': product.sku || '',
+              'Lotto': product.lot || '',
+              'Nome': product.name,
+              'Descrizione': product.description || '',
+              'Immagine URL': product.image_url || '',
+              'Immagini Aggiuntive': Array.isArray(product.additional_images) ? product.additional_images.join(', ') : (product.additional_images || ''),
+              'Prezzo': Number(product.original_price) || 0,
+              'Taglia': size === 'N/A' ? '' : size,
+              'Colore': color === 'N/A' ? '' : color,
+              'Condizione': product.condition || '',
+              'Categoria': product.category || '',
+              'Brand': product.brand || '',
               'Stock Iniziale': stockIniziale,
               'Venduto': sold,
               'Stock Aggiornato': stockIniziale - sold,
