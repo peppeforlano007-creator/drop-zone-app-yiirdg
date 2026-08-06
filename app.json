@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "RDN STREET STOCK MARKET",
-    "slug": "rdn-street-stock-market",
+    "slug": "drop-zone",
     "version": "3.1.0",
     "orientation": "portrait",
     "icon": "./assets/images/rdnstreetstockmarket-icon.png",
