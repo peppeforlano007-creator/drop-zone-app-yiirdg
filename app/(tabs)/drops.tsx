@@ -231,6 +231,15 @@ export default function DropsScreen() {
       console.log('=== LOADING DROPS ===');
       console.log('Timestamp:', new Date().toISOString());
 
+      // Recupera il pickup_point_id dell'utente
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('pickup_point_id')
+        .eq('user_id', user?.id)
+        .single();
+
+      const userPickupPointId = profileData?.pickup_point_id;
+
       // Fetch active and approved drops
       let query = supabase
         .from('drops')
@@ -267,7 +276,11 @@ export default function DropsScreen() {
         .or('archived.is.null,archived.eq.false')
         .order('created_at', { ascending: false });
 
-      console.log('[drops] loading all drops from all cities');
+      if (userPickupPointId) {
+        query = query.eq('pickup_point_id', userPickupPointId);
+      }
+
+      console.log('[drops] loading drops for pickup point:', userPickupPointId || 'none (showing all)');
       const { data, error } = await query;
 
       console.log('[drops] raw statuses returned:', data?.map(d => ({ name: d.name, status: d.status })));
@@ -287,13 +300,28 @@ export default function DropsScreen() {
         })));
       }
 
+      // Filtra drop con stock disponibile
+      const supplierListIds = (data || []).map(d => d.supplier_list_id);
+      let filtered = data || [];
+      if (supplierListIds.length > 0) {
+        const { data: productsWithStock } = await supabase
+          .from('products')
+          .select('supplier_list_id')
+          .in('supplier_list_id', supplierListIds)
+          .gt('stock', 0);
+
+        const listsWithStock = new Set((productsWithStock || []).map(p => p.supplier_list_id));
+        filtered = (data || []).filter(d => listsWithStock.has(d.supplier_list_id));
+        console.log('[drops] drops after stock filter:', filtered.length, '/', (data || []).length);
+      }
+
       // Sort: active first, then approved
       const statusOrder: Record<string, number> = {
         active: 0,
         approved: 1,
       };
 
-      const sorted = (data || []).slice().sort((a, b) => {
+      const sorted = filtered.slice().sort((a, b) => {
         const orderA = statusOrder[a.status] ?? 50;
         const orderB = statusOrder[b.status] ?? 50;
         return orderA - orderB;
