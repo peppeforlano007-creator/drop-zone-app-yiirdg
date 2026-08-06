@@ -73,6 +73,7 @@ export default function ExportOrdersScreen() {
   const [pickupPoints, setPickupPoints] = useState<Map<string, PickupPointData>>(new Map());
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState<string | null>(null);
+  const [exportingStock, setExportingStock] = useState<string | null>(null);
 
   const loadCompletedDrops = useCallback(async () => {
     try {
@@ -406,8 +407,130 @@ export default function ExportOrdersScreen() {
     }
   };
 
+  const exportUpdatedStock = async (drop: DropData) => {
+    try {
+      setExportingStock(drop.id);
+      console.log('[ExportOrders] exportUpdatedStock pressed for drop:', drop.id, drop.name);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+      // 1. Carica tutti i prodotti della lista fornitore
+      console.log('[ExportOrders] Loading products for supplier_list_id:', drop.supplier_list_id);
+      const { data: productsData, error: productsError } = await supabase
+        .from('products')
+        .select('id, name, lot, stock, available_sizes, available_colors')
+        .eq('supplier_list_id', drop.supplier_list_id);
+
+      if (productsError) {
+        Alert.alert('Errore', `Impossibile caricare i prodotti: ${productsError.message}`);
+        return;
+      }
+      if (!productsData || productsData.length === 0) {
+        Alert.alert('Nessun Prodotto', 'Non ci sono prodotti nella lista fornitore di questo drop');
+        return;
+      }
+
+      console.log('[ExportOrders] Products loaded:', productsData.length);
+
+      // 2. Carica le prenotazioni confermate/completate del drop
+      console.log('[ExportOrders] Loading bookings for drop:', drop.id);
+      const { data: bookings, error: bookingsError } = await supabase
+        .from('bookings')
+        .select('product_id, selected_size, selected_color')
+        .eq('drop_id', drop.id)
+        .in('status', ['confirmed', 'completed']);
+
+      if (bookingsError) {
+        Alert.alert('Errore', `Impossibile caricare le prenotazioni: ${bookingsError.message}`);
+        return;
+      }
+
+      console.log('[ExportOrders] Bookings loaded:', bookings?.length ?? 0);
+
+      // 3. Aggrega vendite per product_id|size|color
+      const soldMap = new Map<string, number>();
+      (bookings || []).forEach((b: any) => {
+        const key = `${b.product_id}|${b.selected_size || 'N/A'}|${b.selected_color || 'N/A'}`;
+        soldMap.set(key, (soldMap.get(key) || 0) + 1);
+      });
+
+      // 4. Costruisci righe Excel
+      const rows: any[] = [];
+      let rowIndex = 1;
+      productsData.forEach((product: any) => {
+        const sizes: string[] = Array.isArray(product.available_sizes) && product.available_sizes.length > 0
+          ? product.available_sizes
+          : ['N/A'];
+        const colors: string[] = Array.isArray(product.available_colors) && product.available_colors.length > 0
+          ? product.available_colors
+          : ['N/A'];
+
+        sizes.forEach((size) => {
+          colors.forEach((color) => {
+            const key = `${product.id}|${size}|${color}`;
+            const sold = soldMap.get(key) || 0;
+            const stockIniziale = Number(product.stock) || 0;
+            rows.push({
+              '#': rowIndex++,
+              'Prodotto': product.name,
+              'Lotto': product.lot || 'N/A',
+              'Taglia': size,
+              'Colore': color,
+              'Stock Iniziale': stockIniziale,
+              'Venduto': sold,
+              'Stock Aggiornato': stockIniziale - sold,
+            });
+          });
+        });
+      });
+
+      console.log('[ExportOrders] Built stock rows:', rows.length);
+
+      // 5. Genera Excel
+      const worksheet = utils.json_to_sheet(rows);
+      const workbook = utils.book_new();
+      utils.book_append_sheet(workbook, worksheet, 'Carico Aggiornato');
+
+      const wbout = write(workbook, { type: 'base64', bookType: 'xlsx' });
+      const fileName = `carico_aggiornato_${drop.name.replace(/[^a-z0-9]/gi, '_')}_${Date.now()}.xlsx`;
+      const fileUri = `${FileSystem.documentDirectory}${fileName}`;
+
+      await FileSystem.writeAsStringAsync(fileUri, wbout, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+
+      console.log('[ExportOrders] Stock file created:', fileUri);
+
+      if (Platform.OS === 'web') {
+        const link = document.createElement('a');
+        link.href = `data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,${wbout}`;
+        link.download = fileName;
+        link.click();
+        Alert.alert('Successo', 'File scaricato con successo!');
+      } else {
+        const canShare = await Sharing.isAvailableAsync();
+        if (canShare) {
+          await Sharing.shareAsync(fileUri, {
+            mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            dialogTitle: 'Esporta Carico Aggiornato',
+            UTI: 'com.microsoft.excel.xlsx',
+          });
+        } else {
+          Alert.alert('Successo', `File salvato in: ${fileUri}`);
+        }
+      }
+
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (error) {
+      console.error('Error exporting updated stock:', error);
+      Alert.alert('Errore', 'Impossibile esportare il carico aggiornato');
+    } finally {
+      setExportingStock(null);
+    }
+  };
+
   const renderDrop = (drop: DropData) => {
     const isExporting = exporting === drop.id;
+    const isExportingStock = exportingStock === drop.id;
     const supplierList = supplierLists.get(drop.supplier_list_id);
     const supplierProfile = supplierList ? profiles.get(supplierList.supplier_id) : null;
     const pickupPoint = pickupPoints.get(drop.pickup_point_id);
@@ -501,6 +624,32 @@ export default function ExportOrdersScreen() {
                 color="#FFF" 
               />
               <Text style={styles.exportButtonText}>Esporta Ordini Excel</Text>
+            </>
+          )}
+        </Pressable>
+
+        <Pressable
+          style={[styles.exportStockButton, isExportingStock && styles.exportButtonDisabled]}
+          onPress={() => {
+            console.log('[ExportOrders] Export stock button pressed for drop:', drop.id, drop.name);
+            exportUpdatedStock(drop);
+          }}
+          disabled={isExportingStock}
+        >
+          {isExportingStock ? (
+            <>
+              <ActivityIndicator size="small" color="#FFF" />
+              <Text style={styles.exportStockButtonText}>Esportazione...</Text>
+            </>
+          ) : (
+            <>
+              <IconSymbol
+                ios_icon_name="arrow.down.doc.fill"
+                android_material_icon_name="file-download"
+                size={20}
+                color="#FFF"
+              />
+              <Text style={styles.exportStockButtonText}>Esporta Carico Aggiornato</Text>
             </>
           )}
         </Pressable>
@@ -645,6 +794,21 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   exportButtonText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#FFF',
+  },
+  exportStockButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.success,
+    paddingVertical: 14,
+    borderRadius: 8,
+    gap: 8,
+    marginTop: 10,
+  },
+  exportStockButtonText: {
     fontSize: 15,
     fontWeight: '700',
     color: '#FFF',
