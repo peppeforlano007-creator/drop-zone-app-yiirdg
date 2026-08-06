@@ -1501,7 +1501,7 @@ const styles = StyleSheet.create({
   bottomLeftOverlay: {
     position: 'absolute',
     left: 16,
-    bottom: 8,
+    bottom: 6,
     zIndex: 50,
   },
   bottomLeftOverlayWithBanner: {
