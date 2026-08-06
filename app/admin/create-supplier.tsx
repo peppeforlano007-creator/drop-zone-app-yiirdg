@@ -56,29 +56,37 @@ export default function CreateSupplierScreen() {
 
     setLoading(true);
     try {
-      const supplierId = generateUUID();
-      console.log('[CreateSupplier] Inserting supplier profile into DB, id:', supplierId);
-
-      const { error } = await supabase
-        .from('profiles')
-        .insert({
-          user_id: supplierId,
-          email: email.trim().toLowerCase(),
-          full_name: fullName.trim(),
-          phone: phone.trim(),
-          role: 'supplier',
-          points_total: 0,
-          points_balance: 0,
-          loyalty_level: 'bronze',
-        });
-
-      if (error) {
-        console.error('[CreateSupplier] Error creating supplier profile:', error);
-        Alert.alert('Errore', `Impossibile creare il fornitore: ${error.message}`);
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        Alert.alert('Errore', 'Sessione scaduta. Effettua di nuovo il login.');
         return;
       }
 
-      console.log('[CreateSupplier] Supplier created successfully:', fullName);
+      console.log('[CreateSupplier] Calling Edge Function create-supplier for:', email.trim().toLowerCase());
+      const response = await fetch(
+        'https://sippdylyuzejudmzbwdn.supabase.co/functions/v1/create-supplier',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({
+            fullName: fullName.trim(),
+            email: email.trim().toLowerCase(),
+            phone: phone.trim(),
+          }),
+        }
+      );
+
+      const result = await response.json();
+      console.log('[CreateSupplier] Edge Function response:', response.status, result);
+
+      if (!response.ok) {
+        Alert.alert('Errore', `Impossibile creare il fornitore: ${result.error}`);
+        return;
+      }
+
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert(
         'Fornitore Creato!',
@@ -86,7 +94,7 @@ export default function CreateSupplierScreen() {
         [{ text: 'OK', onPress: () => router.back() }]
       );
     } catch (error) {
-      console.error('[CreateSupplier] Exception creating supplier:', error);
+      console.error('[CreateSupplier] Exception:', error);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       Alert.alert('Errore', 'Si è verificato un errore imprevisto. Riprova.');
     } finally {
