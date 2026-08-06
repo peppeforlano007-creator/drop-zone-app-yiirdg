@@ -1319,15 +1319,11 @@ export default function DropDetailsScreen() {
             <View style={styles.infoChip} pointerEvents="none">
               <MaterialCommunityIcons name="tag" size={12} color="#FFF" />
               <Text style={styles.infoChipText} numberOfLines={1}>
-                {drop.name}
+                {listName}
               </Text>
             </View>
           </View>
-          {drop.description ? (
-            <Text style={styles.dropDescriptionText} numberOfLines={2}>
-              {drop.description}
-            </Text>
-          ) : null}
+
         </SafeAreaView>
       </View>
 
@@ -1505,11 +1501,11 @@ const styles = StyleSheet.create({
   bottomLeftOverlay: {
     position: 'absolute',
     left: 16,
-    bottom: 100,
+    bottom: 8,
     zIndex: 50,
   },
   bottomLeftOverlayWithBanner: {
-    bottom: 160,
+    bottom: 64,
   },
   bottomLeftSafeArea: {
     backgroundColor: 'transparent',
@@ -1720,11 +1716,5 @@ const styles = StyleSheet.create({
     fontSize: 18,
     letterSpacing: 2,
   },
-  dropDescriptionText: {
-    color: 'rgba(255,255,255,0.85)',
-    fontSize: 12,
-    marginTop: 4,
-    maxWidth: 220,
-    lineHeight: 16,
-  },
+
 });
