@@ -221,20 +221,32 @@ export default function DropDetailsScreen() {
         return;
       }
 
+      // For non-active statuses (approved, pending_approval, inactive) stock may not
+      // be set yet — show ALL products so the list is never empty.
+      const showAllProducts = ['approved', 'pending_approval', 'inactive'].includes(dropData.status);
+      console.log('📦 Drop status:', dropData.status, '| showAllProducts:', showAllProducts);
+
       // OPTIMIZED: Load products with larger batch size
-      const { data: productsData, error: productsError } = await supabase
+      let productsQuery = supabase
         .from('products')
         .select('*')
         .eq('supplier_list_id', dropData.supplier_list_id)
-        .gt('stock', 0)
         .order('created_at', { ascending: false })
         .limit(1000);
+
+      if (!showAllProducts) {
+        productsQuery = productsQuery.gt('stock', 0);
+      }
+
+      const { data: productsData, error: productsError } = await productsQuery;
 
       if (productsError) {
         console.error('❌ Error loading products:', productsError);
       } else {
-        const availableProducts = (productsData || []).filter(p => p.stock > 0);
-        console.log('✅ Products loaded:', availableProducts.length, 'with stock > 0');
+        const availableProducts = showAllProducts
+          ? (productsData || [])
+          : (productsData || []).filter(p => p.stock > 0);
+        console.log('✅ Products loaded:', availableProducts.length, showAllProducts ? '(all, stock filter skipped)' : 'with stock > 0');
         
         // OPTIMIZED: Load variants with larger batch size and parallel processing
         if (availableProducts.length > 0) {
