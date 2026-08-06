@@ -127,61 +127,50 @@ export default function DropCard({ drop, deliveryMinDays, deliveryMaxDays }: Dro
     return () => clearInterval(interval);
   }, [drop.end_time, drop.status]);
 
-  const handlePress = async () => {
+  const handlePress = () => {
     console.log('[DropCard] pressed drop:', drop.id, 'name:', drop.name, 'status:', drop.status);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-    // Only intercept active drops from a different city
-    if (drop.status === 'active' && user && drop.pickup_point_id) {
-      const userPickupPointId = user.pickupPointId;
-      if (userPickupPointId && userPickupPointId !== drop.pickup_point_id) {
-        const dropCity = drop.pickup_points?.city ?? 'questa città';
-        console.log('[DropCard] Drop is from a different city:', dropCity, '— showing switch alert');
-        Alert.alert(
-          'Cambia Punto Di Ritiro',
-          `Questo drop è disponibile a ${dropCity}. Vuoi cambiare il tuo punto di ritiro a ${dropCity} e unirti al gruppo della città?`,
-          [
-            { text: 'Annulla', style: 'cancel' },
-            {
-              text: 'Cambia e Apri',
-              style: 'default',
-              onPress: async () => {
-                try {
-                  console.log('[DropCard] Switching pickup point to:', drop.pickup_point_id, 'city:', dropCity);
-                  const { error } = await supabase
-                    .from('profiles')
-                    .update({ pickup_point_id: drop.pickup_point_id })
-                    .eq('user_id', user.id);
-
+    // If user has a pickup point set and this drop belongs to a different one, ask to switch
+    if (user && drop.pickup_point_id && user.pickupPointId && user.pickupPointId !== drop.pickup_point_id) {
+      const dropCity = drop.pickup_points?.city ?? 'questa città';
+      console.log('[DropCard] Drop is from a different city:', dropCity, '— showing switch alert');
+      Alert.alert(
+        'Cambia Punto Di Ritiro',
+        `Questo drop è disponibile a ${dropCity}. Vuoi cambiare il tuo punto di ritiro a ${dropCity} e unirti al gruppo della città?`,
+        [
+          { text: 'Annulla', style: 'cancel' },
+          {
+            text: 'Cambia e Apri',
+            style: 'default',
+            onPress: () => {
+              supabase
+                .from('profiles')
+                .update({ pickup_point_id: drop.pickup_point_id })
+                .eq('user_id', user.id)
+                .then(({ error }) => {
                   if (error) {
                     console.error('[DropCard] Error switching pickup point:', error);
                     Alert.alert('Errore', 'Impossibile cambiare il punto di ritiro');
                     return;
                   }
-
                   updatePickupPoint(drop.pickup_point_id!, dropCity);
                   console.log('[DropCard] Pickup point switched to:', dropCity);
-
-                  router.push({
-                    pathname: '/drop-details',
-                    params: { dropId: drop.id },
-                  });
-                } catch (err) {
+                  router.push({ pathname: '/drop-details', params: { dropId: drop.id } });
+                })
+                .catch((err) => {
                   console.error('[DropCard] Exception switching pickup point:', err);
                   Alert.alert('Errore', 'Errore imprevisto');
-                }
-              },
+                });
             },
-          ]
-        );
-        return;
-      }
+          },
+        ]
+      );
+      return;
     }
 
-    router.push({
-      pathname: '/drop-details',
-      params: { dropId: drop.id },
-    });
+    // Same city or no pickup point set — navigate directly
+    router.push({ pathname: '/drop-details', params: { dropId: drop.id } });
   };
 
   const handleShare = (e: any) => {
