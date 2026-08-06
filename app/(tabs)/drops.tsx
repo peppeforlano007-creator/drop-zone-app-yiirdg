@@ -37,6 +37,7 @@ interface Drop {
   end_time: string;
   status: string;
   supplier_list_id: string;
+  pickup_point_id: string;
 
   pickup_points: {
     name: string;
@@ -202,7 +203,6 @@ export default function DropsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const { user } = useAuth();
-  const [userPickupPointId, setUserPickupPointId] = useState<string | null>(null);
   const unreadCount = useUnreadNotifications();
 
   // Show loyalty onboarding only once
@@ -230,21 +230,6 @@ export default function DropsScreen() {
     try {
       console.log('=== LOADING DROPS ===');
       console.log('Timestamp:', new Date().toISOString());
-
-      // Get user's pickup point
-      let profile: { pickup_point_id: string | null } | null = null;
-      if (user) {
-        const { data: profileData } = await supabase
-          .from('profiles')
-          .select('pickup_point_id')
-          .eq('user_id', user.id)
-          .single();
-
-        profile = profileData;
-        if (profile?.pickup_point_id) {
-          setUserPickupPointId(profile.pickup_point_id);
-        }
-      }
 
       // Fetch active and approved drops
       let query = supabase
@@ -282,14 +267,7 @@ export default function DropsScreen() {
         .or('archived.is.null,archived.eq.false')
         .order('created_at', { ascending: false });
 
-      const pickupId = profile?.pickup_point_id ?? null;
-      if (pickupId) {
-        query = query.eq('pickup_point_id', pickupId);
-        console.log('[drops] filtering by pickup_point_id:', pickupId);
-      } else {
-        console.log('[drops] no pickup point in profile, showing all drops');
-      }
-
+      console.log('[drops] loading all drops from all cities');
       const { data, error } = await query;
 
       console.log('[drops] raw statuses returned:', data?.map(d => ({ name: d.name, status: d.status })));
@@ -328,7 +306,7 @@ export default function DropsScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [user]);
+  }, []);
 
   const loadDropsRef = useRef<() => void>(loadDrops);
   useEffect(() => {
@@ -529,9 +507,7 @@ export default function DropsScreen() {
           <IconSymbol ios_icon_name="tray" android_material_icon_name="inbox" size={64} color={colors.textSecondary} />
           <Text style={styles.emptyTitle}>Nessun drop attivo</Text>
           <Text style={styles.emptyText}>
-            {userPickupPointId
-              ? 'Non ci sono drop disponibili per il tuo punto di ritiro al momento. Torna a controllare presto!'
-              : 'I drop appariranno qui quando abbastanza persone della tua città sono interessate ad una lista di articoli. Gioca nella sezione Punti e aumenta la probabilità di attivare un drop nella tua città.'}
+            Non ci sono drop disponibili al momento. Torna a controllare presto!
           </Text>
         </View>
       ) : (
