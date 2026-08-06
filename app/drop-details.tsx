@@ -1505,11 +1505,11 @@ const styles = StyleSheet.create({
   bottomLeftOverlay: {
     position: 'absolute',
     left: 16,
-    bottom: 24,
+    bottom: 100,
     zIndex: 50,
   },
   bottomLeftOverlayWithBanner: {
-    bottom: 80,
+    bottom: 160,
   },
   bottomLeftSafeArea: {
     backgroundColor: 'transparent',
