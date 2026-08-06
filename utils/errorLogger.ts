@@ -4,8 +4,6 @@
 import { Platform } from "react-native";
 import Constants from "expo-constants";
 
-const _nativeLog = console.log.bind(console);
-
 // Declare __DEV__ global (React Native global for development mode detection)
 declare const __DEV__: boolean;
 
@@ -118,7 +116,9 @@ const flushLogs = async () => {
         if (!fetchErrorLogged) {
           fetchErrorLogged = true;
           // Use a different method to avoid recursion - write directly without going through our intercept
-          _nativeLog('[Newly] Fetch error (will not repeat):', e.message || e);
+          if (typeof window !== 'undefined' && window.console) {
+            (window.console as any).__proto__.log.call(console, '[Newly] Fetch error (will not repeat):', e.message || e);
+          }
         }
       });
     } catch (e) {
