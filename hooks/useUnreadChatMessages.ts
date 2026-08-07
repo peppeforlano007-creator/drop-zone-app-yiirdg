@@ -19,11 +19,13 @@ export function useUnreadChatMessages(userId: string | undefined) {
     console.log('[useUnreadChatMessages] Computing unread counts for user:', userId);
 
     try {
-      // Get all groups the user belongs to
+      // Get all groups the user belongs to (active membership, non-deleted groups only)
       const { data: memberRows, error: memberErr } = await supabase
         .from('chat_groups')
         .select('id, chat_group_members!inner(user_id)')
-        .eq('chat_group_members.user_id', userId);
+        .eq('chat_group_members.user_id', userId)
+        .eq('chat_group_members.status', 'active')
+        .is('deleted_at', null);
 
       if (memberErr) {
         console.error('[useUnreadChatMessages] Error fetching groups:', memberErr);
