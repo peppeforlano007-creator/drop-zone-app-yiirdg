@@ -147,10 +147,9 @@ export default function UpdatePasswordScreen() {
             {
               text: 'OK',
               onPress: () => {
-                // Sign out to force re-login with new password
-                supabase.auth.signOut().then(() => {
-                  router.replace('/login');
-                });
+                // Sign out — AuthContext's onAuthStateChange handles navigation to /login
+                console.log('[UpdatePassword] OK pressed: signing out');
+                supabase.auth.signOut();
               },
             },
           ]
