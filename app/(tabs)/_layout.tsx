@@ -1,7 +1,7 @@
 
 import React, { useEffect } from 'react';
 import { Platform, View, Text, Pressable, StyleSheet } from 'react-native';
-import { Stack, router } from 'expo-router';
+import { Stack, router, usePathname } from 'expo-router';
 import FloatingTabBar, { TabBarItem } from '@/components/FloatingTabBar';
 import { colors } from '@/styles/commonStyles';
 import { useAuth } from '@/contexts/AuthContext';
@@ -85,9 +85,15 @@ const headerStyles = StyleSheet.create({
   },
 });
 
+const TAB_ROUTES = ['/drops', '/payment-methods', '/chat', '/profile', '/notifications'];
+
 function TabLayoutInner() {
   const { user, isAuthenticated } = useAuth();
   const { totalUnread } = useUnreadChat();
+  const pathname = usePathname();
+  const isTabRoute = TAB_ROUTES.some(
+    route => pathname === route || pathname.endsWith(route)
+  );
 
   useEffect(() => {
     if (!isAuthenticated || user?.role !== 'consumer') {
@@ -127,7 +133,7 @@ function TabLayoutInner() {
     return (
       <>
         <Stack screenOptions={{ headerShown: false }} />
-        <FloatingTabBar tabs={tabs} />
+        {isTabRoute && <FloatingTabBar tabs={tabs} />}
       </>
     );
   }
@@ -142,7 +148,7 @@ function TabLayoutInner() {
           headerRight: route.name === 'profile' ? profileHeaderRight : undefined,
         })}
       />
-      <FloatingTabBar tabs={tabs} />
+      {isTabRoute && <FloatingTabBar tabs={tabs} />}
     </>
   );
 }
