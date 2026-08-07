@@ -656,7 +656,7 @@ export default function GroupChatScreen() {
       </View>
 
       {Platform.OS === 'ios' ? (
-        <View style={styles.flex}>
+        <KeyboardAvoidingView style={styles.flex} behavior="padding" keyboardVerticalOffset={60}>
           {loading ? (
             <View style={styles.centered}>
               <ActivityIndicator size="large" color={colors.primary} />
@@ -673,9 +673,8 @@ export default function GroupChatScreen() {
                   isDark={isDark}
                 />
               )}
-              contentContainerStyle={[styles.messagesList, { paddingBottom: insets.bottom + 200 }]}
+              contentContainerStyle={[styles.messagesList, { paddingBottom: 16 }]}
               onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: false })}
-              automaticallyAdjustKeyboardInsets={true}
               keyboardDismissMode="interactive"
               ListEmptyComponent={
                 <View style={styles.emptyMessages}>
@@ -689,7 +688,7 @@ export default function GroupChatScreen() {
           )}
 
           {/* Input bar */}
-          <View style={[styles.inputBar, { backgroundColor: inputBarBg, borderTopColor: inputBorder, paddingBottom: 12, marginBottom: insets.bottom + 110 }]}>
+          <View style={[styles.inputBar, { backgroundColor: inputBarBg, borderTopColor: inputBorder, paddingBottom: insets.bottom + 8, marginBottom: 0 }]}>
             <TouchableOpacity
               style={[styles.dropShareButton, { borderColor: inputBorder }]}
               onPress={() => {
@@ -722,7 +721,7 @@ export default function GroupChatScreen() {
               )}
             </TouchableOpacity>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       ) : (
         <KeyboardAvoidingView style={styles.flex} behavior="height" keyboardVerticalOffset={0}>
           {loading ? (
