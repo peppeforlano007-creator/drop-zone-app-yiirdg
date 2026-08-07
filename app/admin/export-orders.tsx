@@ -52,6 +52,13 @@ interface OrderData {
   product_name: string;
   product_id: string;
   lot?: string | null;
+  sku?: string;
+  description?: string;
+  image_url?: string;
+  additional_images?: string;
+  condition?: string;
+  category?: string;
+  brand?: string;
   selected_size?: string;
   selected_color?: string;
   original_price: number;
@@ -233,9 +240,10 @@ export default function ExportOrdersScreen() {
 
       // Get product details
       const productIds = [...new Set(bookings.map(b => b.product_id))];
+      console.log('[ExportOrders] Loading product details for', productIds.length, 'products');
       const { data: productsData, error: productsError } = await supabase
         .from('products')
-        .select('id, name, lot, available_sizes, available_colors')
+        .select('id, name, lot, available_sizes, available_colors, sku, description, image_url, additional_images, original_price, condition, category, brand')
         .in('id', productIds);
 
       if (productsError) {
@@ -294,6 +302,13 @@ export default function ExportOrdersScreen() {
           product_id: booking.product_id,
           product_name: product?.name || 'Prodotto Sconosciuto',
           lot: product?.lot || null,
+          sku: product?.sku || '',
+          description: product?.description || '',
+          image_url: product?.image_url || '',
+          additional_images: Array.isArray(product?.additional_images) ? product.additional_images.join(', ') : (product?.additional_images || ''),
+          condition: product?.condition || '',
+          category: product?.category || '',
+          brand: product?.brand || '',
           quantity: qty,
           selected_size: booking.selected_size || 'N/A',
           selected_color: booking.selected_color || 'N/A',
@@ -316,11 +331,19 @@ export default function ExportOrdersScreen() {
       const worksheet = utils.json_to_sheet(
         ordersArray.map((order, index) => ({
           '#': index + 1,
-          'Prodotto': order.product_name,
+          'SKU': order.sku,
           'Lotto': order.lot || 'N/A',
-          'Quantità': order.quantity,
+          'Nome Prodotto': order.product_name,
+          'Descrizione': order.description,
+          'Immagine URL': order.image_url,
+          'Immagini Aggiuntive': order.additional_images,
+          'Prezzo Originale': `€${Number(order.original_price).toFixed(2)}`,
           'Taglia': order.selected_size,
           'Colore': order.selected_color,
+          'Condizione': order.condition,
+          'Categoria': order.category,
+          'Brand': order.brand,
+          'Quantità': order.quantity,
           'Prezzo Unitario': `€${Number(order.unit_price).toFixed(2)}`,
           'Totale Riga': `€${Number(order.final_price).toFixed(2)}`,
           'Prezzo Lordo': `€${Number(order.original_price).toFixed(2)}`,
