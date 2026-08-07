@@ -30,7 +30,7 @@ function ProfileHeaderRight() {
 
   return (
     <View style={headerStyles.row}>
-      <Pressable onPress={handleBellPress} style={headerStyles.bellWrapper}>
+      <Pressable onPress={handleBellPress} style={headerStyles.bellWrapper} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
         <IconSymbol
           ios_icon_name="bell.fill"
           android_material_icon_name="notifications"
@@ -43,7 +43,7 @@ function ProfileHeaderRight() {
           </View>
         )}
       </Pressable>
-      <Pressable onPress={handleLogout} style={headerStyles.logoutWrapper}>
+      <Pressable onPress={handleLogout} style={headerStyles.logoutWrapper} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
         <IconSymbol
           ios_icon_name="rectangle.portrait.and.arrow.right"
           android_material_icon_name="logout"
