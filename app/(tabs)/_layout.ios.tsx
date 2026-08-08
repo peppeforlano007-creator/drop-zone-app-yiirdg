@@ -1,6 +1,6 @@
 
 import React, { useEffect } from 'react';
-import { Stack, router } from 'expo-router';
+import { Stack, router, usePathname } from 'expo-router';
 import FloatingTabBar, { TabBarItem } from '@/components/FloatingTabBar';
 import { useAuth } from '@/contexts/AuthContext';
 import { UnreadChatProvider, useUnreadChat } from '@/contexts/UnreadChatContext';
@@ -9,6 +9,12 @@ import { colors } from '@/styles/commonStyles';
 function TabLayoutInner() {
   const { user, isAuthenticated } = useAuth();
   const { totalUnread } = useUnreadChat();
+  const pathname = usePathname();
+
+  const TAB_ROUTES = ['/drops', '/payment-methods', '/chat', '/profile', '/notifications'];
+  const isTabRoute = TAB_ROUTES.some(
+    route => pathname === route || pathname.endsWith(route)
+  );
 
   useEffect(() => {
     if (!isAuthenticated || user?.role !== 'consumer') {
@@ -35,7 +41,7 @@ function TabLayoutInner() {
           headerBackButtonDisplayMode: 'minimal',
         })}
       />
-      <FloatingTabBar tabs={tabs} />
+      {isTabRoute && <FloatingTabBar tabs={tabs} />}
     </>
   );
 }
