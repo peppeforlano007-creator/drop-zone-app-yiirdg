@@ -191,9 +191,6 @@ export default function ForgotPasswordScreen() {
       console.log('Password updated successfully');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       
-      // Sign out the user so they can log in with the new password
-      await supabase.auth.signOut();
-      
       Alert.alert(
         'Password Reimpostata! ✅',
         'La tua password è stata reimpostata con successo. Puoi ora accedere con la nuova password.',
@@ -201,7 +198,10 @@ export default function ForgotPasswordScreen() {
           {
             text: 'OK',
             onPress: () => {
-              router.replace('/login');
+              // signOut DENTRO il callback dell'Alert, dopo che l'utente ha premuto OK
+              // AuthContext gestirà la navigazione a /login tramite onAuthStateChange
+              console.log('[ForgotPassword] User pressed OK, signing out');
+              supabase.auth.signOut();
             }
           }
         ]
