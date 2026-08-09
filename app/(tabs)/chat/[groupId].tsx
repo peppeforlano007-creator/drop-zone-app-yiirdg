@@ -253,26 +253,31 @@ function DropPickerModal({
   onClose,
   onSelect,
   isDark,
+  pickupPointId,
 }: {
   visible: boolean;
   onClose: () => void;
   onSelect: (drop: Drop) => void;
   isDark: boolean;
+  pickupPointId: string | null;
 }) {
   const [drops, setDrops] = useState<Drop[]>([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (!visible) return;
-    console.log('[Chat] Loading active drops for sharing');
+    console.log('[Chat] Loading active drops for sharing, pickupPointId:', pickupPointId);
     setLoading(true);
-    supabase
+    let query = supabase
       .from('drops')
       .select('id, name, current_discount, current_value, status')
       .eq('status', 'active')
       .order('created_at', { ascending: false })
-      .limit(20)
-      .then(({ data, error }) => {
+      .limit(20);
+    if (pickupPointId !== null) {
+      query = query.eq('pickup_point_id', pickupPointId);
+    }
+    query.then(({ data, error }) => {
         if (error) {
           console.error('[Chat] Error loading drops:', error);
         } else {
@@ -280,7 +285,7 @@ function DropPickerModal({
         }
         setLoading(false);
       });
-  }, [visible]);
+  }, [visible, pickupPointId]);
 
   const modalBg = isDark ? '#1C1C1E' : '#FFFFFF';
   const titleColor = isDark ? '#FFFFFF' : '#000000';
@@ -302,7 +307,7 @@ function DropPickerModal({
           </View>
         ) : drops.length === 0 ? (
           <View style={styles.centered}>
-            <Text style={[styles.emptyText, { color: subColor }]}>Nessun drop attivo disponibile</Text>
+            <Text style={[styles.emptyText, { color: subColor }]}>Nessun drop attivo nella tua città</Text>
           </View>
         ) : (
           <FlatList
@@ -354,10 +359,28 @@ export default function GroupChatScreen() {
   const [inputText, setInputText] = useState('');
   const [sending, setSending] = useState(false);
   const [showDropPicker, setShowDropPicker] = useState(false);
+  const [userPickupPointId, setUserPickupPointId] = useState<string | null>(null);
   const flatListRef = useRef<FlatList>(null);
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const { markGroupAsRead } = useUnreadChat();
+
+  useEffect(() => {
+    if (!user?.id) return;
+    console.log('[Chat] Fetching pickup_point_id for user:', user.id);
+    supabase
+      .from('profiles')
+      .select('pickup_point_id')
+      .eq('user_id', user.id)
+      .single()
+      .then(({ data, error }) => {
+        if (error) {
+          console.warn('[Chat] Could not fetch user pickup_point_id:', error.message);
+        }
+        setUserPickupPointId(data?.pickup_point_id ?? null);
+        console.log('[Chat] User pickup_point_id:', data?.pickup_point_id ?? null);
+      });
+  }, [user?.id]);
 
   const insets = useSafeAreaInsets();
 
@@ -796,6 +819,7 @@ export default function GroupChatScreen() {
         onClose={() => setShowDropPicker(false)}
         onSelect={sendDropMessage}
         isDark={isDark}
+        pickupPointId={userPickupPointId}
       />
     </SafeAreaView>
   );
