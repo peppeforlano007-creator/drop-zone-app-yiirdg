@@ -18,6 +18,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/app/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { colors } from '@/styles/commonStyles';
+import { sendPushNotification } from '@/utils/pushNotifications';
 
 interface Member {
   user_id: string;
@@ -265,17 +266,27 @@ export default function ChatGroupSettingsScreen() {
 
           if (profileData?.push_token) {
             console.log('[GroupSettings] Push token found, sending notification to:', profile.id);
-            await fetch('https://exp.host/--/api/v2/push/send', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                to: profileData.push_token,
-                title: 'Sei stato aggiunto a un gruppo',
-                body: `Sei stato aggiunto al gruppo "${groupName}"`,
-                data: { groupId, type: 'group_invite' },
-                channelId: 'default',
-              }),
+            await supabase.from('notifications').insert({
+              user_id: profile.id,
+              title: 'Sei stato aggiunto a un gruppo',
+              message: `Sei stato aggiunto al gruppo "${groupName}"`,
+              type: 'group_invite',
+              related_id: groupId,
+              related_type: 'chat_group',
+              read: false,
             });
+            const { count: unreadCount } = await supabase
+              .from('notifications')
+              .select('*', { count: 'exact', head: true })
+              .eq('user_id', profile.id)
+              .eq('read', false);
+            await sendPushNotification(
+              profileData.push_token,
+              'Sei stato aggiunto a un gruppo',
+              `Sei stato aggiunto al gruppo "${groupName}"`,
+              { groupId, type: 'group_invite' },
+              unreadCount ?? 0
+            );
             console.log('[GroupSettings] Push notification sent to new member:', profile.id);
           } else {
             console.log('[GroupSettings] No push token for new member:', profile.id);

@@ -211,19 +211,21 @@ export default function NotificationsScreen() {
 
               // Send push notifications to users with tokens
               try {
-                const pushPromises = (users || [])
-                  .filter(u => u.push_token)
-                  .map(u => sendPushNotification(
-                    u.push_token!,
-                    title,
-                    message,
-                    isDropTemplate && selectedDropId
-                      ? { type: notificationType, dropId: selectedDropId }
-                      : { type: notificationType }
-                  ));
-                const pushResults = await Promise.allSettled(pushPromises);
-                const pushSent = pushResults.filter(r => r.status === 'fulfilled').length;
-                console.log('[Notifications] Push sent to', pushSent, 'of', pushPromises.length, 'users with tokens');
+                const usersWithToken = (users || []).filter(u => u.push_token);
+                let pushSent = 0;
+                for (const u of usersWithToken) {
+                  const { count: unreadCount } = await supabase
+                    .from('notifications')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('user_id', u.user_id)
+                    .eq('read', false);
+                  const data = isDropTemplate && selectedDropId
+                    ? { type: notificationType, dropId: selectedDropId }
+                    : { type: notificationType };
+                  await sendPushNotification(u.push_token!, title, message, data, unreadCount ?? 0);
+                  pushSent++;
+                }
+                console.log('[Notifications] Push sent to', pushSent, 'of', usersWithToken.length, 'users with tokens');
               } catch (pushError) {
                 console.error('[Notifications] Push error (non-blocking):', pushError);
               }

@@ -779,11 +779,17 @@ export default function OrdersScreen() {
 
                   if (profile?.push_token) {
                     console.log(`[Orders] Invio push order_returned a utente ${userId}`);
+                    const { count: unreadCount1 } = await supabase
+                      .from('notifications')
+                      .select('*', { count: 'exact', head: true })
+                      .eq('user_id', userId)
+                      .eq('read', false);
                     await sendPushNotification(
                       profile.push_token,
                       '⚠️ Ordine Rispedito',
                       `L'ordine ${order.order_number} non è stato ritirato e verrà rispedito al fornitore.`,
-                      { type: 'item_returned', orderId: order.id }
+                      { type: 'item_returned', orderId: order.id },
+                      unreadCount1 ?? 0
                     );
                   }
                 } catch (e) {
@@ -1020,11 +1026,17 @@ export default function OrdersScreen() {
 
                   if (profile?.push_token) {
                     console.log(`[Orders] handleNotifyAllCustomers — invio push a utente ${userId}, token: ${profile.push_token}`);
+                    const { count: unreadCount2 } = await supabase
+                      .from('notifications')
+                      .select('*', { count: 'exact', head: true })
+                      .eq('user_id', userId)
+                      .eq('read', false);
                     await sendPushNotification(
                       profile.push_token,
                       'Ritira il tuo ordine 📦',
                       `Il tuo ordine ${order.order_number} è pronto per il ritiro presso ${pickupLabel}!`,
-                      { type: 'order_reminder', orderId: order.id }
+                      { type: 'order_reminder', orderId: order.id },
+                      unreadCount2 ?? 0
                     );
                   } else {
                     console.warn(`[Orders] handleNotifyAllCustomers — push_token NULL per utente ${userId}, ordine ${order.order_number}. Push non inviato.`);

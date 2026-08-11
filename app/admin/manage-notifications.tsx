@@ -269,23 +269,28 @@ export default function ManageNotificationsScreen() {
                 const userIds = notifications.map((n: any) => n.user_id);
                 const { data: profiles } = await supabase
                   .from('profiles')
-                  .select('push_token')
+                  .select('user_id, push_token')
                   .in('user_id', userIds)
                   .not('push_token', 'is', null);
 
                 if (profiles && profiles.length > 0) {
-                  const tokens = profiles.map((p: any) => p.push_token).filter(Boolean);
-                  console.log(`[ManageNotifications] Invio push broadcast a ${tokens.length} utenti`);
-                  // Invia in batch (max 100 per chiamata Expo)
-                  for (let i = 0; i < tokens.length; i += 100) {
-                    const batch = tokens.slice(i, i + 100);
-                    const batchMessages = batch.map((token: string) => ({
-                      to: token,
+                  console.log(`[ManageNotifications] Invio push broadcast a ${profiles.length} utenti`);
+                  let pushSent = 0;
+                  for (const p of profiles) {
+                    if (!p.push_token) continue;
+                    const { count: unreadCount } = await supabase
+                      .from('notifications')
+                      .select('*', { count: 'exact', head: true })
+                      .eq('user_id', p.user_id)
+                      .eq('read', false);
+                    const batchMessages = [{
+                      to: p.push_token,
                       sound: 'default',
                       title: massTitle,
                       body: massMessage,
                       data: { type: 'general' },
-                    }));
+                      badge: unreadCount ?? 0,
+                    }];
                     const pushResponse = await fetch('https://exp.host/--/api/v2/push/send', {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
@@ -293,12 +298,12 @@ export default function ManageNotificationsScreen() {
                     });
                     if (!pushResponse.ok) {
                       const errText = await pushResponse.text();
-                      console.error('[ManageNotifications] Errore push batch:', pushResponse.status, errText);
+                      console.error('[ManageNotifications] Errore push:', pushResponse.status, errText);
                     } else {
-                      const pushResult = await pushResponse.json();
-                      console.log('[ManageNotifications] Push batch inviato:', pushResult);
+                      pushSent++;
                     }
                   }
+                  console.log(`[ManageNotifications] Push inviati: ${pushSent}/${profiles.length}`);
                 }
               } catch (e) {
                 console.error('[ManageNotifications] Errore invio push broadcast:', e);
