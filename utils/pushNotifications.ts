@@ -107,16 +107,21 @@ export async function sendPushNotification(
   pushToken: string,
   title: string,
   body: string,
-  data?: Record<string, any>
+  data?: Record<string, any>,
+  badge?: number
 ): Promise<void> {
   try {
-    const message = {
+    const message: Record<string, any> = {
       to: pushToken,
       sound: 'default',
       title,
       body,
       data: data || {},
     };
+
+    if (badge !== undefined) {
+      message.badge = badge;
+    }
 
     console.log('[PushNotifications] Invio push notification a token:', pushToken, '| titolo:', title);
 
