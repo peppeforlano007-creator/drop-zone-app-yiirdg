@@ -99,6 +99,12 @@ serve(async (req) => {
 
         if (profile?.push_token) {
           try {
+            const { count: unreadCount } = await supabase
+              .from('notifications')
+              .select('*', { count: 'exact', head: true })
+              .eq('user_id', userId)
+              .eq('read', false);
+
             await fetch('https://exp.host/--/api/v2/push/send', {
               method: 'POST',
               headers: {
@@ -111,6 +117,8 @@ serve(async (req) => {
                 sound: 'default',
                 title: '⏰ Drop in Scadenza',
                 body: `"${drop.name}" scade tra ${hoursLeft} ore! Più persone prenotano, più lo sconto aumenta per tutti.`,
+                badge: (unreadCount ?? 0) + 1,
+                priority: 'high',
                 data: { type: 'drop_ending', dropId: drop.id },
               }),
             });
