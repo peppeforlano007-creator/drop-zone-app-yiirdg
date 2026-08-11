@@ -467,12 +467,19 @@ export default function OrdersScreen() {
                       .single();
 
                     if (profile?.push_token) {
-                      console.log(`[Orders] Invio push order_ready a utente ${userId}, pickup: ${pickupLabel}`);
+                      const { count: unreadCount } = await supabase
+                        .from('notifications')
+                        .select('*', { count: 'exact', head: true })
+                        .eq('user_id', userId)
+                        .eq('read', false);
+                      const badge = unreadCount ?? 0;
+                      console.log(`[Orders] Invio push order_ready a utente ${userId}, pickup: ${pickupLabel}, badge: ${badge}`);
                       await sendPushNotification(
                         profile.push_token,
                         'Ordine Pronto 📦',
                         `Il tuo ordine ${order.order_number} è pronto per il ritiro presso ${pickupLabel}!`,
-                        { type: 'order_ready', orderId: order.id }
+                        { type: 'order_ready', orderId: order.id },
+                        badge
                       );
                     } else {
                       console.warn(`[Orders] push_token NULL per utente ${userId} — push non inviato per ordine ${order.order_number}. L'utente potrebbe non aver concesso i permessi o non aver ancora aperto l'app.`);
@@ -622,12 +629,19 @@ export default function OrdersScreen() {
 
                   if (profile?.push_token) {
                     const pointsEarnedForUser = pointsEarnedByUser[userId] ?? 0;
-                    console.log(`[Orders] Invio push order_delivered a utente ${userId}`);
+                    const { count: unreadCount } = await supabase
+                      .from('notifications')
+                      .select('*', { count: 'exact', head: true })
+                      .eq('user_id', userId)
+                      .eq('read', false);
+                    const badge = unreadCount ?? 0;
+                    console.log(`[Orders] Invio push order_delivered a utente ${userId}, badge: ${badge}`);
                     await sendPushNotification(
                       profile.push_token,
                       '✅ Ordine Consegnato',
                       `L'ordine ${order.order_number} è stato consegnato. Hai guadagnato ${pointsEarnedForUser} punti fedeltà!`,
-                      { type: 'order_delivered', orderId: order.id }
+                      { type: 'order_delivered', orderId: order.id },
+                      badge
                     );
                   }
                 } catch (e) {

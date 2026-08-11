@@ -313,19 +313,27 @@ export default function ManageDropsScreen() {
                   }
                 }
 
-                const pushPromises = (consumers || [])
-                  .filter(c => c.push_token)
-                  .map(c => sendPushNotification(
+                const consumersWithToken = (consumers || []).filter(c => c.push_token);
+                console.log('[handleActivateDrop] Sending push to', consumersWithToken.length, 'consumers with tokens');
+                let pushSent = 0;
+                for (const c of consumersWithToken) {
+                  const { count: unreadCount } = await supabase
+                    .from('notifications')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('user_id', c.user_id)
+                    .eq('read', false);
+                  const badge = unreadCount ?? 0;
+                  console.log('[handleActivateDrop] Push badge for user', c.user_id, ':', badge);
+                  await sendPushNotification(
                     c.push_token!,
                     'Nuovo Drop Disponibile! 🎉',
                     `Il drop "${dropName}" è ora attivo. Controlla ora!`,
-                    { type: 'drop_activated', dropId }
-                  ));
-
-                console.log('[handleActivateDrop] Sending push to', pushPromises.length, 'consumers with tokens');
-                const pushResults = await Promise.allSettled(pushPromises);
-                const pushSent = pushResults.filter(r => r.status === 'fulfilled').length;
-                console.log('[handleActivateDrop] Push sent:', pushSent, '/', pushPromises.length);
+                    { type: 'drop_activated', dropId },
+                    badge
+                  );
+                  pushSent++;
+                }
+                console.log('[handleActivateDrop] Push sent:', pushSent, '/', consumersWithToken.length);
               } catch (notifError) {
                 console.error('[handleActivateDrop] Notification error (non-blocking):', notifError);
               }
