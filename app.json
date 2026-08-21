@@ -4,11 +4,11 @@
     "slug": "rdn-street-stock-market",
     "version": "3.7.0",
     "orientation": "portrait",
-    "icon": "./assets/images/rdnstreetstockmarket-icon.png",
+    "icon": "./assets/images/app apple logo.png",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/images/95CE18FD-0FF0-4419-B1D2-85A9F1D7815D.png",
+      "image": "./assets/images/app apple logo.png",
       "resizeMode": "contain",
       "backgroundColor": "#000000"
     },
@@ -31,7 +31,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon-foreground.png",
+        "foregroundImage": "./assets/images/app apple logo.png",
         "backgroundColor": "#000000"
       },
       "edgeToEdgeEnabled": true,
