@@ -49,7 +49,7 @@ interface Booking {
     } | null;
   } | null;
   pickup_points: { name: string; address: string; city: string } | null;
-  order_items: { pickup_status: string | null; picked_up_at: string | null }[];
+  order_items: { pickup_status: string | null; picked_up_at: string | null; returned_to_sender: boolean | null; returned_at: string | null }[];
 }
 
 interface PickupGroup {
@@ -117,10 +117,16 @@ function buildDropGroups(bookings: Booking[]): DropGroup[] {
   for (const dropGroup of dropMap.values()) {
     for (const pg of dropGroup.pickupGroups) {
       pg.allPickedUp = pg.bookings.every(
-        (b) => b.order_items[0]?.pickup_status === 'picked_up'
+        (b) =>
+          b.order_items[0]?.pickup_status === 'picked_up' ||
+          b.order_items[0]?.returned_to_sender === true
       );
       pg.subtotal = pg.bookings
-        .filter((b) => b.order_items[0]?.pickup_status !== 'picked_up')
+        .filter(
+          (b) =>
+            b.order_items[0]?.pickup_status !== 'picked_up' &&
+            b.order_items[0]?.returned_to_sender !== true
+        )
         .reduce((sum, b) => sum + (typeof b.final_price === 'number' ? b.final_price : 0), 0);
     }
     dropGroup.allPickedUp = dropGroup.pickupGroups.every((pg) => pg.allPickedUp);
@@ -201,7 +207,7 @@ export default function MyBookingsScreen() {
             supplier_lists (name, max_discount, min_discount, min_reservation_value, max_reservation_value)
           ),
           pickup_points (name, address, city),
-          order_items (pickup_status, picked_up_at)
+          order_items (pickup_status, picked_up_at, returned_to_sender, returned_at)
         `)
         .eq('user_id', user.id)
         .neq('status', 'cancelled')
@@ -356,12 +362,13 @@ export default function MyBookingsScreen() {
   const activeGroups = dropGroups.filter((g) => !g.allPickedUp);
   const historyGroups = dropGroups.filter((g) => g.allPickedUp);
 
-  // Total to pay: confirmed bookings not yet picked up
+  // Total to pay: confirmed bookings not yet picked up or returned
   const totalToPay = bookings
     .filter(
       (b) =>
         b.status === 'confirmed' &&
-        b.order_items[0]?.pickup_status !== 'picked_up'
+        b.order_items[0]?.pickup_status !== 'picked_up' &&
+        b.order_items[0]?.returned_to_sender !== true
     )
     .reduce(
       (sum, b) => sum + (typeof b.final_price === 'number' ? b.final_price : 0),
@@ -373,6 +380,7 @@ export default function MyBookingsScreen() {
   const renderBookingRow = (booking: Booking) => {
     const drops = Array.isArray(booking.drops) ? booking.drops[0] : booking.drops;
     const isPickedUp = booking.order_items[0]?.pickup_status === 'picked_up';
+    const isReturned = booking.order_items[0]?.returned_to_sender === true;
     const productName = booking.products?.name ?? 'Prodotto';
     const dropStatus = drops?.status ?? 'unknown';
     const isDropCompleted = dropStatus === 'completed';
@@ -400,6 +408,7 @@ export default function MyBookingsScreen() {
       bookingId: booking.id,
       productName,
       isPickedUp,
+      isReturned,
       discountPercentage,
       loyaltyDiscount,
       finalPrice,
@@ -425,7 +434,14 @@ export default function MyBookingsScreen() {
         </View>
 
         {/* Price line */}
-        {isPickedUp ? (
+        {isReturned ? (
+          <View style={styles.pickedUpRow}>
+            <Text style={styles.returnedBadge}>
+              ↩️ Reso
+            </Text>
+            <Text style={styles.pickedUpPrice}>{finalPriceText}</Text>
+          </View>
+        ) : isPickedUp ? (
           <View style={styles.pickedUpRow}>
             <Text style={styles.pickedUpBadge}>
               ✅ Ritirato
@@ -447,10 +463,9 @@ export default function MyBookingsScreen() {
           </View>
         )}
 
-        {/* Discount badges row */}
-        {isDropCompleted && (
+        {/* Discount badges row — hidden for returned items */}
+        {isDropCompleted && !isReturned && (
           <View style={styles.discountBadgesRow}>
-
             {loyaltyDiscount > 0 && (
               <View style={styles.loyaltyDiscountBadge}>
                 <Text style={styles.loyaltyDiscountBadgeText}>
@@ -473,7 +488,7 @@ export default function MyBookingsScreen() {
         )}
 
         {/* Active drop progress bar */}
-        {dropStatus === 'active' && !isPickedUp && (
+        {dropStatus === 'active' && !isPickedUp && !isReturned && (
           <View style={styles.discountProgress}>
             <Text style={styles.discountProgressLabel}>
               Sconto attuale: {currentDiscount.toFixed(1)}%
@@ -643,7 +658,7 @@ export default function MyBookingsScreen() {
               >
                 <Text style={styles.historySeparatorLine} />
                 <Text style={styles.historyHeaderText}>
-                  Ordini Ritirati ({historyGroups.length})
+                  Ordini Completati ({historyGroups.length})
                 </Text>
                 <IconSymbol
                   ios_icon_name={historyExpanded ? 'chevron.up' : 'chevron.down'}
@@ -885,6 +900,13 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     color: '#B8860B',
+  },
+
+  // Returned
+  returnedBadge: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#FF9500',
   },
 
   // Picked up
