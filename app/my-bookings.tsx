@@ -435,12 +435,19 @@ export default function MyBookingsScreen() {
 
         {/* Price line */}
         {isReturned ? (
-          <View style={styles.pickedUpRow}>
-            <Text style={styles.returnedBadge}>
-              ↩️ Reso
-            </Text>
-            <Text style={styles.pickedUpPrice}>{finalPriceText}</Text>
-          </View>
+          <>
+            <View style={styles.pickedUpRow}>
+              <Text style={styles.returnedBadge}>
+                ↩️ Reso
+              </Text>
+              <Text style={styles.pickedUpPrice}>{finalPriceText}</Text>
+            </View>
+            {Math.floor(finalPrice) > 0 && (
+              <Text style={styles.returnedPointsDeducted}>
+                {'⭐ -'}{Math.floor(finalPrice)}{' punti fedeltà scalati'}
+              </Text>
+            )}
+          </>
         ) : isPickedUp ? (
           <View style={styles.pickedUpRow}>
             <Text style={styles.pickedUpBadge}>
@@ -907,6 +914,13 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     color: '#FF9500',
+  },
+  returnedPointsDeducted: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#FF6B6B',
+    marginTop: 2,
+    marginBottom: 2,
   },
 
   // Picked up
