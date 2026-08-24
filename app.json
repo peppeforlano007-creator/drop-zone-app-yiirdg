@@ -2,7 +2,7 @@
   "expo": {
     "name": "RDN STREET STOCK MARKET",
     "slug": "drop-zone-app-yiirdg",
-    "version": "2.6.3",
+    "version": "2.6.4",
     "orientation": "portrait",
     "icon": "./assets/images/app apple logo.png",
     "userInterfaceStyle": "automatic",
@@ -43,7 +43,7 @@
         "VIBRATE",
         "POST_NOTIFICATIONS"
       ],
-      "versionCode": 7
+      "versionCode": 8
     },
     "web": {
       "favicon": "./assets/images/final_quest_240x240.png",
