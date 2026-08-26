@@ -4,11 +4,11 @@
     "slug": "rdn-street-stock-market",
     "version": "2.7.0",
     "orientation": "portrait",
-    "icon": "./assets/images/LOGO APP.png",
+    "icon": "./assets/images/LOGOapp.png",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/images/LOGO APP.png",
+      "image": "./assets/images/LOGOapp.png",
       "resizeMode": "contain",
       "backgroundColor": "#000000"
     },
@@ -31,7 +31,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/LOGO APP.png",
+        "foregroundImage": "./assets/images/LOGOapp.png",
         "backgroundColor": "#000000"
       },
       "edgeToEdgeEnabled": true,
