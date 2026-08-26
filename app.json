@@ -4,7 +4,7 @@
     "slug": "rdn-street-stock-market",
     "version": "2.7.0",
     "orientation": "portrait",
-    "icon": "./assets/images/LOGOapp.png",
+    "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
