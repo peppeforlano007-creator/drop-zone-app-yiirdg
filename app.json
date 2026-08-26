@@ -31,8 +31,8 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/LOGOapp.png",
-        "backgroundColor": "#000000"
+        "foregroundImage": "./assets/images/927fb1de-2d8e-44cf-a9a0-d63717d35ffc.png",
+        "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
       "package": "com.giuseppeforlano.dropzone",
