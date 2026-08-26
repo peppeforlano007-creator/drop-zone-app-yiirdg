@@ -117,6 +117,7 @@ export async function sendPushNotification(
       title,
       body,
       data: data || {},
+      priority: 'high',
     };
 
     if (badge !== undefined) {
