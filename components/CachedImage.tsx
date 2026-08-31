@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
-import { Image, ImageProps, View, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, StyleSheet, ActivityIndicator } from 'react-native';
+import { Image, ImageProps } from 'expo-image';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from './IconSymbol';
 import { isValidImageUrl } from '@/utils/imageHelpers';
@@ -67,19 +68,14 @@ export default function CachedImage({ uri, showPlaceholder = true, style, ...pro
     <View style={[styles.container, style]}>
       <Image
         {...props}
-        source={{ 
-          uri: validUri,
-          cache: 'force-cache', // Enable aggressive caching
-        }}
+        source={{ uri: validUri }}
+        cachePolicy="memory-disk"
+        priority="high"
         style={[styles.image, style]}
         onLoadStart={handleLoadStart}
         onLoadEnd={handleLoadEnd}
         onError={handleError}
-        resizeMode={props.resizeMode || 'cover'}
-        // Add priority for faster loading
-        priority="high"
-        // Reduce quality slightly for faster loading
-        defaultSource={undefined}
+        contentFit={(props as any).resizeMode || 'cover'}
       />
       
       {loading && !error && showPlaceholder && (
