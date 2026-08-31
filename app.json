@@ -38,7 +38,6 @@
       "package": "com.giuseppeforlano.dropzone",
       "googleServicesFile": "./google-services.json",
       "permissions": [
-        "READ_MEDIA_IMAGES",
         "RECEIVE_BOOT_COMPLETED",
         "VIBRATE",
         "POST_NOTIFICATIONS"
