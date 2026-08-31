@@ -83,8 +83,10 @@ export default function WishlistScreen() {
         return;
       }
 
-      console.log('Wishlist loaded:', data?.length || 0, 'items');
-      setWishlistItems(data || []);
+      const allItems = data || [];
+      const validItems = allItems.filter(i => i.products && i.drops);
+      console.log('Wishlist loaded:', allItems.length, 'items,', allItems.length - validItems.length, 'orphaned records filtered out');
+      setWishlistItems(validItems as WishlistItem[]);
     } catch (error) {
       console.error('Exception loading wishlist:', error);
       Alert.alert('Errore', 'Si è verificato un errore durante il caricamento');
@@ -140,10 +142,16 @@ export default function WishlistScreen() {
   };
 
   const handleItemPress = (item: WishlistItem) => {
+    console.log('[Wishlist] Item pressed:', item.id, 'product:', item.product_id, 'drop:', item.drop_id);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    
+
+    if (!item.drops || !item.products) {
+      console.warn('[Wishlist] handleItemPress: orphaned item, skipping navigation');
+      return;
+    }
+
     // Check if drop is still active
-    if (item.drops.status !== 'active') {
+    if (item.drops?.status !== 'active') {
       Alert.alert(
         'Drop Terminato',
         'Questo drop non è più attivo. L\'articolo non è più disponibile per la prenotazione.',
@@ -153,7 +161,7 @@ export default function WishlistScreen() {
     }
 
     // Check if product is still available
-    if (item.products.stock <= 0) {
+    if ((item.products?.stock ?? 0) <= 0) {
       Alert.alert(
         'Prodotto Esaurito',
         'Questo prodotto è esaurito. Non è più disponibile per la prenotazione.',
@@ -163,7 +171,7 @@ export default function WishlistScreen() {
     }
 
     // Navigate to drop details with scroll to product
-    console.log('Navigating to drop:', item.drop_id, 'product:', item.product_id);
+    console.log('[Wishlist] Navigating to drop:', item.drop_id, 'product:', item.product_id);
     router.push({
       pathname: '/drop-details',
       params: {
@@ -174,10 +182,16 @@ export default function WishlistScreen() {
   };
 
   const renderWishlistItem = ({ item }: { item: WishlistItem }) => {
-    const isDropActive = item.drops.status === 'active';
-    const isProductAvailable = item.products.stock > 0;
-    const currentDiscount = item.drops.current_discount || 0;
-    const discountedPrice = item.products.original_price * (1 - currentDiscount / 100);
+    if (!item.products || !item.drops) {
+      console.warn('[Wishlist] renderWishlistItem: skipping orphaned item', item.id);
+      return null;
+    }
+
+    const isDropActive = item.drops?.status === 'active';
+    const isProductAvailable = (item.products?.stock ?? 0) > 0;
+    const currentDiscount = item.drops?.current_discount || 0;
+    const originalPrice = item.products?.original_price ?? 0;
+    const discountedPrice = originalPrice * (1 - currentDiscount / 100);
 
     return (
       <Pressable
@@ -187,7 +201,7 @@ export default function WishlistScreen() {
       >
         <View style={styles.imageContainer}>
           <CachedImage
-            uri={item.products.image_url}
+            uri={item.products?.image_url}
             style={styles.image}
             resizeMode="cover"
             showPlaceholder={true}
@@ -196,7 +210,7 @@ export default function WishlistScreen() {
           {/* Remove button */}
           <Pressable
             style={styles.removeButton}
-            onPress={() => handleRemoveFromWishlist(item.id, item.products.name)}
+            onPress={() => handleRemoveFromWishlist(item.id, item.products?.name ?? '')}
           >
             <IconSymbol
               ios_icon_name="xmark.circle.fill"
@@ -226,16 +240,16 @@ export default function WishlistScreen() {
 
         <View style={styles.cardContent}>
           <Text style={styles.productName} numberOfLines={2}>
-            {item.products.name}
+            {item.products?.name}
           </Text>
           <Text style={styles.dropName} numberOfLines={1}>
-            {item.drops.name}
+            {item.drops?.name}
           </Text>
           
           {isDropActive && isProductAvailable ? (
             <View style={styles.priceRow}>
               <Text style={styles.price}>€{discountedPrice.toFixed(2)}</Text>
-              <Text style={styles.originalPrice}>€{item.products.original_price.toFixed(2)}</Text>
+              <Text style={styles.originalPrice}>€{originalPrice.toFixed(2)}</Text>
             </View>
           ) : (
             <Text style={styles.unavailableText}>Non disponibile</Text>
