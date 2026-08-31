@@ -71,9 +71,9 @@ export default function ProfileScreen() {
     if (!user) return;
 
     try {
-      const { count, error } = await supabase
+      const { data, error } = await supabase
         .from('wishlists')
-        .select('*', { count: 'exact', head: true })
+        .select('id, products(id), drops(id)')
         .eq('user_id', user.id);
 
       if (error) {
@@ -81,7 +81,8 @@ export default function ProfileScreen() {
         return;
       }
 
-      setWishlistCount(count || 0);
+      const validCount = (data || []).filter(i => i.products && i.drops).length;
+      setWishlistCount(validCount);
     } catch (error) {
       console.error('Profile (iOS): Exception loading wishlist count:', error);
     }
