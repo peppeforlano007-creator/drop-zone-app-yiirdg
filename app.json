@@ -1,8 +1,8 @@
 {
   "expo": {
     "name": "RDN STREET STOCK MARKET",
-    "slug": "rdn-street-stock-market",
-    "version": "2.6.16",
+    "slug": "drop-zone-app-yiirdg",
+    "version": "2.6.18",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -42,7 +42,7 @@
         "VIBRATE",
         "POST_NOTIFICATIONS"
       ],
-      "versionCode": 21,
+      "versionCode": 23,
       "blockedPermissions": [
         "android.permission.READ_MEDIA_IMAGES",
         "android.permission.READ_MEDIA_VIDEO",
