@@ -13,6 +13,7 @@
       "backgroundColor": "#000000"
     },
     "ios": {
+      "icon": "./assets/images/49044eeb-9aa4-4745-878a-0f0d7f9e600a.png",
       "supportsTablet": false,
       "bundleIdentifier": "com.giuseppeforlano.dropzone",
       "buildNumber": "44",
