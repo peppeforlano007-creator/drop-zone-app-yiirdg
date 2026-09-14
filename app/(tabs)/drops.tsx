@@ -17,6 +17,7 @@ import {
   Animated,
   useColorScheme,
   Pressable,
+  Share,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { IconSymbol } from '@/components/IconSymbol';
@@ -202,6 +203,7 @@ export default function DropsScreen() {
   const [drops, setDrops] = useState<Drop[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [inviteLink, setInviteLink] = useState('https://rdnstreet.app');
   const { user } = useAuth();
   const unreadCount = useUnreadNotifications();
 
@@ -343,6 +345,15 @@ export default function DropsScreen() {
 
   useEffect(() => {
     loadDrops();
+    // Fetch invite link
+    supabase
+      .from('app_settings')
+      .select('setting_value')
+      .eq('setting_key', 'invite_link')
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data?.setting_value) setInviteLink(data.setting_value);
+      });
   }, [loadDrops]);
 
   // Set up real-time subscription for drops updates
@@ -394,6 +405,18 @@ export default function DropsScreen() {
     enabled: true,
   });
 
+  const handleShareApp = async () => {
+    console.log('[Drops] Share app button pressed, inviteLink:', inviteLink);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    try {
+      await Share.share({
+        message: `Scarica RDN STREET STOCK MARKET e condividi l'app con amici e parenti!\nPiù acquistiamo, più risparmiamo! 🔥\n${inviteLink}`,
+      });
+    } catch (err) {
+      console.error('[Drops] Share error:', err);
+    }
+  };
+
   const handleRefresh = () => {
     console.log('[Drops] Pull-to-refresh triggered');
     setRefreshing(true);
@@ -426,6 +449,17 @@ export default function DropsScreen() {
         <View style={styles.customHeader}>
           <Text style={styles.customHeaderTitle}>Drop Attivi</Text>
           <View style={styles.customHeaderRight}>
+            <Pressable
+              onPress={handleShareApp}
+              hitSlop={8}
+            >
+              <IconSymbol
+                ios_icon_name="square.and.arrow.up"
+                android_material_icon_name="share"
+                size={24}
+                color={colors.text}
+              />
+            </Pressable>
             {user?.role !== 'pickup_point' && (
               <Pressable
                 onPress={() => {
@@ -482,6 +516,17 @@ export default function DropsScreen() {
       <View style={styles.customHeader}>
         <Text style={styles.customHeaderTitle}>Drop Attivi</Text>
         <View style={styles.customHeaderRight}>
+          <Pressable
+            onPress={handleShareApp}
+            hitSlop={8}
+          >
+            <IconSymbol
+              ios_icon_name="square.and.arrow.up"
+              android_material_icon_name="share"
+              size={24}
+              color={colors.text}
+            />
+          </Pressable>
           {user?.role !== 'pickup_point' && (
             <Pressable
               onPress={() => {

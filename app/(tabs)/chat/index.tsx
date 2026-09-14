@@ -269,8 +269,7 @@ export default function ChatIndexScreen() {
     console.log('[Chat] Invite friends button pressed, inviteLink:', inviteLink);
     try {
       const result = await Share.share({
-        message: `Scarica RDN e unisciti ai miei gruppi! 🔥 Prenota articoli scontati con amici e parenti.\n${inviteLink}`,
-        url: inviteLink,
+        message: `Scarica RDN STREET STOCK MARKET e condividi l'app con amici e parenti!\nPiù acquistiamo, più risparmiamo! 🔥\n${inviteLink}`,
       });
       console.log('[Chat] Share result:', result.action);
     } catch (err) {
