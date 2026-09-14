@@ -207,28 +207,6 @@ export default function DropsScreen() {
   const { user } = useAuth();
   const unreadCount = useUnreadNotifications();
 
-  // Show loyalty onboarding only once
-  useFocusEffect(
-    useCallback(() => {
-      const checkLoyaltyOnboarding = async () => {
-        try {
-          const seen = await AsyncStorage.getItem(LOYALTY_ONBOARDING_SEEN_KEY);
-          if (!seen) {
-            console.log('[Drops] Loyalty onboarding not yet seen, showing for first time');
-            await AsyncStorage.setItem(LOYALTY_ONBOARDING_SEEN_KEY, 'true');
-            router.push('/loyalty-program');
-          } else {
-            console.log('[Drops] Loyalty onboarding already seen, skipping');
-          }
-        } catch (err) {
-          console.error('[Drops] Error checking loyalty onboarding flag:', err);
-        }
-      };
-      checkLoyaltyOnboarding();
-      loadDrops(); // reload drops every time the tab comes into focus (e.g. after pickup point change)
-    }, [loadDrops])
-  );
-
   const loadDrops = useCallback(async () => {
     try {
       console.log('=== LOADING DROPS ===');
@@ -338,6 +316,28 @@ export default function DropsScreen() {
       setRefreshing(false);
     }
   }, []);
+
+  // Show loyalty onboarding only once
+  useFocusEffect(
+    useCallback(() => {
+      const checkLoyaltyOnboarding = async () => {
+        try {
+          const seen = await AsyncStorage.getItem(LOYALTY_ONBOARDING_SEEN_KEY);
+          if (!seen) {
+            console.log('[Drops] Loyalty onboarding not yet seen, showing for first time');
+            await AsyncStorage.setItem(LOYALTY_ONBOARDING_SEEN_KEY, 'true');
+            router.push('/loyalty-program');
+          } else {
+            console.log('[Drops] Loyalty onboarding already seen, skipping');
+          }
+        } catch (err) {
+          console.error('[Drops] Error checking loyalty onboarding flag:', err);
+        }
+      };
+      checkLoyaltyOnboarding();
+      loadDrops(); // reload drops every time the tab comes into focus (e.g. after pickup point change)
+    }, [loadDrops])
+  );
 
   const loadDropsRef = useRef<() => void>(loadDrops);
   useEffect(() => {
