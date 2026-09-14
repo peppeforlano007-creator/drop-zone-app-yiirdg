@@ -225,7 +225,8 @@ export default function DropsScreen() {
         }
       };
       checkLoyaltyOnboarding();
-    }, [])
+      loadDrops(); // reload drops every time the tab comes into focus (e.g. after pickup point change)
+    }, [loadDrops])
   );
 
   const loadDrops = useCallback(async () => {
