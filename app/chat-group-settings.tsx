@@ -298,6 +298,12 @@ export default function ChatGroupSettingsScreen() {
     }
   };
 
+  const maskPhone = (phone: string): string => {
+    if (!phone) return '';
+    if (phone.length <= 6) return '***';
+    return phone.slice(0, 6) + '****' + phone.slice(-2);
+  };
+
   if (loading) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: bgColor }]} edges={['top', 'bottom']}>
@@ -396,7 +402,7 @@ export default function ChatGroupSettingsScreen() {
                     )}
                   </View>
                   {member.phone && member.full_name && (
-                    <Text style={[styles.memberSub, { color: subColor }]}>{member.phone}</Text>
+                    <Text style={[styles.memberSub, { color: subColor }]}>{isSelf ? member.phone : maskPhone(member.phone)}</Text>
                   )}
                 </View>
                 {canRemove && !isMemberCreator && (
@@ -448,7 +454,7 @@ export default function ChatGroupSettingsScreen() {
                       <View style={styles.resultInfo}>
                         <Text style={[styles.resultName, { color: titleColor }]}>{displayName}</Text>
                         {profile.full_name && profile.phone && (
-                          <Text style={[styles.resultSub, { color: subColor }]}>{profile.phone}</Text>
+                          <Text style={[styles.resultSub, { color: subColor }]}>{maskPhone(profile.phone)}</Text>
                         )}
                       </View>
                       <Ionicons name="add-circle-outline" size={22} color={colors.success} />
