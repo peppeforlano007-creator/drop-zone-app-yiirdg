@@ -14,6 +14,7 @@ interface AuthContextType {
   register: (email: string, password: string, fullName: string, phone: string, role: UserRole, pickupPointId?: string) => Promise<{ success: boolean; message?: string }>;
   logout: () => Promise<void>;
   updatePickupPoint: (pickupPointId: string, pickupPointCity: string) => void;
+  refreshUser: () => Promise<void>;
   isAuthenticated: boolean;
 }
 
@@ -445,6 +446,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const refreshUser = useCallback(async () => {
+    if (!user?.id) {
+      console.log('[AuthContext] refreshUser: no user id, skipping');
+      return;
+    }
+    console.log('[AuthContext] refreshUser: reloading profile for user:', user.id);
+    await loadUserProfile(user.id);
+  }, [user?.id, loadUserProfile]);
+
   const updatePickupPoint = (pickupPointId: string, pickupPointCity: string) => {
     if (user) {
       console.log('AuthProvider: Updating pickup point to:', pickupPointCity);
@@ -466,6 +476,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         register,
         logout,
         updatePickupPoint,
+        refreshUser,
         isAuthenticated: !!user && !!session,
       }}
     >

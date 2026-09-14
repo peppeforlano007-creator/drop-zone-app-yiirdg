@@ -10,7 +10,7 @@ import { supabase } from '@/app/integrations/supabase/client';
 import * as Haptics from 'expo-haptics';
 
 export default function EditProfileScreen() {
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
   const [name, setName] = useState(user?.name || '');
   const [email, setEmail] = useState(user?.email || '');
   const [currentPassword, setCurrentPassword] = useState('');
@@ -55,6 +55,7 @@ export default function EditProfileScreen() {
 
       Alert.alert('Successo', 'Nome aggiornato con successo');
       console.log('Name updated successfully');
+      await refreshUser();
     } catch (error) {
       console.error('Exception updating name:', error);
       Alert.alert('Errore', 'Errore imprevisto durante l\'aggiornamento');
