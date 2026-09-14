@@ -267,13 +267,8 @@ export default function EnhancedProductCard({
 
       // Show confirmation alert ONLY after all validations pass
       Alert.alert(
-        '🎉 Conferma Prenotazione',
-        `Stai prenotando: ${product.name}${variantInfo}\n\n` +
-        `💰 Sconto attuale: ${Math.floor(discount)}%\n` +
-        `🎯 Sconto massimo raggiungibile: ${Math.floor(maxDiscountValue)}%\n\n` +
-        `📊 Prenoteremo l'articolo allo sconto attuale del ${Math.floor(discount)}%, ma più utenti prenotano da questo drop e più la percentuale aumenta!\n\n` +
-        `📦 Al termine del drop ti notificheremo con l'importo esatto da pagare alla consegna.\n\n` +
-        `💡 Condividi il drop con amici e parenti tramite il tasto "Condividi Drop" per aumentare lo sconto!`,
+        'Conferma Prenotazione',
+        `Stai prenotando: ${product.name}${variantInfo}\nSconto attuale: ${Math.floor(discount)}%\n\nPagherai alla consegna. Più persone prenotano, più lo sconto aumenta!`,
         [
           { 
             text: 'Annulla', 
@@ -284,7 +279,7 @@ export default function EnhancedProductCard({
             }
           },
           {
-            text: 'Prenota Articolo',
+            text: 'Prenota',
             onPress: async () => {
               console.log('→ User confirmed booking');
               

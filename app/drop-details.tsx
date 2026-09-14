@@ -871,10 +871,13 @@ export default function DropDetailsScreen() {
       
       const maxDiscount = Math.floor(drop.supplier_lists?.max_discount ?? 0);
       const discountRemaining = maxDiscount - Math.floor(bookingDiscount);
+      const euroRemaining = (drop.supplier_lists?.max_reservation_value ?? 0) - (drop.current_value ?? 0);
       
       Alert.alert(
-        '✅ Prenotazione confermata!',
-        `Hai prenotato ${product.name} con sconto del ${Math.floor(bookingDiscount)}%.\n\n${discountRemaining > 0 ? `💡 Lo sconto può ancora aumentare! Mancano ${discountRemaining}% per raggiungere il massimo.\n\n` : '🎉 Hai già lo sconto massimo!\n\n'}👥 Condividi il drop con amici e parenti per raggiungere insieme il ${maxDiscount}% di sconto!`,
+        '✅ Prenotato!',
+        discountRemaining > 0
+          ? `${product.name} prenotato con il ${Math.floor(bookingDiscount)}% di sconto.\nMancano €${euroRemaining.toLocaleString('it-IT')} allo sconto massimo — condividi il drop per arrivarci!`
+          : `${product.name} prenotato con il ${Math.floor(bookingDiscount)}% di sconto massimo. 🎉`,
         [{ text: 'OK' }]
       );
     } catch (error: any) {
