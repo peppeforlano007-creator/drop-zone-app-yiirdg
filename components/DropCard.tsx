@@ -196,8 +196,9 @@ export default function DropCard({ drop, deliveryMinDays, deliveryMaxDays }: Dro
   const currentValueColor = isOverfunded ? '#16A34A' : colors.text;
 
   const discountRemaining = maxDiscount - currentDiscount;
-  const discountRemainingText = discountRemaining > 0 
-    ? `Mancano ${Math.floor(discountRemaining)}% per lo sconto massimo!` 
+  const euroRemaining = Math.max(maxReservationValue - currentValue, 0);
+  const discountRemainingText = discountRemaining > 0 && euroRemaining > 0
+    ? `Mancano ${formatEuro(euroRemaining)} per lo sconto massimo!`
     : 'Sconto massimo raggiunto!';
 
   const supplierListName = drop.supplier_lists?.name ?? 'N/A';
