@@ -11,6 +11,8 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
+  Modal,
+  Dimensions,
 } from 'react-native';
 import { colors } from '@/styles/commonStyles';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -18,7 +20,7 @@ import { IconSymbol } from '@/components/IconSymbol';
 import React, { useState, useEffect } from 'react';
 import * as Haptics from 'expo-haptics';
 import { supabase } from '@/app/integrations/supabase/client';
-import { Picker } from '@react-native-picker/picker';
+
 import { validateAndFormatPhone, formatPhoneForDisplay } from '@/utils/phoneValidation';
 import CountryCodePicker from '@/components/CountryCodePicker';
 
@@ -42,6 +44,7 @@ export default function ConsumerRegisterScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [otpSent, setOtpSent] = useState(false);
+  const [showPickupModal, setShowPickupModal] = useState(false);
   
   // Legal consents
   const [acceptedTerms, setAcceptedTerms] = useState(false);
@@ -614,23 +617,109 @@ export default function ConsumerRegisterScreen() {
                   </View>
                 </View>
               ) : (
-                <View style={styles.pickerContainer}>
-                  <Picker
-                    selectedValue={pickupPointId}
-                    onValueChange={(itemValue) => setPickupPointId(itemValue)}
-                    style={styles.picker}
-                    enabled={!loading && !otpSent}
+                <>
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.pickerButton,
+                    pressed && { opacity: 0.7 },
+                    (loading || otpSent) && { opacity: 0.5 },
+                  ]}
+                  onPress={() => {
+                    console.log('[PickupSelector] Open pickup point modal pressed');
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setShowPickupModal(true);
+                  }}
+                  disabled={loading || otpSent}
+                >
+                  {pickupPointId ? (
+                    <Text style={styles.pickerButtonText} numberOfLines={1}>
+                      {pickupPoints.find((p) => p.id === pickupPointId)
+                        ? `${pickupPoints.find((p) => p.id === pickupPointId)!.name} - ${pickupPoints.find((p) => p.id === pickupPointId)!.city}`
+                        : 'Seleziona un punto di ritiro'}
+                    </Text>
+                  ) : (
+                    <Text style={styles.pickerButtonPlaceholder} numberOfLines={1}>
+                      Seleziona un punto di ritiro
+                    </Text>
+                  )}
+                  <IconSymbol
+                    ios_icon_name="chevron.down"
+                    android_material_icon_name="keyboard_arrow_down"
+                    size={18}
+                    color={colors.textSecondary}
+                    style={styles.pickerButtonChevron}
+                  />
+                </Pressable>
+
+                <Modal
+                  visible={showPickupModal}
+                  animationType="slide"
+                  transparent
+                  onRequestClose={() => setShowPickupModal(false)}
+                >
+                  <Pressable
+                    style={styles.modalOverlay}
+                    onPress={() => setShowPickupModal(false)}
                   >
-                    <Picker.Item label="Seleziona un punto di ritiro" value="" />
-                    {pickupPoints.map((point) => (
-                      <Picker.Item
-                        key={point.id}
-                        label={`${point.name} - ${point.city}`}
-                        value={point.id}
-                      />
-                    ))}
-                  </Picker>
-                </View>
+                    <Pressable style={styles.modalContent} onPress={() => {}}>
+                      <View style={styles.modalHeader}>
+                        <Text style={styles.modalTitle}>Punto di ritiro</Text>
+                      </View>
+                      <ScrollView bounces={false} showsVerticalScrollIndicator={false}>
+                        {pickupPoints.map((point) => {
+                          const isSelected = point.id === pickupPointId;
+                          const label = `${point.name} - ${point.city}`;
+                          return (
+                            <Pressable
+                              key={point.id}
+                              style={({ pressed }) => [
+                                styles.modalItem,
+                                isSelected && { backgroundColor: colors.primary + '22' },
+                                pressed && { opacity: 0.7 },
+                              ]}
+                              onPress={() => {
+                                console.log('[PickupSelector] Pickup point selected:', point.id, label);
+                                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                                setPickupPointId(point.id);
+                                setShowPickupModal(false);
+                              }}
+                            >
+                              <Text
+                                style={[
+                                  styles.modalItemText,
+                                  isSelected && { color: colors.primary, fontWeight: '600' },
+                                ]}
+                              >
+                                {label}
+                              </Text>
+                              {isSelected && (
+                                <IconSymbol
+                                  ios_icon_name="checkmark"
+                                  android_material_icon_name="check"
+                                  size={16}
+                                  color={colors.primary}
+                                />
+                              )}
+                            </Pressable>
+                          );
+                        })}
+                      </ScrollView>
+                      <Pressable
+                        style={({ pressed }) => [
+                          styles.modalCloseButton,
+                          pressed && { opacity: 0.7 },
+                        ]}
+                        onPress={() => {
+                          console.log('[PickupSelector] Pickup modal closed without selection');
+                          setShowPickupModal(false);
+                        }}
+                      >
+                        <Text style={styles.modalCloseText}>Chiudi</Text>
+                      </Pressable>
+                    </Pressable>
+                  </Pressable>
+                </Modal>
+                </>
               )}
 
               {/* Legal Consents Section */}
@@ -992,16 +1081,79 @@ const styles = StyleSheet.create({
     color: colors.success,
     fontWeight: '500',
   },
-  pickerContainer: {
+  pickerButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: colors.card,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: colors.border,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
     marginBottom: 16,
-    overflow: 'hidden',
   },
-  picker: {
+  pickerButtonText: {
+    flex: 1,
+    fontSize: 15,
     color: colors.text,
+  },
+  pickerButtonPlaceholder: {
+    flex: 1,
+    fontSize: 15,
+    color: colors.textSecondary,
+  },
+  pickerButtonChevron: {
+    marginLeft: 8,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: colors.card,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    maxHeight: Dimensions.get('window').height * 0.6,
+    paddingBottom: Platform.OS === 'ios' ? 32 : 16,
+  },
+  modalHeader: {
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  modalTitle: {
+    fontSize: 17,
+    fontWeight: '600',
+    color: colors.text,
+    textAlign: 'center',
+  },
+  modalItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+  },
+  modalItemText: {
+    flex: 1,
+    fontSize: 15,
+    color: colors.text,
+  },
+  modalCloseButton: {
+    marginHorizontal: 20,
+    marginTop: 12,
+    backgroundColor: colors.primary,
+    borderRadius: 8,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  modalCloseText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
   },
   loadingPickupPoints: {
     flexDirection: 'row',
