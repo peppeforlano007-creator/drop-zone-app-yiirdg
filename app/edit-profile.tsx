@@ -53,9 +53,10 @@ export default function EditProfileScreen() {
         return;
       }
 
-      Alert.alert('Successo', 'Nome aggiornato con successo');
-      console.log('Name updated successfully');
       await refreshUser();
+      setName(name.trim());
+      console.log('Name updated successfully');
+      Alert.alert('Successo', 'Nome aggiornato con successo');
     } catch (error) {
       console.error('Exception updating name:', error);
       Alert.alert('Errore', 'Errore imprevisto durante l\'aggiornamento');
