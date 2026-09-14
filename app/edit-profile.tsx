@@ -31,6 +31,13 @@ export default function EditProfileScreen() {
       return;
     }
 
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session || !user?.id) {
+      Alert.alert('Sessione scaduta', 'Effettua nuovamente il login per aggiornare il profilo.');
+      return;
+    }
+
+    console.log('[handleUpdateName] Session valid, updating name for user:', user.id);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setLoading(true);
 
@@ -38,11 +45,11 @@ export default function EditProfileScreen() {
       const { error } = await supabase
         .from('profiles')
         .update({ full_name: name })
-        .eq('user_id', user?.id);
+        .eq('user_id', user.id);
 
       if (error) {
         console.error('Error updating name:', error);
-        Alert.alert('Errore', 'Impossibile aggiornare il nome');
+        Alert.alert('Errore', error.message || 'Impossibile aggiornare il nome');
         return;
       }
 
