@@ -36,6 +36,7 @@ interface Drop {
   max_discount?: number | null;
   status: string | null;
   image_url?: string | null;
+  supplier_list_id?: string | null;
 }
 
 interface Product {
@@ -411,18 +412,24 @@ export default function GroupChatScreen() {
         console.log('[Chat] Fetching drop data for message, drop_id:', raw.drop_id);
         const { data: dropData } = await supabase
           .from('drops')
-          .select(`
-            id, name, current_discount, current_value, max_discount, status,
-            supplier_lists (
-              products ( image_url )
-            )
-          `)
+          .select('id, name, current_discount, current_value, max_discount, status, supplier_list_id')
           .eq('id', raw.drop_id)
           .single();
-        const rawDrop = dropData as any;
-        const products: any[] = rawDrop?.supplier_lists?.products ?? [];
-        const image_url = products.find((p: any) => p.image_url)?.image_url ?? null;
-        drop = rawDrop ? { ...rawDrop, image_url } as Drop : null;
+
+        if (dropData) {
+          let image_url: string | null = null;
+          if (dropData.supplier_list_id) {
+            const { data: productData } = await supabase
+              .from('products')
+              .select('image_url')
+              .eq('supplier_list_id', dropData.supplier_list_id)
+              .not('image_url', 'is', null)
+              .limit(1)
+              .single();
+            image_url = productData?.image_url ?? null;
+          }
+          drop = { ...dropData, image_url } as Drop;
+        }
       }
 
       let product: Product | null = null;
