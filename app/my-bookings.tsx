@@ -2,6 +2,7 @@
 import { colors, layout } from '@/styles/commonStyles';
 import React, { useEffect, useState, useCallback } from 'react';
 import { IconSymbol } from '@/components/IconSymbol';
+import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/app/integrations/supabase/client';
 import * as Haptics from 'expo-haptics';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -329,7 +330,29 @@ export default function MyBookingsScreen() {
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
-        <Stack.Screen options={{ title: 'Le Mie Prenotazioni', headerShown: true, headerBackTitle: '', headerBackButtonDisplayMode: 'minimal' }} />
+        <Stack.Screen options={{
+          title: 'Le Mie Prenotazioni',
+          headerShown: true,
+          headerBackTitle: '',
+          headerBackButtonDisplayMode: 'minimal',
+          headerBackVisible: false,
+          headerLeft: () => (
+            <Pressable
+              onPress={() => {
+                console.log('[MyBookings] Back button pressed (loading state)');
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                if (router.canGoBack()) {
+                  router.back();
+                } else {
+                  router.replace('/(tabs)/profile');
+                }
+              }}
+              style={{ paddingLeft: 4 }}
+            >
+              <Ionicons name="chevron-back" size={28} color={colors.primary} />
+            </Pressable>
+          ),
+        }} />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={colors.primary} />
           <Text style={styles.loadingText}>Caricamento prenotazioni...</Text>
@@ -341,7 +364,29 @@ export default function MyBookingsScreen() {
   if (!user) {
     return (
       <SafeAreaView style={styles.container}>
-        <Stack.Screen options={{ title: 'Le Mie Prenotazioni', headerShown: true, headerBackTitle: '', headerBackButtonDisplayMode: 'minimal' }} />
+        <Stack.Screen options={{
+          title: 'Le Mie Prenotazioni',
+          headerShown: true,
+          headerBackTitle: '',
+          headerBackButtonDisplayMode: 'minimal',
+          headerBackVisible: false,
+          headerLeft: () => (
+            <Pressable
+              onPress={() => {
+                console.log('[MyBookings] Back button pressed (no-user state)');
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                if (router.canGoBack()) {
+                  router.back();
+                } else {
+                  router.replace('/(tabs)/profile');
+                }
+              }}
+              style={{ paddingLeft: 4 }}
+            >
+              <Ionicons name="chevron-back" size={28} color={colors.primary} />
+            </Pressable>
+          ),
+        }} />
         <View style={styles.emptyContainer}>
           <IconSymbol
             ios_icon_name="person.crop.circle.badge.exclamationmark"
@@ -589,6 +634,23 @@ export default function MyBookingsScreen() {
           headerShown: true,
           headerBackTitle: '',
           headerBackButtonDisplayMode: 'minimal',
+          headerBackVisible: false,
+          headerLeft: () => (
+            <Pressable
+              onPress={() => {
+                console.log('[MyBookings] Back button pressed (main screen)');
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                if (router.canGoBack()) {
+                  router.back();
+                } else {
+                  router.replace('/(tabs)/profile');
+                }
+              }}
+              style={{ paddingLeft: 4 }}
+            >
+              <Ionicons name="chevron-back" size={28} color={colors.primary} />
+            </Pressable>
+          ),
           headerRight: () => (
             <Pressable
               onPress={() => {

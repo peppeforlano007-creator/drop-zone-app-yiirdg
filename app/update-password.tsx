@@ -15,6 +15,7 @@ import {
 import { colors } from '@/styles/commonStyles';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { IconSymbol } from '@/components/IconSymbol';
+import { Ionicons } from '@expo/vector-icons';
 import React, { useState, useEffect } from 'react';
 import * as Haptics from 'expo-haptics';
 import { supabase } from '@/app/integrations/supabase/client';
@@ -184,6 +185,23 @@ export default function UpdatePasswordScreen() {
           headerShown: true,
           title: 'Nuova Password',
           headerBackTitle: 'Indietro',
+          headerBackVisible: false,
+          headerLeft: () => (
+            <Pressable
+              onPress={() => {
+                console.log('[UpdatePassword] Back button pressed');
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                if (router.canGoBack()) {
+                  router.back();
+                } else {
+                  router.replace('/login');
+                }
+              }}
+              style={{ paddingLeft: 4 }}
+            >
+              <Ionicons name="chevron-back" size={28} color={colors.primary} />
+            </Pressable>
+          ),
         }} 
       />
       <SafeAreaView style={styles.safeArea} edges={['bottom']}>
