@@ -419,14 +419,27 @@ export default function GroupChatScreen() {
         if (dropData) {
           let image_url: string | null = null;
           if (dropData.supplier_list_id) {
-            const { data: productData } = await supabase
-              .from('products')
-              .select('image_url')
-              .eq('supplier_list_id', dropData.supplier_list_id)
-              .not('image_url', 'is', null)
-              .limit(1)
+            // 1. Try banner_url from supplier_lists first
+            const { data: listData } = await supabase
+              .from('supplier_lists')
+              .select('banner_url')
+              .eq('id', dropData.supplier_list_id)
               .single();
-            image_url = productData?.image_url ?? null;
+            image_url = listData?.banner_url ?? null;
+            console.log('[Chat] supplier_lists banner_url for supplier_list_id', dropData.supplier_list_id, ':', image_url);
+
+            // 2. Fallback to first product image if no banner
+            if (!image_url) {
+              console.log('[Chat] No banner_url, falling back to product image for supplier_list_id:', dropData.supplier_list_id);
+              const { data: productData } = await supabase
+                .from('products')
+                .select('image_url')
+                .eq('supplier_list_id', dropData.supplier_list_id)
+                .not('image_url', 'is', null)
+                .limit(1)
+                .single();
+              image_url = productData?.image_url ?? null;
+            }
           }
           drop = { ...dropData, image_url } as Drop;
         }
