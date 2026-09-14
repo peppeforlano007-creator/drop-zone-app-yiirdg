@@ -1,5 +1,5 @@
 
-import { View, Text, StyleSheet, ScrollView, Pressable, Alert, ActivityIndicator, Linking } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, Alert, ActivityIndicator, Linking, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, commonStyles, layout } from '@/styles/commonStyles';
 import React, { useState, useEffect, useCallback } from 'react';
@@ -24,6 +24,7 @@ export default function ProfileScreen() {
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [wishlistCount, setWishlistCount] = useState(0);
   const [profileError, setProfileError] = useState<string | null>(null);
+  const [showPickupModal, setShowPickupModal] = useState(false);
 
   const loadUserProfile = useCallback(async () => {
     if (!user) {
@@ -446,17 +447,63 @@ export default function ProfileScreen() {
           {/* Pickup Point Selection */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Punto di Ritiro</Text>
-            <Text style={styles.sectionDescription}>
-              Seleziona il punto di ritiro più vicino a te
-            </Text>
 
             {loadingPoints ? (
               <View style={styles.loadingContainer}>
                 <ActivityIndicator size="small" color={colors.text} />
-                <Text style={styles.loadingText}>Caricamento punti di ritiro...</Text>
+                <Text style={styles.loadingText}>Caricamento...</Text>
               </View>
             ) : (
-              <View style={styles.pickupPointsContainer}>
+              <View style={styles.pickupPointRow}>
+                <View style={styles.pickupPointRowLeft}>
+                  <IconSymbol
+                    ios_icon_name="mappin.circle.fill"
+                    android_material_icon_name="location-on"
+                    size={22}
+                    color={colors.text}
+                  />
+                  <Text style={styles.pickupPointRowCity}>
+                    {selectedPickupPoint || 'Nessun punto selezionato'}
+                  </Text>
+                </View>
+                <Pressable
+                  style={styles.changePickupButton}
+                  onPress={() => {
+                    console.log('Profile: User tapped Cambia punto di ritiro');
+                    setShowPickupModal(true);
+                  }}
+                  disabled={updatingPoint}
+                >
+                  <Text style={styles.changePickupButtonText}>
+                    {updatingPoint ? 'Aggiornamento...' : 'Cambia'}
+                  </Text>
+                </Pressable>
+              </View>
+            )}
+          </View>
+
+          {/* Pickup Point Modal */}
+          <Modal
+            visible={showPickupModal}
+            animationType="slide"
+            presentationStyle="pageSheet"
+            onRequestClose={() => setShowPickupModal(false)}
+          >
+            <SafeAreaView style={styles.modalContainer} edges={['top', 'bottom']}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Scegli Punto di Ritiro</Text>
+                <Pressable
+                  onPress={() => {
+                    console.log('Profile: User closed pickup modal');
+                    setShowPickupModal(false);
+                  }}
+                  style={styles.modalCloseButton}
+                >
+                  <IconSymbol ios_icon_name="xmark" android_material_icon_name="close" size={22} color={colors.text} />
+                </Pressable>
+              </View>
+              <Text style={styles.modalSubtitle}>Seleziona il punto di ritiro più vicino a te</Text>
+              <ScrollView contentContainerStyle={styles.modalList}>
                 {pickupPoints.map((point) => (
                   <Pressable
                     key={point.id}
@@ -464,7 +511,11 @@ export default function ProfileScreen() {
                       styles.pickupPointCard,
                       selectedPickupPoint === point.city && styles.pickupPointCardSelected,
                     ]}
-                    onPress={() => handlePickupPointChange(point.id, point.city)}
+                    onPress={async () => {
+                      console.log('Profile: User selected pickup point in modal:', point.city);
+                      await handlePickupPointChange(point.id, point.city);
+                      setShowPickupModal(false);
+                    }}
                     disabled={updatingPoint}
                   >
                     <View style={styles.pickupPointContent}>
@@ -496,9 +547,9 @@ export default function ProfileScreen() {
                     )}
                   </Pressable>
                 ))}
-              </View>
-            )}
-          </View>
+              </ScrollView>
+            </SafeAreaView>
+          </Modal>
 
           {/* Settings */}
           <View style={styles.section}>
@@ -963,5 +1014,74 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 10,
     fontWeight: '700',
+  },
+  pickupPointRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.card,
+  },
+  pickupPointRowLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
+  },
+  pickupPointRowCity: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: colors.text,
+    fontFamily: 'System',
+  },
+  changePickupButton: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 8,
+    backgroundColor: colors.text,
+  },
+  changePickupButtonText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.background,
+    fontFamily: 'System',
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.text,
+    fontFamily: 'System',
+  },
+  modalCloseButton: {
+    padding: 4,
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 8,
+    fontFamily: 'System',
+  },
+  modalList: {
+    padding: 16,
+    gap: 10,
   },
 });
