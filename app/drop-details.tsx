@@ -1333,10 +1333,15 @@ export default function DropDetailsScreen() {
       </View>
 
       <View
-        style={styles.bottomLeftOverlay}
+        style={[
+          styles.bottomLeftOverlay,
+          (isDropCompleted || isDropBookingDisabled || drop?.status === 'approved')
+            ? styles.bottomLeftOverlayWithBanner
+            : null,
+        ]}
         pointerEvents="box-none"
       >
-        <SafeAreaView edges={['top']} style={styles.bottomLeftSafeArea}>
+        <SafeAreaView edges={['bottom']} style={styles.bottomLeftSafeArea}>
           <View style={styles.bottomLeftChipsRow} pointerEvents="box-none">
             <View style={styles.infoChip} pointerEvents="none">
               <MaterialCommunityIcons name="map-marker" size={12} color="#FFF" />
@@ -1529,7 +1534,7 @@ const styles = StyleSheet.create({
   bottomLeftOverlay: {
     position: 'absolute',
     left: 16,
-    top: 0,
+    bottom: 6,
     zIndex: 50,
   },
   bottomLeftOverlayWithBanner: {
@@ -1538,7 +1543,6 @@ const styles = StyleSheet.create({
   bottomLeftSafeArea: {
     backgroundColor: 'transparent',
     gap: 10,
-    paddingTop: 8,
   },
   bottomLeftChipsRow: {
     flexDirection: 'row',
