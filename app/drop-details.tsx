@@ -116,6 +116,7 @@ export default function DropDetailsScreen() {
   const [isExpired, setIsExpired] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [shareProduct, setShareProduct] = useState<{ id: string; name: string } | null>(null);
+  const [bannerDismissed, setBannerDismissed] = useState(false);
   const [currentProductIndex, setCurrentProductIndex] = useState(0);
   const bounceAnim = useRef(new Animated.Value(1)).current;
   const { user } = useAuth();
@@ -285,6 +286,10 @@ export default function DropDetailsScreen() {
     } finally {
       setLoading(false);
     }
+  }, [dropId]);
+
+  useEffect(() => {
+    setBannerDismissed(false);
   }, [dropId]);
 
   const loadUserBookings = useCallback(async () => {
@@ -1174,7 +1179,7 @@ export default function DropDetailsScreen() {
         </View>
       )}
 
-      {drop?.status === 'approved' && (
+      {drop?.status === 'approved' && !bannerDismissed && (
         <View style={styles.bookingDisabledBanner}>
           <SafeAreaView edges={['bottom']} style={styles.bookingDisabledSafeArea}>
             <View style={styles.approvedBannerContent}>
@@ -1201,6 +1206,22 @@ export default function DropDetailsScreen() {
                 <Text style={[styles.bannerInterestText, isInterested(dropId) && styles.bannerInterestTextActive]}>
                   {isInterested(dropId) ? 'Parteciperò!' : 'Mi Interessa'}
                 </Text>
+              </Pressable>
+              <Pressable
+                onPress={() => {
+                  console.log('[DropDetails] Banner close button pressed');
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setBannerDismissed(true);
+                }}
+                style={styles.bannerCloseButton}
+                hitSlop={8}
+              >
+                <IconSymbol
+                  ios_icon_name="xmark"
+                  android_material_icon_name="close"
+                  size={12}
+                  color="#E11D48"
+                />
               </Pressable>
             </View>
           </SafeAreaView>
@@ -1644,6 +1665,15 @@ const styles = StyleSheet.create({
   },
   bannerInterestTextActive: {
     color: '#E11D48',
+  },
+  bannerCloseButton: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#FFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
   },
   completedStatsOverlay: {
     marginHorizontal: 32,
