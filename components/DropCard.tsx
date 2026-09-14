@@ -248,9 +248,9 @@ export default function DropCard({ drop, deliveryMinDays, deliveryMaxDays }: Dro
 
   const statusBadgeMap: Record<string, { text: string; color: string }> = {
     active: { text: 'Attivo', color: '#16A34A' },
-    approved: { text: 'Potrebbero Attivarsi', color: '#2563EB' },
+    approved: { text: 'Potrebbe Attivarsi', color: '#2563EB' },
     pending_approval: { text: 'A Breve', color: '#F59E0B' },
-    inactive: { text: 'Potrebbero Attivarsi', color: '#6B7280' },
+    inactive: { text: 'Potrebbe Attivarsi', color: '#6B7280' },
     draft: { text: 'In Preparazione', color: '#6B7280' },
     scheduled: { text: 'Programmato', color: '#7C3AED' },
     created: { text: 'In Preparazione', color: '#6B7280' },
