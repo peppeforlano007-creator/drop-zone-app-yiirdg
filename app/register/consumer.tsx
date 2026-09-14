@@ -71,6 +71,10 @@ export default function ConsumerRegisterScreen() {
 
       console.log('Pickup points loaded:', data?.length);
       setPickupPoints(data || []);
+      // Inizializza automaticamente il primo punto disponibile (fix Android Picker)
+      if (data && data.length > 0 && !pickupPointId) {
+        setPickupPointId(data[0].id);
+      }
     } catch (error) {
       console.error('Exception loading pickup points:', error);
       Alert.alert('Errore', 'Si è verificato un errore durante il caricamento dei punti di ritiro.');
@@ -253,6 +257,18 @@ export default function ConsumerRegisterScreen() {
 
       console.log('OTP verified, user created:', authData.user.id);
       console.log('User phone in auth.users:', authData.user.phone);
+
+      // Validazione doppia pickup point prima del salvataggio
+      if (!pickupPointId || pickupPointId.trim() === '') {
+        Alert.alert(
+          'Punto di Ritiro Mancante',
+          'Non è stato possibile associare un punto di ritiro al tuo account. Torna indietro e seleziona un punto di ritiro prima di procedere.',
+          [{ text: 'OK', onPress: () => { setOtpSent(false); } }]
+        );
+        await supabase.auth.signOut();
+        setLoading(false);
+        return;
+      }
 
       // Update the profile with user data
       console.log('Updating user profile with metadata...');
@@ -582,9 +598,20 @@ export default function ConsumerRegisterScreen() {
                     size={24}
                     color={colors.warning}
                   />
-                  <Text style={styles.noPickupPointsText}>
-                    Nessun punto di ritiro disponibile al momento.
-                  </Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.noPickupPointsText}>
+                      Nessun punto di ritiro disponibile. Controlla la connessione e riprova.
+                    </Text>
+                    <Pressable
+                      onPress={loadPickupPoints}
+                      style={{ marginTop: 8 }}
+                      disabled={loadingPickupPoints}
+                    >
+                      <Text style={{ color: colors.primary, fontWeight: '600', fontSize: 14 }}>
+                        Riprova
+                      </Text>
+                    </Pressable>
+                  </View>
                 </View>
               ) : (
                 <View style={styles.pickerContainer}>
@@ -713,7 +740,7 @@ export default function ConsumerRegisterScreen() {
                     (pressed || loading || loadingPickupPoints) && styles.registerButtonPressed,
                   ]}
                   onPress={handleSendOTP}
-                  disabled={loading || loadingPickupPoints}
+                  disabled={loading || loadingPickupPoints || pickupPoints.length === 0}
                 >
                   {loading ? (
                     <ActivityIndicator color="#fff" />
