@@ -33,7 +33,9 @@ interface Drop {
   name: string;
   current_discount: number | null;
   current_value?: number | null;
+  max_discount?: number | null;
   status: string | null;
+  image_url?: string | null;
 }
 
 interface Product {
@@ -77,18 +79,11 @@ function DropShareCard({
   const cardBg = isDark ? '#2C2C2E' : '#F0F0F0';
   const textColor = isDark ? '#FFFFFF' : '#000000';
   const subColor = isDark ? '#8E8E93' : '#666666';
+  const placeholderBg = isDark ? '#1a1a2e' : '#E8E8E8';
   const dropName = getDropDisplayName(drop);
   const discount = Number(drop.current_discount ?? drop.current_value ?? 0);
-  const discountText = discount > 0 ? `${Math.floor(discount)}%` : '';
-
-  const statusMap: Record<string, { text: string; color: string }> = {
-    active: { text: 'Attivo', color: '#16A34A' },
-    pending: { text: 'In attesa', color: '#F59E0B' },
-    completed: { text: 'Completato', color: '#6B7280' },
-    expired: { text: 'Scaduto', color: '#EF4444' },
-  };
-  const statusKey = drop.status ?? '';
-  const badge = statusMap[statusKey] ?? { text: statusKey, color: '#6B7280' };
+  const discountText = discount > 0 ? `🏷️ ${Math.floor(discount)}% di sconto` : '';
+  const isExpired = drop.status === 'expired';
 
   const handlePress = () => {
     console.log('[Chat] Drop card pressed, navigating to drop:', drop.id);
@@ -101,24 +96,30 @@ function DropShareCard({
       onPress={handlePress}
       activeOpacity={0.8}
     >
-      <View style={[styles.dropCardImagePlaceholder, { backgroundColor: isDark ? '#3A3A3C' : '#E5E5E5' }]}>
-        <Ionicons name="cube-outline" size={28} color={subColor} />
-      </View>
+      {drop.image_url ? (
+        <Image
+          source={{ uri: drop.image_url }}
+          style={styles.dropCardImage}
+          resizeMode="cover"
+        />
+      ) : (
+        <View style={[styles.dropCardImagePlaceholder, { backgroundColor: placeholderBg }]}>
+          <Ionicons name="storefront-outline" size={36} color={subColor} />
+        </View>
+      )}
       <View style={styles.dropCardInfo}>
-        <Text style={[styles.dropCardName, { color: textColor }]} numberOfLines={2}>
+        <Text style={[styles.dropCardName, { color: textColor }]} numberOfLines={1}>
           {dropName}
         </Text>
-        <View style={styles.dropCardBadgeRow}>
-          {discountText !== '' && (
-            <View style={styles.discountBadge}>
-              <Text style={styles.discountBadgeText}>{discountText}</Text>
-            </View>
-          )}
-          <View style={[styles.statusBadge, { backgroundColor: badge.color + '22', borderColor: badge.color + '66' }]}>
-            <Text style={[styles.statusBadgeText, { color: badge.color }]}>{badge.text}</Text>
+        {isExpired && (
+          <Text style={styles.dropExpiredText}>Scaduto</Text>
+        )}
+        {discountText !== '' && (
+          <View style={styles.discountBadge}>
+            <Text style={styles.discountBadgeText}>{discountText}</Text>
           </View>
-        </View>
-        <Text style={[styles.dropCardCta, { color: colors.info }]}>Vedi drop →</Text>
+        )}
+        <Text style={[styles.dropCardCta, { color: colors.info }]}>Tocca per vedere il drop →</Text>
       </View>
     </TouchableOpacity>
   );
@@ -407,12 +408,21 @@ export default function GroupChatScreen() {
 
       let drop: Drop | null = null;
       if (raw.message_type === 'drop' && raw.drop_id) {
+        console.log('[Chat] Fetching drop data for message, drop_id:', raw.drop_id);
         const { data: dropData } = await supabase
           .from('drops')
-          .select('id, name, current_discount, current_value, status')
+          .select(`
+            id, name, current_discount, current_value, max_discount, status,
+            supplier_lists (
+              products ( image_url )
+            )
+          `)
           .eq('id', raw.drop_id)
           .single();
-        drop = dropData as Drop | null;
+        const rawDrop = dropData as any;
+        const products: any[] = rawDrop?.supplier_lists?.products ?? [];
+        const image_url = products.find((p: any) => p.image_url)?.image_url ?? null;
+        drop = rawDrop ? { ...rawDrop, image_url } as Drop : null;
       }
 
       let product: Product | null = null;
@@ -909,33 +919,33 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-end',
   },
   dropCard: {
-    borderRadius: 12,
+    borderRadius: 14,
     overflow: 'hidden',
-    width: 220,
+    width: 240,
   },
   dropCardImage: {
     width: '100%',
-    height: 110,
+    height: 130,
   },
   dropCardImagePlaceholder: {
     width: '100%',
-    height: 110,
+    height: 130,
     alignItems: 'center',
     justifyContent: 'center',
   },
   dropCardInfo: {
-    padding: 10,
-    gap: 6,
+    padding: 12,
+    gap: 5,
   },
   dropCardName: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '700',
     fontFamily: 'System',
   },
-  dropCardBadgeRow: {
-    flexDirection: 'row',
-    gap: 6,
-    flexWrap: 'wrap',
+  dropExpiredText: {
+    fontSize: 11,
+    color: '#EF4444',
+    fontFamily: 'System',
   },
   discountBadge: {
     backgroundColor: '#16A34A22',
@@ -944,6 +954,7 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     borderWidth: 1,
     borderColor: '#16A34A66',
+    alignSelf: 'flex-start',
   },
   discountBadgeText: {
     fontSize: 12,
@@ -951,20 +962,9 @@ const styles = StyleSheet.create({
     color: '#16A34A',
     fontFamily: 'System',
   },
-  statusBadge: {
-    borderRadius: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderWidth: 1,
-  },
-  statusBadgeText: {
-    fontSize: 12,
-    fontWeight: '600',
-    fontFamily: 'System',
-  },
   dropCardCta: {
-    fontSize: 13,
-    fontWeight: '600',
+    fontSize: 12,
+    fontWeight: '500',
     fontFamily: 'System',
   },
   inputBar: {
