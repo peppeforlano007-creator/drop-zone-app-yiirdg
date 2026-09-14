@@ -60,6 +60,7 @@ export default function EnhancedProductCard({
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
   const [selectedColor, setSelectedColor] = useState<string | null>(null);
   const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(null);
+  const [nameExpanded, setNameExpanded] = useState(false);
   const [descriptionExpanded, setDescriptionExpanded] = useState(false);
   const [descriptionHeight, setDescriptionHeight] = useState(0);
   const [isInWishlist, setIsInWishlist] = useState(false);
@@ -537,7 +538,29 @@ export default function EnhancedProductCard({
 
       <View style={styles.overlay}>
         <View style={styles.content}>
-          <Text style={styles.productName} numberOfLines={2}>{product.name ?? 'Prodotto'}</Text>
+          <View>
+            <Text
+              style={styles.productName}
+              numberOfLines={nameExpanded ? undefined : 2}
+            >
+              {product.name ?? 'Prodotto'}
+            </Text>
+            {(product.name?.length ?? 0) > 80 && (
+              <Pressable
+                onPress={() => {
+                  const next = !nameExpanded;
+                  console.log('[EnhancedProductCard] title expand toggle:', next ? 'expanded' : 'collapsed', 'product:', product.name);
+                  setNameExpanded(next);
+                }}
+                style={styles.expandNameButton}
+                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+              >
+                <Text style={styles.expandNameText}>
+                  {nameExpanded ? 'Mostra meno ▲' : 'Mostra di più ▼'}
+                </Text>
+              </Pressable>
+            )}
+          </View>
 
           <View style={styles.compactInfoRow}>
             {!!product.brand && (
@@ -1009,6 +1032,16 @@ const styles = StyleSheet.create({
     marginBottom: 5,
     letterSpacing: -0.3,
     lineHeight: 20,
+  },
+  expandNameButton: {
+    marginTop: 2,
+    alignSelf: 'flex-start',
+  },
+  expandNameText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.textSecondary,
+    fontFamily: 'System',
   },
   compactInfoRow: {
     flexDirection: 'row',
