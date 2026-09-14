@@ -37,7 +37,7 @@ export default function EditProfileScreen() {
     try {
       const { error } = await supabase
         .from('profiles')
-        .update({ name })
+        .update({ full_name: name })
         .eq('user_id', user?.id);
 
       if (error) {
