@@ -15,6 +15,7 @@ import EnhancedProductCard from '@/components/EnhancedProductCard';
 import * as Haptics from 'expo-haptics';
 import * as Network from 'expo-network';
 import { computeDropDiscount } from '@/utils/dropHelpers';
+import { AppEventsLogger } from 'react-native-fbsdk-next';
 
 const { width, height } = Dimensions.get('window');
 
@@ -141,6 +142,11 @@ export default function DropDetailsScreen() {
 
     try {
       console.log('📥 Loading drop details for:', dropId);
+      console.log('[Meta] Logging ViewContent event for drop:', dropId);
+      AppEventsLogger.logEvent('ViewContent', {
+        fb_content_type: 'drop',
+        fb_content_id: String(dropId),
+      });
       
       const { data: dropData, error: dropError } = await supabase
         .from('drops')
@@ -864,6 +870,13 @@ export default function DropDetailsScreen() {
       }
 
       console.log('✅ Booking created successfully:', bookingData);
+
+      const purchaseAmount = Number(currentDiscountedPrice) || 0;
+      console.log('[Meta] Logging Purchase event — amount:', purchaseAmount, 'EUR');
+      AppEventsLogger.logEvent('Purchase', {
+        _valueToSum: purchaseAmount,
+        fb_currency: 'EUR',
+      });
 
       setUserBookings(prev => new Set([...prev, productId]));
       

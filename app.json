@@ -17,6 +17,7 @@
       "supportsTablet": false,
       "bundleIdentifier": "com.giuseppeforlano.dropzone",
       "buildNumber": "47",
+      "facebookScheme": "fb1420595826086758",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "UIBackgroundModes": [
@@ -65,6 +66,18 @@
           "icon": "./assets/images/rdnstreetstockmarket-icon.png",
           "color": "#000000",
           "sounds": []
+        }
+      ],
+      [
+        "react-native-fbsdk-next",
+        {
+          "appID": "1420595826086758",
+          "clientToken": "36386b7fa50d655e9b298aed5109e8cf",
+          "displayName": "RDN STREET STOCK MARKET",
+          "scheme": "fb1420595826086758",
+          "advertiserIDCollectionEnabled": true,
+          "autoLogAppEventsEnabled": true,
+          "isAutoInitEnabled": true
         }
       ]
     ],

@@ -23,6 +23,7 @@ import { supabase } from '@/app/integrations/supabase/client';
 
 import { validateAndFormatPhone, formatPhoneForDisplay } from '@/utils/phoneValidation';
 import CountryCodePicker from '@/components/CountryCodePicker';
+import { AppEventsLogger } from 'react-native-fbsdk-next';
 
 interface PickupPoint {
   id: string;
@@ -362,6 +363,9 @@ export default function ConsumerRegisterScreen() {
       
       // Sign out the user so they can log in with password
       await supabase.auth.signOut();
+      
+      console.log('[Meta] Logging CompleteRegistration event');
+      AppEventsLogger.logEvent('CompleteRegistration');
       
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       
