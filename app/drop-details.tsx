@@ -7,7 +7,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, router } from 'expo-router';
 import { useRealtimeDrop } from '@/hooks/useRealtimeDrop';
 import { colors } from '@/styles/commonStyles';
-import { View, Text, StyleSheet, FlatList, Dimensions, Pressable, Alert, Animated, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, FlatList, Dimensions, Pressable, Alert, Animated, ActivityIndicator, Platform } from 'react-native';
 import ShareToGroupModal from '@/components/ShareToGroupModal';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDropInterest } from '@/contexts/DropInterestContext';
@@ -15,7 +15,20 @@ import EnhancedProductCard from '@/components/EnhancedProductCard';
 import * as Haptics from 'expo-haptics';
 import * as Network from 'expo-network';
 import { computeDropDiscount } from '@/utils/dropHelpers';
-import { AppEventsLogger } from 'react-native-fbsdk-next';
+
+const logFBEvent = (eventName: string, params?: Record<string, any>) => {
+  if (Platform.OS === 'web') return;
+  try {
+    const { AppEventsLogger } = require('react-native-fbsdk-next');
+    if (params) {
+      AppEventsLogger.logEvent(eventName, params);
+    } else {
+      AppEventsLogger.logEvent(eventName);
+    }
+  } catch (e) {
+    // SDK non disponibile in Expo Go
+  }
+};
 
 const { width, height } = Dimensions.get('window');
 
@@ -143,7 +156,7 @@ export default function DropDetailsScreen() {
     try {
       console.log('📥 Loading drop details for:', dropId);
       console.log('[Meta] Logging ViewContent event for drop:', dropId);
-      AppEventsLogger.logEvent('ViewContent', {
+      logFBEvent('ViewContent', {
         fb_content_type: 'drop',
         fb_content_id: String(dropId),
       });
@@ -873,7 +886,7 @@ export default function DropDetailsScreen() {
 
       const purchaseAmount = Number(currentDiscountedPrice) || 0;
       console.log('[Meta] Logging Purchase event — amount:', purchaseAmount, 'EUR');
-      AppEventsLogger.logEvent('Purchase', {
+      logFBEvent('Purchase', {
         _valueToSum: purchaseAmount,
         fb_currency: 'EUR',
       });

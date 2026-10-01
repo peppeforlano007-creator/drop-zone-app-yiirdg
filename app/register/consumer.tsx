@@ -23,7 +23,20 @@ import { supabase } from '@/app/integrations/supabase/client';
 
 import { validateAndFormatPhone, formatPhoneForDisplay } from '@/utils/phoneValidation';
 import CountryCodePicker from '@/components/CountryCodePicker';
-import { AppEventsLogger } from 'react-native-fbsdk-next';
+
+const logFBEvent = (eventName: string, params?: Record<string, any>) => {
+  if (Platform.OS === 'web') return;
+  try {
+    const { AppEventsLogger } = require('react-native-fbsdk-next');
+    if (params) {
+      AppEventsLogger.logEvent(eventName, params);
+    } else {
+      AppEventsLogger.logEvent(eventName);
+    }
+  } catch (e) {
+    // SDK non disponibile in Expo Go
+  }
+};
 
 interface PickupPoint {
   id: string;
@@ -365,7 +378,7 @@ export default function ConsumerRegisterScreen() {
       await supabase.auth.signOut();
       
       console.log('[Meta] Logging CompleteRegistration event');
-      AppEventsLogger.logEvent('CompleteRegistration');
+      logFBEvent('CompleteRegistration');
       
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       
