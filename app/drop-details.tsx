@@ -854,7 +854,18 @@ export default function DropDetailsScreen() {
         });
         
         // Check for specific error messages
-        if (bookingError.message?.toLowerCase().includes('terminato')) {
+        if (bookingError.message?.includes('PICKUP_POINT_REQUIRED')) {
+          console.log('[handleBook] PICKUP_POINT_REQUIRED error — prompting user to set pickup point');
+          Alert.alert(
+            'Punto di Ritiro Mancante',
+            'Devi selezionare un punto di ritiro nel tuo profilo prima di poter prenotare.',
+            [
+              { text: 'Annulla', style: 'cancel' },
+              { text: 'Vai al Profilo', onPress: () => router.push('/(tabs)/profile') },
+            ]
+          );
+          return;
+        } else if (bookingError.message?.toLowerCase().includes('terminato')) {
           Alert.alert(
             'Drop Terminato',
             'Questo drop è terminato e non accetta più prenotazioni.',
