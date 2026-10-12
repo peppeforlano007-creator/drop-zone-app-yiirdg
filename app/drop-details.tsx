@@ -380,12 +380,11 @@ export default function DropDetailsScreen() {
         const available = data.filter((p: ProductData) => p.stock > 0);
         console.log('[drop-details] Polling fallback: received', available.length, 'available products');
         setProducts(prev => {
-          return prev
-            .map(p => {
-              const updated = available.find((a: ProductData) => a.id === p.id);
-              return updated ? { ...p, stock: updated.stock } : { ...p, stock: 0 };
-            })
-            .filter(p => p.stock > 0);
+          return prev.map(p => {
+            const updated = available.find((a: ProductData) => a.id === p.id);
+            return updated ? { ...p, stock: updated.stock } : p; // keep unchanged if not in response
+          });
+          // NO .filter() — never remove products based on polling response
         });
       }
     }, 15000);
@@ -545,13 +544,14 @@ export default function DropDetailsScreen() {
             setProducts(prev => {
               prev.forEach(p => {
                 const fresh = available.find((a: any) => a.id === p.id);
-                if (!fresh || fresh.stock <= 0) {
-                  // Product went out of stock
+                if (fresh && fresh.stock <= 0) {
+                  // Product IS in response and explicitly has 0 stock — genuinely sold out
                   scheduleProductUpdate(p.id, null);
-                } else if (fresh.stock !== p.stock) {
+                } else if (fresh && fresh.stock !== p.stock) {
                   // Stock changed but still available
                   scheduleProductUpdate(p.id, { ...p, stock: fresh.stock, status: fresh.status });
                 }
+                // If !fresh: product not in response — do nothing, keep current state
               });
               return prev; // Don't mutate yet — debounce will apply changes
             });
