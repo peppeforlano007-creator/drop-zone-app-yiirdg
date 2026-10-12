@@ -777,6 +777,16 @@ export default function CreateListScreen() {
             console.error(`⚠️ Could not find standalone product at index ${index}`);
             continue;
           }
+
+          // Only create a variant row if the product has a real size or color.
+          // Products with neither don't need variant rows — stock lives on products.stock.
+          const hasRealSize = product.taglia && product.taglia.trim() !== '';
+          const hasRealColor = product.colore && product.colore.trim() !== '';
+
+          if (!hasRealSize && !hasRealColor) {
+            console.log(`⏭️ Skipping phantom variant for product ${productId} (no size/color)`);
+            continue;
+          }
           
           variantsToInsert.push({
             product_id: productId,
@@ -831,11 +841,12 @@ export default function CreateListScreen() {
         const skuMessage = uniqueSkus > 0 
           ? `\n\n📦 ${uniqueSkus} articoli unici con ${totalVariants} varianti (raggruppati per SKU)` 
           : '';
+        const variantsLabel = totalVariants === 1 ? 'variante reale' : 'varianti reali';
         
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         Alert.alert(
           'Lista Creata!',
-          `La lista "${listName}" è stata creata con successo!${skuMessage}\n\n${productsWithoutSku.length} prodotti senza SKU\n\n⚡ Importazione completata in modo ottimizzato!\n\n✅ ${insertedProductsWithMapping.length} prodotti e ${variantsInserted} varianti create`,
+          `La lista "${listName}" è stata creata con successo!${skuMessage}\n\n${productsWithoutSku.length} prodotti senza SKU\n\n⚡ Importazione completata in modo ottimizzato!\n\n✅ ${insertedProductsWithMapping.length} prodotti e ${totalVariants} ${variantsLabel} create`,
           [
             {
               text: 'Visualizza Lista',
