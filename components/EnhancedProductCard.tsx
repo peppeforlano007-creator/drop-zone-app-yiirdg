@@ -123,12 +123,17 @@ export default function EnhancedProductCard({
     console.log('Selected variant:', variant);
   }, [selectedSize, selectedColor, hasVariants, product.variants]);
 
-  // Get stock for display
+  // Get stock for display — fall back to product.stock when no variant is selected yet
   const displayStock = hasVariants 
-    ? (selectedVariant?.stock ?? 0)
+    ? (selectedVariant?.stock ?? product.stock ?? 0)
     : (product.stock ?? 0);
-  
-  const isOutOfStock = displayStock <= 0;
+
+  // Only treat as certainly out-of-stock when we have definitive info
+  const certainlyOutOfStock = hasVariants
+    ? (selectedVariant !== null && (selectedVariant.stock ?? 0) <= 0)
+    : (product.stock ?? 0) <= 0;
+
+  const isOutOfStock = certainlyOutOfStock;
 
   // Check if product is in wishlist
   useEffect(() => {
@@ -227,13 +232,13 @@ export default function EnhancedProductCard({
     console.log('Selected size:', selectedSize);
     console.log('Selected color:', selectedColor);
     
-    // CRITICAL: Block if out of stock
-    if (isInDrop && isOutOfStock) {
-      console.log('❌ Product is out of stock - blocking booking');
+    // CRITICAL: Block if certainly out of stock (variant selected with 0 stock, or no-variant product with 0 stock)
+    if (isInDrop && certainlyOutOfStock) {
+      console.log('❌ Product is certainly out of stock - blocking booking');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       Alert.alert(
         'Prodotto esaurito', 
-        'Questo prodotto non è più disponibile. Qualcun altro lo ha appena prenotato.'
+        'Questo prodotto non è più disponibile.'
       );
       return;
     }
@@ -421,7 +426,7 @@ export default function EnhancedProductCard({
   const mainImageUrl = imageUrls[0] || '';
 
   // CRITICAL: Determine if booking button should be disabled (ONLY IN DROP)
-  const isBookingDisabled = isProcessing || isOutOfStock || dropBookingDisabled || (isInDrop && requiresVariantSelection && !hasAllRequiredSelections);
+  const isBookingDisabled = isProcessing || certainlyOutOfStock || dropBookingDisabled || (isInDrop && requiresVariantSelection && !hasAllRequiredSelections);
 
   return (
     <View style={styles.container}>
