@@ -1,0 +1,787 @@
+
+import React, { useState, useEffect } from 'react';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Stack, router } from 'expo-router';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  Pressable,
+  Alert,
+  ActivityIndicator,
+  Platform,
+} from 'react-native';
+import { supabase } from '@/app/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
+import * as Haptics from 'expo-haptics';
+import { colors, layout } from '@/styles/commonStyles';
+import { IconSymbol } from '@/components/IconSymbol';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
+
+type VisibleDocument = {
+  document_type: 'privacy_policy' | 'terms_conditions' | 'cookie_policy';
+  title: string;
+  is_visible_to_users: boolean;
+};
+
+export default function MyDataScreen() {
+  const { user } = useAuth();
+  const [loading, setLoading] = useState(false);
+  const [visibleDocs, setVisibleDocs] = useState<VisibleDocument[]>([]);
+  const [loadingDocs, setLoadingDocs] = useState(true);
+
+  useEffect(() => {
+    const loadVisibleDocuments = async () => {
+      console.log('[MyData] Loading visible legal documents...');
+      try {
+        const { data, error } = await supabase
+          .from('legal_documents')
+          .select('document_type, title, is_visible_to_users')
+          .eq('is_active', true)
+          .eq('is_visible_to_users', true)
+          .order('document_type');
+
+        if (error) {
+          console.error('[MyData] Error loading legal documents:', error);
+          setVisibleDocs([]);
+        } else {
+          console.log('[MyData] Visible legal documents loaded:', data?.length ?? 0);
+          setVisibleDocs((data as VisibleDocument[]) ?? []);
+        }
+      } catch (err) {
+        console.error('[MyData] Exception loading legal documents:', err);
+        setVisibleDocs([]);
+      } finally {
+        setLoadingDocs(false);
+      }
+    };
+
+    loadVisibleDocuments();
+  }, []);
+
+  const handleExportData = async () => {
+    Alert.alert(
+      'Scarica i Tuoi Dati',
+      'I tuoi dati personali verranno scaricati in formato JSON sul tuo dispositivo, come previsto dal GDPR.',
+      [
+        { text: 'Annulla', style: 'cancel' },
+        {
+          text: 'Scarica',
+          onPress: async () => {
+            try {
+              setLoading(true);
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+              console.log('📤 Starting data export...');
+
+              // Collect all user data directly from the client
+              const userData: any = {
+                user_info: {
+                  id: user?.id,
+                  email: user?.email,
+                  created_at: user?.created_at,
+                },
+              };
+
+              // Get profile data
+              const { data: profile } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('user_id', user?.id)
+                .single();
+
+              if (profile) {
+                userData.profile = profile;
+              }
+
+              // Get bookings
+              const { data: bookings } = await supabase
+                .from('bookings')
+                .select(`
+                  *,
+                  products (name, description, original_price),
+                  drops (name, status),
+                  pickup_points (name, address, city)
+                `)
+                .eq('user_id', user?.id);
+
+              if (bookings && bookings.length > 0) {
+                userData.bookings = bookings;
+              }
+
+              // Get user interests
+              const { data: interests } = await supabase
+                .from('user_interests')
+                .select(`
+                  *,
+                  products (name, description),
+                  pickup_points (name, city)
+                `)
+                .eq('user_id', user?.id);
+
+              if (interests && interests.length > 0) {
+                userData.interests = interests;
+              }
+
+              // Get payment methods (without sensitive data)
+              const { data: paymentMethods } = await supabase
+                .from('payment_methods')
+                .select('id, card_brand, card_last4, card_exp_month, card_exp_year, is_default, status, created_at')
+                .eq('user_id', user?.id);
+
+              if (paymentMethods && paymentMethods.length > 0) {
+                userData.payment_methods = paymentMethods;
+              }
+
+              // Get notifications
+              const { data: notifications } = await supabase
+                .from('notifications')
+                .select('*')
+                .eq('user_id', user?.id)
+                .order('created_at', { ascending: false })
+                .limit(100);
+
+              if (notifications && notifications.length > 0) {
+                userData.notifications = notifications;
+              }
+
+              // Get user consents
+              const { data: consents } = await supabase
+                .from('user_consents')
+                .select('*')
+                .eq('user_id', user?.id);
+
+              if (consents && consents.length > 0) {
+                userData.consents = consents;
+              }
+
+              // Get activity logs
+              const { data: activityLogs } = await supabase
+                .from('activity_logs')
+                .select('*')
+                .eq('user_id', user?.id)
+                .order('created_at', { ascending: false })
+                .limit(100);
+
+              if (activityLogs && activityLogs.length > 0) {
+                userData.activity_logs = activityLogs;
+              }
+
+              // Add export metadata
+              userData.export_info = {
+                exported_at: new Date().toISOString(),
+                export_format: 'JSON',
+                gdpr_compliant: true,
+              };
+
+              console.log('✅ Data collection completed');
+              console.log('📊 Data summary:', {
+                bookings: bookings?.length || 0,
+                interests: interests?.length || 0,
+                payment_methods: paymentMethods?.length || 0,
+                notifications: notifications?.length || 0,
+                consents: consents?.length || 0,
+                activity_logs: activityLogs?.length || 0,
+              });
+
+              // Create a data export request record
+              await supabase
+                .from('data_requests')
+                .insert({
+                  user_id: user?.id,
+                  request_type: 'export',
+                  status: 'completed',
+                  requested_at: new Date().toISOString(),
+                  completed_at: new Date().toISOString(),
+                  notes: 'Data exported successfully (direct download)',
+                });
+
+              // Create a formatted JSON string
+              const jsonData = JSON.stringify(userData, null, 2);
+              const fileName = `dati_personali_${new Date().toISOString().split('T')[0]}.json`;
+
+              if (Platform.OS === 'web') {
+                // For web, create a download link
+                const blob = new Blob([jsonData], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = fileName;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                
+                Alert.alert(
+                  'Download Completato! ✅',
+                  `I tuoi dati sono stati scaricati con successo.\n\n💾 Il file "${fileName}" è stato salvato sul tuo dispositivo.`,
+                  [{ text: 'OK' }]
+                );
+              } else {
+                // For mobile, save to file system and share
+                const fileUri = `${FileSystem.documentDirectory}${fileName}`;
+                await FileSystem.writeAsStringAsync(fileUri, jsonData, {
+                  encoding: FileSystem.EncodingType.UTF8,
+                });
+
+                console.log('📁 File saved to:', fileUri);
+
+                // Check if sharing is available
+                const isAvailable = await Sharing.isAvailableAsync();
+                
+                if (isAvailable) {
+                  await Sharing.shareAsync(fileUri, {
+                    mimeType: 'application/json',
+                    dialogTitle: 'Salva i Tuoi Dati',
+                    UTI: 'public.json',
+                  });
+                }
+
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                
+                Alert.alert(
+                  'Download Completato! ✅',
+                  `I tuoi dati sono stati esportati con successo.\n\n💾 Il file "${fileName}" è stato salvato e puoi condividerlo o salvarlo dove preferisci.`,
+                  [{ text: 'OK' }]
+                );
+              }
+            } catch (error) {
+              console.error('Exception exporting data:', error);
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+              Alert.alert(
+                'Errore',
+                error instanceof Error ? error.message : 'Si è verificato un errore durante l\'esportazione dei dati'
+              );
+            } finally {
+              setLoading(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleDeleteAccount = async () => {
+    Alert.alert(
+      'Elimina Account',
+      '⚠️ ATTENZIONE: Questa azione è irreversibile!\n\nEliminando il tuo account:\n\n- Tutti i tuoi dati personali verranno cancellati\n- Le tue prenotazioni attive verranno annullate\n- Non potrai più accedere all\'app\n\nSei assolutamente sicuro?',
+      [
+        { text: 'Annulla', style: 'cancel' },
+        {
+          text: 'Elimina Account',
+          style: 'destructive',
+          onPress: () => {
+            // Second confirmation
+            Alert.alert(
+              'Conferma Eliminazione',
+              'Questa è l\'ultima conferma. Vuoi davvero eliminare il tuo account?',
+              [
+                { text: 'No, Annulla', style: 'cancel' },
+                {
+                  text: 'Sì, Elimina',
+                  style: 'destructive',
+                  onPress: async () => {
+                    try {
+                      setLoading(true);
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+
+                      // Create deletion request
+                      const { error: requestError } = await supabase
+                        .from('data_requests')
+                        .insert({
+                          user_id: user?.id,
+                          request_type: 'deletion',
+                          status: 'pending',
+                          requested_at: new Date().toISOString(),
+                        });
+
+                      if (requestError) {
+                        console.error('Error creating deletion request:', requestError);
+                        throw new Error('Impossibile creare la richiesta di cancellazione');
+                      }
+
+                      // Mark user for deletion
+                      const { error: updateError } = await supabase
+                        .from('profiles')
+                        .update({ 
+                          deletion_requested: true,
+                          deletion_requested_at: new Date().toISOString(),
+                        })
+                        .eq('user_id', user?.id);
+
+                      if (updateError) {
+                        console.error('Error marking user for deletion:', updateError);
+                        throw new Error('Impossibile completare la richiesta');
+                      }
+
+                      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                      console.log('[MyData] Account deletion requested, signing out user:', user?.id);
+
+                      // Sign out immediately as required by Apple App Store guidelines
+                      await supabase.auth.signOut();
+
+                      Alert.alert(
+                        'Richiesta di eliminazione registrata',
+                        'Verrai disconnesso ora. I tuoi dati verranno rimossi entro 30 giorni come previsto dal GDPR.',
+                        [
+                          {
+                            text: 'OK',
+                            onPress: () => {
+                              console.log('[MyData] User confirmed deletion alert, redirecting to login');
+                              router.replace('/login');
+                            },
+                          },
+                        ]
+                      );
+                    } catch (error) {
+                      console.error('Exception deleting account:', error);
+                      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+                      Alert.alert(
+                        'Errore',
+                        error instanceof Error ? error.message : 'Si è verificato un errore'
+                      );
+                    } finally {
+                      setLoading(false);
+                    }
+                  },
+                },
+              ]
+            );
+          },
+        },
+      ]
+    );
+  };
+
+  return (
+    <>
+      <Stack.Screen
+        options={{
+          title: 'I Miei Dati',
+          headerBackTitle: '',
+          headerBackButtonDisplayMode: 'minimal',
+          headerStyle: { backgroundColor: colors.background },
+          headerTintColor: colors.text,
+        }}
+      />
+      <SafeAreaView style={styles.safeArea} edges={['bottom']}>
+        <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
+          <View style={styles.header}>
+            <IconSymbol
+              ios_icon_name="shield.fill"
+              android_material_icon_name="shield"
+              size={48}
+              color={colors.primary}
+            />
+            <Text style={styles.headerTitle}>Gestione Dati Personali</Text>
+            <Text style={styles.headerSubtitle}>
+              In conformità con il GDPR, hai il diritto di accedere, modificare ed eliminare i tuoi dati personali.
+            </Text>
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>I Tuoi Diritti GDPR</Text>
+            
+            <View style={styles.rightCard}>
+              <IconSymbol
+                ios_icon_name="eye.fill"
+                android_material_icon_name="visibility"
+                size={24}
+                color={colors.primary}
+              />
+              <View style={styles.rightContent}>
+                <Text style={styles.rightTitle}>Diritto di Accesso</Text>
+                <Text style={styles.rightDescription}>
+                  Puoi richiedere una copia di tutti i dati personali che abbiamo su di te
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.rightCard}>
+              <IconSymbol
+                ios_icon_name="pencil"
+                android_material_icon_name="edit"
+                size={24}
+                color={colors.primary}
+              />
+              <View style={styles.rightContent}>
+                <Text style={styles.rightTitle}>Diritto di Rettifica</Text>
+                <Text style={styles.rightDescription}>
+                  Puoi modificare i tuoi dati personali in qualsiasi momento
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.rightCard}>
+              <IconSymbol
+                ios_icon_name="trash.fill"
+                android_material_icon_name="delete"
+                size={24}
+                color={colors.primary}
+              />
+              <View style={styles.rightContent}>
+                <Text style={styles.rightTitle}>Diritto alla Cancellazione</Text>
+                <Text style={styles.rightDescription}>
+                  Puoi richiedere la cancellazione completa del tuo account e dei tuoi dati
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.rightCard}>
+              <IconSymbol
+                ios_icon_name="arrow.down.doc.fill"
+                android_material_icon_name="download"
+                size={24}
+                color={colors.primary}
+              />
+              <View style={styles.rightContent}>
+                <Text style={styles.rightTitle}>Diritto alla Portabilità</Text>
+                <Text style={styles.rightDescription}>
+                  Puoi esportare i tuoi dati in un formato leggibile
+                </Text>
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Azioni</Text>
+
+            <Pressable
+              style={({ pressed }) => [
+                styles.actionButton,
+                styles.viewDataButton,
+                pressed && styles.actionButtonPressed,
+              ]}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.push('/edit-profile');
+              }}
+              disabled={loading}
+            >
+              <IconSymbol
+                ios_icon_name="person.circle.fill"
+                android_material_icon_name="account-circle"
+                size={24}
+                color={colors.primary}
+              />
+              <View style={styles.actionContent}>
+                <Text style={styles.actionTitle}>Visualizza e Modifica Dati</Text>
+                <Text style={styles.actionDescription}>
+                  Accedi al tuo profilo per visualizzare e modificare i tuoi dati personali
+                </Text>
+              </View>
+              <IconSymbol
+                ios_icon_name="chevron.right"
+                android_material_icon_name="chevron-right"
+                size={20}
+                color={colors.textSecondary}
+              />
+            </Pressable>
+
+            <Pressable
+              style={({ pressed }) => [
+                styles.actionButton,
+                styles.exportButton,
+                pressed && styles.actionButtonPressed,
+                loading && styles.actionButtonDisabled,
+              ]}
+              onPress={handleExportData}
+              disabled={loading}
+            >
+              {loading ? (
+                <ActivityIndicator color={colors.primary} />
+              ) : (
+                <>
+                  <IconSymbol
+                    ios_icon_name="square.and.arrow.down.fill"
+                    android_material_icon_name="download"
+                    size={24}
+                    color={colors.primary}
+                  />
+                  <View style={styles.actionContent}>
+                    <Text style={styles.actionTitle}>Scarica i Tuoi Dati</Text>
+                    <Text style={styles.actionDescription}>
+                      Scarica tutti i tuoi dati in formato JSON sul tuo dispositivo
+                    </Text>
+                  </View>
+                  <IconSymbol
+                    ios_icon_name="chevron.right"
+                    android_material_icon_name="chevron-right"
+                    size={20}
+                    color={colors.textSecondary}
+                  />
+                </>
+              )}
+            </Pressable>
+          </View>
+
+          {loadingDocs ? (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Documenti Legali</Text>
+              <ActivityIndicator color={colors.primary} style={{ marginVertical: 12 }} />
+            </View>
+          ) : visibleDocs.length > 0 ? (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Documenti Legali</Text>
+              {visibleDocs.map((doc) => {
+                const docRoute =
+                  doc.document_type === 'privacy_policy'
+                    ? '/legal/privacy-policy'
+                    : doc.document_type === 'terms_conditions'
+                    ? '/legal/terms-conditions'
+                    : '/legal/cookie-policy';
+                const iosIcon =
+                  doc.document_type === 'privacy_policy'
+                    ? 'shield.fill'
+                    : doc.document_type === 'terms_conditions'
+                    ? 'doc.text.fill'
+                    : 'info.circle.fill';
+                const androidIcon =
+                  doc.document_type === 'privacy_policy'
+                    ? 'shield'
+                    : doc.document_type === 'terms_conditions'
+                    ? 'description'
+                    : 'cookie';
+                return (
+                  <Pressable
+                    key={doc.document_type}
+                    style={({ pressed }) => [
+                      styles.legalButton,
+                      pressed && styles.legalButtonPressed,
+                    ]}
+                    onPress={() => {
+                      console.log('[MyData] User tapped legal document:', doc.document_type);
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      router.push(docRoute as any);
+                    }}
+                  >
+                    <IconSymbol
+                      ios_icon_name={iosIcon}
+                      android_material_icon_name={androidIcon}
+                      size={20}
+                      color={colors.primary}
+                    />
+                    <Text style={styles.legalButtonText}>{doc.title}</Text>
+                    <IconSymbol
+                      ios_icon_name="chevron.right"
+                      android_material_icon_name="chevron-right"
+                      size={18}
+                      color={colors.textSecondary}
+                    />
+                  </Pressable>
+                );
+              })}
+            </View>
+          ) : null}
+
+          <View style={styles.dangerZone}>
+            <Text style={styles.dangerZoneTitle}>Zona Pericolosa</Text>
+            <Text style={styles.dangerZoneDescription}>
+              Queste azioni sono irreversibili. Procedi con cautela.
+            </Text>
+
+            <Pressable
+              style={({ pressed }) => [
+                styles.deleteButton,
+                pressed && styles.deleteButtonPressed,
+              ]}
+              onPress={handleDeleteAccount}
+              disabled={loading}
+            >
+              {loading ? (
+                <ActivityIndicator color={colors.error} />
+              ) : (
+                <>
+                  <IconSymbol
+                    ios_icon_name="trash.fill"
+                    android_material_icon_name="delete-forever"
+                    size={24}
+                    color={colors.error}
+                  />
+                  <View style={styles.actionContent}>
+                    <Text style={styles.deleteTitle}>Elimina Account</Text>
+                    <Text style={styles.deleteDescription}>
+                      Elimina permanentemente il tuo account e tutti i tuoi dati
+                    </Text>
+                  </View>
+                </>
+              )}
+            </Pressable>
+          </View>
+        </ScrollView>
+      </SafeAreaView>
+    </>
+  );
+}
+
+const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  container: {
+    flex: 1,
+  },
+  contentContainer: {
+    padding: 16,
+    paddingBottom: layout.contentPaddingBottom,
+  },
+  header: {
+    alignItems: 'center',
+    marginBottom: 32,
+    paddingTop: 20,
+  },
+  headerTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: colors.text,
+    marginTop: 16,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  headerSubtitle: {
+    fontSize: 15,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 22,
+    paddingHorizontal: 20,
+  },
+  section: {
+    marginBottom: 32,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: 16,
+  },
+  rightCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: colors.card,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: 12,
+  },
+  rightContent: {
+    flex: 1,
+  },
+  rightTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 4,
+  },
+  rightDescription: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    lineHeight: 18,
+  },
+  actionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.card,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: 12,
+  },
+  actionButtonPressed: {
+    opacity: 0.7,
+  },
+  actionButtonDisabled: {
+    opacity: 0.5,
+  },
+  viewDataButton: {
+    borderColor: colors.primary + '30',
+  },
+  exportButton: {
+    borderColor: colors.primary + '30',
+  },
+  actionContent: {
+    flex: 1,
+  },
+  actionTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 4,
+  },
+  actionDescription: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    lineHeight: 18,
+  },
+  legalButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.card,
+    borderRadius: 8,
+    padding: 14,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: 12,
+  },
+  legalButtonPressed: {
+    opacity: 0.7,
+  },
+  legalButtonText: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '500',
+    color: colors.text,
+  },
+  dangerZone: {
+    backgroundColor: colors.error + '10',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: colors.error + '30',
+  },
+  dangerZoneTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.error,
+    marginBottom: 8,
+  },
+  dangerZoneDescription: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    marginBottom: 16,
+    lineHeight: 18,
+  },
+  deleteButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.card,
+    borderRadius: 8,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: colors.error,
+    gap: 12,
+  },
+  deleteButtonPressed: {
+    opacity: 0.7,
+  },
+  deleteTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: colors.error,
+    marginBottom: 4,
+  },
+  deleteDescription: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    lineHeight: 18,
+  },
+});

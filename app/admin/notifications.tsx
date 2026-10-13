@@ -1,0 +1,727 @@
+
+import React, { useState, useEffect } from 'react';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Stack } from 'expo-router';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  Pressable,
+  Alert,
+  TextInput,
+  ActivityIndicator,
+} from 'react-native';
+import { supabase } from '@/app/integrations/supabase/client';
+import * as Haptics from 'expo-haptics';
+import { colors } from '@/styles/commonStyles';
+import { IconSymbol } from '@/components/IconSymbol';
+import { errorHandler, ErrorCategory, ErrorSeverity } from '@/utils/errorHandler';
+import { sendPushNotification } from '@/utils/pushNotifications';
+
+interface NotificationTemplate {
+  id: string;
+  title: string;
+  message: string;
+  icon: { ios: string; android: string };
+}
+
+interface Drop {
+  id: string;
+  name: string;
+  status: string;
+}
+
+const DROP_TEMPLATES = ['new_drop', 'drop_ending'];
+
+export default function NotificationsScreen() {
+  const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
+  const [title, setTitle] = useState('');
+  const [message, setMessage] = useState('');
+  const [targetAudience, setTargetAudience] = useState<'all' | 'consumers' | 'suppliers' | 'pickup_points'>('all');
+  const [sending, setSending] = useState(false);
+
+  const [drops, setDrops] = useState<Drop[]>([]);
+  const [selectedDropId, setSelectedDropId] = useState<string | null>(null);
+  const [loadingDrops, setLoadingDrops] = useState(false);
+
+  const templates: NotificationTemplate[] = [
+    {
+      id: 'new_drop',
+      title: 'Nuovo Drop Disponibile! 🎉',
+      message: 'Un nuovo drop è stato attivato nella tua zona. Controlla ora per non perdere le migliori offerte!',
+      icon: { ios: 'bolt.circle.fill', android: 'flash_on' },
+    },
+    {
+      id: 'drop_ending',
+      title: 'Drop in Scadenza ⏰',
+      message: 'Il drop sta per terminare! Hai ancora poche ore per prenotare i tuoi prodotti preferiti.',
+      icon: { ios: 'clock.badge.exclamationmark', android: 'schedule' },
+    },
+    {
+      id: 'discount_increased',
+      title: 'Sconto Aumentato! 💰',
+      message: 'Lo sconto è aumentato! Prenota ora per ottenere un prezzo ancora migliore.',
+      icon: { ios: 'arrow.up.circle.fill', android: 'trending_up' },
+    },
+    {
+      id: 'order_ready',
+      title: 'Ordine Pronto per il Ritiro 📦',
+      message: 'Il tuo ordine è arrivato al punto di ritiro ed è pronto per essere ritirato!',
+      icon: { ios: 'checkmark.circle.fill', android: 'check_circle' },
+    },
+    {
+      id: 'payment_captured',
+      title: 'Pagamento Confermato ✅',
+      message: 'Il pagamento è stato elaborato con successo. Il tuo ordine è confermato!',
+      icon: { ios: 'creditcard.fill', android: 'payment' },
+    },
+  ];
+
+  useEffect(() => {
+    if (selectedTemplate && DROP_TEMPLATES.includes(selectedTemplate)) {
+      loadDrops();
+    }
+    setSelectedDropId(null);
+  }, [selectedTemplate]);
+
+  const loadDrops = async () => {
+    console.log('[Notifications] Loading drops for drop-related template');
+    setLoadingDrops(true);
+    try {
+      const { data, error } = await supabase
+        .from('drops')
+        .select('id, name, status')
+        .in('status', ['active', 'pending'])
+        .order('created_at', { ascending: false })
+        .limit(20);
+
+      if (error) {
+        console.error('[Notifications] Error loading drops:', error);
+      } else {
+        console.log('[Notifications] Loaded', data?.length ?? 0, 'drops');
+        setDrops(data || []);
+      }
+    } finally {
+      setLoadingDrops(false);
+    }
+  };
+
+  const handleSelectTemplate = (template: NotificationTemplate) => {
+    console.log('[Notifications] Template selected:', template.id);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setSelectedTemplate(template.id);
+    setTitle(template.title);
+    setMessage(template.message);
+  };
+
+  const handleSelectDrop = (dropId: string) => {
+    console.log('[Notifications] Drop selected:', dropId);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setSelectedDropId(dropId);
+  };
+
+  const handleSendNotification = async () => {
+    if (!title.trim() || !message.trim()) {
+      Alert.alert('Errore', 'Inserisci titolo e messaggio');
+      return;
+    }
+
+    const isDropTemplate = selectedTemplate && DROP_TEMPLATES.includes(selectedTemplate);
+
+    if (isDropTemplate && !selectedDropId) {
+      Alert.alert('Errore', 'Seleziona un drop prima di inviare');
+      return;
+    }
+
+    console.log('[Notifications] Send button pressed — template:', selectedTemplate, 'audience:', targetAudience, 'dropId:', selectedDropId);
+
+    Alert.alert(
+      'Invia Notifica',
+      `Sei sicuro di voler inviare questa notifica a: ${getAudienceLabel(targetAudience)}?`,
+      [
+        { text: 'Annulla', style: 'cancel' },
+        {
+          text: 'Invia',
+          style: 'default',
+          onPress: async () => {
+            try {
+              setSending(true);
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+              // Get target users
+              let query = supabase.from('profiles').select('user_id, email, full_name, push_token');
+
+              if (targetAudience !== 'all') {
+                const roleMap = {
+                  consumers: 'consumer',
+                  suppliers: 'supplier',
+                  pickup_points: 'pickup_point',
+                };
+                query = query.eq('role', roleMap[targetAudience]);
+              }
+
+              console.log('[Notifications] Fetching users for audience:', targetAudience);
+              const { data: users, error } = await query;
+
+              if (error) {
+                console.error('[Notifications] Error fetching users:', error);
+                errorHandler.handleSupabaseError(error, { context: 'fetch_users_for_notification' });
+                return;
+              }
+
+              if (!users || users.length === 0) {
+                Alert.alert('Attenzione', 'Nessun utente trovato per questa categoria');
+                return;
+              }
+
+              // Build notification payload
+              const notificationType = isDropTemplate
+                ? (selectedTemplate === 'new_drop' ? 'drop_activated' : 'drop_ending')
+                : 'general';
+
+              const notifications = users.map(user => {
+                const base: Record<string, unknown> = {
+                  user_id: user.user_id,
+                  title,
+                  message,
+                  type: notificationType,
+                  read: false,
+                };
+                if (isDropTemplate && selectedDropId) {
+                  base.related_id = selectedDropId;
+                  base.related_type = 'drop';
+                }
+                return base;
+              });
+
+              console.log('[Notifications] Inserting', notifications.length, 'notifications with type:', notificationType, isDropTemplate ? `related_id: ${selectedDropId}` : '');
+
+              const { error: notifError } = await supabase
+                .from('notifications')
+                .insert(notifications);
+
+              if (notifError) {
+                console.error('[Notifications] Error creating notifications:', notifError);
+                errorHandler.handleSupabaseError(notifError, { context: 'create_notifications' });
+                return;
+              }
+
+              console.log('[Notifications] Successfully sent to', users.length, 'users');
+
+              // Send push notifications to users with tokens
+              try {
+                const usersWithToken = (users || []).filter(u => u.push_token);
+                let pushSent = 0;
+                for (const u of usersWithToken) {
+                  const { count: unreadCount } = await supabase
+                    .from('notifications')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('user_id', u.user_id)
+                    .eq('read', false);
+                  const data = isDropTemplate && selectedDropId
+                    ? { type: notificationType, dropId: selectedDropId }
+                    : { type: notificationType };
+                  await sendPushNotification(u.push_token!, title, message, data, unreadCount ?? 0);
+                  pushSent++;
+                }
+                console.log('[Notifications] Push sent to', pushSent, 'of', usersWithToken.length, 'users with tokens');
+              } catch (pushError) {
+                console.error('[Notifications] Push error (non-blocking):', pushError);
+              }
+
+              Alert.alert(
+                'Notifica Inviata',
+                `La notifica è stata inviata a ${users.length} utenti.`,
+                [
+                  {
+                    text: 'OK',
+                    onPress: () => {
+                      setTitle('');
+                      setMessage('');
+                      setSelectedTemplate(null);
+                      setSelectedDropId(null);
+                    },
+                  },
+                ]
+              );
+            } catch (error) {
+              console.error('[Notifications] Unexpected error sending notification:', error);
+              errorHandler.handleError(
+                'Errore imprevisto durante l\'invio della notifica',
+                ErrorCategory.UNKNOWN,
+                ErrorSeverity.HIGH,
+                { context: 'send_notification' },
+                error
+              );
+            } finally {
+              setSending(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const getAudienceLabel = (audience: string) => {
+    switch (audience) {
+      case 'all':
+        return 'Tutti gli utenti';
+      case 'consumers':
+        return 'Consumatori';
+      case 'suppliers':
+        return 'Fornitori';
+      case 'pickup_points':
+        return 'Punti di Ritiro';
+      default:
+        return audience;
+    }
+  };
+
+  const isDropTemplate = selectedTemplate && DROP_TEMPLATES.includes(selectedTemplate);
+
+  const sendButtonDisabled = !title.trim() || !message.trim() || sending || (!!isDropTemplate && !selectedDropId);
+
+  return (
+    <>
+      <Stack.Screen
+        options={{
+          title: 'Invia Notifiche',
+        }}
+      />
+      <SafeAreaView style={styles.safeArea} edges={['bottom']}>
+        <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Template Predefiniti</Text>
+            <Text style={styles.sectionDescription}>
+              Seleziona un template o crea una notifica personalizzata
+            </Text>
+            {templates.map((template) => (
+              <Pressable
+                key={template.id}
+                style={({ pressed }) => [
+                  styles.templateCard,
+                  selectedTemplate === template.id && styles.templateCardSelected,
+                  pressed && styles.templateCardPressed,
+                ]}
+                onPress={() => handleSelectTemplate(template)}
+              >
+                <View style={styles.templateIcon}>
+                  <IconSymbol
+                    ios_icon_name={template.icon.ios}
+                    android_material_icon_name={template.icon.android}
+                    size={24}
+                    color={selectedTemplate === template.id ? colors.primary : colors.textSecondary}
+                  />
+                </View>
+                <View style={styles.templateContent}>
+                  <Text style={styles.templateTitle}>{template.title}</Text>
+                  <Text style={styles.templateMessage} numberOfLines={2}>
+                    {template.message}
+                  </Text>
+                </View>
+                {selectedTemplate === template.id && (
+                  <IconSymbol
+                    ios_icon_name="checkmark.circle.fill"
+                    android_material_icon_name="check-circle"
+                    size={24}
+                    color={colors.primary}
+                  />
+                )}
+              </Pressable>
+            ))}
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Destinatari</Text>
+            <View style={styles.audienceButtons}>
+              {[
+                { key: 'all', label: 'Tutti', icon: { ios: 'person.3.fill', android: 'group' } },
+                { key: 'consumers', label: 'Consumatori', icon: { ios: 'person.fill', android: 'person' } },
+                { key: 'suppliers', label: 'Fornitori', icon: { ios: 'building.2.fill', android: 'store' } },
+                { key: 'pickup_points', label: 'Punti Ritiro', icon: { ios: 'mappin.circle.fill', android: 'location_on' } },
+              ].map((audience) => (
+                <Pressable
+                  key={audience.key}
+                  style={({ pressed }) => [
+                    styles.audienceButton,
+                    targetAudience === audience.key && styles.audienceButtonActive,
+                    pressed && styles.audienceButtonPressed,
+                  ]}
+                  onPress={() => {
+                    console.log('[Notifications] Audience selected:', audience.key);
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setTargetAudience(audience.key as any);
+                  }}
+                >
+                  <IconSymbol
+                    ios_icon_name={audience.icon.ios}
+                    android_material_icon_name={audience.icon.android}
+                    size={20}
+                    color={targetAudience === audience.key ? '#fff' : colors.text}
+                  />
+                  <Text
+                    style={[
+                      styles.audienceButtonText,
+                      targetAudience === audience.key && styles.audienceButtonTextActive,
+                    ]}
+                  >
+                    {audience.label}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+
+          {isDropTemplate && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Seleziona Drop</Text>
+              <Text style={styles.sectionDescription}>
+                Scegli il drop a cui si riferisce questa notifica
+              </Text>
+              {loadingDrops ? (
+                <ActivityIndicator color={colors.primary} style={styles.dropsLoader} />
+              ) : drops.length === 0 ? (
+                <View style={styles.emptyDrops}>
+                  <IconSymbol
+                    ios_icon_name="tray"
+                    android_material_icon_name="inbox"
+                    size={32}
+                    color={colors.textTertiary}
+                  />
+                  <Text style={styles.emptyDropsText}>Nessun drop attivo disponibile</Text>
+                </View>
+              ) : (
+                drops.map((drop) => {
+                  const isSelected = selectedDropId === drop.id;
+                  const statusLabel = drop.status === 'active' ? 'Attivo' : 'In Attesa';
+                  const statusColor = drop.status === 'active' ? '#22c55e' : '#f97316';
+                  return (
+                    <Pressable
+                      key={drop.id}
+                      style={({ pressed }) => [
+                        styles.templateCard,
+                        isSelected && styles.templateCardSelected,
+                        pressed && styles.templateCardPressed,
+                      ]}
+                      onPress={() => handleSelectDrop(drop.id)}
+                    >
+                      <View style={styles.templateIcon}>
+                        <IconSymbol
+                          ios_icon_name="shippingbox.fill"
+                          android_material_icon_name="inventory-2"
+                          size={24}
+                          color={isSelected ? colors.primary : colors.textSecondary}
+                        />
+                      </View>
+                      <View style={styles.templateContent}>
+                        <Text style={styles.templateTitle}>{drop.name}</Text>
+                        <View style={styles.statusBadgeRow}>
+                          <View style={[styles.statusBadge, { backgroundColor: statusColor + '20' }]}>
+                            <Text style={[styles.statusBadgeText, { color: statusColor }]}>
+                              {statusLabel}
+                            </Text>
+                          </View>
+                        </View>
+                      </View>
+                      {isSelected && (
+                        <IconSymbol
+                          ios_icon_name="checkmark.circle.fill"
+                          android_material_icon_name="check-circle"
+                          size={24}
+                          color={colors.primary}
+                        />
+                      )}
+                    </Pressable>
+                  );
+                })
+              )}
+            </View>
+          )}
+
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Personalizza Notifica</Text>
+            <View style={styles.inputContainer}>
+              <Text style={styles.inputLabel}>Titolo</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Inserisci il titolo..."
+                placeholderTextColor={colors.textTertiary}
+                value={title}
+                onChangeText={setTitle}
+                maxLength={100}
+              />
+              <Text style={styles.charCount}>{title.length}/100</Text>
+            </View>
+
+            <View style={styles.inputContainer}>
+              <Text style={styles.inputLabel}>Messaggio</Text>
+              <TextInput
+                style={[styles.input, styles.textArea]}
+                placeholder="Inserisci il messaggio..."
+                placeholderTextColor={colors.textTertiary}
+                value={message}
+                onChangeText={setMessage}
+                multiline
+                numberOfLines={4}
+                maxLength={300}
+              />
+              <Text style={styles.charCount}>{message.length}/300</Text>
+            </View>
+          </View>
+
+          <View style={styles.previewSection}>
+            <Text style={styles.sectionTitle}>Anteprima</Text>
+            <View style={styles.previewCard}>
+              <View style={styles.previewHeader}>
+                <IconSymbol
+                  ios_icon_name="app.badge.fill"
+                  android_material_icon_name="notifications"
+                  size={24}
+                  color={colors.primary}
+                />
+                <Text style={styles.previewAppName}>Drop Social</Text>
+                <Text style={styles.previewTime}>ora</Text>
+              </View>
+              <Text style={styles.previewTitle}>{title || 'Titolo notifica'}</Text>
+              <Text style={styles.previewMessage}>{message || 'Messaggio notifica'}</Text>
+            </View>
+          </View>
+
+          <Pressable
+            style={({ pressed }) => [
+              styles.sendButton,
+              sendButtonDisabled && styles.sendButtonDisabled,
+              pressed && styles.sendButtonPressed,
+            ]}
+            onPress={handleSendNotification}
+            disabled={sendButtonDisabled}
+          >
+            {sending ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <>
+                <IconSymbol
+                  ios_icon_name="paperplane.fill"
+                  android_material_icon_name="send"
+                  size={20}
+                  color="#fff"
+                />
+                <Text style={styles.sendButtonText}>Invia Notifica</Text>
+              </>
+            )}
+          </Pressable>
+        </ScrollView>
+      </SafeAreaView>
+    </>
+  );
+}
+
+const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  container: {
+    flex: 1,
+  },
+  contentContainer: {
+    padding: 16,
+    paddingBottom: 40,
+  },
+  section: {
+    marginBottom: 24,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: 8,
+  },
+  sectionDescription: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginBottom: 12,
+  },
+  templateCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.card,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 2,
+    borderColor: colors.border,
+  },
+  templateCardSelected: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primary + '10',
+  },
+  templateCardPressed: {
+    opacity: 0.7,
+    transform: [{ scale: 0.98 }],
+  },
+  templateIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: colors.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  templateContent: {
+    flex: 1,
+  },
+  templateTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 4,
+  },
+  templateMessage: {
+    fontSize: 13,
+    color: colors.textSecondary,
+  },
+  statusBadgeRow: {
+    flexDirection: 'row',
+  },
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  statusBadgeText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  dropsLoader: {
+    marginVertical: 24,
+  },
+  emptyDrops: {
+    alignItems: 'center',
+    paddingVertical: 32,
+    gap: 12,
+  },
+  emptyDropsText: {
+    fontSize: 14,
+    color: colors.textTertiary,
+  },
+  audienceButtons: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  audienceButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: 8,
+  },
+  audienceButtonActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  audienceButtonPressed: {
+    opacity: 0.7,
+  },
+  audienceButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  audienceButtonTextActive: {
+    color: '#fff',
+  },
+  inputContainer: {
+    marginBottom: 16,
+  },
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 8,
+  },
+  input: {
+    backgroundColor: colors.card,
+    borderRadius: 12,
+    padding: 16,
+    fontSize: 15,
+    color: colors.text,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  textArea: {
+    minHeight: 120,
+    textAlignVertical: 'top',
+  },
+  charCount: {
+    fontSize: 12,
+    color: colors.textTertiary,
+    textAlign: 'right',
+    marginTop: 4,
+  },
+  previewSection: {
+    marginBottom: 24,
+  },
+  previewCard: {
+    backgroundColor: colors.card,
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  previewHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+    gap: 8,
+  },
+  previewAppName: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.text,
+    flex: 1,
+  },
+  previewTime: {
+    fontSize: 12,
+    color: colors.textTertiary,
+  },
+  previewTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: 6,
+  },
+  previewMessage: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    lineHeight: 20,
+  },
+  sendButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primary,
+    borderRadius: 12,
+    padding: 16,
+    gap: 8,
+  },
+  sendButtonDisabled: {
+    opacity: 0.5,
+  },
+  sendButtonPressed: {
+    opacity: 0.8,
+    transform: [{ scale: 0.98 }],
+  },
+  sendButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#fff',
+  },
+});

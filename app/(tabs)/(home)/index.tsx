@@ -1,0 +1,50 @@
+import React from "react";
+import { StyleSheet, View, Text } from "react-native";
+import { Stack } from "expo-router";
+import { useTheme } from "@react-navigation/native";
+import { useAuth } from "@/contexts/AuthContext";
+
+export default function HomeScreen() {
+  const theme = useTheme();
+  const { isAuthenticated } = useAuth();
+
+  return (
+    <>
+      <Stack.Screen
+        options={{
+          headerShown: true,
+          title: "Home",
+          headerStyle: { backgroundColor: theme.colors.card },
+          headerTintColor: theme.colors.text,
+        }}
+      />
+      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+        <Text style={[styles.title, { color: theme.colors.text }]}>
+          Welcome to Newly
+        </Text>
+        <Text style={[styles.subtitle, { color: theme.dark ? "#98989D" : "#666" }]}>
+          Your app is currently building...
+        </Text>
+      </View>
+    </>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 24,
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: "bold",
+    marginBottom: 8,
+    textAlign: "center",
+  },
+  subtitle: {
+    fontSize: 16,
+    textAlign: "center",
+  },
+});

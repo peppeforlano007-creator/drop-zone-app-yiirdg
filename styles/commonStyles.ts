@@ -1,0 +1,110 @@
+
+import { StyleSheet, ViewStyle, TextStyle, Platform } from 'react-native';
+
+export const colors = {
+  background: '#FFFFFF',
+  backgroundSecondary: '#F8F8F8',
+  text: '#000000',
+  textSecondary: '#666666',
+  textTertiary: '#999999',
+  primary: '#000000',
+  secondary: '#333333',
+  accent: '#E0E0E0',
+  card: '#FFFFFF',
+  border: '#E5E5E5',
+  success: '#10B981',
+  error: '#EF4444',
+  warning: '#F59E0B',
+  info: '#3B82F6',
+};
+
+// Layout constants for consistent spacing
+export const layout = {
+  // FloatingTabBar height + safe area bottom + margin
+  // Tab bar itself: ~60px (padding + icon + label)
+  // Safe area bottom: ~34px on iPhone X and newer
+  // Bottom margin: 20px
+  // Total: ~114px, but we add extra buffer to ensure content is never covered
+  tabBarHeight: Platform.select({
+    ios: 120, // iOS with safe area
+    android: 100, // Android without safe area
+    default: 120,
+  }),
+  
+  // Standard content padding for scrollable content
+  // This ensures content never gets covered by the tab bar
+  contentPaddingBottom: Platform.select({
+    ios: 140, // Extra padding for iOS
+    android: 120, // Extra padding for Android
+    default: 140,
+  }),
+};
+
+export const buttonStyles = StyleSheet.create({
+  primary: {
+    backgroundColor: colors.primary,
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  secondary: {
+    backgroundColor: colors.secondary,
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  accent: {
+    backgroundColor: colors.accent,
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  text: {
+    color: colors.card,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+});
+
+export const commonStyles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  card: {
+    backgroundColor: colors.card,
+    borderRadius: 8,
+    padding: 16,
+    marginVertical: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: 8,
+  },
+  subtitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 4,
+  },
+  text: {
+    fontSize: 16,
+    color: colors.text,
+    lineHeight: 24,
+  },
+  textSecondary: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    lineHeight: 20,
+  },
+});

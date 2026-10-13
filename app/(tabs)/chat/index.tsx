@@ -1,0 +1,552 @@
+
+import React, { useEffect, useState, useCallback } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  TouchableOpacity,
+  RefreshControl,
+  ActivityIndicator,
+  useColorScheme,
+  Share,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { router } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import { supabase } from '@/app/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
+import { colors, layout } from '@/styles/commonStyles';
+import { IconSymbol } from '@/components/IconSymbol';
+import { useUnreadChat } from '@/contexts/UnreadChatContext';
+
+interface ChatGroup {
+  id: string;
+  name: string;
+  description: string | null;
+  created_by: string;
+  created_at: string;
+  group_type?: string;
+  memberCount: number;
+  lastMessage: {
+    content: string;
+    senderName: string;
+    created_at: string;
+  } | null;
+}
+
+function formatTime(dateStr: string): string {
+  const date = new Date(dateStr);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  if (diffDays === 0) {
+    return date.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+  } else if (diffDays === 1) {
+    return 'Ieri';
+  } else if (diffDays < 7) {
+    return date.toLocaleDateString('it-IT', { weekday: 'short' });
+  }
+  return date.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit' });
+}
+
+function GroupRow({
+  group,
+  onPress,
+  unreadCount,
+}: {
+  group: ChatGroup;
+  onPress: () => void;
+  unreadCount: number;
+}) {
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
+
+  const cardBg = isDark ? '#1C1C1E' : '#FFFFFF';
+  const cardBorder = isDark ? '#2C2C2E' : '#E5E5E5';
+  const titleColor = isDark ? '#FFFFFF' : '#000000';
+  const subtitleColor = isDark ? '#8E8E93' : '#666666';
+  const timeColor = isDark ? '#8E8E93' : '#999999';
+  const avatarBg = isDark ? '#2C2C2E' : '#F0F0F0';
+
+  const initials = group.name
+    .split(' ')
+    .map((w) => w[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2);
+
+  const lastMsgText = group.lastMessage
+    ? `${group.lastMessage.senderName}: ${group.lastMessage.content}`
+    : 'Nessun messaggio ancora';
+
+  const timeText = group.lastMessage ? formatTime(group.lastMessage.created_at) : '';
+  const showBadge = unreadCount > 0;
+  const badgeLabel = unreadCount > 99 ? '99+' : String(unreadCount);
+  const isCityGroup = group.group_type === 'city';
+
+  return (
+    <TouchableOpacity
+      style={[styles.groupRow, { backgroundColor: cardBg, borderColor: cardBorder }]}
+      onPress={onPress}
+      activeOpacity={0.7}
+    >
+      <View style={[styles.avatar, { backgroundColor: avatarBg }]}>
+        <Text style={[styles.avatarText, { color: titleColor }]}>{initials}</Text>
+      </View>
+      <View style={styles.groupInfo}>
+        <View style={styles.groupRowTop}>
+          <View style={styles.groupNameRow}>
+            <Text style={[styles.groupName, { color: titleColor }]} numberOfLines={1}>
+              {group.name}
+            </Text>
+            {isCityGroup && (
+              <View style={styles.cityBadge}>
+                <Text style={styles.cityBadgeText}>📍 Città</Text>
+              </View>
+            )}
+          </View>
+          <Text style={[styles.timeText, { color: timeColor }]}>{timeText}</Text>
+        </View>
+        <View style={styles.groupRowBottom}>
+          <Text style={[styles.lastMessage, { color: subtitleColor }]} numberOfLines={1}>
+            {lastMsgText}
+          </Text>
+          <Text style={[styles.memberCount, { color: subtitleColor }]}>
+            {group.memberCount}
+          </Text>
+          <Ionicons name="people-outline" size={13} color={subtitleColor} />
+        </View>
+      </View>
+      {showBadge && (
+        <View style={[styles.groupBadge, badgeLabel.length > 2 && styles.groupBadgeWide]}>
+          <Text style={styles.groupBadgeText}>{badgeLabel}</Text>
+        </View>
+      )}
+    </TouchableOpacity>
+  );
+}
+
+export default function ChatIndexScreen() {
+  const { user } = useAuth();
+  const [groups, setGroups] = useState<ChatGroup[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [inviteLink, setInviteLink] = useState('https://rdnstreet.app');
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
+  const { unreadByGroup } = useUnreadChat();
+
+  const bgColor = isDark ? '#000000' : '#F8F8F8';
+  const headerBg = isDark ? '#1C1C1E' : '#FFFFFF';
+  const headerBorder = isDark ? '#2C2C2E' : '#E5E5E5';
+  const titleColor = isDark ? '#FFFFFF' : '#000000';
+
+  const loadGroups = useCallback(async () => {
+    if (!user?.id) return;
+    console.log('[Chat] Loading groups for user:', user.id);
+
+    try {
+      const { data: rawGroups, error: groupErr } = await supabase
+        .from('chat_group_members')
+        .select('chat_groups!inner(id, name, description, created_by, created_at, group_type, deleted_at)')
+        .eq('user_id', user.id)
+        .eq('status', 'active')
+        .is('chat_groups.deleted_at', null)
+        .order('created_at', { ascending: false, referencedTable: 'chat_groups' });
+
+      if (groupErr) {
+        console.error('[Chat] Error loading groups:', groupErr);
+        return;
+      }
+
+      if (!rawGroups || rawGroups.length === 0) {
+        console.log('[Chat] No group memberships found');
+        setGroups([]);
+        return;
+      }
+
+      // Unwrap the nested chat_groups object and filter out any null entries
+      // (null means the group row was deleted — inner join should prevent this,
+      // but we guard defensively).
+      const validGroups = rawGroups
+        .map((row: any) => row.chat_groups)
+        .filter(Boolean);
+
+      console.log('[Chat] Found groups:', validGroups.length);
+
+      const enriched: ChatGroup[] = await Promise.all(
+        validGroups.map(async (g: any) => {
+          // Get member count via chat_groups join to avoid recursive policy
+          const { data: memberRows } = await supabase
+            .from('chat_groups')
+            .select('chat_group_members(user_id)')
+            .eq('id', g.id)
+            .single();
+
+          const memberCount = (memberRows as any)?.chat_group_members?.length ?? 0;
+
+          const { data: lastMsgs } = await supabase
+            .from('chat_messages')
+            .select('content, message_type, created_at, sender_id')
+            .eq('group_id', g.id)
+            .order('created_at', { ascending: false })
+            .limit(1);
+
+          let lastMessage: ChatGroup['lastMessage'] = null;
+          if (lastMsgs && lastMsgs.length > 0) {
+            const msg = lastMsgs[0];
+            const { data: senderProfile } = await supabase
+              .from('profiles')
+              .select('full_name')
+              .eq('user_id', msg.sender_id)
+              .single();
+
+            const senderName = senderProfile?.full_name || 'Utente';
+            const content =
+              msg.message_type === 'drop' ? '📦 Drop condiviso' : msg.content;
+            lastMessage = { content, senderName, created_at: msg.created_at };
+          }
+
+          return {
+            id: g.id,
+            name: g.name,
+            description: g.description,
+            created_by: g.created_by,
+            created_at: g.created_at,
+            group_type: g.group_type,
+            memberCount,
+            lastMessage,
+          };
+        })
+      );
+
+      console.log('[Chat] Groups loaded:', enriched.length);
+      setGroups(enriched);
+    } catch (err) {
+      console.error('[Chat] Exception loading groups:', err);
+    }
+  }, [user?.id]);
+
+  useEffect(() => {
+    setLoading(true);
+    loadGroups().finally(() => setLoading(false));
+  }, [loadGroups]);
+
+  useEffect(() => {
+    const fetchInviteLink = async () => {
+      console.log('[Chat] Fetching invite link from app_settings');
+      const { data, error } = await supabase
+        .from('app_settings')
+        .select('setting_value')
+        .eq('setting_key', 'invite_link')
+        .maybeSingle();
+      if (error) {
+        console.error('[Chat] Error fetching invite link:', error);
+        return;
+      }
+      if (data?.setting_value) {
+        console.log('[Chat] Invite link loaded:', data.setting_value);
+        setInviteLink(data.setting_value);
+      }
+    };
+    fetchInviteLink();
+  }, []);
+
+  const onRefresh = useCallback(async () => {
+    console.log('[Chat] Pull-to-refresh triggered');
+    setRefreshing(true);
+    await loadGroups();
+    setRefreshing(false);
+  }, [loadGroups]);
+
+  const handleCreateGroup = () => {
+    console.log('[Chat] Create group button pressed');
+    router.push('/chat-create-group');
+  };
+
+  const handleInviteFriends = async () => {
+    console.log('[Chat] Invite friends button pressed, inviteLink:', inviteLink);
+    try {
+      const result = await Share.share({
+        message: `Scarica RDN STREET STOCK MARKET e condividi l'app con amici e parenti!\nPiù acquistiamo, più risparmiamo! 🔥\n${inviteLink}`,
+      });
+      console.log('[Chat] Share result:', result.action);
+    } catch (err) {
+      console.error('[Chat] Share error:', err);
+    }
+  };
+
+  const inviteBannerBg = isDark ? '#1A1A1A' : '#000000';
+  const inviteBannerBorder = isDark ? '#2C2C2E' : '#222222';
+
+  const InviteBanner = (
+    <TouchableOpacity
+      style={[styles.inviteBanner, { backgroundColor: inviteBannerBg, borderColor: inviteBannerBorder }]}
+      onPress={handleInviteFriends}
+      activeOpacity={0.8}
+    >
+      <View style={styles.inviteIconWrap}>
+        <IconSymbol name="person.badge.plus" size={26} color="#FFFFFF" />
+      </View>
+      <View style={styles.inviteTextWrap}>
+        <Text style={styles.inviteTitle}>Invita amici e parenti</Text>
+        <Text style={styles.inviteSubtitle}>Aggiungi persone ai tuoi gruppi</Text>
+      </View>
+      <Ionicons name="chevron-forward" size={18} color="#8E8E93" />
+    </TouchableOpacity>
+  );
+
+  const handleGroupPress = (groupId: string, groupName: string) => {
+    console.log('[Chat] Group pressed, navigating to chat:', groupId, groupName);
+    // markGroupAsRead is called on mount inside [groupId].tsx, not here
+    router.push({ pathname: '/(tabs)/chat/[groupId]', params: { groupId, groupName } });
+  };
+
+  return (
+    <SafeAreaView style={[styles.container, { backgroundColor: bgColor }]} edges={['top']}>
+      <View style={[styles.header, { backgroundColor: headerBg, borderBottomColor: headerBorder }]}>
+        <Text style={[styles.headerTitle, { color: titleColor }]}>Gruppi</Text>
+        <TouchableOpacity style={styles.addButton} onPress={handleCreateGroup}>
+          <Ionicons name="add" size={26} color={titleColor} />
+        </TouchableOpacity>
+      </View>
+
+      {loading ? (
+        <View style={styles.centered}>
+          <ActivityIndicator size="large" color={colors.primary} />
+        </View>
+      ) : (
+        <FlatList
+          data={groups}
+          keyExtractor={(item) => item.id}
+          renderItem={({ item }) => (
+            <GroupRow
+              group={item}
+              onPress={() => handleGroupPress(item.id, item.name)}
+              unreadCount={unreadByGroup[item.id] ?? 0}
+            />
+          )}
+          ListHeaderComponent={InviteBanner}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
+          contentContainerStyle={[
+            styles.listContent,
+            groups.length === 0 && styles.emptyContainer,
+          ]}
+          ListEmptyComponent={
+            <View style={styles.emptyState}>
+              <Ionicons name="chatbubbles-outline" size={64} color={isDark ? '#3A3A3C' : '#D1D5DB'} />
+              <Text style={[styles.emptyTitle, { color: isDark ? '#FFFFFF' : '#000000' }]}>
+                Nessun gruppo ancora
+              </Text>
+              <Text style={[styles.emptySubtitle, { color: isDark ? '#8E8E93' : '#666666' }]}>
+                Crea il primo gruppo e inizia a chattare!
+              </Text>
+              <TouchableOpacity style={styles.emptyButton} onPress={handleCreateGroup}>
+                <Text style={styles.emptyButtonText}>Crea gruppo</Text>
+              </TouchableOpacity>
+            </View>
+          }
+        />
+      )}
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  headerTitle: {
+    fontSize: 28,
+    fontWeight: '700',
+    fontFamily: 'System',
+  },
+  addButton: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  listContent: {
+    paddingBottom: layout.contentPaddingBottom,
+  },
+  emptyContainer: {
+    flex: 1,
+  },
+  groupRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    gap: 12,
+  },
+  avatar: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarText: {
+    fontSize: 18,
+    fontWeight: '700',
+    fontFamily: 'System',
+  },
+  groupInfo: {
+    flex: 1,
+    gap: 4,
+  },
+  groupRowTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  groupNameRow: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginRight: 8,
+  },
+  groupName: {
+    fontSize: 16,
+    fontWeight: '600',
+    fontFamily: 'System',
+    flexShrink: 1,
+  },
+  cityBadge: {
+    backgroundColor: '#E8F4FD',
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  cityBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    fontFamily: 'System',
+    color: '#1A73E8',
+  },
+  timeText: {
+    fontSize: 12,
+    fontFamily: 'System',
+  },
+  groupRowBottom: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  lastMessage: {
+    fontSize: 14,
+    fontFamily: 'System',
+    flex: 1,
+  },
+  memberCount: {
+    fontSize: 12,
+    fontFamily: 'System',
+  },
+  groupBadge: {
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#FF3B30',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 5,
+    marginLeft: 8,
+  },
+  groupBadgeWide: {
+    minWidth: 28,
+    borderRadius: 10,
+  },
+  groupBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '700',
+    fontFamily: 'System',
+    lineHeight: 13,
+  },
+  centered: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 40,
+    gap: 12,
+  },
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    fontFamily: 'System',
+    textAlign: 'center',
+    marginTop: 8,
+  },
+  emptySubtitle: {
+    fontSize: 15,
+    fontFamily: 'System',
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+  emptyButton: {
+    marginTop: 8,
+    backgroundColor: '#000000',
+    paddingHorizontal: 28,
+    paddingVertical: 14,
+    borderRadius: 12,
+  },
+  emptyButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
+    fontFamily: 'System',
+  },
+  inviteBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: 16,
+    marginTop: 16,
+    marginBottom: 8,
+    borderRadius: 14,
+    padding: 16,
+    borderWidth: 1,
+    gap: 12,
+  },
+  inviteIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  inviteTextWrap: {
+    flex: 1,
+    gap: 3,
+  },
+  inviteTitle: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '700',
+    fontFamily: 'System',
+  },
+  inviteSubtitle: {
+    color: '#AEAEB2',
+    fontSize: 13,
+    fontFamily: 'System',
+  },
+});

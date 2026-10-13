@@ -1,0 +1,494 @@
+
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from 'react';
+import { User, UserRole } from '@/types/User';
+import { supabase } from '@/app/integrations/supabase/client';
+import { Session } from '@supabase/supabase-js';
+import { Alert, AppState, AppStateStatus } from 'react-native';
+import { registerForPushNotificationsAsync, updateBadgeCount } from '@/utils/pushNotifications';
+
+interface AuthContextType {
+  user: User | null;
+  session: Session | null;
+  loading: boolean;
+  login: (email: string, password: string) => Promise<{ success: boolean; message?: string }>;
+  register: (email: string, password: string, fullName: string, phone: string, role: UserRole, pickupPointId?: string) => Promise<{ success: boolean; message?: string }>;
+  logout: () => Promise<void>;
+  updatePickupPoint: (pickupPointId: string, pickupPointCity: string) => void;
+  refreshUser: () => Promise<void>;
+  isAuthenticated: boolean;
+}
+
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [user, setUser] = useState<User | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
+  const [loading, setLoading] = useState(true);
+  const isLoggingOut = useRef(false);
+  const hasRegisteredToken = useRef(false);
+
+  const loadUserProfile = useCallback(async (userId: string) => {
+    try {
+      console.log(`AuthProvider: Loading profile for user: ${userId}`);
+      
+      // Query the profile
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('user_id', userId)
+        .single();
+
+      if (profileError) {
+        console.error('AuthProvider: Error loading profile:', profileError);
+        console.error('AuthProvider: Error details:', {
+          message: profileError.message,
+          details: profileError.details,
+          hint: profileError.hint,
+          code: profileError.code
+        });
+        
+        // Show error to user
+        Alert.alert(
+          'Errore Caricamento Profilo',
+          `Impossibile caricare il profilo utente.\n\nCodice: ${profileError.code}\nMessaggio: ${profileError.message}\n\nRiprova ad accedere.`,
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                // Log out the user
+                supabase.auth.signOut();
+              }
+            }
+          ]
+        );
+        
+        setLoading(false);
+        return;
+      }
+
+      if (!profile) {
+        console.error('AuthProvider: Profile not found for user:', userId);
+        
+        Alert.alert(
+          'Profilo Non Trovato',
+          'Il tuo profilo utente non è stato trovato. Contatta il supporto.',
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                supabase.auth.signOut();
+              }
+            }
+          ]
+        );
+        setLoading(false);
+        return;
+      }
+
+      console.log('AuthProvider: Profile loaded successfully:', profile.role);
+
+      // Special handling for pickup_point users
+      if (profile.role === 'pickup_point') {
+        // Check if pickup_point_id is missing
+        if (!profile.pickup_point_id) {
+          console.error('AuthProvider: Pickup point user missing pickup_point_id, attempting to fix...');
+          
+          // Try to find the pickup point by email
+          const { data: pickupPoint, error: pickupError } = await supabase
+            .from('pickup_points')
+            .select('id, city, name')
+            .eq('email', profile.email)
+            .single();
+
+          if (pickupError || !pickupPoint) {
+            console.error('AuthProvider: Could not find pickup point for email:', profile.email, pickupError);
+            
+            Alert.alert(
+              'Errore Configurazione',
+              `Il tuo account punto di ritiro non è configurato correttamente. Nessun punto di ritiro trovato per l'email ${profile.email}.\n\nContatta l'amministratore per assistenza.`,
+              [
+                {
+                  text: 'OK',
+                  onPress: () => {
+                    supabase.auth.signOut();
+                  }
+                }
+              ]
+            );
+            setLoading(false);
+            return;
+          }
+
+          // Update the profile with the correct pickup_point_id
+          console.log('AuthProvider: Found pickup point, updating profile:', pickupPoint.id);
+          const { error: updateError } = await supabase
+            .from('profiles')
+            .update({ pickup_point_id: pickupPoint.id })
+            .eq('user_id', userId);
+
+          if (updateError) {
+            console.error('AuthProvider: Error updating profile with pickup_point_id:', updateError);
+            
+            Alert.alert(
+              'Errore Aggiornamento',
+              'Impossibile aggiornare il profilo con l\'ID del punto di ritiro. Contatta l\'amministratore.',
+              [
+                {
+                  text: 'OK',
+                  onPress: () => {
+                    supabase.auth.signOut();
+                  }
+                }
+              ]
+            );
+            setLoading(false);
+            return;
+          }
+
+          // Update the local profile data
+          profile.pickup_point_id = pickupPoint.id;
+          
+          console.log('AuthProvider: Profile updated successfully with pickup_point_id:', pickupPoint.id);
+          
+          // Show success message
+          Alert.alert(
+            'Configurazione Completata',
+            `Il tuo account è stato configurato correttamente per il punto di ritiro "${pickupPoint.name}".`,
+            [{ text: 'OK' }]
+          );
+        }
+      }
+
+      // Now get the pickup point if it exists
+      let pickupPointCity: string | undefined;
+      if (profile.pickup_point_id) {
+        const { data: pickupPoint, error: pickupError } = await supabase
+          .from('pickup_points')
+          .select('city')
+          .eq('id', profile.pickup_point_id)
+          .single();
+
+        if (pickupError) {
+          console.warn('AuthProvider: Error loading pickup point:', pickupError);
+        } else if (pickupPoint) {
+          pickupPointCity = pickupPoint.city;
+        }
+      }
+
+      const userData: User = {
+        id: profile.user_id,
+        name: profile.full_name || 'User',
+        email: profile.email,
+        role: profile.role as UserRole,
+        phone: profile.phone || undefined,
+        pickupPoint: pickupPointCity,
+        pickupPointId: profile.pickup_point_id || undefined,
+      };
+      
+      console.log('AuthProvider: User data created:', {
+        role: userData.role,
+        email: userData.email,
+        pickupPointId: userData.pickupPointId,
+        pickupPoint: userData.pickupPoint,
+      });
+      
+      setUser(userData);
+      setLoading(false);
+
+      // Registra push token in background (solo per consumer)
+      // Always attempt on login (hasRegisteredToken is reset on SIGNED_IN); guard prevents
+      // duplicate calls from AppState foreground events within the same session.
+      if (userData.role === 'consumer') {
+        console.log('[AuthContext] Registering push token for consumer on login:', userId);
+        hasRegisteredToken.current = true;
+        registerForPushNotificationsAsync(userId).catch((err) => {
+          console.warn('[AuthContext] Push token registration failed, will retry on next foreground:', err);
+          // Reset so the AppState handler retries on next foreground
+          hasRegisteredToken.current = false;
+        });
+      }
+    } catch (error) {
+      console.error('AuthProvider: Exception loading profile:', error);
+      
+      Alert.alert(
+        'Errore',
+        'Si è verificato un errore imprevisto durante il caricamento del profilo. Riprova.',
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              supabase.auth.signOut();
+            }
+          }
+        ]
+      );
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    console.log('AuthProvider: Initializing...');
+    
+    // Get initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      console.log('AuthProvider: Initial session:', session?.user?.id);
+      setSession(session);
+      if (session) {
+        loadUserProfile(session.user.id);
+      } else {
+        setLoading(false);
+      }
+    });
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      console.log('AuthProvider: Auth state changed:', _event, session?.user?.id);
+      
+      // Ignore auth state changes during logout to prevent multiple reloads
+      if (isLoggingOut.current) {
+        console.log('AuthProvider: Ignoring auth state change during logout');
+        return;
+      }
+      
+      setSession(session);
+      
+      // Handle SIGNED_OUT event immediately
+      if (_event === 'SIGNED_OUT') {
+        console.log('AuthProvider: User signed out, clearing state');
+        setUser(null);
+        setLoading(false);
+        updateBadgeCount(0);
+        return;
+      }
+
+      // Reset token registration flag on every new login so loadUserProfile always
+      // attempts registration for the fresh session.
+      if (_event === 'SIGNED_IN') {
+        console.log('[AuthContext] SIGNED_IN — resetting hasRegisteredToken for fresh session');
+        hasRegisteredToken.current = false;
+      }
+      
+      if (session) {
+        loadUserProfile(session.user.id);
+      } else {
+        setUser(null);
+        setLoading(false);
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [loadUserProfile]);
+
+  useEffect(() => {
+    const handleAppStateChange = (nextAppState: AppStateStatus) => {
+      if (nextAppState === 'active' && user && user.role === 'consumer' && !hasRegisteredToken.current) {
+        hasRegisteredToken.current = true;
+        console.log('[AuthContext] App foregrounded — re-registering push token for user:', user.id);
+        registerForPushNotificationsAsync(user.id).catch(() => {});
+      }
+    };
+
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    return () => subscription.remove();
+  }, [user]);
+
+  const register = async (
+    email: string,
+    password: string,
+    fullName: string,
+    phone: string,
+    role: UserRole,
+    pickupPointId?: string
+  ): Promise<{ success: boolean; message?: string }> => {
+    try {
+      console.log('AuthProvider: Registering user:', email, role, 'pickup_point_id:', pickupPointId);
+      
+      // Sign up with Supabase Auth
+      // The profile will be created automatically by the database trigger
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: 'rdnstreetstockmarket://email-confirmed',
+          data: {
+            full_name: fullName,
+            phone,
+            role,
+            pickup_point_id: pickupPointId,
+          }
+        }
+      });
+
+      if (authError) {
+        console.error('AuthProvider: Registration error:', authError);
+        return { success: false, message: authError.message };
+      }
+
+      if (!authData.user) {
+        return { success: false, message: 'Errore durante la registrazione' };
+      }
+
+      console.log('AuthProvider: User registered successfully:', authData.user.id);
+      console.log('AuthProvider: Profile will be created automatically by database trigger');
+
+      return { 
+        success: true, 
+        message: 'Registrazione completata! Controlla la tua email per verificare l\'account.' 
+      };
+    } catch (error) {
+      console.error('AuthProvider: Registration exception:', error);
+      return { success: false, message: 'Errore imprevisto durante la registrazione' };
+    }
+  };
+
+  const login = async (email: string, password: string): Promise<{ success: boolean; message?: string }> => {
+    try {
+      console.log('AuthProvider: Logging in user:', email);
+      
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) {
+        console.error('AuthProvider: Login error:', error);
+        console.error('AuthProvider: Login error details:', {
+          message: error.message,
+          status: error.status,
+          name: error.name
+        });
+        return { success: false, message: error.message };
+      }
+
+      if (!data.user) {
+        return { success: false, message: 'Errore durante il login' };
+      }
+
+      console.log('AuthProvider: User logged in successfully:', data.user.id);
+      
+      // Check if the JWT has app_metadata
+      const appMetadata = data.session?.user?.app_metadata;
+      console.log('AuthProvider: JWT app_metadata:', appMetadata);
+      
+      if (!appMetadata?.role) {
+        console.warn('AuthProvider: JWT missing role in app_metadata');
+      }
+      
+      // Profile will be loaded by the auth state change listener
+      return { success: true };
+    } catch (error) {
+      console.error('AuthProvider: Login exception:', error);
+      return { success: false, message: 'Errore imprevisto durante il login' };
+    }
+  };
+
+  const logout = async () => {
+    try {
+      console.log('AuthProvider: Starting logout process');
+      
+      // Set logout flag to prevent auth state change listener from firing
+      isLoggingOut.current = true;
+      hasRegisteredToken.current = false;
+      
+      // Store current user info for logging before clearing
+      const currentUser = user;
+      const currentUserId = currentUser?.id;
+      const currentUserRole = currentUser?.role;
+      const currentPickupPointId = currentUser?.pickupPointId;
+      
+      console.log('AuthProvider: Current user before logout:', {
+        id: currentUserId,
+        role: currentUserRole,
+        pickupPointId: currentPickupPointId,
+      });
+      
+      // Clear user state immediately to prevent navigation issues
+      // This prevents any components from trying to access user data during logout
+      setUser(null);
+      setSession(null);
+      setLoading(false);
+      
+      console.log('AuthProvider: User state cleared, signing out from Supabase...');
+      
+      // Small delay to ensure state propagates
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // Then sign out from Supabase
+      const { error } = await supabase.auth.signOut();
+      
+      if (error) {
+        console.error('AuthProvider: Supabase signOut error:', error);
+        // Don't throw - we've already cleared the local state
+        // This prevents the error from showing to the user
+      } else {
+        console.log('AuthProvider: Supabase signOut successful');
+      }
+      
+      // Reset logout flag after a delay to allow navigation to complete
+      setTimeout(() => {
+        isLoggingOut.current = false;
+        console.log('AuthProvider: Logout flag reset');
+      }, 1000);
+      
+      console.log('AuthProvider: Logout complete');
+    } catch (error) {
+      console.error('AuthProvider: Logout exception:', error);
+      // Even if there's an error, ensure state is cleared
+      setUser(null);
+      setSession(null);
+      setLoading(false);
+      // Reset logout flag
+      setTimeout(() => {
+        isLoggingOut.current = false;
+      }, 1000);
+    }
+  };
+
+  const refreshUser = useCallback(async () => {
+    if (!user?.id) {
+      console.log('[AuthContext] refreshUser: no user id, skipping');
+      return;
+    }
+    console.log('[AuthContext] refreshUser: reloading profile for user:', user.id);
+    await loadUserProfile(user.id);
+  }, [user?.id, loadUserProfile]);
+
+  const updatePickupPoint = (pickupPointId: string, pickupPointCity: string) => {
+    if (user) {
+      console.log('AuthProvider: Updating pickup point to:', pickupPointCity);
+      setUser({
+        ...user,
+        pickupPointId,
+        pickupPoint: pickupPointCity,
+      });
+    }
+  };
+
+  return (
+    <AuthContext.Provider
+      value={{
+        user,
+        session,
+        loading,
+        login,
+        register,
+        logout,
+        updatePickupPoint,
+        refreshUser,
+        isAuthenticated: !!user && !!session,
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
+  );
+}
+
+export function useAuth() {
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
+}
