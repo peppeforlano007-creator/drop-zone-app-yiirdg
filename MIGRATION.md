@@ -31,6 +31,16 @@ The inventory flags two legacy Stripe documentation files as containing live key
 
 Git history, backend data, environment values, signing/publishing links, and billing were not transferred. Rollback is reverting migration commits or reopening the untouched original project.
 
+## Preview prerequisites
+
+- Frozen original install passed using `corepack pnpm@9.15.9 install --frozen-lockfile`.
+- Installed locked Expo `54.0.37` metadata recommends `expo-dev-client ~6.0.21` and `@expo/fingerprint ~0.15.5`. Added exact versions `6.0.21` and `0.15.5`, plus the dev-client config plugin per https://docs.expo.dev/versions/v54.0.0/sdk/dev-client/ .
+- Reviewed manifest/lock diff: 55 additive lockfile lines, no existing locked dependency versions changed. Expo and React Native remain `54.0.37` / `0.81.5`.
+- Expo dependency compatibility check passed (the original safe-area-context exclusion remains unchanged). A second frozen install passed.
+- Added a `typecheck` script without changing compiler options or suppressing diagnostics.
+
 ## Validation
 
-Pending dependency installation, typecheck, native builds, and simulator interaction. Android and Web have not yet been tested.
+`bun run typecheck` fails with **1,052 pre-existing errors in 89 files**, identical to the pre-prerequisite baseline diagnostics. Most are Supabase schema typing (`never`); others include existing missing web-only Leaflet dependencies, Deno edge-function typing, asset declarations, and missing symbols in legacy screens. These are not introduced by migration. Broad source repair is intentionally outside the minimum-preservation migration; native preview is attempted with this static-check limitation explicitly recorded, not presented as type-clean.
+
+Native builds and simulator interaction pending. Android and Web have not yet been tested.
