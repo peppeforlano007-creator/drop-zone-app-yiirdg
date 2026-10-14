@@ -55,6 +55,14 @@ Git history, backend data, environment values, signing/publishing links, and bil
 - Simulator launch and meaningful interaction: **blocked / not tested** because the upload was rejected. No launch confirmation is claimed, and no service/data migration phase was started.
 - Android runtime: **not tested** (submission failed). Web: **not tested**.
 
+### Automated-alert recheck (2026-10-14)
+
+- The alert `package_manager_version_unrecorded` was rechecked against the working source: `package.json` already pins `pnpm@9.15.9` in commit `debd403`. The immutable inventory records the original absence; it is not rewritten to hide the baseline issue.
+- Repeated frozen pnpm installation and Expo compatibility check both passed without changing tracked files or runtime versions. Typecheck still reports the same 1,052 legacy errors in 89 files.
+- Retried both native platforms through the managed preview path, request `mmv7s022b9041_2`: iOS and Android each failed before compilation with HTTP **413 Request Entity Too Large**, immutable snapshot **66,039 KiB**. Neither returned a native build ID.
+- Preview logs confirm the rejection and no active simulator. Failure inspection again returns **404 Build not found for this session**; no compiler/Metro/runtime output exists for an app launch.
+- The package-manager pin is valid; the outstanding blocker is native build-service upload capacity. No app-code repair is indicated by these diagnostics, and no simulator verification can be claimed.
+
 ### Next prerequisite
 
 The normal native build service must accept the preserved source snapshot (or provide a supported upload path for its size) before native compilation and simulator verification can continue. The full imported baseline and original lockfile remain recoverable in the import commits. No data, account, service binding, billing, signing, or publishing migration is claimed.
