@@ -43,4 +43,18 @@ Git history, backend data, environment values, signing/publishing links, and bil
 
 `bun run typecheck` fails with **1,052 pre-existing errors in 89 files**, identical to the pre-prerequisite baseline diagnostics. Most are Supabase schema typing (`never`); others include existing missing web-only Leaflet dependencies, Deno edge-function typing, asset declarations, and missing symbols in legacy screens. These are not introduced by migration. Broad source repair is intentionally outside the minimum-preservation migration; native preview is attempted with this static-check limitation explicitly recorded, not presented as type-clean.
 
-Native builds and simulator interaction pending. Android and Web have not yet been tested.
+### Native submission results (2026-10-14)
+
+- Source submitted from migration commit `3412058` (manager-pin commit `debd403`).
+- Turn/request identity: `server_dce23405fbe045a6ad25146634f98841`.
+- iOS: **failed before compilation**, build API HTTP **413 Request Entity Too Large**. Immutable source snapshot: **66,038 KiB**. No native build ID was issued.
+- Android: **failed before compilation**, build API HTTP **413 Request Entity Too Large**, source snapshot **66,038 KiB**. No native build ID was issued.
+- Both outcomes were awaited independently through the normal preview path. No manually built artifacts or fallback clients were used.
+- iOS failure inspection returned HTTP **404**, `Build not found for this session`, consistent with no acknowledged build ID. Preview logs confirm HTTP 413 and no active simulator linked to the session.
+- This is an upload/service-boundary failure, not evidence of a dependency, compiler, signing, or app-code defect. No blind retry, runtime upgrade, asset deletion, or baseline alteration was performed.
+- Simulator launch and meaningful interaction: **blocked / not tested** because the upload was rejected. No launch confirmation is claimed, and no service/data migration phase was started.
+- Android runtime: **not tested** (submission failed). Web: **not tested**.
+
+### Next prerequisite
+
+The normal native build service must accept the preserved source snapshot (or provide a supported upload path for its size) before native compilation and simulator verification can continue. The full imported baseline and original lockfile remain recoverable in the import commits. No data, account, service binding, billing, signing, or publishing migration is claimed.
