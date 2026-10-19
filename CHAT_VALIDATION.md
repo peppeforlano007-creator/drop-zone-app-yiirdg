@@ -22,4 +22,10 @@
 - git diff --check passed.
 
 ## Preview
-Pending this turn's exact-source iOS/Android build and device check. Existing store installations keep the old query until updated; server data remains intact.
+Turn mmvfbtfcg3335_8:
+- iOS native artifact reused successfully (xcb_8c9199211051459089ef77094662e833), but native installation failed. JS bundled successfully (2525 modules), no concrete app-owned error in returned logs; debugger reports metro_not_running. No manual Metro restart or alternate installation attempted.
+- Android native artifact reused successfully (anb_003cdd1a05e74709ad392625dbd978204248706a8989b0a83e6d1cef9d539607), this source/bundle attached to managed preview. Runtime logs show login CountryCodePicker; Android chat UI not inspected.
+- check-app inspected this turn's leased iOS UDID 043F189C-99E8-475D-91DB-E2CAE3920151. Device is responsive on system Home Screen, no RDN app on either Home Screen page. All changed chat UI behavior remains unchecked (latest/older paging, ordering, scroll retention, reopen, error UI, read receipts). No walkthrough recording possible, no login or messages attempted.
+- Screenshot: /tmp/argent-artifacts/repo-37f121/20261019-161958-634/043F189C-99E8-475D-91DB-E2CAE3920151/345227000-1792426804373.png.
+- No concrete userland defect identified to justify another source fix/build. Installation blocker unresolved. Compilation success is not chat runtime verification.
+- Existing store installations keep the old query until updated; server data remains intact. No store release submitted.
