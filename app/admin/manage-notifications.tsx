@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, router } from 'expo-router';
 import {
@@ -17,7 +17,7 @@ import { supabase } from '@/app/integrations/supabase/client';
 import * as Haptics from 'expo-haptics';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
-import { sendPushNotification } from '@/utils/pushNotifications';
+import { loadBroadcastRecipients, sendInAppBroadcast, type BroadcastPayload } from '@/utils/admin-broadcast';
 
 interface NotificationFlow {
   id: string;
@@ -59,6 +59,8 @@ export default function ManageNotificationsScreen() {
   const [massAudience, setMassAudience] = useState<'all' | 'pickup_points' | 'users'>('all');
   const [selectedPickupPoint, setSelectedPickupPoint] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const [sendProgress, setSendProgress] = useState('');
+  const sendingRef = useRef(false);
 
   useEffect(() => {
     loadFlows();
@@ -229,49 +231,26 @@ export default function ManageNotificationsScreen() {
         {
           text: 'Invia',
           onPress: async () => {
+            if (sendingRef.current) return;
+            sendingRef.current = true;
             try {
               setSending(true);
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-              let query = supabase.from('profiles').select('user_id, email, full_name, role, pickup_point_id');
-
-              if (massAudience === 'users') {
-                query = query.eq('role', 'consumer');
-              } else if (massAudience === 'pickup_points' && selectedPickupPoint) {
-                query = query.eq('pickup_point_id', selectedPickupPoint).eq('role', 'consumer');
-              }
-
-              const { data: users, error: usersError } = await query;
-
-              if (usersError) throw usersError;
-
-              if (!users || users.length === 0) {
-                Alert.alert('Attenzione', 'Nessun utente trovato per questa categoria');
-                return;
-              }
-
-              const notifications = users.map(user => ({
-                user_id: user.user_id,
-                title: massTitle,
-                message: massMessage,
-                type: 'general' as const,
-                read: false,
-              }));
-
-              const { error: notifError } = await supabase
-                .from('notifications')
-                .insert(notifications);
-
-              if (notifError) throw notifError;
+              const payload: BroadcastPayload = {
+                title: massTitle.trim(), message: massMessage.trim(), type: 'general',
+                role: massAudience === 'all' ? null : 'consumer',
+                ...(massAudience === 'pickup_points' && selectedPickupPoint ? { pickup_point_id: selectedPickupPoint } : {}),
+              };
+              setSendProgress('Caricamento di tutti i destinatari…');
+              const users = await loadBroadcastRecipients(supabase, payload);
+              setSendProgress('Salvataggio notifiche in blocchi da 1.000…');
+              const result = await sendInAppBroadcast(supabase, payload);
+              setSendProgress(`${result.recipients} notifiche salvate nell’app. Elaborazione push esistenti…`);
 
               // Invia push a tutti gli utenti con push_token
               try {
-                const userIds = notifications.map((n: any) => n.user_id);
-                const { data: profiles } = await supabase
-                  .from('profiles')
-                  .select('user_id, push_token')
-                  .in('user_id', userIds)
-                  .not('push_token', 'is', null);
+                const profiles = users.filter(user => user.push_token);
 
                 if (profiles && profiles.length > 0) {
                   console.log(`[ManageNotifications] Invio push broadcast a ${profiles.length} utenti`);
@@ -311,8 +290,8 @@ export default function ManageNotificationsScreen() {
 
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
               Alert.alert(
-                'Notifica Inviata',
-                `La notifica è stata inviata a ${users.length} utenti.`,
+                'Notifiche salvate nell’app',
+                `${result.recipients} destinatari, ${result.batches} blocchi elaborati.${result.reused ? '\nInvio già completato: nessuna notifica interna duplicata.' : ''}\nDispositivi registrati nell’elenco: ${users.filter(u => u.push_token).length}. La consegna delle push non è certificata da questo conteggio.`,
                 [
                   {
                     text: 'OK',
@@ -330,7 +309,9 @@ export default function ManageNotificationsScreen() {
               console.error('Error sending mass notification:', error);
               Alert.alert('Errore', 'Impossibile inviare la notifica');
             } finally {
+              sendingRef.current = false;
               setSending(false);
+              setSendProgress('');
             }
           },
         },
@@ -512,9 +493,13 @@ export default function ManageNotificationsScreen() {
               </View>
             )}
 
+            <Text style={styles.flowDescription} accessibilityLiveRegion="polite">
+              {sendProgress || 'Tutti i destinatari, senza limite complessivo di 1.000. Salvataggio in blocchi da 1.000; push solo sui dispositivi abilitati.'}
+            </Text>
             <View style={styles.formActions}>
               <Pressable
                 style={[styles.formButton, styles.cancelButton]}
+                disabled={sending}
                 onPress={() => {
                   setShowMassNotification(false);
                   setMassTitle('');

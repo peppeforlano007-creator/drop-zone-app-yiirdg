@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack } from 'expo-router';
 import {
@@ -18,6 +18,7 @@ import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 import { errorHandler, ErrorCategory, ErrorSeverity } from '@/utils/errorHandler';
 import { sendPushNotification } from '@/utils/pushNotifications';
+import { loadBroadcastRecipients, sendInAppBroadcast, type BroadcastPayload } from '@/utils/admin-broadcast';
 
 interface NotificationTemplate {
   id: string;
@@ -40,6 +41,8 @@ export default function NotificationsScreen() {
   const [message, setMessage] = useState('');
   const [targetAudience, setTargetAudience] = useState<'all' | 'consumers' | 'suppliers' | 'pickup_points'>('all');
   const [sending, setSending] = useState(false);
+  const [sendProgress, setSendProgress] = useState('');
+  const sendingRef = useRef(false);
 
   const [drops, setDrops] = useState<Drop[]>([]);
   const [selectedDropId, setSelectedDropId] = useState<string | null>(null);
@@ -145,69 +148,26 @@ export default function NotificationsScreen() {
           text: 'Invia',
           style: 'default',
           onPress: async () => {
+            if (sendingRef.current) return;
+            sendingRef.current = true;
             try {
               setSending(true);
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
-              // Get target users
-              let query = supabase.from('profiles').select('user_id, email, full_name, push_token');
-
-              if (targetAudience !== 'all') {
-                const roleMap = {
-                  consumers: 'consumer',
-                  suppliers: 'supplier',
-                  pickup_points: 'pickup_point',
-                };
-                query = query.eq('role', roleMap[targetAudience]);
-              }
-
-              console.log('[Notifications] Fetching users for audience:', targetAudience);
-              const { data: users, error } = await query;
-
-              if (error) {
-                console.error('[Notifications] Error fetching users:', error);
-                errorHandler.handleSupabaseError(error, { context: 'fetch_users_for_notification' });
-                return;
-              }
-
-              if (!users || users.length === 0) {
-                Alert.alert('Attenzione', 'Nessun utente trovato per questa categoria');
-                return;
-              }
-
-              // Build notification payload
               const notificationType = isDropTemplate
                 ? (selectedTemplate === 'new_drop' ? 'drop_activated' : 'drop_ending')
                 : 'general';
-
-              const notifications = users.map(user => {
-                const base: Record<string, unknown> = {
-                  user_id: user.user_id,
-                  title,
-                  message,
-                  type: notificationType,
-                  read: false,
-                };
-                if (isDropTemplate && selectedDropId) {
-                  base.related_id = selectedDropId;
-                  base.related_type = 'drop';
-                }
-                return base;
-              });
-
-              console.log('[Notifications] Inserting', notifications.length, 'notifications with type:', notificationType, isDropTemplate ? `related_id: ${selectedDropId}` : '');
-
-              const { error: notifError } = await supabase
-                .from('notifications')
-                .insert(notifications);
-
-              if (notifError) {
-                console.error('[Notifications] Error creating notifications:', notifError);
-                errorHandler.handleSupabaseError(notifError, { context: 'create_notifications' });
-                return;
-              }
-
-              console.log('[Notifications] Successfully sent to', users.length, 'users');
+              const roleMap = { consumers: 'consumer', suppliers: 'supplier', pickup_points: 'pickup_point' } as const;
+              const payload: BroadcastPayload = {
+                title: title.trim(), message: message.trim(), type: notificationType,
+                role: targetAudience === 'all' ? null : roleMap[targetAudience],
+                ...(isDropTemplate && selectedDropId ? { related_id: selectedDropId, related_type: 'drop' as const } : {}),
+              };
+              setSendProgress('Caricamento di tutti i destinatari…');
+              const users = await loadBroadcastRecipients(supabase, payload);
+              setSendProgress('Salvataggio notifiche in blocchi da 1.000…');
+              const result = await sendInAppBroadcast(supabase, payload);
+              setSendProgress(`${result.recipients} notifiche salvate nell’app. Elaborazione push esistenti…`);
 
               // Send push notifications to users with tokens
               try {
@@ -230,9 +190,10 @@ export default function NotificationsScreen() {
                 console.error('[Notifications] Push error (non-blocking):', pushError);
               }
 
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
               Alert.alert(
-                'Notifica Inviata',
-                `La notifica è stata inviata a ${users.length} utenti.`,
+                'Notifiche salvate nell’app',
+                `${result.recipients} destinatari, ${result.batches} blocchi elaborati.${result.reused ? '\nInvio già completato: nessuna notifica interna duplicata.' : ''}\nDispositivi registrati nell’elenco: ${users.filter(u => u.push_token).length}. La consegna delle push non è certificata da questo conteggio.`,
                 [
                   {
                     text: 'OK',
@@ -255,7 +216,9 @@ export default function NotificationsScreen() {
                 error
               );
             } finally {
+              sendingRef.current = false;
               setSending(false);
+              setSendProgress('');
             }
           },
         },
@@ -480,7 +443,7 @@ export default function NotificationsScreen() {
                   size={24}
                   color={colors.primary}
                 />
-                <Text style={styles.previewAppName}>Drop Social</Text>
+                <Text style={styles.previewAppName}>RDN STREET STOCK MARKET</Text>
                 <Text style={styles.previewTime}>ora</Text>
               </View>
               <Text style={styles.previewTitle}>{title || 'Titolo notifica'}</Text>
@@ -488,6 +451,9 @@ export default function NotificationsScreen() {
             </View>
           </View>
 
+          <Text style={styles.sectionDescription} accessibilityLiveRegion="polite">
+            {sendProgress || 'Tutti i destinatari, senza limite complessivo di 1.000. Salvataggio in blocchi da 1.000; push solo sui dispositivi abilitati.'}
+          </Text>
           <Pressable
             style={({ pressed }) => [
               styles.sendButton,
