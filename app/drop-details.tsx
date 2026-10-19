@@ -1,5 +1,7 @@
 
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import DropCategorySheet from '@/components/DropCategorySheet';
+import { feedCategories, feedCounter, feedPosition, filterFeed, loadDropFeedProducts } from '@/utils/drop-feed';
 import { canBookAtPickup } from '@/utils/pickup-rules';
 import { loadActiveProfilePickup } from '@/utils/profile-pickup';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -120,6 +122,18 @@ export default function DropDetailsScreen() {
   const [shareProduct, setShareProduct] = useState<{ id: string; name: string } | null>(null);
   const [bannerDismissed, setBannerDismissed] = useState(false);
   const [currentProductIndex, setCurrentProductIndex] = useState(0);
+  const [catalogueError, setCatalogueError] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [showCategorySheet, setShowCategorySheet] = useState(false);
+  const [initialProductIndex, setInitialProductIndex] = useState(0);
+  const visibleProduct = useRef<{ id: string | null; index: number }>({ id: null, index: 0 });
+  const unfilteredPosition = useRef<{ id: string | null; index: number }>({ id: null, index: 0 });
+  const deepLinkHandled = useRef<string | null>(null);
+  const categories = useMemo(() => feedCategories(products), [products]);
+  const filteredProducts = useMemo(() => filterFeed(products, selectedCategory), [products, selectedCategory]);
+  const hasUsefulCategories = categories.some(category => category.key !== '') && categories.length > 1;
+  const selectedCategoryLabel = selectedCategory === null ? null
+    : categories.find(category => category.key === selectedCategory)?.label ?? 'Categoria';
   const bounceAnim = useRef(new Animated.Value(1)).current;
   const { user } = useAuth();
   const { isInterested, isLoading: isInterestLoading, loadInterest, toggleInterest } = useDropInterest();
@@ -141,6 +155,9 @@ export default function DropDetailsScreen() {
       return;
     }
 
+    setInitialProductIndex(visibleProduct.current.index);
+    setLoading(true);
+    setCatalogueError(false);
     try {
       const pickup = user?.id ? await loadActiveProfilePickup(supabase, user.id) : null;
       if (!pickup) {
@@ -239,26 +256,11 @@ export default function DropDetailsScreen() {
       const showAllProducts = ['approved', 'pending_approval', 'inactive'].includes(dropData.status);
       console.log('📦 Drop status:', dropData.status, '| showAllProducts:', showAllProducts);
 
-      // OPTIMIZED: Load products with larger batch size
-      let productsQuery = supabase
-        .from('products')
-        .select('*')
-        .eq('supplier_list_id', dropData.supplier_list_id)
-        .order('created_at', { ascending: false })
-        .limit(1000);
-
-      if (!showAllProducts) {
-        productsQuery = productsQuery.gt('stock', 0);
-      }
-
-      const { data: productsData, error: productsError } = await productsQuery;
-
-      if (productsError) {
-        console.error('❌ Error loading products:', productsError);
-      } else {
-        const availableProducts = showAllProducts
-          ? (productsData || [])
-          : (productsData || []).filter(p => p.stock > 0);
+      // Complete catalogue: do not show the server's first page as the total.
+      const availableProducts = await loadDropFeedProducts<ProductData>(
+        supabase, dropData.supplier_list_id, showAllProducts,
+      );
+      {
         console.log('✅ Products loaded:', availableProducts.length, showAllProducts ? '(all, stock filter skipped)' : 'with stock > 0');
         
         // OPTIMIZED: Load variants with larger batch size and parallel processing
@@ -294,7 +296,7 @@ export default function DropDetailsScreen() {
       }
     } catch (error) {
       console.error('❌ Error in loadDropDetails:', error);
-      Alert.alert('Errore', 'Impossibile caricare i dettagli del drop');
+      setCatalogueError(true);
     } finally {
       setLoading(false);
     }
@@ -302,6 +304,13 @@ export default function DropDetailsScreen() {
 
   useEffect(() => {
     setBannerDismissed(false);
+    setSelectedCategory(null);
+    setShowCategorySheet(false);
+    setInitialProductIndex(0);
+    setCurrentProductIndex(0);
+    visibleProduct.current = { id: null, index: 0 };
+    unfilteredPosition.current = { id: null, index: 0 };
+    deepLinkHandled.current = null;
   }, [dropId]);
 
   const loadUserBookings = useCallback(async () => {
@@ -358,21 +367,45 @@ export default function DropDetailsScreen() {
     }
   };
 
-  // Scroll to specific product if coming from wishlist
+  // One remembered unfiltered position; switching category starts at its first item.
+  const selectCategory = useCallback((key: string | null) => {
+    setShowCategorySheet(false);
+    if (key === selectedCategory) return;
+    if (selectedCategory === null) unfilteredPosition.current = { ...visibleProduct.current };
+    const next = filterFeed(products, key);
+    const index = key === null
+      ? feedPosition(next, unfilteredPosition.current.id, unfilteredPosition.current.index) : 0;
+    visibleProduct.current = { id: next[index]?.id ?? null, index };
+    setInitialProductIndex(index);
+    setCurrentProductIndex(index);
+    setSelectedCategory(key);
+    Haptics.selectionAsync().catch(() => {});
+  }, [products, selectedCategory]);
+
+  // Keep the same article visible if earlier items disappear in realtime.
+  // If the visible article disappears, use the next surviving page (or the last).
   useEffect(() => {
-    if (scrollToProductId && products.length > 0 && flatListRef.current) {
-      const productIndex = products.findIndex(p => p.id === scrollToProductId);
-      if (productIndex !== -1) {
-        console.log('📍 Scrolling to product at index:', productIndex);
-        setTimeout(() => {
-          flatListRef.current?.scrollToIndex({
-            index: productIndex,
-            animated: true,
-          });
-        }, 500);
+    if (loading || !filteredProducts.length) return;
+    let index = feedPosition(filteredProducts, visibleProduct.current.id, visibleProduct.current.index);
+    let needsPositioning = index !== visibleProduct.current.index;
+    const linkKey = `${dropId}:${scrollToProductId}`;
+    if (scrollToProductId && deepLinkHandled.current !== linkKey && selectedCategory === null) {
+      const linkedIndex = filteredProducts.findIndex(product => product.id === scrollToProductId);
+      if (linkedIndex >= 0) {
+        index = linkedIndex;
+        needsPositioning = true;
+        deepLinkHandled.current = linkKey;
       }
     }
-  }, [scrollToProductId, products]);
+    visibleProduct.current = { id: filteredProducts[index].id, index };
+    setCurrentProductIndex(index);
+    if (!needsPositioning) return; // Stock-only refreshes must not interrupt a swipe.
+    // Data is committed before the non-animated positioning; no long scroll through pages.
+    const frame = requestAnimationFrame(() => {
+      flatListRef.current?.scrollToIndex({ index, animated: false });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [dropId, scrollToProductId, filteredProducts, selectedCategory, loading]);
 
   // Fallback polling every 30 seconds in case Realtime channel errors
   useEffect(() => {
@@ -380,13 +413,12 @@ export default function DropDetailsScreen() {
 
     const interval = setInterval(async () => {
       console.log('[drop-details] Polling fallback: refreshing product stock...');
-      const { data } = await supabase
-        .from('products')
-        .select('*')
-        .eq('supplier_list_id', drop.supplier_list_id)
-        .gt('stock', 0)
-        .order('created_at', { ascending: false })
-        .limit(1000);
+      const { data } = await loadDropFeedProducts<ProductData>(supabase, drop.supplier_list_id, false)
+        .then(data => ({ data }))
+        .catch(error => {
+          console.warn('[drop-details] Stock refresh incomplete:', error);
+          return { data: null };
+        });
 
       if (data) {
         const available = data.filter((p: ProductData) => p.stock > 0);
@@ -540,13 +572,12 @@ export default function DropDetailsScreen() {
         async (payload) => {
           console.log('📡 New booking detected, refreshing product stock...');
           // Ricarica i prodotti con stock > 0
-          const { data } = await supabase
-            .from('products')
-            .select('*')
-            .eq('supplier_list_id', drop.supplier_list_id)
-            .gt('stock', 0)
-            .order('created_at', { ascending: false })
-            .limit(1000);
+          const { data } = await loadDropFeedProducts<ProductData>(supabase, drop.supplier_list_id, false)
+            .then(data => ({ data }))
+            .catch(error => {
+              console.warn('[drop-details] Booking stock refresh incomplete:', error);
+              return { data: null };
+            });
 
           if (data) {
             const available = data.filter((p: any) => p.stock > 0);
@@ -945,11 +976,13 @@ export default function DropDetailsScreen() {
   }, [user, drop, products, loadDropDetails, isExpired, isDropCompleted]);
 
   const onViewableItemsChanged = useCallback(({ viewableItems }: any) => {
-    if (viewableItems.length > 0) {
-      setCurrentProductIndex(viewableItems[0].index ?? 0);
+    const visible = viewableItems.find((entry: any) => entry.isViewable && entry.index != null);
+    if (visible) {
+      visibleProduct.current = { id: visible.item.id, index: visible.index };
+      setCurrentProductIndex(visible.index);
     }
   }, []);
-  const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 50 }).current;
+  const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 60 }).current;
 
   const renderProduct = useCallback(({ item }: { item: ProductData }) => {
     const isBooked = userBookings.has(item.id);
@@ -1016,12 +1049,8 @@ export default function DropDetailsScreen() {
           dropStatus={drop?.status}
           onShare={() => {
             if (!drop) return;
-            const currentProduct = products[currentProductIndex];
-            console.log('[drop-details] Share button pressed — currentProductIndex:', currentProductIndex, 'product:', currentProduct?.id, currentProduct?.name);
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            if (currentProduct) {
-              setShareProduct({ id: currentProduct.id, name: currentProduct.name });
-            }
+            setShareProduct({ id: item.id, name: item.name });
             setShowShareModal(true);
           }}
         />
@@ -1048,7 +1077,7 @@ export default function DropDetailsScreen() {
         {cardContent}
       </View>
     );
-  }, [drop, userBookings, handleBook, dropId, isDropBookingDisabled, products, currentProductIndex, soldOutItems]);
+  }, [drop, userBookings, handleBook, dropId, isDropBookingDisabled, soldOutItems]);
 
   if (loading) {
     return (
@@ -1057,6 +1086,24 @@ export default function DropDetailsScreen() {
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={colors.primary} />
           <Text style={styles.loadingText}>Caricamento drop...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (catalogueError) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <Stack.Screen options={{ headerShown: false }} />
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>Catalogo non disponibile</Text>
+          <Text style={styles.errorSubtext}>Non è stato possibile caricare tutti gli articoli. Riprova per vedere il catalogo completo.</Text>
+          <Pressable style={styles.backButton} onPress={loadDropDetails} accessibilityRole="button">
+            <Text style={styles.backButtonText}>Riprova</Text>
+          </Pressable>
+          <Pressable style={styles.backButton} onPress={() => router.back()} accessibilityRole="button">
+            <Text style={styles.backButtonText}>Torna indietro</Text>
+          </Pressable>
         </View>
       </SafeAreaView>
     );
@@ -1260,8 +1307,18 @@ export default function DropDetailsScreen() {
       )}
 
       <FlatList
+        key={selectedCategory === null ? 'all' : `category:${selectedCategory}`}
         ref={flatListRef}
-        data={products}
+        data={filteredProducts}
+        initialScrollIndex={filteredProducts.length ? Math.min(initialProductIndex, filteredProducts.length - 1) : undefined}
+        ListEmptyComponent={
+          <View style={[styles.productContainer, styles.loadingContainer]}>
+            <Text style={styles.errorText}>Nessun articolo in questa categoria</Text>
+            <Pressable onPress={() => selectCategory(null)} style={styles.backButton} accessibilityRole="button">
+              <Text style={styles.backButtonText}>Mostra tutti gli articoli</Text>
+            </Pressable>
+          </View>
+        }
         renderItem={renderProduct}
         keyExtractor={(item) => item.id}
         pagingEnabled
@@ -1280,9 +1337,9 @@ export default function DropDetailsScreen() {
         onScrollToIndexFailed={(info) => {
           console.log('Scroll to index failed:', info);
           setTimeout(() => {
-            flatListRef.current?.scrollToIndex({
-              index: info.index,
-              animated: true,
+            flatListRef.current?.scrollToOffset({
+              offset: height * visibleProduct.current.index,
+              animated: false,
             });
           }, 100);
         }}
@@ -1346,6 +1403,27 @@ export default function DropDetailsScreen() {
               </View>
             </View>
           )}
+          <View style={styles.feedControls} pointerEvents="box-none">
+            <View style={styles.feedCounter} pointerEvents="none">
+              <Text style={styles.feedCounterText}>{feedCounter(currentProductIndex, filteredProducts.length)}</Text>
+            </View>
+            {(hasUsefulCategories || selectedCategory !== null) && (
+              <View style={styles.feedFilterGroup}>
+                <Pressable onPress={() => setShowCategorySheet(true)}
+                  accessibilityRole="button" accessibilityLabel={selectedCategoryLabel ? `Cambia categoria, ${selectedCategoryLabel}` : 'Filtra per categoria'}
+                  style={({ pressed }) => [styles.feedFilter, pressed && { opacity: 0.65 }]}>
+                  <MaterialCommunityIcons name="filter-variant" size={17} color={colors.text} />
+                  <Text style={styles.feedFilterText} numberOfLines={1}>{selectedCategoryLabel ?? 'Filtra'}</Text>
+                </Pressable>
+                {selectedCategory !== null && (
+                  <Pressable onPress={() => selectCategory(null)} style={styles.feedClear}
+                    accessibilityRole="button" accessibilityLabel="Rimuovi filtro categoria">
+                    <MaterialCommunityIcons name="close" size={18} color={colors.text} />
+                  </Pressable>
+                )}
+              </View>
+            )}
+          </View>
         </SafeAreaView>
       </View>
 
@@ -1398,6 +1476,14 @@ export default function DropDetailsScreen() {
         </View>
       )}
 
+      <DropCategorySheet
+        visible={showCategorySheet}
+        categories={categories}
+        total={products.length}
+        selected={selectedCategory}
+        onSelect={selectCategory}
+        onClose={() => setShowCategorySheet(false)}
+      />
       <ShareToGroupModal
         visible={showShareModal}
         onClose={() => { setShowShareModal(false); setShareProduct(null); }}
@@ -1408,6 +1494,13 @@ export default function DropDetailsScreen() {
 }
 
 const styles = StyleSheet.create({
+  feedControls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginHorizontal: 16, marginTop: 6 },
+  feedCounter: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 16, backgroundColor: 'rgba(0,0,0,0.65)', flexShrink: 1 },
+  feedCounterText: { color: '#FFF', fontSize: 12, fontWeight: '700', fontVariant: ['tabular-nums'] },
+  feedFilterGroup: { flexDirection: 'row', alignItems: 'center', maxWidth: '58%', borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.95)', borderWidth: 1, borderColor: colors.border },
+  feedFilter: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 44, paddingHorizontal: 12, flexShrink: 1 },
+  feedFilterText: { color: colors.text, fontSize: 13, fontWeight: '600', flexShrink: 1 },
+  feedClear: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   container: {
     flex: 1,
     backgroundColor: colors.background,
