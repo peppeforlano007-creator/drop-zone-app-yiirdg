@@ -11,6 +11,7 @@ import {
   ActivityIndicator,
   Platform,
 } from 'react-native';
+import { pickupExportStatus } from '@/utils/pickup-rules';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, router } from 'expo-router';
 import { colors } from '@/styles/commonStyles';
@@ -62,6 +63,7 @@ interface OrderData {
   selected_size?: string;
   selected_color?: string;
   original_price: number;
+  quantity: number;
   unit_price: number;
   final_price: number;
   drop_discount_pct: number;
@@ -71,6 +73,10 @@ interface OrderData {
   customer_phone: string;
   customer_email: string;
   customer_pickup_point: string;
+  booking_id: string;
+  booking_pickup_point: string;
+  drop_pickup_point: string;
+  pickup_check: string;
 }
 
 export default function ExportOrdersScreen() {
@@ -221,7 +227,7 @@ export default function ExportOrdersScreen() {
       console.log('[ExportOrders] Loading bookings for drop:', drop.id);
       const { data: bookings, error: bookingsError } = await supabase
         .from('bookings')
-        .select('id, product_id, original_price, final_price, user_id, selected_size, selected_color, discount_percentage, loyalty_discount')
+        .select('id, product_id, original_price, final_price, user_id, selected_size, selected_color, discount_percentage, loyalty_discount, pickup_point_id')
         .eq('drop_id', drop.id)
         .in('status', ['confirmed', 'completed']);
 
@@ -266,7 +272,11 @@ export default function ExportOrdersScreen() {
       }
 
       // Load pickup points for users
-      const userPickupPointIds = [...new Set((usersData || []).map(u => u.pickup_point_id).filter(Boolean))];
+      const userPickupPointIds = [...new Set([
+        ...(usersData || []).map(u => u.pickup_point_id),
+        ...bookings.map((b: { pickup_point_id: string | null }) => b.pickup_point_id),
+        drop.pickup_point_id,
+      ].filter((id): id is string => Boolean(id)))];
       let pickupPointsMap = new Map<string, string>();
       if (userPickupPointIds.length > 0) {
         console.log('[ExportOrders] Loading pickup points for users:', userPickupPointIds.length);
@@ -274,9 +284,7 @@ export default function ExportOrdersScreen() {
           .from('pickup_points')
           .select('id, name')
           .in('id', userPickupPointIds);
-        if (userPickupPointsError) {
-          console.error('Error loading user pickup points:', userPickupPointsError);
-        }
+        if (userPickupPointsError) throw userPickupPointsError;
         userPickupPointsData?.forEach(pp => pickupPointsMap.set(pp.id, pp.name));
       }
 
@@ -322,6 +330,10 @@ export default function ExportOrdersScreen() {
           customer_phone: user?.phone || 'N/A',
           customer_email: user?.email || 'N/A',
           customer_pickup_point: pickupPointName,
+          booking_id: booking.id,
+          booking_pickup_point: booking.pickup_point_id ? pickupPointsMap.get(booking.pickup_point_id) || `Punto non leggibile (${booking.pickup_point_id})` : 'NON REGISTRATO — DA VERIFICARE',
+          drop_pickup_point: pickupPointsMap.get(drop.pickup_point_id) || 'NON DISPONIBILE',
+          pickup_check: pickupExportStatus(booking.pickup_point_id, drop.pickup_point_id),
         };
       });
 
@@ -353,7 +365,11 @@ export default function ExportOrdersScreen() {
           'Cliente': order.customer_name,
           'Telefono': order.customer_phone,
           'Email': order.customer_email,
-          'Punto di Ritiro Cliente': order.customer_pickup_point,
+          'ID Prenotazione': order.booking_id,
+          'Punto di Ritiro Prenotazione': order.booking_pickup_point,
+          'Punto di Ritiro Drop': order.drop_pickup_point,
+          'Verifica Punto di Ritiro': order.pickup_check,
+          'Punto Preferito Attuale Cliente (non destinazione ordine)': order.customer_pickup_point,
         }))
       );
 
@@ -380,6 +396,8 @@ export default function ExportOrdersScreen() {
         { 'Campo': 'Sconto Finale', 'Valore': `${Math.floor(drop.current_discount)}%` },
         { 'Campo': 'Data Completamento', 'Valore': completionDate ? new Date(completionDate).toLocaleDateString('it-IT') : 'N/A' },
         { 'Campo': 'Totale Articoli', 'Valore': totalItems.toString() },
+        { 'Campo': 'Prenotazioni con punto da verificare', 'Valore': ordersArray.filter(order => order.pickup_check !== 'OK').length.toString() },
+        { 'Campo': 'Nota punti di ritiro', 'Valore': 'La destinazione è quella della prenotazione. La preferenza attuale del cliente non modifica gli ordini precedenti. Nessuna destinazione mancante è stata ricostruita automaticamente.' },
         { 'Campo': 'Valore Totale', 'Valore': `€${totalValue.toFixed(2)}` },
         { 'Campo': 'Valore Netto Totale al Ritiro', 'Valore': `€${totalNetValue.toFixed(2)}` },
       ];

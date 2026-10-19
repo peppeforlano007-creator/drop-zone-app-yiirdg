@@ -1,5 +1,7 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { canBookAtPickup } from '@/utils/pickup-rules';
+import { loadActiveProfilePickup } from '@/utils/profile-pickup';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '@/app/integrations/supabase/client';
 import { IconSymbol } from '@/components/IconSymbol';
@@ -140,6 +142,16 @@ export default function DropDetailsScreen() {
     }
 
     try {
+      const pickup = user?.id ? await loadActiveProfilePickup(supabase, user.id) : null;
+      if (!pickup) {
+        setDrop(null);
+        setProducts([]);
+        Alert.alert('Scegli il punto di ritiro', 'Seleziona un punto di ritiro attivo nel profilo prima di visualizzare i drop.', [
+          { text: 'Vai al profilo', onPress: () => router.replace('/(tabs)/profile') },
+          { text: 'Indietro', onPress: () => router.back() },
+        ]);
+        return;
+      }
       console.log('📥 Loading drop details for:', dropId);
       
       const { data: dropData, error: dropError } = await supabase
@@ -286,7 +298,7 @@ export default function DropDetailsScreen() {
     } finally {
       setLoading(false);
     }
-  }, [dropId]);
+  }, [dropId, user?.id]);
 
   useEffect(() => {
     setBannerDismissed(false);
@@ -761,6 +773,16 @@ export default function DropDetailsScreen() {
     }
 
     try {
+      const bookingPickup = await loadActiveProfilePickup(supabase, user.id);
+      if (!canBookAtPickup(bookingPickup, drop.pickup_point_id)) {
+        Alert.alert('Verifica il punto di ritiro', bookingPickup
+          ? 'Questo drop appartiene a un altro punto di ritiro. Torna ai drop del tuo punto selezionato.'
+          : 'Seleziona un punto di ritiro nel profilo prima di prenotare.', [
+          { text: 'Vai al profilo', onPress: () => router.push('/(tabs)/profile') },
+          { text: 'Annulla', style: 'cancel' },
+        ]);
+        return;
+      }
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
       // Check network connectivity
@@ -834,7 +856,8 @@ export default function DropDetailsScreen() {
           code: bookingError.code,
         });
         
-        // Check for specific error messages
+        // Pickup failures must not be mislabeled as stock errors (also P0001).
+        if (bookingError.message?.includes('PICKUP_POINT_')) throw bookingError;
         if (bookingError.message?.toLowerCase().includes('terminato')) {
           Alert.alert(
             'Drop Terminato',
@@ -888,7 +911,12 @@ export default function DropDetailsScreen() {
         error: error,
       });
       
-      if (error?.message?.toLowerCase().includes('terminato')) {
+      if (error?.message?.includes('PICKUP_POINT_')) {
+        Alert.alert('Verifica il punto di ritiro', 'Seleziona un punto attivo nel profilo e prenota soltanto dai drop di quel punto.', [
+          { text: 'Vai al profilo', onPress: () => router.push('/(tabs)/profile') },
+          { text: 'Annulla', style: 'cancel' },
+        ]);
+      } else if (error?.message?.toLowerCase().includes('terminato')) {
         Alert.alert(
           'Drop Terminato',
           'Questo drop è terminato e non accetta più prenotazioni.',

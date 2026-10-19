@@ -1,4 +1,5 @@
 
+import { loadActiveProfilePickup } from '@/utils/profile-pickup';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '@/app/integrations/supabase/client';
 import DropCard from '@/components/DropCard';
@@ -203,6 +204,8 @@ export default function DropsScreen() {
   const [drops, setDrops] = useState<Drop[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [pickupGate, setPickupGate] = useState<'checking' | 'required' | 'ready' | 'error'>('checking');
+  const requestId = useRef(0);
   const [inviteLink, setInviteLink] = useState('https://rdnstreet.app');
   const { user } = useAuth();
   const unreadCount = useUnreadNotifications();
@@ -229,18 +232,24 @@ export default function DropsScreen() {
   );
 
   const loadDrops = useCallback(async () => {
+    const currentRequest = ++requestId.current;
+    setPickupGate('checking');
+    setDrops([]);
     try {
+      if (!user?.id) {
+        setPickupGate('required');
+        return;
+      }
       console.log('=== LOADING DROPS ===');
       console.log('Timestamp:', new Date().toISOString());
 
       // Recupera il pickup_point_id dell'utente
-      const { data: profileData } = await supabase
-        .from('profiles')
-        .select('pickup_point_id')
-        .eq('user_id', user?.id)
-        .single();
-
-      const userPickupPointId = profileData?.pickup_point_id;
+      const userPickupPointId = await loadActiveProfilePickup(supabase, user.id);
+      if (currentRequest !== requestId.current) return;
+      if (!userPickupPointId) {
+        setPickupGate('required');
+        return;
+      }
 
       // Fetch active and approved drops
       let query = supabase
@@ -278,19 +287,15 @@ export default function DropsScreen() {
         .or('archived.is.null,archived.eq.false')
         .order('created_at', { ascending: false });
 
-      if (userPickupPointId) {
-        query = query.eq('pickup_point_id', userPickupPointId);
-      }
+      query = query.eq('pickup_point_id', userPickupPointId);
 
-      console.log('[drops] loading drops for pickup point:', userPickupPointId || 'none (showing all)');
+      console.log('[drops] loading drops for selected pickup point');
       const { data, error } = await query;
 
       console.log('[drops] raw statuses returned:', data?.map(d => ({ name: d.name, status: d.status })));
 
-      if (error) {
-        console.error('❌ Error loading drops:', error);
-        return;
-      }
+      if (error) throw error;
+      if (currentRequest !== requestId.current) return;
 
       console.log('✓ Drops loaded:', data?.length || 0);
       if (data && data.length > 0) {
@@ -329,14 +334,30 @@ export default function DropsScreen() {
         return orderA - orderB;
       });
 
+      if (currentRequest !== requestId.current) return;
       setDrops(sorted);
+      setPickupGate('ready');
     } catch (error) {
+      if (currentRequest !== requestId.current) return;
+      setDrops([]);
+      setPickupGate('error');
       console.error('❌ Exception loading drops:', error);
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (currentRequest === requestId.current) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
-  }, []);
+  }, [user?.id]);
+
+  useFocusEffect(useCallback(() => {
+    void loadDrops();
+    return () => {
+      ++requestId.current;
+      setDrops([]);
+      setPickupGate('checking');
+    };
+  }, [loadDrops]));
 
   const loadDropsRef = useRef<() => void>(loadDrops);
   useEffect(() => {
@@ -344,7 +365,6 @@ export default function DropsScreen() {
   }, [loadDrops]);
 
   useEffect(() => {
-    loadDrops();
     // Fetch invite link
     supabase
       .from('app_settings')
@@ -440,6 +460,24 @@ export default function DropsScreen() {
   );
 
   const bellCountText = unreadCount > 99 ? '99+' : String(unreadCount);
+
+  if (!loading && pickupGate !== 'ready') {
+    const checking = pickupGate === 'checking';
+    const failed = pickupGate === 'error';
+    return (
+      <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+        <Stack.Screen options={{ headerShown: false }} />
+        <View style={styles.emptyContainer}>
+          {checking ? <ActivityIndicator color={colors.primary} /> : <Ionicons name="location-outline" size={56} color={colors.primary} />}
+          <Text style={styles.emptyTitle}>{checking ? 'Verifica del punto di ritiro…' : failed ? 'Verifica non riuscita' : 'Scegli il punto di ritiro'}</Text>
+          <Text style={styles.emptyText}>{failed ? 'Non possiamo verificare il tuo punto di ritiro. Riprova: nessun drop viene mostrato finché la verifica non è completata.' : 'Per vedere e prenotare i drop, seleziona un punto di ritiro attivo nel tuo profilo.'}</Text>
+          {!checking && <TouchableOpacity accessibilityRole="button" onPress={() => failed ? void loadDrops() : router.push('/(tabs)/profile')} style={{ padding: 16 }}>
+            <Text style={{ color: colors.primary, fontSize: 17, fontWeight: '700' }}>{failed ? 'Riprova' : 'Vai al profilo'}</Text>
+          </TouchableOpacity>}
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   if (loading) {
     return (
