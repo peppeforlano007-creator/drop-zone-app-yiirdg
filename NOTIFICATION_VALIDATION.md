@@ -24,4 +24,9 @@ Applied supabase/migrations/20261019150000_admin_broadcast_batches.sql.
 - git diff --check passed.
 
 ## Native preview
-Pending verification for this exact source turn. No store release submitted.
+Turn mmvfbtfcg3335_3:
+- iOS native artifact reused successfully (xcb_8c9199211051459089ef77094662e833), but native app installation failed. Metro bundled successfully; logs show no_app_connected and no concrete userland exception.
+- Android native artifact reused successfully (anb_003cdd1a05e74709ad392625dbd978204248706a8989b0a83e6d1cef9d539607); managed preview attached this source/bundle. Android UI was not inspected.
+- check-app inspected specified leased iOS UDID 2E95E6D7-B9F4-41ED-9AD7-CCC0782189EE in this turn. Device responsive but only iOS Home Screen; app absent from both pages inspected. Admin screens, authentication, drafts, phase progress, final summary and button behavior remain unchecked. No walkthrough recording possible, no notification sent, no live data changed.
+- Screenshot: /tmp/argent-artifacts/repo-37f121/20261019-150019-709/2E95E6D7-B9F4-41ED-9AD7-CCC0782189EE/485389000-1792422024527.png.
+- No concrete source error justified another code fix/build. Installation failure remains unresolved. Compilation is not runtime verification. No store release submitted; existing store versions retain old admin behavior until updated.
