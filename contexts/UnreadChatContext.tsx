@@ -5,7 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 interface UnreadChatContextValue {
   unreadByGroup: Record<string, number>;
   totalUnread: number;
-  markGroupAsRead: (groupId: string) => void;
+  markGroupAsRead: (groupId: string, loadedThrough?: string) => void;
 }
 
 const UnreadChatContext = createContext<UnreadChatContextValue>({

@@ -10,13 +10,15 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  AppState,
   Modal,
   Alert,
   useColorScheme,
   Image,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useLocalSearchParams, router } from 'expo-router';
+import { useLocalSearchParams, router, useFocusEffect } from 'expo-router';
+import { fetchChatPage, mergeChatMessages, type ChatCursor } from '@/utils/chat-pagination';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/app/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -358,6 +360,16 @@ export default function GroupChatScreen() {
   const { user } = useAuth();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const [hasOlder, setHasOlder] = useState(false);
+  const generation = useRef(0);
+  const focused = useRef(false);
+  const ready = useRef(false);
+  const nearLatest = useRef(true);
+  const olderBusy = useRef(false);
+  const oldest = useRef<ChatCursor | undefined>(undefined);
+  const latestVisible = useRef<ChatCursor | undefined>(undefined);
   const [inputText, setInputText] = useState('');
   const [sending, setSending] = useState(false);
   const [showDropPicker, setShowDropPicker] = useState(false);
@@ -474,35 +486,80 @@ export default function GroupChatScreen() {
   );
 
   const loadMessages = useCallback(async () => {
-    if (!groupId) return;
-    console.log('[Chat] Loading messages for group:', groupId);
-
-    const { data: rawMessages, error } = await supabase
-      .from('chat_messages')
-      .select('id, group_id, sender_id, content, message_type, drop_id, product_id, created_at')
-      .eq('group_id', groupId)
-      .order('created_at', { ascending: true })
-      .limit(50);
-
-    if (error) {
-      console.error('[Chat] Error loading messages:', error);
-      return;
-    }
-
-    if (!rawMessages) {
-      setMessages([]);
-      return;
-    }
-
-    const built = await Promise.all(rawMessages.map(buildMessage));
-    console.log('[Chat] Messages loaded:', built.length);
-    setMessages(built);
-  }, [groupId, buildMessage]);
-
-  useEffect(() => {
+    if (!groupId || !focused.current) return;
+    const request = ++generation.current;
+    ready.current = false;
+    nearLatest.current = true;
+    oldest.current = undefined;
+    latestVisible.current = undefined;
+    olderBusy.current = false;
+    setLoadingOlder(false);
+    setHasOlder(false);
+    setLoadError(null);
     setLoading(true);
-    loadMessages().finally(() => setLoading(false));
-  }, [loadMessages]);
+    setMessages([]);
+    try {
+      const raw = await fetchChatPage(supabase, groupId);
+      const built = await Promise.all(raw.map(buildMessage));
+      if (request !== generation.current || !focused.current) return;
+      oldest.current = raw[raw.length - 1];
+      latestVisible.current = mergeChatMessages(latestVisible.current ? [latestVisible.current] : [], raw.slice(0, 1))[0];
+      // Realtime inserts received while this page was building must not be lost.
+      setMessages(previous => mergeChatMessages(previous, built));
+      setHasOlder(raw.length > 0);
+      ready.current = true;
+      if (latestVisible.current && AppState.currentState === 'active') {
+        markGroupAsRead(groupId, latestVisible.current.created_at);
+      }
+    } catch (error) {
+      if (request !== generation.current || !focused.current) return;
+      console.warn('[Chat] Message load failed:', error);
+      setLoadError('Impossibile caricare i messaggi. Riprova.');
+    } finally {
+      if (request === generation.current && focused.current) setLoading(false);
+    }
+  }, [groupId, buildMessage, markGroupAsRead]);
+
+  const loadOlderMessages = useCallback(async () => {
+    if (!focused.current || !ready.current || !hasOlder || olderBusy.current || !oldest.current) return;
+    const request = generation.current;
+    const cursor = oldest.current;
+    olderBusy.current = true;
+    setLoadingOlder(true);
+    setLoadError(null);
+    try {
+      const raw = await fetchChatPage(supabase, groupId, cursor);
+      const built = await Promise.all(raw.map(buildMessage));
+      if (request !== generation.current || !focused.current) return;
+      if (raw.length) oldest.current = raw[raw.length - 1];
+      setMessages(previous => mergeChatMessages(previous, built));
+      // An empty page proves the end; don't depend on the server response cap.
+      setHasOlder(raw.length > 0);
+    } catch (error) {
+      if (request !== generation.current || !focused.current) return;
+      console.warn('[Chat] History load failed:', error);
+      setLoadError('Impossibile caricare i messaggi precedenti. Riprova.');
+    } finally {
+      if (request === generation.current) {
+        olderBusy.current = false;
+        setLoadingOlder(false);
+      }
+    }
+  }, [groupId, hasOlder, buildMessage]);
+
+  useFocusEffect(useCallback(() => {
+    focused.current = true;
+    void loadMessages();
+    const listener = AppState.addEventListener('change', state => {
+      if (state === 'active' && focused.current) void loadMessages();
+    });
+    return () => {
+      focused.current = false;
+      ready.current = false;
+      ++generation.current;
+      listener.remove();
+    };
+  }, [loadMessages]));
 
   // Verify the group still exists before doing anything else.
   // If it has been deleted, show an alert and go back immediately.
@@ -528,15 +585,8 @@ export default function GroupChatScreen() {
       });
   }, [groupId]);
 
-  // Mark group as read when screen opens
-  useEffect(() => {
-    if (!groupId) return;
-    console.log('[Chat] Marking group as read on open:', groupId);
-    markGroupAsRead(groupId);
-  }, [groupId, markGroupAsRead]);
-
-  // Realtime subscription
-  useEffect(() => {
+  // Subscribe only while this conversation is visible.
+  useFocusEffect(useCallback(() => {
     if (!groupId) return;
     console.log('[Chat] Subscribing to realtime messages for group:', groupId);
 
@@ -554,21 +604,19 @@ export default function GroupChatScreen() {
             filter: `group_id=eq.${groupId}`,
           },
           async (payload) => {
-            console.log('[Chat] Realtime new message received:', payload.new?.id);
-            const newMsg = await buildMessage(payload.new);
-            setMessages((prev) => {
-              const exists = prev.some((m) => m.id === newMsg.id);
-              if (exists) return prev;
-              return [...prev, newMsg];
-            });
-            // User is already in the chat — mark as read immediately
-            if (groupId) {
-              console.log('[Chat] Auto-marking group as read after realtime message:', groupId);
-              markGroupAsRead(groupId);
+            const request = generation.current;
+            try {
+              const newMsg = await buildMessage(payload.new);
+              if (!focused.current || request !== generation.current) return;
+              latestVisible.current = mergeChatMessages(latestVisible.current ? [latestVisible.current] : [], [newMsg])[0];
+              setMessages(previous => mergeChatMessages(previous, [newMsg]));
+              if (ready.current && nearLatest.current && AppState.currentState === 'active') {
+                markGroupAsRead(groupId, latestVisible.current.created_at);
+                flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+              }
+            } catch (error) {
+              console.warn('[Chat] Realtime hydration failed:', error);
             }
-            setTimeout(() => {
-              flatListRef.current?.scrollToEnd({ animated: true });
-            }, 100);
           }
         )
         .subscribe((status, err) => {
@@ -576,6 +624,7 @@ export default function GroupChatScreen() {
             console.warn('[Chat] Realtime subscribe error (non-fatal):', err);
           } else {
             console.log('[Chat] Realtime subscription status:', status);
+            if (status === 'SUBSCRIBED') void loadMessages();
           }
         });
     } catch (err) {
@@ -588,7 +637,7 @@ export default function GroupChatScreen() {
         supabase.removeChannel(channel);
       }
     };
-  }, [groupId, buildMessage, markGroupAsRead]);
+  }, [groupId, buildMessage, markGroupAsRead, loadMessages]));
 
   const sendMessage = async () => {
     const text = inputText.trim();
@@ -688,6 +737,21 @@ export default function GroupChatScreen() {
     })();
   };
 
+  const historyFooter = (
+    <View style={{ padding: 16, alignItems: 'center', gap: 8 }}>
+      {loadError ? <Text style={{ color: titleColor, textAlign: 'center' }} accessibilityRole="alert">{loadError}</Text> : null}
+      {loadingOlder ? <ActivityIndicator color={colors.primary} /> : (hasOlder || loadError) ? (
+        <TouchableOpacity
+          accessibilityRole="button"
+          onPress={() => { void (ready.current ? loadOlderMessages() : loadMessages()); }}
+          style={{ paddingVertical: 12, paddingHorizontal: 20 }}
+        >
+          <Text style={{ color: colors.primary, fontWeight: '600' }}>{loadError ? 'Riprova' : 'Carica messaggi precedenti'}</Text>
+        </TouchableOpacity>
+      ) : messages.length > 0 ? <Text style={{ color: isDark ? '#8E8E93' : '#666666' }}>Inizio della conversazione</Text> : null}
+    </View>
+  );
+
   const handleSettingsPress = () => {
     console.log('[Chat] Settings button pressed for group:', groupId);
     router.push({ pathname: '/chat-group-settings', params: { groupId, groupName } });
@@ -727,13 +791,25 @@ export default function GroupChatScreen() {
                 />
               )}
               contentContainerStyle={[styles.messagesList, { paddingBottom: 16 }]}
-              onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: false })}
+              inverted
+              maintainVisibleContentPosition={{ minIndexForVisible: 0, autoscrollToTopThreshold: 80 }}
+              onEndReached={() => { if (!loadError) void loadOlderMessages(); }}
+              onEndReachedThreshold={0.2}
+              ListFooterComponent={historyFooter}
+              onScroll={event => {
+                const wasNear = nearLatest.current;
+                nearLatest.current = event.nativeEvent.contentOffset.y < 100;
+                if (!wasNear && nearLatest.current && ready.current && latestVisible.current && focused.current && AppState.currentState === 'active') {
+                  markGroupAsRead(groupId, latestVisible.current.created_at);
+                }
+              }}
+              scrollEventThrottle={100}
               keyboardDismissMode="interactive"
               ListEmptyComponent={
                 <View style={styles.emptyMessages}>
                   <Ionicons name="chatbubble-outline" size={48} color={isDark ? '#3A3A3C' : '#D1D5DB'} />
                   <Text style={[styles.emptyMessagesText, { color: isDark ? '#8E8E93' : '#999999' }]}>
-                    Nessun messaggio ancora.{'\n'}Inizia la conversazione!
+                    {loadError ? 'Messaggi non disponibili' : <>Nessun messaggio ancora.{'\n'}Inizia la conversazione!</>}
                   </Text>
                 </View>
               }
@@ -794,13 +870,25 @@ export default function GroupChatScreen() {
                 />
               )}
               contentContainerStyle={styles.messagesList}
-              onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: false })}
+              inverted
+              maintainVisibleContentPosition={{ minIndexForVisible: 0, autoscrollToTopThreshold: 80 }}
+              onEndReached={() => { if (!loadError) void loadOlderMessages(); }}
+              onEndReachedThreshold={0.2}
+              ListFooterComponent={historyFooter}
+              onScroll={event => {
+                const wasNear = nearLatest.current;
+                nearLatest.current = event.nativeEvent.contentOffset.y < 100;
+                if (!wasNear && nearLatest.current && ready.current && latestVisible.current && focused.current && AppState.currentState === 'active') {
+                  markGroupAsRead(groupId, latestVisible.current.created_at);
+                }
+              }}
+              scrollEventThrottle={100}
               keyboardDismissMode="interactive"
               ListEmptyComponent={
                 <View style={styles.emptyMessages}>
                   <Ionicons name="chatbubble-outline" size={48} color={isDark ? '#3A3A3C' : '#D1D5DB'} />
                   <Text style={[styles.emptyMessagesText, { color: isDark ? '#8E8E93' : '#999999' }]}>
-                    Nessun messaggio ancora.{'\n'}Inizia la conversazione!
+                    {loadError ? 'Messaggi non disponibili' : <>Nessun messaggio ancora.{'\n'}Inizia la conversazione!</>}
                   </Text>
                 </View>
               }

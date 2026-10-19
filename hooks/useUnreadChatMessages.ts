@@ -172,13 +172,17 @@ export function useUnreadChatMessages(userId: string | undefined) {
     };
   }, [userId, computeUnread]);
 
-  const markGroupAsRead = useCallback(async (groupId: string) => {
+  const markGroupAsRead = useCallback(async (groupId: string, loadedThrough?: string) => {
     if (!userId) return;
     console.log('[useUnreadChatMessages] Marking group as read:', groupId, 'for user:', userId);
 
     // Use the server-side timestamp of the latest message to avoid device clock skew.
     // Add 1ms so that `gt(created_at, threshold)` strictly excludes the last read message.
     let threshold: string;
+    if (loadedThrough) {
+      // The chat supplies the server timestamp actually loaded, not a newer unseen row.
+      threshold = loadedThrough;
+    } else {
     try {
       const { data, error } = await supabase
         .from('chat_messages')
@@ -199,6 +203,9 @@ export function useUnreadChatMessages(userId: string | undefined) {
       threshold = new Date(new Date().getTime() + 1).toISOString();
     }
 
+    }
+    const previousThreshold = lastReadRef.current[groupId];
+    if (previousThreshold && new Date(previousThreshold).getTime() > new Date(threshold).getTime()) return;
     console.log('[useUnreadChatMessages] Last read threshold set to:', threshold);
 
     const updated: LastReadMap = { ...lastReadRef.current, [groupId]: threshold };
@@ -229,13 +236,18 @@ export function useUnreadChatMessages(userId: string | undefined) {
       console.warn('[useUnreadChatMessages] Supabase upsert exception:', err);
     }
 
+    if (loadedThrough) {
+      // Messages arriving after the loaded page must remain unread.
+      await computeUnread(lastReadRef.current);
+      return;
+    }
     setUnreadByGroup((prev) => {
       const next = { ...prev, [groupId]: 0 };
       const total = Object.values(next).reduce((sum, n) => sum + n, 0);
       setTotalUnread(Math.min(total, 99));
       return next;
     });
-  }, [userId]);
+  }, [userId, computeUnread]);
 
   return { unreadByGroup, totalUnread, markGroupAsRead };
 }
