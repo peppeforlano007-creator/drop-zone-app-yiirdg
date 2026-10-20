@@ -1,5 +1,5 @@
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { View, Text, Image, StyleSheet, Pressable, Dimensions, Alert, ActivityIndicator, Animated } from 'react-native';
 import { IconSymbol } from './IconSymbol';
 import { colors } from '@/styles/commonStyles';
@@ -28,7 +28,7 @@ interface EnhancedProductCardProps {
   /** Override discount to display — replaces product's static discount_percentage */
   dropDiscount?: number;
   onInterest?: (productId: string) => void;
-  onBook?: (productId: string, variantId?: string) => void;
+  onBook?: (productId: string, variantId?: string) => void | Promise<void>;
   isInterested?: boolean;
   dropId?: string;
   dropBookingDisabled?: boolean;
@@ -57,9 +57,9 @@ export default function EnhancedProductCard({
   const [imageError, setImageError] = useState(false);
   const [galleryVisible, setGalleryVisible] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const bookingInFlight = useRef(false);
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
   const [selectedColor, setSelectedColor] = useState<string | null>(null);
-  const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(null);
   const [nameExpanded, setNameExpanded] = useState(false);
   const [descriptionExpanded, setDescriptionExpanded] = useState(false);
   const [descriptionHeight, setDescriptionHeight] = useState(0);
@@ -109,29 +109,21 @@ export default function EnhancedProductCard({
   console.log('Requires Variant Selection:', requiresVariantSelection);
   console.log('Has All Required Selections:', hasAllRequiredSelections);
 
-  // Update selected variant when size or color changes
-  useEffect(() => {
-    if (!hasVariants) return;
+  // Resolve from current props synchronously. An exhausted or invalid selected
+  // combination must not fall back to another size's stock/UUID.
+  const selectedVariant = useMemo<ProductVariant | null>(() => {
+    if (!hasVariants || !hasAllRequiredSelections) return null;
+    return product.variants!.find(v =>
+      (!requiresSizeSelection || v.size === selectedSize)
+      && (!requiresColorSelection || v.color === selectedColor)
+    ) ?? null;
+  }, [hasVariants, hasAllRequiredSelections, requiresSizeSelection, requiresColorSelection,
+    selectedSize, selectedColor, product.variants]);
 
-    const variant = product.variants!.find(v => {
-      const sizeMatch = !selectedSize || v.size === selectedSize;
-      const colorMatch = !selectedColor || v.color === selectedColor;
-      return sizeMatch && colorMatch && v.stock > 0;
-    });
-
-    setSelectedVariant(variant || null);
-    console.log('Selected variant:', variant);
-  }, [selectedSize, selectedColor, hasVariants, product.variants]);
-
-  // Get stock for display — fall back to product.stock when no variant is selected yet
-  const displayStock = hasVariants 
-    ? (selectedVariant?.stock ?? product.stock ?? 0)
+  const displayStock = hasVariants && hasAllRequiredSelections
+    ? Math.min(selectedVariant?.stock ?? 0, product.stock ?? 0)
     : (product.stock ?? 0);
-
-  // Only treat as certainly out-of-stock when we have definitive info
-  const certainlyOutOfStock = hasVariants
-    ? (selectedVariant !== null && (selectedVariant.stock ?? 0) <= 0)
-    : (product.stock ?? 0) <= 0;
+  const certainlyOutOfStock = displayStock <= 0;
 
   const isOutOfStock = certainlyOutOfStock;
 
@@ -300,11 +292,13 @@ export default function EnhancedProductCard({
                 return;
               }
               
+              if (bookingInFlight.current) return;
+              bookingInFlight.current = true;
               setIsProcessing(true);
               try {
                 console.log('Processing booking with variant:', selectedVariant?.id);
-                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                onBook(product.id, selectedVariant?.id);
+                // Success feedback belongs to the confirmed server response.
+                await onBook(product.id, selectedVariant?.id);
               } catch (error) {
                 console.error('Booking failed:', error);
                 Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -313,6 +307,7 @@ export default function EnhancedProductCard({
                   'Non è stato possibile completare la prenotazione. Riprova.'
                 );
               } finally {
+                bookingInFlight.current = false;
                 setIsProcessing(false);
               }
             },

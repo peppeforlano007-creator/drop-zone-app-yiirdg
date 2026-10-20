@@ -1,0 +1,1 @@
+- [Public production caution](public-production-caution.md): Live users; owner cannot safely test bookings, so protect production and published-client compatibility.

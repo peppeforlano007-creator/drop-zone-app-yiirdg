@@ -4,6 +4,7 @@ import DropCategorySheet from '@/components/DropCategorySheet';
 import { feedCategories, feedCounter, feedPosition, filterFeed, loadDropFeedProducts } from '@/utils/drop-feed';
 import { canBookAtPickup } from '@/utils/pickup-rules';
 import { loadActiveProfilePickup } from '@/utils/profile-pickup';
+import { mergeStockProduct, StockRemovalQueue } from '@/utils/stock-updates';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '@/app/integrations/supabase/client';
 import { IconSymbol } from '@/components/IconSymbol';
@@ -68,46 +69,42 @@ interface DropData {
   };
 }
 
-// OPTIMIZED: Increased batch size and parallel loading for faster performance
-async function loadVariantsInBatches(productIds: string[], batchSize: number = 100): Promise<any[]> {
-  console.log(`→ Loading variants for ${productIds.length} products in batches of ${batchSize}...`);
-  
-  const allVariants: any[] = [];
-  
-  // Use Promise.all for parallel batch loading
-  const batchPromises = [];
-  
-  for (let i = 0; i < productIds.length; i += batchSize) {
-    const batch = productIds.slice(i, i + batchSize);
-    
-    batchPromises.push(
-      supabase
-        .from('product_variants')
-        .select('*')
-        .in('product_id', batch)
-        .gt('stock', 0)
-        .then(({ data, error }) => {
-          if (error) {
-            console.error(`  ❌ Batch failed:`, error.message);
-            return [];
-          }
-          return data || [];
-        })
-        .catch(error => {
-          console.error(`  ❌ Batch exception:`, error);
-          return [];
-        })
-    );
-  }
-  
-  // Wait for all batches to complete in parallel
-  const results = await Promise.all(batchPromises);
-  results.forEach(batchData => {
-    allVariants.push(...batchData);
+// Keep zero-stock variants too: an exhausted size must not become a no-variant
+// product. Page each batch and fail closed rather than silently losing choices.
+async function loadVariantsInBatches(productIds: string[], batchSize = 100): Promise<any[]> {
+  const results = await Promise.all(Array.from(
+    { length: Math.ceil(productIds.length / batchSize) }, async (_, index) => {
+      const batch = productIds.slice(index * batchSize, (index + 1) * batchSize);
+      const variants = new Map<string, any>();
+      let offset = 0;
+      while (true) {
+        const { data, error } = await supabase.from('product_variants').select('*')
+          .in('product_id', batch).order('id').range(offset, offset + 499);
+        if (error) throw error;
+        const page = data ?? [];
+        if (!page.length) return [...variants.values()];
+        const previousSize = variants.size;
+        page.forEach(variant => variants.set(variant.id, variant));
+        if (variants.size === previousSize) throw new Error('Caricamento varianti non completo');
+        offset += page.length;
+      }
+    },
+  ));
+  return results.flat();
+}
+
+async function withProductVariants(items: ProductData[]): Promise<ProductData[]> {
+  const variants = await loadVariantsInBatches(items.map(item => item.id));
+  const byProduct = new Map<string, any[]>();
+  variants.forEach(variant => {
+    const group = byProduct.get(variant.product_id) ?? [];
+    group.push(variant);
+    byProduct.set(variant.product_id, group);
   });
-  
-  console.log(`✓ Variant loading complete: ${allVariants.length} total variants loaded`);
-  return allVariants;
+  return items.map(item => ({
+    ...item, variants: byProduct.get(item.id) ?? [],
+    hasVariants: (byProduct.get(item.id) ?? []).some(v => v.size != null || v.color != null),
+  }));
 }
 
 export default function DropDetailsScreen() {
@@ -139,10 +136,12 @@ export default function DropDetailsScreen() {
   const { isInterested, isLoading: isInterestLoading, loadInterest, toggleInterest } = useDropInterest();
   const flatListRef = useRef<FlatList>(null);
 
-  // --- Debounce + sold-out animation refs ---
-  const pendingUpdatesRef = useRef<Map<string, ProductData | null>>(new Map());
-  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const soldOutAnimationsRef = useRef<Map<string, Animated.Value>>(new Map());
+  const stockRemovals = useRef(new StockRemovalQueue()).current;
+  const productsRef = useRef(products);
+  productsRef.current = products;
+  const refreshInventoryRef = useRef<() => void>(() => {});
+  const bookingRequests = useRef(new Set<string>());
   const [soldOutItems, setSoldOutItems] = useState<Set<string>>(new Set());
 
   // Derived: drop is viewable but booking is disabled
@@ -260,40 +259,7 @@ export default function DropDetailsScreen() {
       const availableProducts = await loadDropFeedProducts<ProductData>(
         supabase, dropData.supplier_list_id, showAllProducts,
       );
-      {
-        console.log('✅ Products loaded:', availableProducts.length, showAllProducts ? '(all, stock filter skipped)' : 'with stock > 0');
-        
-        // OPTIMIZED: Load variants with larger batch size and parallel processing
-        if (availableProducts.length > 0) {
-          const productIds = availableProducts.map(p => p.id);
-          
-          try {
-            const variantsData = await loadVariantsInBatches(productIds, 100);
-            console.log('✅ Successfully loaded', variantsData.length, 'variants');
-            
-            const variantsMap = new Map<string, any[]>();
-            variantsData.forEach(v => {
-              if (!variantsMap.has(v.product_id)) {
-                variantsMap.set(v.product_id, []);
-              }
-              variantsMap.get(v.product_id)!.push(v);
-            });
-            
-            const productsWithVariants = availableProducts.map(p => ({
-              ...p,
-              variants: variantsMap.get(p.id) || [],
-              hasVariants: (variantsMap.get(p.id) || []).length > 0,
-            }));
-            
-            setProducts(productsWithVariants);
-          } catch (error) {
-            console.error('⚠ Error loading variants (non-fatal):', error);
-            setProducts(availableProducts);
-          }
-        } else {
-          setProducts(availableProducts);
-        }
-      }
+      setProducts(await withProductVariants(availableProducts));
     } catch (error) {
       console.error('❌ Error in loadDropDetails:', error);
       setCatalogueError(true);
@@ -407,209 +373,105 @@ export default function DropDetailsScreen() {
     return () => cancelAnimationFrame(frame);
   }, [dropId, scrollToProductId, filteredProducts, selectedCategory, loading]);
 
-  // Fallback polling every 30 seconds in case Realtime channel errors
-  useEffect(() => {
-    if (!drop || isExpired) return;
-
-    const interval = setInterval(async () => {
-      console.log('[drop-details] Polling fallback: refreshing product stock...');
-      const { data } = await loadDropFeedProducts<ProductData>(supabase, drop.supplier_list_id, false)
-        .then(data => ({ data }))
-        .catch(error => {
-          console.warn('[drop-details] Stock refresh incomplete:', error);
-          return { data: null };
-        });
-
-      if (data) {
-        const available = data.filter((p: ProductData) => p.stock > 0);
-        console.log('[drop-details] Polling fallback: received', available.length, 'available products');
-        setProducts(prev => {
-          return prev.map(p => {
-            const updated = available.find((a: ProductData) => a.id === p.id);
-            return updated ? { ...p, stock: updated.stock } : p; // keep unchanged if not in response
-          });
-          // NO .filter() — never remove products based on polling response
-        });
-      }
-    }, 15000);
-
-    return () => clearInterval(interval);
-  }, [drop, isExpired]);
-
-  // --- Debounce helpers for realtime updates ---
-  const flushPendingUpdates = useCallback(() => {
-    const pending = new Map(pendingUpdatesRef.current);
-    if (pending.size === 0) return;
-    pendingUpdatesRef.current.clear();
-    console.log('[drop-details] flushPendingUpdates: applying', pending.size, 'pending product updates');
-
-    setProducts(prev => {
-      let next = [...prev];
-      pending.forEach((updatedProduct, productId) => {
-        if (updatedProduct === null) {
-          // Remove the product (already fading out via animation)
-          next = next.filter(p => p.id !== productId);
-        } else {
-          const idx = next.findIndex(p => p.id === productId);
-          if (idx >= 0) {
-            next[idx] = updatedProduct;
-          } else if (updatedProduct.stock > 0) {
-            next = [...next, updatedProduct];
-          }
-        }
-      });
-      return next;
-    });
-  }, []);
-
-  const scheduleProductUpdate = useCallback((productId: string, updatedProduct: ProductData | null) => {
-    console.log('[drop-details] scheduleProductUpdate:', productId, updatedProduct === null ? 'REMOVE' : 'stock=' + updatedProduct.stock);
-
-    if (updatedProduct === null) {
-      // Immediately mark as sold-out for instant UI feedback
-      setSoldOutItems(prev => {
-        const next = new Set(prev);
-        next.add(productId);
-        return next;
-      });
-
-      // Create fade animation if not already present
+  const scheduleProductUpdate = useCallback((productId: string, updated: ProductData | null) => {
+    if (updated === null) {
+      if (!productsRef.current.some(item => item.id === productId)) return;
+      setProducts(prev => prev.map(item => item.id === productId ? { ...item, stock: 0 } : item));
+      setSoldOutItems(prev => new Set(prev).add(productId));
       if (!soldOutAnimationsRef.current.has(productId)) {
         soldOutAnimationsRef.current.set(productId, new Animated.Value(1));
       }
-
-      // After 3s, fade out then remove
-      setTimeout(() => {
+      // Preserve the existing sold-out notice/fade, but never remove a restocked
+      // item when an old timeout or animation completion fires afterwards.
+      stockRemovals.schedule(productId, isCurrent => {
         const anim = soldOutAnimationsRef.current.get(productId);
-        if (anim) {
-          Animated.timing(anim, {
-            toValue: 0,
-            duration: 500,
-            useNativeDriver: true,
-          }).start(() => {
-            console.log('[drop-details] Fade-out complete, removing product:', productId);
-            // Remove from products array
-            setProducts(prev => prev.filter(p => p.id !== productId));
-            // Clean up sold-out tracking
-            setSoldOutItems(prev => {
-              const next = new Set(prev);
-              next.delete(productId);
-              return next;
-            });
+        if (!anim || !isCurrent()) return;
+        Animated.timing(anim, { toValue: 0, duration: 500, useNativeDriver: true })
+          .start(({ finished }) => {
+            if (!finished || !isCurrent()) return;
+            stockRemovals.cancel(productId);
+            setProducts(prev => prev.filter(item => item.id !== productId));
+            setSoldOutItems(prev => { const next = new Set(prev); next.delete(productId); return next; });
             soldOutAnimationsRef.current.delete(productId);
           });
-        }
-      }, 3000);
-
-      // Don't add to pending (removal is handled by the animation above)
+      });
       return;
     }
+    stockRemovals.cancel(productId);
+    const anim = soldOutAnimationsRef.current.get(productId);
+    if (anim) { anim.stopAnimation(); anim.setValue(1); soldOutAnimationsRef.current.delete(productId); }
+    setSoldOutItems(prev => {
+      if (!prev.has(productId)) return prev;
+      const next = new Set(prev); next.delete(productId); return next;
+    });
+    setProducts(prev => {
+      const index = prev.findIndex(item => item.id === productId);
+      if (index < 0) return [...prev, updated];
+      const next = [...prev]; next[index] = mergeStockProduct(prev[index], updated); return next;
+    });
+  }, [stockRemovals]);
 
-    // Queue the update and debounce
-    pendingUpdatesRef.current.set(productId, updatedProduct);
-    if (debounceTimerRef.current !== null) {
-      clearTimeout(debounceTimerRef.current);
-    }
-    debounceTimerRef.current = setTimeout(() => {
-      flushPendingUpdates();
-    }, 400);
-  }, [flushPendingUpdates]);
-
-  // Real-time subscription for product stock updates
+  // One coherent, enriched stock refresh for Realtime and the 15-second fallback.
+  // Include zero-stock rows: absence from a stock>0 query is not a stock value.
+  const inventoryListId = drop?.supplier_list_id;
+  const inventoryDropId = drop?.id;
   useEffect(() => {
-    if (!drop || isExpired) return;
-
-    console.log('🚀 Setting up real-time subscription for product stock updates');
-    
-    const channel = supabase
-      .channel(`product_stock_updates_${drop.supplier_list_id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'products',
-          filter: `supplier_list_id=eq.${drop.supplier_list_id}`,
-        },
-        (payload) => {
-          console.log('📡 Product stock update received:', payload);
-          const updatedProduct = payload.new as ProductData;
-          console.log('[drop-details] Realtime product update — id:', updatedProduct.id, 'stock:', updatedProduct.stock);
-
-          if (updatedProduct.stock <= 0) {
-            console.log('🗑️ Product out of stock, scheduling sold-out animation:', updatedProduct.id);
-            scheduleProductUpdate(updatedProduct.id, null);
-          } else {
-            scheduleProductUpdate(updatedProduct.id, updatedProduct);
-          }
+    if (!inventoryListId || !inventoryDropId || isExpired) return;
+    let active = true;
+    let revision = 0;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const showAll = ['approved', 'pending_approval', 'inactive'].includes(dropStatus ?? '');
+    const requestRefresh = () => {
+      const request = ++revision;
+      clearTimeout(timer);
+      timer = setTimeout(async () => {
+        try {
+          const rows = await loadDropFeedProducts<ProductData>(supabase, inventoryListId, true);
+          const fresh = await withProductVariants(rows);
+          if (!active || request !== revision) return;
+          fresh.forEach(item => {
+            scheduleProductUpdate(item.id, !showAll && item.stock <= 0 ? null : item);
+          });
+        } catch (error) {
+          // Retain known choices on a failed/partial refresh, never invent stock.
+          console.warn('[drop-details] Inventory refresh incomplete:', error);
         }
-      )
-      .subscribe((status) => {
-        console.log('📶 Product stock subscription status:', status);
-      });
-
+      }, 400);
+    };
+    refreshInventoryRef.current = requestRefresh;
+    const channel = supabase.channel(`inventory_${inventoryDropId}`)
+      .on('postgres_changes', {
+        event: 'UPDATE', schema: 'public', table: 'products',
+        filter: `supplier_list_id=eq.${inventoryListId}`,
+      }, payload => {
+        const updated = payload.new as ProductData;
+        if (productsRef.current.some(item => item.id === updated.id)) {
+          scheduleProductUpdate(updated.id, !showAll && updated.stock <= 0 ? null : updated);
+        }
+        requestRefresh();
+      })
+      .on('postgres_changes', {
+        event: '*', schema: 'public', table: 'bookings', filter: `drop_id=eq.${inventoryDropId}`,
+      }, () => { requestRefresh(); loadUserBookings(); })
+      .on('postgres_changes', {
+        event: '*', schema: 'public', table: 'product_variants',
+      }, payload => {
+        const row = payload.new as { product_id?: string };
+        if (productsRef.current.some(item => item.id === row.product_id)) requestRefresh();
+      })
+      .subscribe(status => { if (status === 'SUBSCRIBED') requestRefresh(); });
+    const interval = setInterval(requestRefresh, 15000);
     return () => {
-      console.log('🧹 Cleaning up real-time subscription');
-      if (debounceTimerRef.current !== null) clearTimeout(debounceTimerRef.current);
+      active = false; revision++;
+      clearTimeout(timer); clearInterval(interval);
+      refreshInventoryRef.current = () => {};
+      stockRemovals.clear();
+      soldOutAnimationsRef.current.forEach(anim => anim.stopAnimation());
+      soldOutAnimationsRef.current.clear();
+      setSoldOutItems(new Set());
       supabase.removeChannel(channel);
     };
-  }, [drop, isExpired, scheduleProductUpdate]);
-
-  // Secondo canale: ascolta INSERT su bookings per aggiornare stock immediatamente
-  useEffect(() => {
-    if (!drop || isExpired) return;
-
-    const bookingsChannel = supabase
-      .channel(`bookings_stock_sync_${drop.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'bookings',
-          filter: `drop_id=eq.${drop.id}`,
-        },
-        async (payload) => {
-          console.log('📡 New booking detected, refreshing product stock...');
-          // Ricarica i prodotti con stock > 0
-          const { data } = await loadDropFeedProducts<ProductData>(supabase, drop.supplier_list_id, false)
-            .then(data => ({ data }))
-            .catch(error => {
-              console.warn('[drop-details] Booking stock refresh incomplete:', error);
-              return { data: null };
-            });
-
-          if (data) {
-            const available = data.filter((p: any) => p.stock > 0);
-            console.log('[drop-details] Bookings sync: received', available.length, 'available products after booking');
-
-            // Use scheduleProductUpdate for each product that changed stock
-            setProducts(prev => {
-              prev.forEach(p => {
-                const fresh = available.find((a: any) => a.id === p.id);
-                if (fresh && fresh.stock <= 0) {
-                  // Product IS in response and explicitly has 0 stock — genuinely sold out
-                  scheduleProductUpdate(p.id, null);
-                } else if (fresh && fresh.stock !== p.stock) {
-                  // Stock changed but still available
-                  scheduleProductUpdate(p.id, { ...p, stock: fresh.stock, status: fresh.status });
-                }
-                // If !fresh: product not in response — do nothing, keep current state
-              });
-              return prev; // Don't mutate yet — debounce will apply changes
-            });
-          }
-        }
-      )
-      .subscribe((status) => {
-        console.log('📶 Bookings sync channel status:', status);
-      });
-
-    return () => {
-      if (debounceTimerRef.current !== null) clearTimeout(debounceTimerRef.current);
-      supabase.removeChannel(bookingsChannel);
-    };
-  }, [drop, isExpired, scheduleProductUpdate]);
+  }, [inventoryListId, inventoryDropId, dropStatus, isExpired, scheduleProductUpdate, loadUserBookings, stockRemovals]);
 
   const handleDropUpdate = useCallback((updatedDrop: any) => {
     console.log('🔄 Real-time drop update received in drop-details:', {
@@ -803,6 +665,8 @@ export default function DropDetailsScreen() {
       return;
     }
 
+    if (bookingRequests.current.has(productId)) return;
+    bookingRequests.current.add(productId);
     try {
       const bookingPickup = await loadActiveProfilePickup(supabase, user.id);
       if (!canBookAtPickup(bookingPickup, drop.pickup_point_id)) {
@@ -889,14 +753,20 @@ export default function DropDetailsScreen() {
         
         // Pickup failures must not be mislabeled as stock errors (also P0001).
         if (bookingError.message?.includes('PICKUP_POINT_')) throw bookingError;
-        if (bookingError.message?.toLowerCase().includes('terminato')) {
+        if (bookingError.message?.includes('BOOKING_DUPLICATE:')) {
+          setUserBookings(prev => new Set(prev).add(productId));
+          Alert.alert('Già prenotato', 'Hai già una prenotazione per questo articolo o variante.');
+          refreshInventoryRef.current();
+        } else if (bookingError.message?.includes('VARIANT_REQUIRED:')) {
+          Alert.alert('Seleziona una variante', 'Scegli una combinazione di taglia e colore disponibile.');
+          refreshInventoryRef.current();
+        } else if (bookingError.message?.toLowerCase().includes('terminato')) {
           Alert.alert(
             'Drop Terminato',
             'Questo drop è terminato e non accetta più prenotazioni.',
             [{ text: 'OK', onPress: () => router.back() }]
           );
-        } else if (bookingError.code === 'P0001' || 
-            bookingError.message?.toLowerCase().includes('esaurito') ||
+        } else if (bookingError.message?.toLowerCase().includes('esaurito') ||
             bookingError.message?.toLowerCase().includes('stock') ||
             bookingError.message?.toLowerCase().includes('disponibile')) {
           Alert.alert(
@@ -920,7 +790,8 @@ export default function DropDetailsScreen() {
       console.log('✅ Booking created successfully:', bookingData);
 
       setUserBookings(prev => new Set([...prev, productId]));
-      
+      refreshInventoryRef.current();
+
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       
       const maxDiscount = Math.floor(drop.supplier_lists?.max_discount ?? 0);
@@ -953,8 +824,7 @@ export default function DropDetailsScreen() {
           'Questo drop è terminato e non accetta più prenotazioni.',
           [{ text: 'OK', onPress: () => router.back() }]
         );
-      } else if (error?.code === 'P0001' ||
-          error?.message?.toLowerCase().includes('esaurito') ||
+      } else if (error?.message?.toLowerCase().includes('esaurito') ||
           error?.message?.toLowerCase().includes('stock') ||
           error?.message?.toLowerCase().includes('disponibile')) {
         Alert.alert(
@@ -972,6 +842,8 @@ export default function DropDetailsScreen() {
           [{ text: 'OK' }]
         );
       }
+    } finally {
+      bookingRequests.current.delete(productId);
     }
   }, [user, drop, products, loadDropDetails, isExpired, isDropCompleted]);
 
