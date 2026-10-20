@@ -44,5 +44,9 @@
 - git diff --check passed.
 
 ## Native verification
-- Both exact-source previews: pending submission.
-- No UI stock transaction may be confirmed against real products. Read-only device check pending; booking success/failure and stock-transition animation will remain unverified on-device unless an isolated device fixture is available.
+- Exact source submitted and awaited for BOTH platforms in turn mmvgfbfr55889_3, revision 69571fbafbeb21da378667eccd2e0274e765aac7b453b45a9674ca2440e106cd.
+- iOS reused native artifact xcb_8c9199211051459089ef77094662e833 succeeded; exact bundle attached. Launch showed branded splash, then login (not the earlier installation failure).
+- Android reused native artifact anb_003cdd1a05e74709ad392625dbd978204248706a8989b0a83e6d1cef9d539607 succeeded; exact bundle attached. Android UI not inspected.
+- check-app a9cc84ccbd3cb1aaf inspected current leased iOS UDID 0494449B-2697-4CBE-9C87-3EF9089A8A75: login Benvenuto / Numero di Cellulare / Password / Accedi / Registrati renders without visible overlap or errors. No taps, credentials, writes or recording.
+- Feed access BLOCKED BY AUTHENTICATION, not a clean stock-flow verification. Remaining-stock labels, >1 visibility, variants, photos/prices, counter/filter layout, booking confirmation, busy-state/double-submit behavior, zero-stock variants, restock reappearance and stale fade cancellation remain UNCHECKED ON DEVICE. No isolated authenticated device fixture available; no real booking/cancellation attempted.
+- Screenshot: /tmp/argent-artifacts/repo-37f121/20261020-104202-3567/0494449B-2697-4CBE-9C87-3EF9089A8A75/42747000-1792492928056.png.
