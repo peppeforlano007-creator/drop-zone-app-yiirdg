@@ -1,1 +1,5 @@
 project_id = "sippdylyuzejudmzbwdn"
+
+# Authorization is a short-lived single-use management job, not a user JWT.
+[functions.activate-existing-pickup-access]
+verify_jwt = false
