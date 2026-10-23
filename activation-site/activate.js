@@ -44,16 +44,26 @@ form.addEventListener('submit', async event => {
     if (!accessToken) {
       let link;
       try { link = new URL(document.querySelector('#invitation').value.trim()); } catch { throw new Error('Incolla il collegamento completo del pulsante nell’email di recupero più recente.'); }
-      const hash = link.searchParams.get('token') || link.searchParams.get('token_hash');
-      const type = link.searchParams.get('type');
-      if (link.origin !== BASE || link.pathname !== '/auth/v1/verify' || !['invite', 'recovery'].includes(type) || !hash || !/^[a-f0-9]{40,128}$/i.test(hash)) {
-        throw new Error('Questo non è un collegamento di invito o recupero dell’app. Copia l’indirizzo originale del pulsante ricevuto via email, senza aprirlo.');
+      const fragment = new URLSearchParams(link.hash.slice(1));
+      const redirectedToken = fragment.get('access_token');
+      let session;
+      if (redirectedToken && ['recovery', 'invite'].includes(fragment.get('type')) && /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(redirectedToken)) {
+        // Never fetch the pasted destination: verify the bearer token only with
+        // this app's fixed Auth service, then check the actual account below.
+        const user = await authRequest('user', 'GET', null, redirectedToken);
+        session = { access_token: redirectedToken, user };
+      } else {
+        if (fragment.has('error') || fragment.has('error_code')) throw new Error('La pagina aperta dall’email contiene un errore, non una sessione valida. Richiedi una nuova email e copia il link del pulsante senza aprirlo.');
+        const hash = link.searchParams.get('token') || link.searchParams.get('token_hash');
+        const type = link.searchParams.get('type');
+        if (link.origin !== BASE || link.pathname !== '/auth/v1/verify' || !['invite', 'recovery'].includes(type) || !hash || !/^[a-f0-9]{40,128}$/i.test(hash)) {
+          throw new Error('Incolla il link originale dell’email più recente oppure l’indirizzo completo della pagina aperta da quel link. Non basta il solo indirizzo del sito.');
+        }
+        session = await authRequest('verify', 'POST', { token_hash: hash, type });
       }
-      const session = await authRequest('verify', 'POST', { token_hash: hash, type });
       const user = session.user;
       if (!session.access_token || user?.email?.toLowerCase() !== 'trani@streetstock.it' || user?.app_metadata?.role !== 'pickup_point' || user?.app_metadata?.pickup_point_id !== 'fe5ce2ea-8707-4ec6-8bc7-e2556df05992') {
-        if (session.access_token) await fetch(BASE + '/auth/v1/logout?scope=local', { method: 'POST', headers: { apikey: KEY, Authorization: 'Bearer ' + session.access_token } }).catch(() => {});
-        throw new Error('L’invito non corrisponde all’accesso del punto di ritiro di Trani. Nessuna password è stata cambiata.');
+        throw new Error('Il collegamento non corrisponde all’accesso del punto di ritiro di Trani. Nessuna password è stata cambiata.');
       }
       accessToken = session.access_token;
       document.querySelector('#invitation').value = '';
