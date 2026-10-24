@@ -7,3 +7,7 @@ verify_jwt = false
 # Protected by expiring one-use SQL management capabilities, not a public probe.
 [functions.check-booking-stripe-test]
 verify_jwt = false
+
+# Different one-use management jobs authorize only fixed synthetic sandbox tests.
+[functions.test-booking-card-lifecycle]
+verify_jwt = false

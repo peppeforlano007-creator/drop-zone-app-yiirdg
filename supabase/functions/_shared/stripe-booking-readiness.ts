@@ -40,9 +40,9 @@ export async function checkStripeTestConnection(
   }
 }
 
-export function createReadinessHandler(deps: {
+export function createReadinessHandler<T extends { ok: boolean } = Readiness>(deps: {
   claim: (hash: string) => Promise<boolean>;
-  check: () => Promise<Readiness>;
+  check: () => Promise<T>;
 }): (request: Request) => Promise<Response> {
   const reply = (body: unknown, status: number) => Response.json(body, {
     status, headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' },

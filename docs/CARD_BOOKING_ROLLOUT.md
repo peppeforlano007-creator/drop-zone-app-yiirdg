@@ -171,5 +171,88 @@ attempts, test-only checkout/finalization and closing-price capture/reconciliati
 must never enable collection/enforcement or live charges. Gate 2 above is only
 partially complete: isolated test-key connectivity verified, webhook not done.
 
+## Phase 2b — isolated Stripe API lifecycle, 24 October 2026
+
+**Still no customer checkout or live payment enforcement.** The owner approved
+continuing with synthetic sandbox authorization/capture/release tests. Deployed
+`test-booking-card-lifecycle` v5 runs only a fixed script: Stripe `pm_card_visa`,
+EUR 100 original, current 20% discount => EUR 80 authorization, simulated closing
+40% discount => EUR 60 capture. A second EUR 80 authorization is canceled in full.
+It has no customer/email/account/order input and never calls business-table RPCs.
+The closing discount is a test fixture, not a real drop or a real scheduled close.
+
+### Protection and reproducibility
+
+- Separate private `booking_card_sandbox_jobs` and service-only atomic claim RPC;
+  the readiness-check capability cannot authorize payment tests. Same ten-minute,
+  one-use management token pattern, generated/sent inside Postgres via pg_net.
+- Service can record results but cannot create jobs or alter their capability,
+  immutable id or claim timestamp. Public/customer roles have no access.
+- Test-secret prefix plus actual read-only Stripe test-mode attestation BEFORE
+  creating anything. Every retrieved intent must match manual capture, EUR cents,
+  synthetic user/drop/attempt identity and test mode. No redirects or client URLs.
+- Actual charge capture_before must cover a simulated 5-day+1-hour drop plus the
+  existing 6-hour margin. Observed Visa test windows were seven days; this is NOT
+  a guarantee for live cards. Those must each be checked separately.
+- Stable run/scenario/action idempotency keys, bounded identical request retries,
+  and explicit repeat capture/cancel checks. No extra authorization on the same
+  run's retry. Failed checks cancel only verified owned test holds, or report
+  unresolved identities/idempotency keys for trusted review, never hide uncertainty.
+- Results store only bounded checks, test-intent IDs and sanitized machine errors;
+  no secret, client_secret, card data, account balance or raw Stripe response.
+- Trusted management may reissue a failed synthetic job's token while it is still
+  within its original ten-minute expiry, preserving its run id/Stripe keys. This
+  was used to inspect and complete the already-captured third test without a new
+  authorization. No automatic retry after Stripe's idempotency retention period.
+
+### Actual Stripe results, not just mocks
+
+- Two initial capture requests returned HTTP 400 `invalid_request_error`. Both
+  authorized test holds were successfully canceled by the failure handler.
+- Removing the optional `final_capture` parameter made ordinary partial capture
+  work. Single final capture releases the rest by default; do not request
+  multicapture parameters for this ordinary booking flow.
+- A further verification mismatch revealed the pinned `2024-06-20` API reports
+  the EUR 20 uncaptured remainder in Charge.amount_refunded, while reporting
+  amount_captured=6000, PaymentIntent.amount_received=6000, status=succeeded,
+  amount_capturable=0 and Charge.refunded=false. Verification now checks that
+  EXACT remainder (not zero), as well as exact captured/received amounts.
+  An additional refund must fail verification. This is a pinned-API observation,
+  not permission to treat arbitrary refunds as authorizations or no-shows.
+- After that focused fix, the same captured test completed successfully. A fresh
+  independent full run also passed in one go: job
+  `06ef1e05-59a0-4578-af57-f5d2a4d7f763`, HTTP 200,
+  `STRIPE_SANDBOX_LIFECYCLE_VERIFIED`. Verified EUR 80 manual authorization,
+  EUR 60 capture, EUR 20 unused release, EUR 80 full cancellation, and idempotent
+  capture/cancel retries. No unresolved create keys or open holds in these tests.
+- Unregistered management capability was rejected with HTTP 403. Supabase log
+  retrieval failed with its existing source_name/UNKNOWN_IDENTIFIER tooling error;
+  diagnosis used persisted bounded test results, not secret/raw API logs.
+
+### Checks and unchanged production behavior
+
+- 75 offline tests pass: 17 new sandbox cases + prior 58 guard/readiness cases.
+  Includes ambiguous creation/capture timeouts, unchanged idempotency keys, short
+  windows, failed capture/cleanup, wrong identities, live mode refusal, extra
+  refund rejection and repeated runs without additional captures.
+- 15 isolated PostgreSQL sandbox-job permission assertions pass. Fixture initially
+  lacked Supabase service_role's actual BYPASSRLS attribute; corrected the fixture
+  after verifying that attribute on the existing project (no live role change).
+- 8 existing offline stock/discount and 18 no-show/ordinary-return assertions pass.
+- Strict Deno typechecking passes for both new server endpoints. Global Expo
+  typechecking still fails on legacy app/generated database typing, plus Deno
+  files being checked with mobile TypeScript settings (2,476 diagnostic lines).
+- Final audit: rollout remains `disabled`, collect_no_shows=false, zero observed
+  events; same 675 confirmed COD/pending and 500 cancelled COD/refunded bookings.
+  No booking/profile/catalogue, stock or drop-discount write was made. Existing
+  COD clients, closing worker, subscription functions and app UI remain unchanged.
+
+**Still required:** signed dedicated booking webhook; durable immutable checkout
+attempts and atomic booking finalization; real closing-worker reconciliation and
+capture retry rules; cancellation/refund handling; paid-at-pickup UI; native
+sandbox checkout/3DS/decline end-to-end; compatible clients before activation.
+`payment_flow_verified` deliberately remains false. Sandbox API success alone
+must never activate the 1/5 policy or authorize a real customer's booking.
+
 Source for authorization limits and partial capture behavior:
 https://docs.stripe.com/payments/place-a-hold-on-a-payment-method
