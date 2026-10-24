@@ -130,5 +130,46 @@ Reproduce tests without adding dependencies to the app:
 9. Only a later reviewed migration may permit live rollout. Keep a kill switch for
    NEW authorizations while continuing safe reconciliation of existing holds.
 
+## Phase 2a — sandbox connection only, 24 October 2026
+
+The owner saved `STRIPE_BOOKING_TEST_SECRET_KEY` through protected Supabase
+Function secrets. A deployed, protected read-only probe returned HTTP 200 and
+`STRIPE_TEST_CONNECTED` after Stripe's GET `/v1/balance` returned an actual
+`balance` object with `livemode: false`. No balance/account details, API secret or
+Stripe response are returned or logged. This verifies key usability and test mode,
+NOT authorization, capture, webhook handling, checkout or booking finalization.
+
+- `check-booking-stripe-test` consumes only that separate test secret; it never
+  reads the existing Stripe subscription secret and has no Stripe write operation.
+- Migration `20261024120000_booking_stripe_readiness_jobs` adds only a new private
+  diagnostic-job table and a service-only atomic claim RPC. No business table or
+  existing function/trigger is changed. Jobs are issued by trusted SQL management,
+  with a random 256-bit token generated and sent via pg_net inside Postgres. Only
+  its SHA-256 hash is persisted in the job table. Tokens expire in ten minutes,
+  and each can be claimed once. Consumers cannot enqueue, claim, read or reset jobs.
+- JWT verification is disabled for this endpoint only because the one-use capability
+  is its authentication. Unauthenticated/non-POST/malformed/expired/replayed calls
+  cannot access the Stripe secret. There is no mobile/UI caller or CORS access.
+- Test-prefix validation happens before network access. Redirects are forbidden,
+  the destination and GET method are fixed, and response/error content is sanitized.
+- 27 new offline probe/handler tests pass (58 including the previous 31 guards).
+  16 isolated PostgreSQL assertions verify job grants, claim/replay/expiry and TTL.
+- The new helper passes strict standalone TypeScript checking, and the complete
+  new endpoint passes `deno check` with its own Deno configuration. The global
+  Expo typecheck still fails: 2,461 preexisting diagnostic lines plus six expected
+  diagnostics from incorrectly checking a Deno entry point with Expo's settings.
+  No unrelated mobile typing repair or suppression was attempted.
+- Post-probe audit: rollout `disabled`, no-show collection false, ledger empty;
+  bookings still 675 confirmed COD/pending and 500 cancelled COD/refunded;
+  production booking payment constraint remains COD-only.
+- No payment, hold, capture, refund, customer/order/profile update or notification
+  was created. No real or synthetic card was used. The UI is unchanged.
+
+Next work remains a separate signed **test** booking webhook, immutable sandbox
+attempts, test-only checkout/finalization and closing-price capture/reconciliation.
+`STRIPE_BOOKING_TEST_WEBHOOK_SECRET` is not configured yet. The saved API key alone
+must never enable collection/enforcement or live charges. Gate 2 above is only
+partially complete: isolated test-key connectivity verified, webhook not done.
+
 Source for authorization limits and partial capture behavior:
 https://docs.stripe.com/payments/place-a-hold-on-a-payment-method

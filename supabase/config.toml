@@ -3,3 +3,7 @@ project_id = "sippdylyuzejudmzbwdn"
 # Authorization is a short-lived single-use management job, not a user JWT.
 [functions.activate-existing-pickup-access]
 verify_jwt = false
+
+# Protected by expiring one-use SQL management capabilities, not a public probe.
+[functions.check-booking-stripe-test]
+verify_jwt = false
