@@ -1,1 +1,2 @@
 - [Public production caution](public-production-caution.md): Live users; owner cannot safely test bookings, so protect production and published-client compatibility.
+- [No-show card policy](no-show-card-policy.md): Only missed pickups count; authorized bookings must immediately affect stock and drop discount, with cautious rollout.
