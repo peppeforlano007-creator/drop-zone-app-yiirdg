@@ -23,11 +23,18 @@ Deno.serve(async (req: Request) => {
       return cardJson({ ok: true, statuses: (data ?? []).map(a => cardAttemptView(a, a.drops)) });
     }
     let a: CardAttempt;
-    if (body.action === 'start') {
+    if (body.action === 'eligible' || body.action === 'start') {
       const { data: mode, error: modeError } = await db.from('booking_card_rollout').select('mode').eq('singleton', true).single();
       const { data: scope, error: scopeError } = await db.from('booking_card_test_scopes').select('expires_at')
         .eq('user_id', auth.user.id).eq('drop_id', body.drop_id).gt('expires_at', new Date().toISOString()).maybeSingle();
-      if (modeError || scopeError || mode?.mode !== 'test' || !scope) return cardJson({ ok: false, code: 'CARD_TEST_DISABLED' }, 403);
+      const enrolled = !modeError && !scopeError && mode?.mode === 'test' && !!scope;
+      if (body.action === 'eligible') {
+        // Read-only. A publishable key is public by design, but only enrolled users get it.
+        const key = Deno.env.get('STRIPE_BOOKING_TEST_PUBLISHABLE_KEY') ?? '';
+        const ok = enrolled && /^pk_test_[A-Za-z0-9]{10,200}$/.test(key);
+        return cardJson(ok ? { ok: true, eligible: true, publishable_key: key } : { ok: true, eligible: false });
+      }
+      if (!enrolled) return cardJson({ ok: false, code: 'CARD_TEST_DISABLED' }, 403);
       a = await store.call('begin_test_card_booking', { p_id: body.attempt_id, p_user_id: auth.user.id,
         p_product_id: body.product_id, p_drop_id: body.drop_id, p_variant_id: body.variant_id ?? null });
     } else if (body.booking_id) {

@@ -34,3 +34,18 @@ export async function loadCardBookingStates(bookingIds: string[]): Promise<Recor
 export async function cancelCardBooking(bookingId: string): Promise<CardBookingState> {
   return request({ action: 'cancel', booking_id: bookingId });
 }
+
+export async function fetchCardEligibility(dropId: string): Promise<{ eligible: boolean; publishableKey?: string }> {
+  const data = await request({ action: 'eligible', drop_id: dropId });
+  return data.eligible ? { eligible: true, publishableKey: data.publishable_key } : { eligible: false };
+}
+export async function startCardBooking(args: { attemptId: string; productId: string; dropId: string; variantId?: string | null }) {
+  const data = await request({ action: 'start', attempt_id: args.attemptId, product_id: args.productId, drop_id: args.dropId, variant_id: args.variantId ?? null });
+  return { clientSecret: data.client_secret as string, authorizedCents: data.authorized_cents as number, state: data.state as string };
+}
+export async function confirmCardBooking(attemptId: string): Promise<CardBookingState> {
+  return request({ action: 'confirm', attempt_id: attemptId });
+}
+export async function abandonCardAttempt(attemptId: string): Promise<void> {
+  try { await request({ action: 'cancel', attempt_id: attemptId }); } catch { /* The server releases unconfirmed attempts by itself. */ }
+}

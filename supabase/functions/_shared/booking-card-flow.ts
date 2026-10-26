@@ -32,6 +32,11 @@ export interface CardGateway {
   capture(a: CardAttempt): Promise<void>;
   cancel(a: CardAttempt): Promise<void>;
 }
+export type RefundResult = { id: string; amount: number };
+export function verifyRefund(r: { id?: string; object?: string; status?: string; amount?: number; currency?: string; payment_intent?: string }, a: CardAttempt): void {
+  if (!r || r.object !== 'refund' || typeof r.id !== 'string' || !/^re_[A-Za-z0-9]+$/.test(r.id) || r.status !== 'succeeded' ||
+    r.amount !== a.final_cents || r.currency !== 'eur' || r.payment_intent !== a.intent_id) throw new Error('REFUND_NOT_VERIFIED');
+}
 const fail = (code: string): never => { throw new Error(code); };
 const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
 export function validId(value: unknown): value is string { return typeof value === 'string' && uuid.test(value); }
@@ -73,7 +78,7 @@ export class StripeTestCardGateway implements CardGateway {
   constructor(private key: string | undefined, private fetcher: typeof fetch = fetch) {
     if (!key || !/^sk_test_[A-Za-z0-9]+$/.test(key)) fail('TEST_KEY_REQUIRED');
   }
-  private async request(path: string, body?: URLSearchParams, idempotency?: string): Promise<CardIntent> {
+  private async request(path: string, body?: URLSearchParams, idempotency?: string): Promise<any> {
     for (let n = 0; n < 2; n++) {
       let response: Response;
       try {
@@ -116,6 +121,18 @@ export class StripeTestCardGateway implements CardGateway {
     if (!a.intent_id || !intentId.test(a.intent_id) || !Number.isSafeInteger(a.final_cents) ||
       a.final_cents! < 1 || a.final_cents! > a.authorized_cents || !a.frozen_at) return fail('CAPTURE_PLAN_INVALID');
     await this.request(`payment_intents/${a.intent_id}/capture`, new URLSearchParams({ amount_to_capture: String(a.final_cents) }), `${BOOKING_FLOW}:${a.id}:capture`);
+  }
+  /** Refund of an ALREADY captured payment. Never more than the captured amount. */
+  async refund(a: CardAttempt): Promise<RefundResult> {
+    if (!a.intent_id || !intentId.test(a.intent_id) || a.state !== 'captured' || !Number.isSafeInteger(a.final_cents) || a.final_cents! < 1) return fail('REFUND_PLAN_INVALID');
+    const r = await this.request('refunds', new URLSearchParams({ payment_intent: a.intent_id, amount: String(a.final_cents),
+      'metadata[flow]': BOOKING_FLOW, 'metadata[booking_attempt_id]': a.id }), `${BOOKING_FLOW}:${a.id}:refund`);
+    verifyRefund(r, a);
+    // Independent read: the whole charge must now be returned, nothing more.
+    const pi = await this.retrieve(a.intent_id);
+    const charge = pi.latest_charge;
+    if (pi.livemode !== false || !charge || typeof charge === 'string' || (charge as { amount_refunded?: number }).amount_refunded !== a.authorized_cents) return fail('REFUND_NOT_VERIFIED');
+    return { id: r.id, amount: r.amount };
   }
   async cancel(a: CardAttempt): Promise<void> {
     if (!a.intent_id || !intentId.test(a.intent_id)) return fail('INTENT_INVALID');

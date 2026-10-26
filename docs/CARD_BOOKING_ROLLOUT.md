@@ -467,3 +467,19 @@ closing path waits for them), card order creation, a server-side pickup guard,
 and native card entry with 3DS. `@stripe/stripe-react-native` is NOT installed;
 adding it is a native change that old published clients will not have, so it
 needs a new store build and an activation cohort on the new version only.
+
+## Phase 3: card orders, pickup guard, refunds, native bank confirmation (2026-10-26)
+
+Applied live: migration `20261026150000_card_orders_pickup_guard_refunds`. Rollout is still `disabled`, 0 attempts, 0 card bookings; `complete_expired_drops()` (hash `e50f447b...`) and the `capture-drop-payments` worker (v39, COD only) are untouched.
+
+- **Card orders.** `record_test_card_result` now calls `create_card_order_for_booking` in the same transaction that confirms a captured (or fully released, zero-price) card booking: one order + one order item, idempotent, `pickup_status='pending'`. Not merged with COD orders. The closing worker does not need to know about card bookings.
+- **Pickup guard.** Trigger `guard_card_item_pickup` (BEFORE UPDATE on `order_items`): a card item cannot leave `pending` / get `picked_up_at` unless the booking is `captured`. COD rows are never affected. The operator screen already shows «Già pagato con carta».
+- **Refunds.** Only for payments already `captured`, operator (`profiles.role='admin'`) only, one per attempt, never more than the captured amount, refused if the item was collected and not returned. Edge function `refund-booking-card-test` (v1): Stripe refund with idempotency key, verified twice (refund object + independent PaymentIntent read), then `record_test_card_refund`; any failure marks the request `review`. The booking guard accepts exactly one new transition, `captured -> refunded`, only after a verified refund. Returns are NOT no-shows and do not use this path automatically.
+- **Native 3DS.** `@stripe/stripe-react-native` 0.50.3 + config plugin. This is a native change: it exists ONLY in builds made after this date. `utils/stripeNative.ts` loads it defensively, so older store versions keep working. The app asks `booking-card-test` action `eligible` (read-only) only when the module is present; the server answers eligible only in `test` mode for users with an unexpired scope on that drop AND when `STRIPE_BOOKING_TEST_PUBLISHABLE_KEY` is set. Everyone else: unchanged cash-on-pickup flow.
+
+Still required before ANY activation (not authorized):
+1. Add `STRIPE_BOOKING_TEST_PUBLISHABLE_KEY` (a `pk_test_...`) through Backend secrets.
+2. Ship a store build containing Stripe; enroll a small cohort on it.
+3. Real end-to-end run with Stripe test cards (3DS, declined, cancel, closing capture, refund) — none of this has been run against real Stripe or a real device.
+4. Operator refund screen (the function exists; no UI yet), signed booking webhook, review tooling, saved-card consent, legacy COD no-show enforcement.
+Known and accepted: a cancellation still pending at Stripe when a drop closes leaves the others' final discount slightly higher.

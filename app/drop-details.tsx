@@ -20,6 +20,7 @@ import EnhancedProductCard from '@/components/EnhancedProductCard';
 import * as Haptics from 'expo-haptics';
 import * as Network from 'expo-network';
 import { computeDropDiscount } from '@/utils/dropHelpers';
+import { getCardCheckoutKey, payAndBookWithCard } from '@/utils/bookingCardCheckout';
 
 const { width, height } = Dimensions.get('window');
 
@@ -142,6 +143,9 @@ export default function DropDetailsScreen() {
   productsRef.current = products;
   const refreshInventoryRef = useRef<() => void>(() => {});
   const bookingRequests = useRef(new Set<string>());
+  // Set only for users the server enrolled in the card test, on builds that have
+  // Stripe. Everyone else never sees a difference: booking stays as it is.
+  const cardCheckoutKey = useRef<string | null>(null);
   const [soldOutItems, setSoldOutItems] = useState<Set<string>>(new Set());
 
   // Derived: drop is viewable but booking is disabled
@@ -312,6 +316,14 @@ export default function DropDetailsScreen() {
     loadDropDetails();
     loadUserBookings();
   }, [dropId, loadDropDetails, loadUserBookings]);
+
+  useEffect(() => {
+    cardCheckoutKey.current = null;
+    if (!user?.id || !dropId) return;
+    let active = true;
+    getCardCheckoutKey(String(dropId)).then(key => { if (active) cardCheckoutKey.current = key; });
+    return () => { active = false; };
+  }, [user?.id, dropId]);
 
   const dropStatus = drop?.status;
   useEffect(() => {
@@ -724,6 +736,29 @@ export default function DropDetailsScreen() {
       const originalPrice = product.original_price ?? 0;
       const currentDiscountedPrice = originalPrice * (1 - bookingDiscount / 100);
 
+      if (cardCheckoutKey.current) {
+        const outcome = await payAndBookWithCard({
+          publishableKey: cardCheckoutKey.current, productId, dropId: String(dropId), variantId: variantId || null,
+        });
+        if (outcome.kind === 'cancelled') return;
+        if (outcome.kind === 'failed') {
+          Alert.alert('Pagamento non completato', outcome.message);
+          loadDropDetails();
+          return;
+        }
+        refreshInventoryRef.current();
+        loadUserBookings();
+        loadDropDetails();
+        if (outcome.kind === 'booked') {
+          setUserBookings(prev => new Set([...prev, productId]));
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          Alert.alert('✅ Prenotato!', `${product.name} prenotato e pagato con carta. L'importo definitivo sarà addebitato alla chiusura del drop, mai superiore a quello autorizzato. Puoi annullare da Le mie prenotazioni fino alla chiusura.`, [{ text: 'OK' }]);
+        } else {
+          Alert.alert('Pagamento in verifica', 'La banca ha risposto ma la conferma non è ancora arrivata. Controlla Le mie prenotazioni tra poco prima di riprovare.', [{ text: 'OK' }]);
+        }
+        return;
+      }
+
       console.log('📤 Sending atomic booking request to Supabase...');
       console.log('📡 Supabase URL:', supabase.supabaseUrl);
       console.log('🔑 User authenticated:', !!user);
@@ -845,7 +880,7 @@ export default function DropDetailsScreen() {
     } finally {
       bookingRequests.current.delete(productId);
     }
-  }, [user, drop, products, loadDropDetails, isExpired, isDropCompleted]);
+  }, [user, drop, products, loadDropDetails, loadUserBookings, dropId, isExpired, isDropCompleted]);
 
   const onViewableItemsChanged = useCallback(({ viewableItems }: any) => {
     const visible = viewableItems.find((entry: any) => entry.isViewable && entry.index != null);

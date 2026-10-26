@@ -60,6 +60,7 @@
       "expo-font",
       "expo-router",
       "expo-web-browser",
+      ["@stripe/stripe-react-native", { "enableGooglePay": false }],
       [
         "expo-notifications",
         {

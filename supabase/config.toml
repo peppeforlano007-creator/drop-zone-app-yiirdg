@@ -19,3 +19,6 @@ verify_jwt = false
 # Single-use scheduler capability. No reusable token or customer payment access.
 [functions.reconcile-booking-cards-test]
 verify_jwt = false
+# Operator-only refund of captured TEST card payments; Auth.getUser + SQL admin check.
+[functions.refund-booking-card-test]
+verify_jwt = false

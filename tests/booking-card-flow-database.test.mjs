@@ -40,14 +40,16 @@ try {
     alter table profiles add column points_total integer default 0;
     alter table profiles add column loyalty_points integer default 0;
     alter table drops add column final_discount_percentage numeric;
-    create table public.orders(id uuid primary key,pickup_point_id uuid);
-    create table public.order_items(id uuid primary key,user_id uuid,order_id uuid,pickup_status text,picked_up_at timestamptz,returned_to_sender boolean,return_reason text);
+    create table public.orders(id uuid primary key default gen_random_uuid(),pickup_point_id uuid,order_number text,drop_id uuid,supplier_id uuid,status text,total_value numeric,commission_amount numeric);
+    create table public.order_items(id uuid primary key default gen_random_uuid(),user_id uuid,order_id uuid,booking_id uuid,product_id uuid,product_name text,selected_size text,selected_color text,original_price numeric,discount_percentage numeric,final_price numeric,pickup_status text,picked_up_at timestamptz,returned_to_sender boolean,return_reason text);
+    alter table profiles add column if not exists role text;
   `);
   const inventory=await file('supabase/migrations/20261020100000_remaining_booking_stock.sql');
   await db.exec(inventory.slice(0,inventory.indexOf('-- Atomic release gate')));
   await db.exec(await file('supabase/migrations/20261024100000_disabled_booking_card_foundation.sql'));
   await db.exec(await file('supabase/migrations/20261026100000_test_card_booking_integration.sql'));
   await db.exec(await file('supabase/migrations/20261026130000_card_customer_cancellation.sql'));
+  await db.exec(await file('supabase/migrations/20261026150000_card_orders_pickup_guard_refunds.sql'));
   pickup=(await one('select id from pickup_points limit 1')).id;
   list=(await one('select id from supplier_lists limit 1')).id;
   await sql('insert into auth.users values($1),($2)',[u,u2]);
@@ -120,6 +122,26 @@ try {
   const paid=await one('select * from bookings where id=$1',[za.booking_id]);
   ok(paid.payment_status==='captured' && paid.status==='confirmed' && Number(paid.final_price)===60,'verified capture marks lower amount paid');
   ok((await stock(close))===2,'capture/retry does not decrement inventory again');
+  const orderRows=await sql('select o.total_value,i.final_price,i.pickup_status,i.user_id from order_items i join orders o on o.id=i.order_id where i.booking_id=$1',[za.booking_id]);
+  ok(orderRows.length===1 && Number(orderRows[0].final_price)===60 && Number(orderRows[0].total_value)===60 && orderRows[0].pickup_status==='pending','capture creates exactly one paid order item at the lower price');
+  await record(za,'captured',6000);
+  ok((await sql('select 1 from order_items where booking_id=$1',[za.booking_id])).length===1,'retry cannot duplicate the order');
+  // Refund of a captured payment: operator-only, once, only the captured amount.
+  const adminId=randomUUID(); await sql('insert into auth.users values($1)',[adminId]); await sql("insert into profiles(user_id,pickup_point_id,role) values($1,$2,'admin')",[adminId,pickup]);
+  await rejects(()=>sql('select (request_test_card_refund($1,$2,$3)).*',[za.id,u,'RETURNED']),/ADMIN_REQUIRED/,'customer cannot request a refund');
+  await rejects(()=>sql('select (request_test_card_refund($1,$2,$3)).*',[za.id,adminId,'bad reason']),/REFUND_REASON_INVALID/,'free-text reason rejected');
+  const rr=await one('select (request_test_card_refund($1,$2,$3)).*',[za.id,adminId,'RETURNED']);
+  ok(rr.amount_cents===6000 && rr.state==='requested' && (await one('select (request_test_card_refund($1,$2,$3)).*',[za.id,adminId,'RETURNED'])).amount_cents===6000,'refund is the captured amount, once');
+  await rejects(()=>sql("select (record_test_card_refund($1,'re_x',5999)).*",[za.id]),/REFUND_AMOUNT_MISMATCH/,'wrong refund amount rejected');
+  await sql("select (record_test_card_refund($1,'re_ok123',6000)).*",[za.id]); await sql("select (record_test_card_refund($1,'re_ok123',6000)).*",[za.id]);
+  ok((await one('select payment_status from bookings where id=$1',[za.booking_id])).payment_status==='refunded' && (await stock(close))===2,'refund marks refunded and leaves stock unchanged');
+  await rejects(()=>sql("select (record_test_card_refund($1,'re_other',6000)).*",[za.id]),/REFUND_IMMUTABLE/,'refund result immutable');
+  // Pickup guard: only card items whose payment is not captured are blocked.
+  await rejects(()=>sql("update order_items set pickup_status='picked_up',picked_up_at=now() where booking_id=$1",[za.booking_id]),/CARD_PAYMENT_NOT_CAPTURED/,'refunded card item cannot be handed over');
+  await sql("update bookings set payment_status='captured' where id=$1",[za.booking_id]);
+  await sql("update order_items set pickup_status='picked_up',picked_up_at=now() where booking_id=$1",[za.booking_id]);
+  ok(true,'captured card item can be handed over');
+  await rejects(()=>sql("select (request_test_card_refund($1,$2,'LATE')).*",[randomUUID(),adminId]),/ATTEMPT_NOT_FOUND/,'unknown attempt refused');
   await rejects(()=>record(za,'released',0),/SETTLEMENT_IMMUTABLE/,'cannot turn a paid order into a release');
   const zero=await context({seconds:3}); await begin(zero); let z=await finalize(await attach(zero));
   await new Promise(resolve=>setTimeout(resolve,3100));
