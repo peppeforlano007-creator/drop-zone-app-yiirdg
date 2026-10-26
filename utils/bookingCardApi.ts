@@ -49,3 +49,23 @@ export async function confirmCardBooking(attemptId: string): Promise<CardBooking
 export async function abandonCardAttempt(attemptId: string): Promise<void> {
   try { await request({ action: 'cancel', attempt_id: attemptId }); } catch { /* The server releases unconfirmed attempts by itself. */ }
 }
+
+export type AdminCardRefundRow = {
+  attempt_id: string; booking_id: string; product_name: string; customer_name: string; amount_cents: number;
+  captured_at: string | null; item_collected: boolean; item_returned: boolean; refund_state: 'none' | 'requested' | 'refunded' | 'review';
+};
+/** Admin only: the database refuses everyone else. */
+export async function listAdminCardRefunds(): Promise<AdminCardRefundRow[]> {
+  const { data, error } = await supabase.rpc('admin_list_card_refunds' as never);
+  if (error) throw new CardBookingError('ADMIN_REQUIRED');
+  return (data ?? []) as AdminCardRefundRow[];
+}
+export async function refundCardPaymentAsAdmin(attemptId: string, reason: 'RETURNED' | 'OPERATOR_REQUEST'): Promise<void> {
+  const { data, error } = await supabase.functions.invoke('refund-booking-card-test', { body: { attempt_id: attemptId, reason } });
+  if (error) {
+    let code = 'REFUND_NOT_COMPLETED';
+    try { const r = await error.context?.json(); if (typeof r?.code === 'string' && /^[A-Z_]{1,80}$/.test(r.code)) code = r.code; } catch { /* keep generic */ }
+    throw new CardBookingError(code);
+  }
+  if (!data?.ok) throw new CardBookingError(typeof data?.code === 'string' ? data.code : 'REFUND_NOT_COMPLETED');
+}

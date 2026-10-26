@@ -50,6 +50,9 @@ try {
   await db.exec(await file('supabase/migrations/20261026100000_test_card_booking_integration.sql'));
   await db.exec(await file('supabase/migrations/20261026130000_card_customer_cancellation.sql'));
   await db.exec(await file('supabase/migrations/20261026150000_card_orders_pickup_guard_refunds.sql'));
+  await db.exec('alter table profiles add column if not exists full_name text');
+  await db.exec('create or replace function auth.uid() returns uuid language sql as $$ select nullif(current_setting(\'test.uid\',true),\'\')::uuid $$');
+  await db.exec(await file('supabase/migrations/20261026170000_card_pickup_returns_always_allowed_admin_refund_list.sql'));
   pickup=(await one('select id from pickup_points limit 1')).id;
   list=(await one('select id from supplier_lists limit 1')).id;
   await sql('insert into auth.users values($1),($2)',[u,u2]);
@@ -138,6 +141,13 @@ try {
   await rejects(()=>sql("select (record_test_card_refund($1,'re_other',6000)).*",[za.id]),/REFUND_IMMUTABLE/,'refund result immutable');
   // Pickup guard: only card items whose payment is not captured are blocked.
   await rejects(()=>sql("update order_items set pickup_status='picked_up',picked_up_at=now() where booking_id=$1",[za.booking_id]),/CARD_PAYMENT_NOT_CAPTURED/,'refunded card item cannot be handed over');
+  await sql("update order_items set returned_to_sender=true,return_reason='x' where booking_id=$1",[za.booking_id]);
+  ok(true,'pickup point can always register a return, even on a refunded card item');
+  await sql("update order_items set returned_to_sender=false where booking_id=$1",[za.booking_id]);
+  await rejects(()=>sql("select * from admin_list_card_refunds()"),/ADMIN_REQUIRED/,'refund list refuses non-admin');
+  await sql("select set_config('test.uid',$1,false)",[adminId]);
+  ok((await sql('select * from admin_list_card_refunds()')).length>=1,'refund list works for admin');
+  await sql("select set_config('test.uid','',false)");
   await sql("update bookings set payment_status='captured' where id=$1",[za.booking_id]);
   await sql("update order_items set pickup_status='picked_up',picked_up_at=now() where booking_id=$1",[za.booking_id]);
   ok(true,'captured card item can be handed over');

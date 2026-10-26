@@ -153,6 +153,13 @@ export default function AdminDashboard() {
       color: '#FF6B6B',
     },
     {
+      title: 'Rimborsi carta',
+      description: 'Pagamenti con carta da rimborsare',
+      icon: { ios: 'creditcard.fill', android: 'credit_card' },
+      route: '/admin/card-refunds',
+      color: '#5856D6',
+    },
+    {
       title: 'Esporta Ordini',
       description: 'Esporta per fornitori',
       icon: { ios: 'square.and.arrow.down.fill', android: 'download' },
