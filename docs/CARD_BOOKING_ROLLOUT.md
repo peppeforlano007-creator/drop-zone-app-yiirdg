@@ -439,3 +439,31 @@ save a card, or automatically refund a paid no-show.
 
 This is a cancellation-safety increment, not completion of the full remaining
 checkout/order/refund rollout. Keep the public switch disabled.
+
+## Phase 2e: read-only audit of closing vs. pending releases (2026-10-26)
+
+No live change was made. Findings, checked against the live project:
+
+- Published `capture-drop-payments` is now **version 39** (was 38 when last
+  reviewed; the repo copy has one commit and cannot be proven identical). It
+  selects only `payment_method = 'cod'` bookings, so it never prices, orders or
+  notifies card bookings. Do NOT redeploy it from this repo without the owner
+  diffing it first.
+- `complete_expired_drops()` (fingerprint `e50f447b...`, unchanged) marks the
+  drop completed and calls that worker with the drop's `current_value`.
+- `prepare_test_card_settlement` only freezes attempts in state `booked`, so a
+  `release_pending` (customer-cancelled) attempt is never captured. That part is
+  safe.
+- Residual gap: a cancellation accepted but not yet confirmed by Stripe when the
+  drop closes still counts in `current_value`, so the final discount is computed
+  slightly too high for the other customers. Value is restored only after the
+  verified release, which is too late for the published worker.
+- Card bookings therefore currently get no `orders`/`order_items`, no legacy
+  notification and no pickup "already paid" row from closing. That is the
+  required next step and needs the owner's approval to touch the closing path.
+
+Gate before any activation: zero `release_pending` attempts at drop end (or the
+closing path waits for them), card order creation, a server-side pickup guard,
+and native card entry with 3DS. `@stripe/stripe-react-native` is NOT installed;
+adding it is a native change that old published clients will not have, so it
+needs a new store build and an activation cohort on the new version only.
