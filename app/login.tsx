@@ -388,6 +388,15 @@ export default function LoginScreen() {
                 )}
               </Pressable>
 
+              {__DEV__ && (
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => router.push('./booking-card-preview')}
+                  style={{ minHeight: 44, justifyContent: 'center', alignItems: 'center', paddingVertical: 12 }}
+                >
+                  <Text style={{ color: colors.textSecondary, fontSize: 13 }}>Anteprima carta · nessun pagamento</Text>
+                </Pressable>
+              )}
               {/* Support Button */}
               <Pressable
                 style={({ pressed }) => [

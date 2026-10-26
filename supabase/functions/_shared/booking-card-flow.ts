@@ -134,7 +134,11 @@ export async function reconcileCardAttempt(id: string, store: CardStore, stripe:
   let a = await store.get(id);
   if (a.state === 'review' || a.state === 'captured' || a.state === 'released') return a;
   try {
-    if (a.state === 'creating') {
+    if (a.state === 'creating' || (a.state === 'release_pending' && a.intent_id === null)) {
+      // A cancellation can win while creation is still in flight or its response
+      // was lost. Recover the SAME unconfirmed intent with the original key,
+      // attach it without leaving release_pending, then retrieve/cancel it.
+      // Never infer 'no funds' merely from a missing local intent ID.
       // Never recreate a possibly processed operation beyond Stripe's minimum
       // idempotency lifetime. Recovery of an old ambiguous creation is manual.
       if (now - epoch(a.created_at) >= 23 * 3600) fail('UNRESOLVED_OLD_CREATION');
@@ -162,7 +166,7 @@ export async function reconcileCardAttempt(id: string, store: CardStore, stripe:
           } else throw error;
         }
         if (verified) a = await store.finalize(a, verified.captureBefore);
-      } else if (pi.status === 'canceled') a = await store.release(a.id, 'CUSTOMER_CANCELLED');
+      } else if (pi.status === 'canceled') a = await store.release(a.id, 'AUTHORIZATION_INVALID');
       else if (pi.status === 'succeeded') fail('UNEXPECTED_CAPTURE');
     }
     if (a.state === 'booked') {

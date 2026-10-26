@@ -354,3 +354,88 @@ pickup policy stays disabled; ordinary returns remain excluded.
 
 The integration is intentionally partial and dormant. Do not summarize it as
 public payments working or completed end-to-end until the remaining gates pass.
+
+## Phase 2d — pre-close customer cancellation and truthful payment labels (2026-10-26)
+
+User-approved requirement: cancelling from **Le mie prenotazioni** before the
+open drop closes must release the authorization without a capture. This approval
+is NOT approval to enable public card payments, charge existing COD customers,
+save a card, or automatically refund a paid no-show.
+
+### Narrow server change
+
+- `20261026130000_card_customer_cancellation.sql` adds a service-only,
+  owner-specific cancellation RPC. It takes drop then attempt locks, checks
+  `clock_timestamp()` **after locking**, rejects a closed/expired/rescheduled
+  drop and any frozen/captured settlement, and records `release_pending`.
+- An accepted cancellation is idempotent even after drop closing, rollout
+  switch-off or test-scope expiry. The existing generic release RPC delegates
+  `CUSTOMER_CANCELLED` to this same cutoff; system safety releases remain possible
+  after closing. COD cancellation and `complete_expired_drops` are not rewritten.
+- No optimistic refund, booking cancellation, stock restoration or drop-value
+  change. Only independently retrieved Stripe cancellation proof may drive the
+  existing final result RPC and its existing stock/discount triggers.
+- A cancellation that races creation before `intent_id` was attached recovers the
+  original unconfirmed PaymentIntent with the same stable creation key, attaches
+  it while remaining `release_pending`, then retrieves/cancels/verifies it. An
+  ambiguous creation older than 23 hours is reviewed, never blindly recreated.
+- `booking-card-test` accepts one owned `booking_id` OR `attempt_id`, not both.
+  An owner-filtered status batch is bounded to 50 booking IDs; private attempt
+  tables remain inaccessible to clients. Views expose no Stripe intent ID,
+  client secret, raw database error or other customer's identity.
+- After durable acceptance, a network/Stripe failure returns pending/review with
+  `retry_required`, not a false cancellation failure or release success. The
+  existing minute reconciler continues independently of the screen being open.
+- A verified bank-cancelled authorization uses the system `AUTHORIZATION_INVALID`
+  recovery reason, not a fabricated customer request after its deadline.
+
+### Mobile preparation (still no public card checkout)
+
+- The COD branch in **Le mie prenotazioni** is preserved. Only rows actually
+  marked `payment_method=card` use the authenticated cancellation API.
+- Card labels distinguish authorized/not charged, release pending, verified
+  release, capture pending, paid and a recorded refund. The refund label does
+  **not** implement a captured-payment refund.
+- Pending release stays visible, cannot be double-requested, refreshes status in
+  the foreground and never says funds are available immediately at the bank.
+- Customer cash-due subtotals exclude card amounts; COD-only text is preserved.
+- Pickup orders read the existing, RLS-protected booking payment fields. Captured
+  card items show **Già pagato con carta**; mixed orders show cash due for COD
+  only. The updated pickup UI refuses confirmation for a non-captured card item;
+  this UI guard is NOT a substitute for a future server-side pickup/return guard
+  that also protects old published clients.
+- A clearly labelled **development-only visual preview** renders the actual
+  customer screen with synthetic authorized, COD and captured rows. Its cancel
+  branch makes NO API/DB/Stripe call and only demonstrates the pending label.
+  Production builds redirect this preview route to login and omit its link.
+  This preview is NOT a native bank/3DS or real cancellation test.
+
+### Checks and remaining gates
+
+- 74 isolated PostgreSQL assertions cover the actual migrations/triggers,
+  owner rejection, missing-intent cancellation, idempotent acceptance, both
+  serialized cancellation/settlement orderings, exact wall-clock cutoff within
+  an already-open transaction, switch-off, schedule changes and permissions.
+  This is still not a live concurrent-transaction/load test.
+- Flow tests additionally cover missing creation response, old ambiguous
+  creation, failed/lost cancel response, lost DB release acknowledgement and
+  bank-initiated cancellation. Pure response/presentation tests cover bounded
+  targets, ownership, sanitized views, deadline hints and mixed cash totals.
+- Unchanged saved-source baseline and current app both have **986** TypeScript
+  diagnostics; normalized diagnostic comparison reports no additions/removals.
+  This is NOT a clean overall typecheck. Deno server checking is separate.
+- Before deployment: mode disabled, collection false, scopes/attempts/card
+  bookings/no-show events all zero. Existing SQL closing function fingerprint:
+  `e50f447bd00d24b2e7bbb238e7fcbfb9`.
+- Still NOT implemented/verified: native card entry/3DS, saved cards, card
+  order/order-item creation, exact deployed closing worker source reconciliation,
+  durable captured-payment refund orchestration, signed booking webhook,
+  operator review tooling, old-client no-show enforcement and real native E2E.
+- In particular, closing must be tested with a **previously accepted cancellation
+  still awaiting Stripe release**. The existing COD closing worker may calculate
+  its final discount before that release updates the booking. Do NOT activate
+  public or shared-drop testing until that interaction is reconciled; these
+  cancellation tests do not prove the old worker waits/excludes pending releases.
+
+This is a cancellation-safety increment, not completion of the full remaining
+checkout/order/refund rollout. Keep the public switch disabled.

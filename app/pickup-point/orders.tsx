@@ -21,6 +21,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/app/integrations/supabase/client';
 import { getLoyaltyLevel } from '@/utils/loyaltyHelpers';
 import { sendPushNotification } from '@/utils/pushNotifications';
+import { CardBookingPayment } from '@/components/CardBookingPayment';
+import { dueAtPickup, isCardPayment, type BookingPayment } from '@/utils/bookingCardPayment';
 
 interface OrderItem {
   id: string;
@@ -34,6 +36,7 @@ interface OrderItem {
   customer_name?: string;
   customer_phone?: string;
   customer_email?: string;
+  bookings?: BookingPayment | null;
   returned_to_sender?: boolean;
   returned_at?: string;
 }
@@ -126,7 +129,8 @@ export default function OrdersScreen() {
             picked_up_at,
             user_id,
             returned_to_sender,
-            returned_at
+            returned_at,
+            bookings!order_items_booking_id_fkey (payment_method,payment_status,final_price)
           )
         `)
         .eq('pickup_point_id', user.pickupPointId)
@@ -522,6 +526,13 @@ export default function OrdersScreen() {
     console.log('[handleMarkOrderAsDelivered] pressed for order:', order.id, order.order_number, 'customerOrder:', customerOrder?.customerOrderNumber ?? null);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     
+    const unpaidCard = (customerOrder?.items ?? order.order_items).some(item =>
+      !item.picked_up_at && !item.returned_to_sender && item.bookings &&
+      isCardPayment(item.bookings) && item.bookings.payment_status !== 'captured');
+    if (unpaidCard) {
+      Alert.alert('Pagamento carta da verificare', 'Un articolo con carta non risulta ancora pagato. Non riscuotere contanti per sostituire l’addebito e non confermare la consegna prima della verifica.');
+      return;
+    }
     const confirmMessage = `Confermi che gli articoli di ${customerOrder?.customerName ?? 'tutti i clienti'} (${customerOrder?.customerOrderNumber ?? order.order_number}) sono stati consegnati?\n\nIl cliente riceverà una notifica di conferma.`;
     Alert.alert(
       'Ordine Consegnato',
@@ -1237,6 +1248,7 @@ export default function OrdersScreen() {
                     )}
 
                     <Text style={styles.itemPrice}>€{item.final_price.toFixed(2)}</Text>
+                    {item.bookings && isCardPayment(item.bookings) && <CardBookingPayment payment={item.bookings} />}
 
                     {/* Customer Info */}
                     <View style={styles.customerSection}>
@@ -1326,6 +1338,14 @@ export default function OrdersScreen() {
                 <Text style={styles.summaryLabel}>Valore Totale:</Text>
                 <Text style={styles.summaryValue}>€{(selectedCustomerOrder?.totalValue ?? selectedOrder.total_value).toFixed(2)}</Text>
               </View>
+              {(selectedCustomerOrder?.items ?? selectedOrder.order_items).some(item => item.bookings && isCardPayment(item.bookings)) && (
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryLabel}>Contanti da incassare:</Text>
+                  <Text style={styles.summaryValue}>€{(selectedCustomerOrder?.items ?? selectedOrder.order_items)
+                    .filter(item => !item.picked_up_at && !item.returned_to_sender)
+                    .reduce((sum, item) => sum + dueAtPickup({ ...item.bookings, final_price: item.final_price }), 0).toFixed(2)}</Text>
+                </View>
+              )}
               {selectedOrder.arrived_at && (
                 <View style={styles.summaryRow}>
                   <Text style={styles.summaryLabel}>Data Arrivo:</Text>
@@ -1413,6 +1433,18 @@ export default function OrdersScreen() {
           <Text style={styles.valueLabel}>Totale:</Text>
           <Text style={styles.valueAmount}>€{totalDisplay}</Text>
         </View>
+
+        {co.items.some(item => item.bookings && isCardPayment(item.bookings)) && (
+          <View style={styles.valueSection}>
+            <Text style={styles.valueLabel}>Contanti da incassare:</Text>
+            <Text style={styles.valueAmount}>€{co.items.filter(item => !item.picked_up_at && !item.returned_to_sender)
+              .reduce((sum, item) => sum + dueAtPickup({ ...item.bookings, final_price: item.final_price }), 0).toFixed(2)}</Text>
+          </View>
+        )}
+        {co.items.some(item => item.bookings && isCardPayment(item.bookings)) &&
+          co.items.filter(item => !item.returned_to_sender).every(item => item.bookings && isCardPayment(item.bookings) && item.bookings.payment_status === 'captured') && (
+          <Text style={styles.customersText}>Già pagato con carta · Non riscuotere contanti</Text>
+        )}
 
         {/* Tap hint */}
         <View style={styles.tapHint}>

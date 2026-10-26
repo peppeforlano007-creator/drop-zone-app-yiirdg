@@ -47,6 +47,7 @@ try {
   await db.exec(inventory.slice(0,inventory.indexOf('-- Atomic release gate')));
   await db.exec(await file('supabase/migrations/20261024100000_disabled_booking_card_foundation.sql'));
   await db.exec(await file('supabase/migrations/20261026100000_test_card_booking_integration.sql'));
+  await db.exec(await file('supabase/migrations/20261026130000_card_customer_cancellation.sql'));
   pickup=(await one('select id from pickup_points limit 1')).id;
   list=(await one('select id from supplier_lists limit 1')).id;
   await sql('insert into auth.users values($1),($2)',[u,u2]);
@@ -134,6 +135,55 @@ try {
   ok(r.state==='release_pending' && r.release_reason==='NEW_CONSENT_REQUIRED','price over authorization never becomes a higher automatic charge');
   r=await record(r,'released',0);
   ok((await stock(rise))===3,'rejected higher price releases goods after verified cancellation');
+  // Customer cancellation: owner/deadline checked atomically; either serialized
+  // ordering against settlement is exercised without contacting Stripe.
+  const cancelCustomer=(a,user=u)=>one('select (request_test_card_customer_cancellation($1,$2)).*',[a.id,user]);
+  const pending=await context();await begin(pending);let pa=await attach(pending);
+  await rejects(()=>cancelCustomer(pa,u2),/ATTEMPT_NOT_FOUND/,'other account cannot cancel a known attempt');
+  pa=await cancelCustomer(pa);
+  ok(pa.state==='release_pending' && pa.release_reason==='CUSTOMER_CANCELLED' && pa.booking_id===null,'unconfirmed checkout cancellation is durable without booking');
+  await record(pa,'released',0);
+  ok((await stock(pending))===3 && (await value(pending))===0,'abandoned checkout release does not invent stock/value');
+  const early=await context();let e=await begin(early);e=await cancelCustomer(e);
+  e=await attach(early);
+  ok(e.state==='release_pending' && e.intent_id,'creation response can attach after cancellation without reopening checkout');
+  ok((await finalize(e)).booking_id===null,'late bank authorization cannot book an already cancelled checkout');
+  await record(e,'released',0);
+  const win=await context();await begin(win);let w=await finalize(await attach(win));
+  w=await cancelCustomer(w);await cancelCustomer(w);
+  ok(w.state==='release_pending' && (await stock(win))===2 && (await value(win))===80,'duplicate cancel requests do not prematurely restore stock/value');
+  await sql("update drops set status='completed',final_discount_percentage=40 where id=$1",[win.drop]);
+  ok((await one('select (prepare_test_card_settlement($1)).*',[w.id])).state==='release_pending','accepted cancellation wins against a later closing preparation');
+  await db.exec("update booking_card_rollout set mode='disabled'");
+  ok((await cancelCustomer(w)).state==='release_pending','accepted cancellation retry survives closing and switch-off');
+  w=await record(w,'released',0);await record(w,'released',0);await cancelCustomer(w);
+  ok((await stock(win))===3,'verified cancellation restores stock exactly once, even after closing');
+  ok((await one('select status,payment_status from bookings where id=$1',[w.booking_id])).payment_status==='failed','released authorization is not a fictitious captured-payment refund');
+  await db.exec("update booking_card_rollout set mode='test'");
+  await rejects(()=>cancelCustomer(za),/SETTLEMENT_ALREADY_STARTED/,'captured payment cannot use authorization cancellation');
+  const cutoff=await context({seconds:1});await begin(cutoff);let cut=await finalize(await attach(cutoff));
+  await db.exec('begin');
+  await new Promise(resolve=>setTimeout(resolve,1100));
+  await rejects(()=>cancelCustomer(cut),/CANCELLATION_DEADLINE_PASSED/,'deadline uses current clock even inside a transaction begun before closing');
+  await db.exec('rollback');
+  ok((await one('select state from booking_card_attempts where id=$1',[cut.id])).state==='booked','rejected late cancellation leaves authorization/booking intact');
+  await rejects(()=>release(cut),/CANCELLATION_DEADLINE_PASSED/,'old generic service RPC cannot bypass customer cutoff');
+  await sql("update drops set status='completed',final_discount_percentage=40 where id=$1",[cutoff.drop]);
+  cut=await one('select (prepare_test_card_settlement($1)).*',[cut.id]);
+  ok(cut.state==='capture_pending','closing can freeze only a non-cancelled booking');
+  await rejects(()=>cancelCustomer(cut),/SETTLEMENT_ALREADY_STARTED/,'capture-frozen ordering refuses cancellation before any Stripe write');
+  ok((await stock(cutoff))===2 && (await value(cutoff))===80,'refused cancellation cannot restore stock/value or mutate capture plan');
+  const changedEnd=await context();await begin(changedEnd);let ce=await finalize(await attach(changedEnd));
+  await sql("update drops set end_time=end_time+interval '1 hour' where id=$1",[changedEnd.drop]);
+  await rejects(()=>cancelCustomer(ce),/CANCELLATION_DEADLINE_PASSED/,'changed drop schedule requires review rather than trusting stale snapshot');
+  const closed=await context();await begin(closed);let cl=await finalize(await attach(closed));
+  await sql("update drops set status='completed' where id=$1",[closed.drop]);
+  await rejects(()=>cancelCustomer(cl),/CANCELLATION_DEADLINE_PASSED/,'early published closure is not cancellable');
+  // A fresh customer cancellation does not depend on opening new checkouts.
+  const off=await context();await begin(off);let of=await finalize(await attach(off));
+  await db.exec("update booking_card_rollout set mode='disabled'");
+  of=await cancelCustomer(of);
+  ok(of.state==='release_pending','turning off new card checkout does not abandon existing holds');
   // No customer or service caller can retarget immutable attempts directly.
   for(const role of ['anon','authenticated','service_role']) {
     await db.exec(`set role ${role}`);
@@ -143,6 +193,7 @@ try {
       await rejects(()=>sql('select * from booking_card_attempts'),/permission denied/,'attempts private');
       await rejects(()=>begin(c),/permission denied/,'customer cannot call service checkout SQL');
       await rejects(()=>finalize(a),/permission denied/,'customer cannot forge authorization SQL');
+      await rejects(()=>cancelCustomer(a),/permission denied/,'client cannot invoke service cancellation even with a known owner UUID');
     }
     await db.exec('reset role');
   }

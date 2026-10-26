@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.112.0';
 import type { CardAttempt, CardStore } from './booking-card-flow.ts';
+import { readCardAttemptResult } from './booking-card-response.ts';
 
 export function bookingAdmin(): SupabaseClient {
   return createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, {
@@ -11,8 +12,8 @@ export class SupabaseCardStore implements CardStore {
   async call(name: string, args: Record<string, unknown>): Promise<CardAttempt> {
     const { data, error } = await this.db.rpc(name, args);
     // Never expose DB messages, customer information or parameters to a caller.
-    if (error || !data || typeof data.id !== 'string') throw new Error('CARD_DATABASE_RETRY_REQUIRED');
-    return data as CardAttempt;
+    if (error) throw new Error('CARD_DATABASE_RETRY_REQUIRED');
+    return readCardAttemptResult(data);
   }
   async get(id: string): Promise<CardAttempt> {
     const { data, error } = await this.db.from('booking_card_attempts').select('*').eq('id', id).single();

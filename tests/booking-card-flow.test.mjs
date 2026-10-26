@@ -114,6 +114,40 @@ test('gateway retries ambiguous creation with identical body/key, no client conf
   const body=new URLSearchParams(calls[0].options.body);expect(body.get('capture_method')).toBe('manual');expect(body.has('confirm')).toBe(false);expect(body.has('setup_future_usage')).toBe(false);expect(body.has('payment_method')).toBe(false);
   expect(calls[0].options.redirect).toBe('error');expect(calls[0].options.headers['Stripe-Version']).toBe('2024-06-20');
 });
+test('cancel while creation response is missing recovers and cancels the same intent, never books',async()=>{
+  const f=fixture();await f.store.release(f.a.id,'CUSTOMER_CANCELLED');
+  expect(f.a.intent_id).toBeNull();await f.run();
+  expect(f.a.state).toBe('released');expect(f.creates).toBe(1);expect(f.cancels).toBe(1);
+  expect(f.inserts).toBe(0);expect(f.stock).toBe(2);expect(f.captures).toBe(0);
+  await f.run();expect(f.creates).toBe(1);expect(f.cancels).toBe(1);
+});
+test('old ambiguous creation remains for review even when cancellation was requested',async()=>{
+  const f=fixture();await f.store.release(f.a.id,'CUSTOMER_CANCELLED');
+  await expect(f.run(now+24*3600)).rejects.toThrow('UNRESOLVED_OLD_CREATION');
+  expect(f.a.state).toBe('review');expect(f.creates).toBe(0);expect(f.stock).toBe(2);
+});
+test('ambiguous cancellation keeps hold and stock until an independent GET verifies release',async()=>{
+  const f=await booked();await f.store.release(f.a.id,'CUSTOMER_CANCELLED');
+  const cancel=f.gateway.cancel;f.gateway.cancel=async a=>{await cancel(a);throw Error('STRIPE_WRITE_UNCONFIRMED');};
+  await expect(f.run()).rejects.toThrow('WRITE_UNCONFIRMED');
+  expect(f.a.state).toBe('release_pending');expect(f.stock).toBe(1);expect(f.value).toBe(80);
+  await f.run();expect(f.a.state).toBe('released');expect(f.stock).toBe(2);expect(f.cancels).toBe(1);expect(f.captures).toBe(0);
+});
+test('lost release DB response cannot restore stock or cancel twice',async()=>{
+  const f=await booked();await f.store.release(f.a.id,'CUSTOMER_CANCELLED');f.writeLost='record';
+  await expect(f.run()).rejects.toThrow('DATABASE_RETRY');await f.run();
+  expect(f.a.state).toBe('released');expect(f.stock).toBe(2);expect(f.value).toBe(0);expect(f.cancels).toBe(1);expect(f.captures).toBe(0);
+});
+test('failed Stripe cancellation does not claim release or change reserved stock/value',async()=>{
+  const f=await booked();await f.store.release(f.a.id,'CUSTOMER_CANCELLED');
+  f.gateway.cancel=async()=>{throw Error('STRIPE_WRITE_UNCONFIRMED');};
+  await expect(f.run()).rejects.toThrow('WRITE_UNCONFIRMED');
+  expect(f.a.state).toBe('release_pending');expect(f.stock).toBe(1);expect(f.value).toBe(80);expect(f.captures).toBe(0);
+});
+test('a bank-cancelled authorization after drop deadline is recoverable, not a late customer request',async()=>{
+  const f=fixture();await f.run();f.pi.status='canceled';await f.run(now+300);
+  expect(f.a.release_reason).toBe('AUTHORIZATION_INVALID');expect(f.a.state).toBe('released');expect(f.inserts).toBe(0);
+});
 test('gateway never accepts a live/publishable/missing key',()=>{
   for(const key of [undefined,'sk_live_fake','pk_test_fake',' sk_test_fake'])expect(()=>new StripeTestCardGateway(key)).toThrow('TEST_KEY_REQUIRED');
 });

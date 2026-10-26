@@ -1,6 +1,9 @@
 
 import { colors, layout } from '@/styles/commonStyles';
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
+import { CardBookingPayment } from '@/components/CardBookingPayment';
+import { cancelCardBooking, loadCardBookingStates, CardBookingError } from '@/utils/bookingCardApi';
+import { dueAtPickup, isCardPayment, cardCancellationError, type CardBookingState } from '@/utils/bookingCardPayment';
 import { IconSymbol } from '@/components/IconSymbol';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/app/integrations/supabase/client';
@@ -17,10 +20,11 @@ import {
   Alert,
   RefreshControl,
   ActivityIndicator,
+  AppState,
 } from 'react-native';
 import { useUnreadNotifications } from '@/hooks/useUnreadNotifications';
 
-interface Booking {
+export interface Booking {
   id: string;
   product_id: string;
   drop_id: string;
@@ -31,6 +35,7 @@ interface Booking {
   final_price: number;
   loyalty_discount: number;
   payment_status: string;
+  payment_method: 'cod' | 'card';
   status: 'active' | 'confirmed' | 'cancelled' | 'completed';
   created_at: string;
   products: { name: string; image_url: string } | null;
@@ -128,7 +133,7 @@ function buildDropGroups(bookings: Booking[]): DropGroup[] {
             b.order_items[0]?.pickup_status !== 'picked_up' &&
             b.order_items[0]?.returned_to_sender !== true
         )
-        .reduce((sum, b) => sum + (typeof b.final_price === 'number' ? b.final_price : 0), 0);
+        .reduce((sum, b) => sum + dueAtPickup(b), 0);
     }
     dropGroup.allPickedUp = dropGroup.pickupGroups.every((pg) => pg.allPickedUp);
   }
@@ -180,15 +185,30 @@ function getDropBadgeColor(status: string): string {
   }
 }
 
-export default function MyBookingsScreen() {
+export type BookingCardPreview = { bookings: Booking[]; states: Record<string, CardBookingState> };
+export default function MyBookingsScreen({ preview }: { preview?: BookingCardPreview } = {}) {
+  // Only the explicitly marked development preview supplies synthetic records.
+  // Store builds cannot inject a fixture or bypass the real payment API.
+  const safePreview = __DEV__ ? preview : undefined;
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [historyExpanded, setHistoryExpanded] = useState(false);
+  const [cardStates, setCardStates] = useState<Record<string, CardBookingState>>({});
+  const [cardStatusUnavailable, setCardStatusUnavailable] = useState(false);
+  const [cancellingIds, setCancellingIds] = useState<Set<string>>(new Set());
+  const cancellationRequests = useRef(new Set<string>());
   const { user } = useAuth();
   const unreadCount = useUnreadNotifications();
 
   const loadBookings = useCallback(async () => {
+    if (safePreview) {
+      setBookings(safePreview.bookings);
+      setCardStates(safePreview.states);
+      setLoading(false);
+      setRefreshing(false);
+      return;
+    }
     if (!user) {
       console.log('[MyBookings] No user, skipping bookings load');
       setLoading(false);
@@ -221,7 +241,23 @@ export default function MyBookingsScreen() {
       }
 
       console.log('[MyBookings] Bookings loaded:', data?.length);
-      setBookings((data as Booking[]) || []);
+      const nextBookings = (data as Booking[]) || [];
+      setBookings(nextBookings);
+      const cardIds = nextBookings.filter(isCardPayment).map(b => b.id);
+      if (cardIds.length) {
+        try {
+          const states = await loadCardBookingStates(cardIds);
+          setCardStates(states);
+          setCardStatusUnavailable(cardIds.some(id => !states[id]));
+        } catch {
+          // Keep the last known release request visible, but never infer that
+          // Stripe released funds merely because the status service is offline.
+          setCardStatusUnavailable(true);
+        }
+      } else {
+        setCardStates({});
+        setCardStatusUnavailable(false);
+      }
     } catch (err) {
       console.error('[MyBookings] Error in loadBookings:', err);
       Alert.alert('Errore', 'Si è verificato un errore');
@@ -229,7 +265,7 @@ export default function MyBookingsScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [user]);
+  }, [user, safePreview]);
 
   useEffect(() => {
     loadBookings();
@@ -241,43 +277,92 @@ export default function MyBookingsScreen() {
     loadBookings();
   };
 
+  const hasPendingCardRelease = Object.values(cardStates).some(s => s.release_pending);
+  useEffect(() => {
+    if (!hasPendingCardRelease || safePreview) return;
+    let running = false;
+    let disposed = false;
+    const refreshStates = async () => {
+      if (running || AppState.currentState !== 'active') return;
+      running = true;
+      try {
+        const states = await loadCardBookingStates(Object.keys(cardStates));
+        if (disposed) return;
+        setCardStates(states);
+        setCardStatusUnavailable(false);
+        if (Object.values(states).some(s => s.state === 'released')) await loadBookings();
+      } catch {
+        if (!disposed) setCardStatusUnavailable(true);
+      } finally { running = false; }
+    };
+    const timer = setInterval(() => { void refreshStates(); }, 15000);
+    const subscription = AppState.addEventListener('change', state => {
+      if (state === 'active') void refreshStates();
+    });
+    return () => { disposed = true; clearInterval(timer); subscription.remove(); };
+  }, [hasPendingCardRelease, loadBookings, cardStates, safePreview]);
+
   const handleCancelBooking = (bookingId: string, productName: string) => {
-    console.log('[MyBookings] Cancel booking pressed:', bookingId, productName);
+    const booking = bookings.find(b => b.id === bookingId);
+    if (!booking || cancellationRequests.current.has(bookingId)) return;
+    const card = isCardPayment(booking);
     Alert.alert(
       'Annulla Prenotazione',
-      `Sei sicuro di voler annullare la prenotazione per "${productName}"?`,
+      `Sei sicuro di voler annullare la prenotazione per "${productName}"?` +
+        (card ? '\n\nPrima della chiusura del drop richiederemo lo sblocco dell’importo autorizzato, senza addebitarlo. La disponibilità dipende dai tempi della banca.' : ''),
       [
         { text: 'No', style: 'cancel' },
         {
           text: 'Sì, annulla',
           style: 'destructive',
           onPress: async () => {
+            if (cancellationRequests.current.has(bookingId)) return;
+            cancellationRequests.current.add(bookingId);
+            setCancellingIds(new Set(cancellationRequests.current));
             try {
-              console.log('[MyBookings] Confirming cancel for booking:', bookingId);
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-
-              const { error } = await supabase
-                .from('bookings')
-                .update({
-                  status: 'cancelled',
-                  payment_status: 'refunded',
-                  updated_at: new Date().toISOString(),
-                })
-                .eq('id', bookingId);
-
+              void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              if (safePreview) {
+                const current = cardStates[bookingId];
+                if (card && current) setCardStates(previous => ({ ...previous, [bookingId]: {
+                  ...current, state: 'release_pending', release_pending: true, customer_cancelled: true, can_cancel: false,
+                } }));
+                Alert.alert('Solo anteprima grafica', 'Nessuna richiesta è stata inviata e nessun fondo è stato movimentato. Viene mostrato lo stato «rilascio in corso» per controllare la schermata.');
+                return;
+              }
+              if (card) {
+                // Never direct-update a card booking or label a hold a refund.
+                const state = await cancelCardBooking(bookingId);
+                setCardStates(previous => ({ ...previous, [bookingId]: state }));
+                if (state.state === 'released' && state.customer_cancelled && !state.paid) {
+                  void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                  Alert.alert('Prenotazione annullata', 'Stripe ha confermato lo sblocco dell’importo, senza addebito. La disponibilità effettiva dipende dai tempi della banca.');
+                } else if (state.release_pending && state.customer_cancelled) {
+                  Alert.alert('Annullamento richiesto', 'Lo sblocco dell’importo è in corso. Non è ancora confermato: la richiesta è salvata e verrà riprovata automaticamente. Non devi inviarla di nuovo.');
+                } else {
+                  Alert.alert('Pagamento da verificare', 'La richiesta necessita di una verifica. Non effettuare un secondo pagamento e contatta l’assistenza.');
+                }
+                await loadBookings();
+                return;
+              }
+              // Preserve existing published-client COD cancellation behavior.
+              const { error } = await supabase.from('bookings').update({
+                status: 'cancelled', payment_status: 'refunded', updated_at: new Date().toISOString(),
+              }).eq('id', bookingId);
               if (error) {
-                console.error('[MyBookings] Error cancelling booking:', error);
                 Alert.alert('Errore', 'Impossibile annullare la prenotazione');
                 return;
               }
-
-              console.log('[MyBookings] Booking cancelled successfully:', bookingId);
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
               Alert.alert('Successo', 'Prenotazione annullata con successo.');
-              loadBookings();
+              await loadBookings();
             } catch (err) {
-              console.error('[MyBookings] Error in handleCancelBooking:', err);
-              Alert.alert('Errore', 'Si è verificato un errore');
+              Alert.alert(card ? 'Annullamento da verificare' : 'Errore', card
+                ? cardCancellationError(err instanceof CardBookingError ? err.code : undefined)
+                : 'Si è verificato un errore');
+              if (card) await loadBookings();
+            } finally {
+              cancellationRequests.current.delete(bookingId);
+              setCancellingIds(new Set(cancellationRequests.current));
             }
           },
         },
@@ -416,7 +501,7 @@ export default function MyBookingsScreen() {
         b.order_items[0]?.returned_to_sender !== true
     )
     .reduce(
-      (sum, b) => sum + (typeof b.final_price === 'number' ? b.final_price : 0),
+      (sum, b) => sum + dueAtPickup(b),
       0
     );
 
@@ -431,7 +516,11 @@ export default function MyBookingsScreen() {
     const isDropCompleted = dropStatus === 'completed';
     const originalPrice = typeof booking.original_price === 'number' ? booking.original_price : 0;
     const finalPrice = typeof booking.final_price === 'number' ? booking.final_price : 0;
-    const authorizedAmount = typeof booking.authorized_amount === 'number' ? booking.authorized_amount : 0;
+    const card = isCardPayment(booking);
+    const cardState = cardStates[booking.id];
+    const authorizedAmount = card
+      ? (cardState?.authorized_cents != null ? cardState.authorized_cents / 100 : finalPrice)
+      : (typeof booking.authorized_amount === 'number' ? booking.authorized_amount : 0);
     const dropFinalDiscount = drops?.final_discount_percentage;
     const loyaltyDiscount = Number(booking.loyalty_discount ?? 0);
     const rawDiscount = typeof booking.discount_percentage === 'number' ? booking.discount_percentage : 0;
@@ -440,7 +529,11 @@ export default function MyBookingsScreen() {
       : Math.max(0, rawDiscount - loyaltyDiscount);
     const currentDiscount = drops?.current_discount ?? 0;
     const maxDiscount = drops?.supplier_lists?.max_discount ?? 100;
-    const canCancel = booking.status === 'active' && dropStatus === 'active';
+    const canCancel = booking.status === 'active' && dropStatus === 'active' && (!card || (
+      new Date(drops?.end_time ?? '').getTime() > Date.now() &&
+      booking.payment_status === 'authorized' && (!cardState || cardState.can_cancel)
+    ));
+    const cancelling = cancellingIds.has(booking.id);
     const isRefunded = booking.payment_status === 'refunded';
 
     const discountBadgeText = `-${discountPercentage.toFixed(1)}%`;
@@ -470,11 +563,13 @@ export default function MyBookingsScreen() {
                 {getStatusText(booking.status)}
               </Text>
             </View>
-            <View style={[styles.statusBadge, { backgroundColor: getPaymentStatusColor(booking.payment_status) + '20' }]}>
-              <Text style={[styles.statusText, { color: getPaymentStatusColor(booking.payment_status) }]}>
-                {getPaymentStatusText(booking.payment_status)}
-              </Text>
-            </View>
+            {!card && (
+              <View style={[styles.statusBadge, { backgroundColor: getPaymentStatusColor(booking.payment_status) + '20' }]}>
+                <Text style={[styles.statusText, { color: getPaymentStatusColor(booking.payment_status) }]}>
+                  {getPaymentStatusText(booking.payment_status)}
+                </Text>
+              </View>
+            )}
           </View>
         </View>
 
@@ -528,10 +623,15 @@ export default function MyBookingsScreen() {
           </View>
         )}
 
+        {card && <CardBookingPayment payment={booking} state={cardState} />}
+        {card && cardStatusUnavailable && (
+          <Text style={styles.discountProgressLabel}>Non è stato possibile aggiornare lo stato della carta. Trascina verso il basso per riprovare; non effettuare altri pagamenti.</Text>
+        )}
+
         {/* Authorized amount (non-completed drops) */}
         {!isDropCompleted && (
           <View style={styles.authorizedRow}>
-            <Text style={styles.authorizedLabel}>Importo prenotato:</Text>
+            <Text style={styles.authorizedLabel}>{card ? 'Importo autorizzato:' : 'Importo prenotato:'}</Text>
             <Text style={[styles.authorizedValue, isRefunded && styles.refundedAmount]}>
               {authorizedAmountText}
               {isRefunded ? ' (Annullato)' : ''}
@@ -558,7 +658,10 @@ export default function MyBookingsScreen() {
         {/* Cancel button */}
         {canCancel && (
           <Pressable
-            style={({ pressed }) => [styles.cancelButton, pressed && styles.cancelButtonPressed]}
+            disabled={cancelling}
+            accessibilityRole="button"
+            accessibilityState={{ disabled: cancelling, busy: cancelling }}
+            style={({ pressed }) => [styles.cancelButton, (pressed || cancelling) && styles.cancelButtonPressed]}
             onPress={() => {
               console.log('[MyBookings] Cancel button pressed for booking:', booking.id);
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -571,7 +674,7 @@ export default function MyBookingsScreen() {
               size={16}
               color={colors.error}
             />
-            <Text style={styles.cancelButtonText}>Annulla Prenotazione</Text>
+            <Text style={styles.cancelButtonText}>{cancelling ? 'Richiesta in corso…' : 'Annulla Prenotazione'}</Text>
           </Pressable>
         )}
       </View>
@@ -599,7 +702,7 @@ export default function MyBookingsScreen() {
 
         {!pg.allPickedUp && (
           <View style={styles.subtotalRow}>
-            <Text style={styles.subtotalLabel}>Subtotale:</Text>
+            <Text style={styles.subtotalLabel}>{pg.bookings.some(isCardPayment) ? 'Da pagare al ritiro:' : 'Subtotale:'}</Text>
             <Text style={styles.subtotalValue}>{subtotalText}</Text>
           </View>
         )}
@@ -701,6 +804,11 @@ export default function MyBookingsScreen() {
             />
           }
         >
+          {safePreview && (
+            <Text style={{ color: '#92400E', fontSize: 14, lineHeight: 20, paddingBottom: 16 }}>
+              Anteprima grafica · Dati sintetici · Nessuna prenotazione o pagamento reale. Trascina per ripristinare l’anteprima.
+            </Text>
+          )}
           {/* Total to pay banner */}
           {totalToPay > 0 && (
             <View style={styles.totalBanner}>
