@@ -446,7 +446,7 @@ export default function MyBookingsScreen({ preview }: { preview?: BookingCardPre
     );
   }
 
-  if (!user) {
+  if (!user && !safePreview) {
     return (
       <SafeAreaView style={styles.container}>
         <Stack.Screen options={{
