@@ -11,3 +11,11 @@ verify_jwt = false
 # Different one-use management jobs authorize only fixed synthetic sandbox tests.
 [functions.test-booking-card-lifecycle]
 verify_jwt = false
+
+# Auth.getUser verifies the caller; only explicitly enrolled test pairs can start.
+[functions.booking-card-test]
+verify_jwt = false
+
+# Single-use scheduler capability. No reusable token or customer payment access.
+[functions.reconcile-booking-cards-test]
+verify_jwt = false

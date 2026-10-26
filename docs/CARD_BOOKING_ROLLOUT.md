@@ -256,3 +256,101 @@ must never activate the 1/5 policy or authorize a real customer's booking.
 
 Source for authorization limits and partial capture behavior:
 https://docs.stripe.com/payments/place-a-hold-on-a-payment-method
+
+## Phase 2c — dormant test-cohort booking/settlement integration (2026-10-26)
+
+**Not a public checkout rollout, not a verified native payment flow.** The new
+server path is deployed but `mode=disabled`, collection=false, scopes=0,
+attempts=0 and card bookings=0. No synthetic bookings were inserted in the live
+database. Tests below use a disposable PostgreSQL database and mocked Stripe.
+The earlier 24 October sandbox API results are not claimed as tests of this path.
+
+### Added server path
+
+- `20261026100000_test_card_booking_integration.sql`: private explicit test pairs,
+  immutable server-priced attempts, unique intent/booking identities, service-only
+  transitions and guarded card booking writes. Neither clients nor service role
+  can write attempts directly; only management can enrol test pairs.
+- The booking method CHECK now permits card structurally, but a BEFORE trigger
+  rejects card inserts without a matching server-authorized test attempt. This
+  includes calls through the legacy public SECURITY DEFINER booking RPC. Direct
+  edits/deletions/downgrades of linked card bookings are rejected. Existing COD
+  bookings, signatures and trigger logic are not rewritten.
+- Starting checkout inserts ONLY an attempt, not a booking. Price, user, pickup,
+  variant, drop end and discount are frozen from server data. No loyalty reduction
+  on the initial authorization. No saved-card consent or storage is implemented.
+- `booking-card-test` verifies the JWT with Auth.getUser, checks ownership and the
+  explicit expiring test cohort, and exposes start/confirm/status/cancel actions.
+  Only start can return the owner's test client secret, with no-store headers.
+  No request chooses an amount, Stripe origin, payment method or live key.
+- After an independent Stripe GET verifies exact metadata, test mode, EUR,
+  amount, manual uncaptured authorization and actual capture_before > end+6h,
+  finalization locks the drop and attempt and inserts one booking. Existing stock
+  and discount triggers run in the SAME transaction. Repeated calls return the
+  same booking. Failed insertion rolls stock/discount back and persists release.
+- `prepare_test_card_settlement` waits for a completed drop with its published
+  final_discount_percentage. It freezes group+loyalty and final cents once.
+  Higher-than-authorized prices are never captured; zero price releases the hold.
+  New-authorizations OFF / expired cohort does not stop existing reconciliation.
+- `reconcile-booking-cards-test` retrieves Stripe first on every retry, uses stable
+  idempotency keys, independently verifies final capture/cancellation, then records
+  payment and booking state atomically. Lost capture or DB responses converge
+  without another stock deduction/capture. No early capture to beat expiry.
+- `20261026110000_test_card_reconciliation_jobs.sql` schedules an independent
+  minute-by-minute recovery worker using 5-minute, hashed, single-use management
+  capabilities. An empty attempt table causes NO network call. It does not read
+  the existing reusable service-key database setting. No third-party key is
+  returned to the sandbox. Ambiguous creations beyond 23h become review-required,
+  rather than reusing possibly expired Stripe idempotency keys.
+- No new booking webhook is installed: polling is the durable recovery/closing
+  path for this dormant test stage. The dedicated signed webhook remains an
+  activation checklist item; client redirects/events are never authorization proof.
+
+### Compatibility boundary / remaining gates
+
+The deployed legacy `capture-drop-payments` version 38 has NOT been downloaded
+and reconciled with local source; these tools do not expose its deployed source.
+It was NOT overwritten. The new path observes its published closing discount and
+settles only linked test attempts. It does not yet create card order_items or
+send customer/supplier notifications through the legacy COD order pipeline.
+
+Before any test-cohort native walkthrough, reconcile the exact deployed closing
+worker and prepare synthetic, non-public catalogue/accounts. Before any public
+activation, finish the native Stripe card/3DS UI, visible paid/no-cash-due pickup
+status, order pipeline, refund/return handling, operator failure/review handling,
+signed webhook configuration and coverage of every legacy COD bypass. Confirm
+store-client compatibility and a deliberate activation cohort/date. Existing
+confirmed orders must never be converted to card. The first/five genuine missed
+pickup policy stays disabled; ordinary returns remain excluded.
+
+### Checks performed in this turn
+
+- 99 passing Bun tests / 683 assertions across new payment flow, earlier pure
+  guards, sandbox and readiness helpers. Stateful mocked payment tests cover
+  authorization, repeated callbacks, lost finalization/capture/record responses,
+  sold-out cleanup, abandoned/expired checkout, short authorization windows,
+  no early capture, zero total, foreign/live intent rejection, extra refunds,
+  the 23h creation guard and stable request bodies/idempotency keys.
+- 52 isolated PostgreSQL assertions use the actual new integration migration and
+  existing stock/discount triggers. Verified attempt opening has zero stock/value
+  effect, finalization/retries affect once, sold-out failure is rolled back,
+  legacy RPC cannot fabricate card proof, clients cannot mark paid/downgrade,
+  release restores once, kill-switch reconciliation, frozen closing amount,
+  paid result, zero price, higher-than-authorized refusal and private permissions.
+  These are not a load/concurrency benchmark against live PostgreSQL.
+- 21 isolated scheduler/capability assertions, 18 existing no-show/return
+  assertions and 8 existing inventory/discount compatibility assertions pass.
+- Strict Deno typechecking passes for both new endpoints and their shared code.
+  Mobile tsconfig now excludes the Deno-only function directory; each runtime is
+  checked with its own settings, not suppressed with ts-ignore. `bun run
+  typecheck` still fails on existing app/generated Supabase typing (first errors
+  in chat). No claim of an overall clean app typecheck.
+- Live empty-queue management job ef99a790-4331-486d-a182-3d99eb6a5812,
+  pg_net request 1656: HTTP 200, NO_CARD_WORK, checked=0. This did NOT contact
+  Stripe or touch bookings. Unauthenticated checkout returns SIGN_IN_REQUIRED;
+  unregistered worker capability returns FORBIDDEN.
+- Final native startup results are reported in chat. No native card authorization,
+  saved card, 3DS, public order creation or pickup collection was tested.
+
+The integration is intentionally partial and dormant. Do not summarize it as
+public payments working or completed end-to-end until the remaining gates pass.
