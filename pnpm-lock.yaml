@@ -7,6 +7,11 @@ settings:
 overrides:
   '@expo/prebuild-config': latest
 
+patchedDependencies:
+  '@stripe/stripe-react-native@0.50.3':
+    hash: epr6okgmy5xrz7y7lovmxlylae
+    path: patches/@stripe__stripe-react-native@0.50.3.patch
+
 importers:
 
   .:
@@ -52,7 +57,7 @@ importers:
         version: 7.18.10(@react-navigation/native@7.3.18(react-native@0.81.5(@babel/core@7.29.7)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0))(react-native-safe-area-context@5.6.0(react-native@0.81.5(@babel/core@7.29.7)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0))(react-native-screens@4.16.0(react-native@0.81.5(@babel/core@7.29.7)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0))(react-native@0.81.5(@babel/core@7.29.7)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)
       '@stripe/stripe-react-native':
         specifier: 0.50.3
-        version: 0.50.3(expo@54.0.37)(react-native@0.81.5(@babel/core@7.29.7)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)
+        version: 0.50.3(patch_hash=epr6okgmy5xrz7y7lovmxlylae)(expo@54.0.37)(react-native@0.81.5(@babel/core@7.29.7)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)
       '@supabase/supabase-js':
         specifier: ^2.112.0
         version: 2.117.3
@@ -9448,7 +9453,7 @@ snapshots:
     dependencies:
       '@sinonjs/commons': 3.0.1
 
-  '@stripe/stripe-react-native@0.50.3(expo@54.0.37)(react-native@0.81.5(@babel/core@7.29.7)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)':
+  '@stripe/stripe-react-native@0.50.3(patch_hash=epr6okgmy5xrz7y7lovmxlylae)(expo@54.0.37)(react-native@0.81.5(@babel/core@7.29.7)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)':
     dependencies:
       react: 19.1.0
       react-native: 0.81.5(@babel/core@7.29.7)(@types/react@19.1.17)(react@19.1.0)
