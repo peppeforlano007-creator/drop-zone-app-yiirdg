@@ -22,3 +22,8 @@ verify_jwt = false
 # Operator-only refund of captured TEST card payments; Auth.getUser + SQL admin check.
 [functions.refund-booking-card-test]
 verify_jwt = false
+
+# Stripe calls this without a Supabase JWT; the signed body is the authorization.
+# Observe only: changes no data.
+[functions.stripe-booking-card-webhook]
+verify_jwt = false
