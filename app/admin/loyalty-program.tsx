@@ -29,6 +29,18 @@ interface BlockedUser {
   blocked_at: string;
 }
 
+interface NoShowCustomer {
+  user_id: string;
+  full_name: string | null;
+  email: string | null;
+  phone: string | null;
+  no_show_count: number;
+  last_no_show_at: string | null;
+  account_blocked: boolean;
+  blocked_at: string | null;
+  blocked_reason: string | null;
+}
+
 const LEVELS = [
   { name: 'Nuovo', range: '0–99 punti', discount: '0%', color: '#9E9E9E' },
   { name: 'Fedele', range: '100–299 punti', discount: '−3%', color: '#2196F3' },
@@ -43,11 +55,22 @@ export default function LoyaltyProgramManagementScreen() {
   const [blockedUsers, setBlockedUsers] = useState<BlockedUser[]>([]);
   const [unblocking, setUnblocking] = useState<string | null>(null);
   const [resettingPoints, setResettingPoints] = useState(false);
+  const [noShowUsers, setNoShowUsers] = useState<NoShowCustomer[]>([]);
+  const [noShowError, setNoShowError] = useState(false);
 
   const loadData = useCallback(async () => {
     console.log('AdminLoyalty: Loading blocked users');
     try {
       setLoading(true);
+
+      const { data: noShowData, error: noShowLoadError } = await supabase.rpc('admin_list_no_show_customers');
+      if (noShowLoadError) {
+        console.error('AdminLoyalty: Error loading no-show customers:', noShowLoadError);
+        setNoShowError(true);
+      } else {
+        setNoShowError(false);
+        setNoShowUsers((noShowData as NoShowCustomer[]) || []);
+      }
 
       const { data: usersData, error: usersError } = await supabase
         .from('profiles')
@@ -113,6 +136,42 @@ export default function LoyaltyProgramManagementScreen() {
               loadData();
             } catch (error: any) {
               console.error('AdminLoyalty: Error unblocking user:', error);
+              Alert.alert('Errore', 'Si è verificato un errore');
+            } finally {
+              setUnblocking(null);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleUnblockNoShow = (customer: NoShowCustomer) => {
+    const name = customer.full_name || 'Utente';
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    Alert.alert(
+      'Sblocca cliente',
+      `Vuoi sbloccare ${name}? I suoi mancati ritiri (${customer.no_show_count}) verranno azzerati e ripartirà da zero.`,
+      [
+        { text: 'Annulla', style: 'cancel' },
+        {
+          text: 'Sblocca',
+          onPress: async () => {
+            try {
+              setUnblocking(customer.user_id);
+              const { error } = await supabase.rpc('admin_unblock_no_show_customer', {
+                p_user_id: customer.user_id,
+              });
+              if (error) {
+                console.error('AdminLoyalty: Error unblocking no-show customer:', error);
+                Alert.alert('Errore', 'Impossibile sbloccare il cliente');
+                return;
+              }
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              Alert.alert('Fatto', 'Cliente sbloccato');
+              loadData();
+            } catch (error) {
+              console.error('AdminLoyalty: Error unblocking no-show customer:', error);
               Alert.alert('Errore', 'Si è verificato un errore');
             } finally {
               setUnblocking(null);
@@ -274,6 +333,88 @@ export default function LoyaltyProgramManagementScreen() {
               </React.Fragment>
             )}
           </Pressable>
+
+          {/* No-show customers: at least one missed pickup, plus blocked */}
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Clienti con mancati ritiri</Text>
+            <View style={styles.countBadge}>
+              <Text style={styles.countBadgeText}>{noShowUsers.length}</Text>
+            </View>
+          </View>
+          <View style={styles.infoCard}>
+            <IconSymbol
+              ios_icon_name="info.circle.fill"
+              android_material_icon_name="info"
+              size={20}
+              color={colors.info}
+            />
+            <Text style={styles.infoText}>
+              Un mancato ritiro è un ordine intero non ritirato: il cliente non si è presentato. Dopo 2 mancati ritiri il terzo ordine richiederà la carta; a 5 l'account viene bloccato. Contano solo i casi registrati da ora.
+            </Text>
+          </View>
+          {noShowError ? (
+            <Text style={styles.emptyStateSubtext}>Elenco non disponibile al momento. Riprova più tardi.</Text>
+          ) : noShowUsers.length === 0 ? (
+            <Text style={styles.emptyStateSubtext}>Nessun cliente con mancati ritiri registrati.</Text>
+          ) : (
+            noShowUsers.map((c) => (
+              <View key={c.user_id} style={styles.userCard}>
+                <View style={styles.userHeader}>
+                  <View style={styles.userInfo}>
+                    <Text style={styles.userName}>{c.full_name || 'Utente'}</Text>
+                    {c.email ? <Text style={styles.userEmail}>{c.email}</Text> : null}
+                    {c.phone ? <Text style={styles.userPhone}>{c.phone}</Text> : null}
+                  </View>
+                </View>
+                <View style={styles.statsRow}>
+                  <View style={styles.statItem}>
+                    <Text style={styles.statLabel}>Mancati ritiri</Text>
+                    <Text style={styles.statValue}>{c.no_show_count}</Text>
+                  </View>
+                  <View style={styles.statItem}>
+                    <Text style={styles.statLabel}>Ultimo</Text>
+                    <Text style={styles.statValue}>
+                      {c.last_no_show_at ? new Date(c.last_no_show_at).toLocaleDateString('it-IT') : '-'}
+                    </Text>
+                  </View>
+                </View>
+                <View style={styles.blockInfo}>
+                  <Text style={styles.blockReason}>
+                    {c.account_blocked
+                      ? 'Account bloccato'
+                      : c.no_show_count >= 2
+                        ? 'Prossima prenotazione con carta'
+                        : 'Nessuna limitazione'}
+                  </Text>
+                </View>
+                {c.account_blocked ? (
+                  <Pressable
+                    style={({ pressed }) => [
+                      styles.unblockButton,
+                      pressed && styles.unblockButtonPressed,
+                      unblocking === c.user_id && styles.unblockButtonDisabled,
+                    ]}
+                    onPress={() => handleUnblockNoShow(c)}
+                    disabled={unblocking === c.user_id}
+                  >
+                    {unblocking === c.user_id ? (
+                      <ActivityIndicator size="small" color={colors.background} />
+                    ) : (
+                      <React.Fragment>
+                        <IconSymbol
+                          ios_icon_name="lock.open.fill"
+                          android_material_icon_name="lock-open"
+                          size={20}
+                          color={colors.background}
+                        />
+                        <Text style={styles.unblockButtonText}>Sblocca cliente</Text>
+                      </React.Fragment>
+                    )}
+                  </Pressable>
+                ) : null}
+              </View>
+            ))
+          )}
 
           {/* Blocked Users Section */}
           <View style={styles.sectionHeader}>

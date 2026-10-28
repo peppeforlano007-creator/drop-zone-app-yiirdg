@@ -9,9 +9,18 @@ customer booking, payment, notification, delivery or return may be used as a tes
 
 ### Product contract
 
-- First genuine missed pickup: require a card for the next eligible booking.
-- Five distinct missed customer orders: preserve the intended booking block;
-  offering a card must not become a way around that block.
+- A missed pickup is the WHOLE order: the customer never showed up, so every
+  item of that customer/order was sent back as "Non ritirato dal cliente" and
+  none was collected. If the customer collects anything, the order completes
+  and any other item is an ordinary return (pickup-point "gestione resi", loyalty
+  points of that item deducted). No points are deducted for a real missed
+  pickup: none were ever awarded.
+- 1st and 2nd missed pickup: nothing happens. After the 2nd, the 3rd order
+  requires a card. At 5 missed pickups the account is blocked automatically
+  (offering a card must not become a way around that block).
+- Applies only to cases observed from the collection start date; no backfill.
+- Admin (Programma fedeltà): list of every customer with at least one missed
+  pickup plus blocked ones, with an unblock action that clears their misses.
 - Ordinary returns after collection NEVER count toward this new policy.
 - Count one customer/order, not its number of items. A supplier order is shared
   among customers, so order_id alone is not a unique customer incident.

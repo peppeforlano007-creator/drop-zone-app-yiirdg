@@ -32,7 +32,7 @@ export function discountedCents(originalCents: number, groupBps: number, loyalty
 export function noShowDecision(count: number, alreadyBlocked: boolean): 'cod' | 'card' | 'blocked' {
   if (!Number.isSafeInteger(count) || count < 0) throw new Error('INVALID_NO_SHOW_COUNT');
   if (alreadyBlocked || count >= 5) return 'blocked';
-  return count >= 1 ? 'card' : 'cod';
+  return count >= 2 ? 'card' : 'cod';
 }
 
 export interface ExpectedTestAuthorization {

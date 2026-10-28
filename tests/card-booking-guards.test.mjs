@@ -18,7 +18,8 @@ function authorized() {
 
 test('only verified no-show count decides card: 0 COD, 1–4 card, 5+ blocked', () => {
   assert.equal(noShowDecision(0, false), 'cod');
-  for (let n = 1; n < 5; n++) assert.equal(noShowDecision(n, false), 'card');
+  assert.equal(noShowDecision(1, false), 'cod');
+  for (let n = 2; n < 5; n++) assert.equal(noShowDecision(n, false), 'card');
   for (const n of [5, 6, 20]) assert.equal(noShowDecision(n, false), 'blocked');
   assert.equal(noShowDecision(0, true), 'blocked');
   for (const n of [-1, 0.1, NaN, Infinity]) assert.throws(() => noShowDecision(n, false));
