@@ -39,9 +39,26 @@ export async function fetchCardEligibility(dropId: string): Promise<{ eligible: 
   const data = await request({ action: 'eligible', drop_id: dropId });
   return data.eligible ? { eligible: true, publishableKey: data.publishable_key } : { eligible: false };
 }
-export async function startCardBooking(args: { attemptId: string; productId: string; dropId: string; variantId?: string | null }) {
-  const data = await request({ action: 'start', attempt_id: args.attemptId, product_id: args.productId, drop_id: args.dropId, variant_id: args.variantId ?? null });
-  return { clientSecret: data.client_secret as string, authorizedCents: data.authorized_cents as number, state: data.state as string };
+export async function startCardBooking(args: { attemptId: string; productId: string; dropId: string; variantId?: string | null; saveCard?: boolean }) {
+  const data = await request({ action: 'start', attempt_id: args.attemptId, product_id: args.productId, drop_id: args.dropId, variant_id: args.variantId ?? null,
+    // Sent only after the customer explicitly accepted the saved-card text.
+    ...(args.saveCard === true ? { save_card: true } : {}) });
+  return {
+    clientSecret: data.client_secret as string, authorizedCents: data.authorized_cents as number, state: data.state as string,
+    customerId: typeof data.customer_id === 'string' ? data.customer_id : undefined,
+    customerSessionClientSecret: typeof data.customer_session_client_secret === 'string' ? data.customer_session_client_secret : undefined,
+  };
+}
+export type SavedCard = { brand: string; last4: string } | null;
+/** Null when nothing is saved or the feature is not available to this user. Never throws. */
+export async function fetchSavedCard(): Promise<SavedCard> {
+  try {
+    const data = await request({ action: 'saved_card' });
+    return data.has_card ? { brand: String(data.brand ?? 'carta'), last4: String(data.last4 ?? '') } : null;
+  } catch { return null; }
+}
+export async function removeSavedCard(): Promise<void> {
+  await request({ action: 'remove_saved_card' });
 }
 export async function confirmCardBooking(attemptId: string): Promise<CardBookingState> {
   return request({ action: 'confirm', attempt_id: attemptId });

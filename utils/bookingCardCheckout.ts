@@ -25,18 +25,20 @@ function uuidV4(): string {
     return (c === 'x' ? r : (r & 3) | 8).toString(16);
   });
 }
-export async function payAndBookWithCard(args: { publishableKey: string; productId: string; dropId: string; variantId?: string | null }): Promise<CardCheckoutOutcome> {
+export async function payAndBookWithCard(args: { publishableKey: string; productId: string; dropId: string; variantId?: string | null; saveCard?: boolean }): Promise<CardCheckoutOutcome> {
   const stripe = stripeNative;
   if (!stripe) return { kind: 'failed', message: 'Pagamento con carta non disponibile su questa versione.' };
   const attemptId = uuidV4();
   try {
-    const started = await startCardBooking({ attemptId, productId: args.productId, dropId: args.dropId, variantId: args.variantId });
+    const started = await startCardBooking({ attemptId, productId: args.productId, dropId: args.dropId, variantId: args.variantId, saveCard: args.saveCard });
     if (initializedKey !== args.publishableKey) {
       await stripe.initStripe({ publishableKey: args.publishableKey, urlScheme: 'rdnstreetstockmarket' });
       initializedKey = args.publishableKey;
     }
     const init = await stripe.initPaymentSheet({
       paymentIntentClientSecret: started.clientSecret,
+      ...(started.customerId && started.customerSessionClientSecret
+        ? { customerId: started.customerId, customerSessionClientSecret: started.customerSessionClientSecret } : {}),
       merchantDisplayName: 'RDN Street Stock Market',
       returnURL: 'rdnstreetstockmarket://stripe-redirect',
       allowsDelayedPaymentMethods: false,

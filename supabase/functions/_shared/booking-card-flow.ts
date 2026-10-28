@@ -75,8 +75,10 @@ export function verifyCardSettlement(pi: CardIntent, a: CardAttempt): 'captured'
  * Creation is unconfirmed: only the customer can confirm via Stripe's card UI.
  */
 export class StripeTestCardGateway implements CardGateway {
-  constructor(private key: string | undefined, private fetcher: typeof fetch = fetch) {
+  constructor(private key: string | undefined, private fetcher: typeof fetch = fetch,
+    private saved: { customer?: string; save?: boolean } = {}) {
     if (!key || !/^sk_test_[A-Za-z0-9]+$/.test(key)) fail('TEST_KEY_REQUIRED');
+    if (saved.customer !== undefined && !/^cus_[A-Za-z0-9]+$/.test(saved.customer)) fail('CUSTOMER_INVALID');
   }
   private async request(path: string, body?: URLSearchParams, idempotency?: string): Promise<any> {
     for (let n = 0; n < 2; n++) {
@@ -109,6 +111,11 @@ export class StripeTestCardGateway implements CardGateway {
       'metadata[user_id]': a.user_id, 'metadata[drop_id]': a.drop_id,
       'metadata[product_id]': a.product_id, 'metadata[variant_id]': a.variant_id ?? 'none',
     });
+    // Saved-card options are decided per attempt before creation (consent first).
+    if (this.saved.customer) {
+      body.set('customer', this.saved.customer);
+      if (this.saved.save) body.set('setup_future_usage', 'off_session');
+    }
     const pi = await this.request('payment_intents', body, `${BOOKING_FLOW}:${a.id}:create`);
     verifyCardIdentity(pi, a);
     return pi;

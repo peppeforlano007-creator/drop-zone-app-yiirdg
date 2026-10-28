@@ -3,17 +3,20 @@ import { validId, type CardAttempt } from './booking-card-flow.ts';
 export const customerCancelCodes = new Set([
   'ATTEMPT_NOT_FOUND', 'SETTLEMENT_ALREADY_STARTED', 'CANCELLATION_UNAVAILABLE', 'CANCELLATION_DEADLINE_PASSED',
 ]);
-export type CardRequest = Record<string, unknown> & { action: 'start' | 'confirm' | 'status' | 'cancel' | 'statuses' | 'eligible' };
+export type CardRequest = Record<string, unknown> & { action: 'start' | 'confirm' | 'status' | 'cancel' | 'statuses' | 'eligible' | 'saved_card' | 'remove_saved_card' };
 export function parseCardRequest(body: Record<string, unknown>): CardRequest {
-  if (!['start','confirm','status','cancel','statuses','eligible'].includes(String(body.action))) throw new Error('REQUEST_INVALID');
+  if (!['start','confirm','status','cancel','statuses','eligible','saved_card','remove_saved_card'].includes(String(body.action))) throw new Error('REQUEST_INVALID');
   if (body.action === 'statuses') {
     if (!Array.isArray(body.booking_ids) || body.booking_ids.length < 1 || body.booking_ids.length > 50 ||
       !body.booking_ids.every(validId) || body.attempt_id !== undefined || body.booking_id !== undefined) throw new Error('REQUEST_INVALID');
+  } else if (body.action === 'saved_card' || body.action === 'remove_saved_card') {
+    if (Object.keys(body).length !== 1) throw new Error('REQUEST_INVALID');
   } else if (body.action === 'eligible') {
     if (!validId(body.drop_id) || body.attempt_id !== undefined || body.booking_id !== undefined || body.product_id !== undefined) throw new Error('REQUEST_INVALID');
   } else if (body.action === 'start') {
     if (!validId(body.attempt_id) || !validId(body.product_id) || !validId(body.drop_id) || body.booking_id !== undefined ||
-      (body.variant_id !== null && body.variant_id !== undefined && !validId(body.variant_id))) throw new Error('REQUEST_INVALID');
+      (body.variant_id !== null && body.variant_id !== undefined && !validId(body.variant_id)) ||
+      (body.save_card !== undefined && typeof body.save_card !== 'boolean')) throw new Error('REQUEST_INVALID');
   } else {
     const byAttempt = validId(body.attempt_id) && body.booking_id === undefined;
     const byBooking = validId(body.booking_id) && body.attempt_id === undefined;

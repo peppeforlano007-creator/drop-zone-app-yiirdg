@@ -21,6 +21,7 @@ import * as Haptics from 'expo-haptics';
 import * as Network from 'expo-network';
 import { computeDropDiscount } from '@/utils/dropHelpers';
 import { getCardCheckoutKey, payAndBookWithCard } from '@/utils/bookingCardCheckout';
+import { fetchSavedCard, removeSavedCard, type SavedCard } from '@/utils/bookingCardApi';
 
 const { width, height } = Dimensions.get('window');
 
@@ -146,6 +147,7 @@ export default function DropDetailsScreen() {
   // Set only for users the server enrolled in the card test, on builds that have
   // Stripe. Everyone else never sees a difference: booking stays as it is.
   const cardCheckoutKey = useRef<string | null>(null);
+  const [savedCard, setSavedCard] = useState<SavedCard>(null);
   const [soldOutItems, setSoldOutItems] = useState<Set<string>>(new Set());
 
   // Derived: drop is viewable but booking is disabled
@@ -321,7 +323,12 @@ export default function DropDetailsScreen() {
     cardCheckoutKey.current = null;
     if (!user?.id || !dropId) return;
     let active = true;
-    getCardCheckoutKey(String(dropId)).then(key => { if (active) cardCheckoutKey.current = key; });
+    setSavedCard(null);
+    getCardCheckoutKey(String(dropId)).then(async key => {
+      if (!active) return;
+      cardCheckoutKey.current = key;
+      if (key) { const card = await fetchSavedCard(); if (active) setSavedCard(card); }
+    });
     return () => { active = false; };
   }, [user?.id, dropId]);
 
@@ -737,9 +744,26 @@ export default function DropDetailsScreen() {
       const currentDiscountedPrice = originalPrice * (1 - bookingDiscount / 100);
 
       if (cardCheckoutKey.current) {
+        // Explicit consent, asked before the payment form. A card is saved only on the first button.
+        let saveCard = false;
+        if (!savedCard) {
+          const choice = await new Promise<'save' | 'once' | 'cancel'>(resolve => Alert.alert(
+            'Salva questa carta',
+            'Salva questa carta per le prossime prenotazioni. Puoi rimuoverla quando vuoi.\n\nLa carta verrà addebitata solo alla chiusura del drop, per l\'importo finale scontato.',
+            [
+              { text: 'Salva carta e paga', onPress: () => resolve('save') },
+              { text: 'Paga senza salvare', onPress: () => resolve('once') },
+              { text: 'Annulla', style: 'cancel', onPress: () => resolve('cancel') },
+            ],
+            { cancelable: true, onDismiss: () => resolve('cancel') },
+          ));
+          if (choice === 'cancel') return;
+          saveCard = choice === 'save';
+        }
         const outcome = await payAndBookWithCard({
-          publishableKey: cardCheckoutKey.current, productId, dropId: String(dropId), variantId: variantId || null,
+          publishableKey: cardCheckoutKey.current, productId, dropId: String(dropId), variantId: variantId || null, saveCard,
         });
+        if (saveCard && outcome.kind === 'booked') fetchSavedCard().then(setSavedCard);
         if (outcome.kind === 'cancelled') return;
         if (outcome.kind === 'failed') {
           Alert.alert('Pagamento non completato', outcome.message);
@@ -880,7 +904,7 @@ export default function DropDetailsScreen() {
     } finally {
       bookingRequests.current.delete(productId);
     }
-  }, [user, drop, products, loadDropDetails, loadUserBookings, dropId, isExpired, isDropCompleted]);
+  }, [user, drop, products, loadDropDetails, loadUserBookings, dropId, isExpired, isDropCompleted, savedCard]);
 
   const onViewableItemsChanged = useCallback(({ viewableItems }: any) => {
     const visible = viewableItems.find((entry: any) => entry.isViewable && entry.index != null);
@@ -1213,6 +1237,29 @@ export default function DropDetailsScreen() {
         </View>
       )}
 
+      {savedCard && (
+        <View style={styles.savedCardRow}>
+          <Text style={styles.savedCardText} numberOfLines={1}>Carta salvata {savedCard.brand.toUpperCase()} •••• {savedCard.last4}</Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Rimuovi carta salvata"
+            style={styles.savedCardRemove}
+            onPress={() => Alert.alert('Rimuovere la carta?', 'La carta salvata verrà eliminata. Potrai salvarne una nuova alla prossima prenotazione.', [
+              { text: 'Annulla', style: 'cancel' },
+              { text: 'Rimuovi', style: 'destructive', onPress: async () => {
+                try { await removeSavedCard(); setSavedCard(null); }
+                catch (e) {
+                  const inUse = (e as { code?: string })?.code === 'CARD_IN_USE';
+                  Alert.alert('Carta non rimossa', inUse ? 'Hai una prenotazione con carta ancora in corso. Potrai rimuovere la carta dopo la chiusura del drop.' : 'Riprova più tardi.');
+                }
+              } },
+            ])}
+          >
+            <Text style={styles.savedCardRemoveText}>Rimuovi</Text>
+          </Pressable>
+        </View>
+      )}
+
       <FlatList
         key={selectedCategory === null ? 'all' : `category:${selectedCategory}`}
         ref={flatListRef}
@@ -1401,6 +1448,10 @@ export default function DropDetailsScreen() {
 }
 
 const styles = StyleSheet.create({
+  savedCardRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginHorizontal: 16, marginTop: 6, paddingLeft: 12, borderRadius: 12, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border },
+  savedCardText: { flex: 1, color: colors.text, fontSize: 13, fontWeight: '600' },
+  savedCardRemove: { minWidth: 44, minHeight: 44, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center' },
+  savedCardRemoveText: { color: '#E11D48', fontSize: 13, fontWeight: '700' },
   feedControls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginHorizontal: 16, marginTop: 6 },
   feedCounter: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 16, backgroundColor: 'rgba(0,0,0,0.65)', flexShrink: 1 },
   feedCounterText: { color: '#FFF', fontSize: 12, fontWeight: '700', fontVariant: ['tabular-nums'] },

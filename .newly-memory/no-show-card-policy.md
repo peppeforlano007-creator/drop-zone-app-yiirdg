@@ -17,3 +17,5 @@ For a card booking, authorize the price at the drop's current discount; once aut
 **Why:** The public app has real customers; the owner cannot safely exercise real booking/payment flows. They approved a cautious staged rollout, not immediate enforcement.
 
 **How to apply:** Keep enforcement off (rollout disabled, collection false) until test-mode bank/checkout/webhook/capture and compatible clients are verified. Public activation is not authorized. Never convert existing COD orders or retroactively charge. Do not infer no-shows from generic return counters. Saved-card step needs the owner's approval of the consent text before it is built.
+
+Saved-card consent (owner approved 2026-10-28): "Salva questa carta per le prossime prenotazioni. Puoi rimuoverla quando vuoi." plus "La carta verrà addebitata solo alla chiusura del drop, per l'importo finale scontato." Built dormant, test cohort only; see docs/CARD_BOOKING_ROLLOUT.md.

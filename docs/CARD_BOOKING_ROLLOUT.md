@@ -492,3 +492,12 @@ Still required before ANY activation (not authorized):
 3. Real end-to-end run with Stripe test cards (3DS, declined, cancel, closing capture, refund) — none of this has been run against real Stripe or a real device.
 4. Operator refund screen (the function exists; no UI yet), signed booking webhook, review tooling, saved-card consent, legacy COD no-show enforcement.
 Known and accepted: a cancellation still pending at Stripe when a drop closes leaves the others' final discount slightly higher.
+
+## Saved card (private test only, dormant)
+
+- Approved consent text (shown before the payment form): "Salva questa carta per le prossime prenotazioni. Puoi rimuoverla quando vuoi." and "La carta verrà addebitata solo alla chiusura del drop, per l'importo finale scontato." Buttons: "Salva carta e paga" / "Paga senza salvare" / "Annulla".
+- A card is saved only on the first button: the app sends `save_card: true`, the server stores the consent (`booking_saved_cards`, version `saved-card-v1`, timestamp) and the per-attempt decision (`booking_card_save_requests`) BEFORE calling Stripe, then creates the PaymentIntent with `customer` and `setup_future_usage=off_session`. Retries rebuild the identical PaymentIntent.
+- Next bookings show the saved card in the PaymentSheet through a Stripe customer session (save/remove disabled in the sheet). If the session cannot be created the normal card form is used.
+- "Rimuovi" (drop screen) detaches every saved card in Stripe and marks the record removed. It is refused (`CARD_IN_USE`) while the customer has a card booking not yet settled.
+- Only users in the private test cohort (rollout mode `test` plus an active test scope) can read or remove a saved card. Both tables are service_role only. Deleting an account removes the local record; the Stripe test customer stays in the sandbox.
+- Not yet exercised end to end with a real Stripe sandbox 3DS booking; the customer-session display of the saved card is unverified on a device.
