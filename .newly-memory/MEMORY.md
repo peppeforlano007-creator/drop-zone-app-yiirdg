@@ -1,4 +1,4 @@
 - [Public production caution](public-production-caution.md): Live users; owner cannot safely test bookings, so protect production and published-client compatibility.
 - [No-show card policy](no-show-card-policy.md): Only missed pickups count; authorized bookings must immediately affect stock and drop discount, with cautious rollout.
 - [Card refund roles](card-refund-roles.md): pickup points always record return/no-show; rest admin-only
-- [Card test status](card-test-status.md): sandbox rimossa, TestFlight 2.8.0 da inviare, test da riprendere
+- [Card test status](card-test-status.md): sandbox ricreata 30/10, TestFlight 2.8.3 da inviare, cleanup in elenco
