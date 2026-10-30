@@ -702,8 +702,17 @@ export default function MyBookingsScreen({ preview }: { preview?: BookingCardPre
 
         {!pg.allPickedUp && (
           <View style={styles.subtotalRow}>
-            <Text style={styles.subtotalLabel}>{pg.bookings.some(isCardPayment) ? 'Da pagare al ritiro:' : 'Subtotale:'}</Text>
-            <Text style={styles.subtotalValue}>{subtotalText}</Text>
+            {pg.bookings.every(isCardPayment) ? (
+              <>
+                <Text style={styles.subtotalLabel}>Pagamento con carta:</Text>
+                <Text style={styles.subtotalValue}>addebito alla chiusura</Text>
+              </>
+            ) : (
+              <>
+                <Text style={styles.subtotalLabel}>{pg.bookings.some(isCardPayment) ? 'Da pagare al ritiro:' : 'Subtotale:'}</Text>
+                <Text style={styles.subtotalValue}>{subtotalText}</Text>
+              </>
+            )}
           </View>
         )}
       </View>

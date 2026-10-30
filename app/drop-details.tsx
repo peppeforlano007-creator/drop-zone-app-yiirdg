@@ -5,7 +5,7 @@ import { feedCategories, feedCounter, feedPosition, filterFeed, loadDropFeedProd
 import { canBookAtPickup } from '@/utils/pickup-rules';
 import { loadActiveProfilePickup } from '@/utils/profile-pickup';
 import { mergeStockProduct, StockRemovalQueue } from '@/utils/stock-updates';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { supabase } from '@/app/integrations/supabase/client';
 import { IconSymbol } from '@/components/IconSymbol';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -111,6 +111,7 @@ async function withProductVariants(items: ProductData[]): Promise<ProductData[]>
 
 export default function DropDetailsScreen() {
   const { dropId, scrollToProductId } = useLocalSearchParams<{ dropId: string; scrollToProductId?: string }>();
+  const insets = useSafeAreaInsets();
   const [drop, setDrop] = useState<DropData | null>(null);
   const [products, setProducts] = useState<ProductData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1246,7 +1247,7 @@ export default function DropDetailsScreen() {
       )}
 
       {savedCard && (
-        <View style={styles.savedCardRow}>
+        <View style={[styles.savedCardRow, { marginTop: insets.top + 6 }]}>
           <Text style={styles.savedCardText} numberOfLines={1}>Carta salvata {savedCard.brand.toUpperCase()} •••• {savedCard.last4}</Text>
           <Pressable
             accessibilityRole="button"
