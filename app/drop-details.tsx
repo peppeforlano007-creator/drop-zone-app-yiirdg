@@ -1246,29 +1246,6 @@ export default function DropDetailsScreen() {
         </View>
       )}
 
-      {savedCard && (
-        <View style={[styles.savedCardRow, { marginTop: insets.top + 6 }]}>
-          <Text style={styles.savedCardText} numberOfLines={1}>Carta salvata {savedCard.brand.toUpperCase()} •••• {savedCard.last4}</Text>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Rimuovi carta salvata"
-            style={styles.savedCardRemove}
-            onPress={() => Alert.alert('Rimuovere la carta?', 'La carta salvata verrà eliminata. Potrai salvarne una nuova alla prossima prenotazione.', [
-              { text: 'Annulla', style: 'cancel' },
-              { text: 'Rimuovi', style: 'destructive', onPress: async () => {
-                try { await removeSavedCard(); setSavedCard(null); }
-                catch (e) {
-                  const inUse = (e as { code?: string })?.code === 'CARD_IN_USE';
-                  Alert.alert('Carta non rimossa', inUse ? 'Hai una prenotazione con carta ancora in corso. Potrai rimuovere la carta dopo la chiusura del drop.' : 'Riprova più tardi.');
-                }
-              } },
-            ])}
-          >
-            <Text style={styles.savedCardRemoveText}>Rimuovi</Text>
-          </Pressable>
-        </View>
-      )}
-
       <FlatList
         key={selectedCategory === null ? 'all' : `category:${selectedCategory}`}
         ref={flatListRef}

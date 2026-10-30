@@ -2,7 +2,7 @@
 import { colors, layout } from '@/styles/commonStyles';
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { CardBookingPayment } from '@/components/CardBookingPayment';
-import { cancelCardBooking, loadCardBookingStates, CardBookingError } from '@/utils/bookingCardApi';
+import { cancelCardBooking, loadCardBookingStates, CardBookingError, fetchSavedCard, removeSavedCard, type SavedCard } from '@/utils/bookingCardApi';
 import { dueAtPickup, isCardPayment, cardCancellationError, type CardBookingState } from '@/utils/bookingCardPayment';
 import { IconSymbol } from '@/components/IconSymbol';
 import { Ionicons } from '@expo/vector-icons';
@@ -196,10 +196,18 @@ export default function MyBookingsScreen({ preview }: { preview?: BookingCardPre
   const [historyExpanded, setHistoryExpanded] = useState(false);
   const [cardStates, setCardStates] = useState<Record<string, CardBookingState>>({});
   const [cardStatusUnavailable, setCardStatusUnavailable] = useState(false);
+  const [savedCard, setSavedCard] = useState<SavedCard>(null);
   const [cancellingIds, setCancellingIds] = useState<Set<string>>(new Set());
   const cancellationRequests = useRef(new Set<string>());
   const { user } = useAuth();
   const unreadCount = useUnreadNotifications();
+
+  useEffect(() => {
+    if (safePreview || !user?.id) return;
+    let active = true;
+    fetchSavedCard().then(c => { if (active) setSavedCard(c); }).catch(() => {});
+    return () => { active = false; };
+  }, [user?.id, safePreview]);
 
   const loadBookings = useCallback(async () => {
     if (safePreview) {
@@ -818,6 +826,28 @@ export default function MyBookingsScreen({ preview }: { preview?: BookingCardPre
               Anteprima grafica · Dati sintetici · Nessuna prenotazione o pagamento reale. Trascina per ripristinare l’anteprima.
             </Text>
           )}
+          {savedCard && (
+            <View style={styles.savedCardRow}>
+              <Text style={styles.savedCardText} numberOfLines={1}>Carta salvata {savedCard.brand.toUpperCase()} •••• {savedCard.last4}</Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Rimuovi carta salvata"
+                style={styles.savedCardRemove}
+                onPress={() => Alert.alert('Rimuovere la carta?', 'La carta salvata verrà eliminata. Potrai salvarne una nuova alla prossima prenotazione.', [
+                  { text: 'Annulla', style: 'cancel' },
+                  { text: 'Rimuovi', style: 'destructive', onPress: async () => {
+                    try { await removeSavedCard(); setSavedCard(null); }
+                    catch (e) {
+                      const inUse = (e as { code?: string })?.code === 'CARD_IN_USE';
+                      Alert.alert('Carta non rimossa', inUse ? 'Hai una prenotazione con carta ancora in corso. Potrai rimuovere la carta dopo la chiusura del drop.' : 'Riprova più tardi.');
+                    }
+                  } },
+                ])}
+              >
+                <Text style={styles.savedCardRemoveText}>Rimuovi</Text>
+              </Pressable>
+            </View>
+          )}
           {/* Total to pay banner */}
           {totalToPay > 0 && (
             <View style={styles.totalBanner}>
@@ -865,6 +895,10 @@ export default function MyBookingsScreen({ preview }: { preview?: BookingCardPre
 }
 
 const styles = StyleSheet.create({
+  savedCardRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 12, paddingLeft: 12, borderRadius: 12, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border },
+  savedCardText: { flex: 1, color: colors.text, fontSize: 13, fontWeight: "600" },
+  savedCardRemove: { minWidth: 44, minHeight: 44, paddingHorizontal: 12, alignItems: "center", justifyContent: "center" },
+  savedCardRemoveText: { color: "#E11D48", fontSize: 13, fontWeight: "700" },
   container: {
     flex: 1,
     backgroundColor: colors.background,
