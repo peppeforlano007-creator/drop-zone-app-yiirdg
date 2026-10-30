@@ -148,6 +148,7 @@ export default function DropDetailsScreen() {
   // Stripe. Everyone else never sees a difference: booking stays as it is.
   const cardCheckoutKey = useRef<string | null>(null);
   const [savedCard, setSavedCard] = useState<SavedCard>(null);
+  const [cardEnabled, setCardEnabled] = useState(false);
   const [soldOutItems, setSoldOutItems] = useState<Set<string>>(new Set());
 
   // Derived: drop is viewable but booking is disabled
@@ -321,12 +322,14 @@ export default function DropDetailsScreen() {
 
   useEffect(() => {
     cardCheckoutKey.current = null;
+    setCardEnabled(false);
     if (!user?.id || !dropId) return;
     let active = true;
     setSavedCard(null);
     getCardCheckoutKey(String(dropId)).then(async key => {
       if (!active) return;
       cardCheckoutKey.current = key;
+      setCardEnabled(!!key);
       if (key) { const card = await fetchSavedCard(); if (active) setSavedCard(card); }
     });
     return () => { active = false; };
@@ -978,6 +981,7 @@ export default function DropDetailsScreen() {
           maxDiscount={supplierLists?.max_discount}
           dropDiscount={computedDropDiscount}
           onBook={handleBook}
+          payByCard={cardEnabled}
           isInterested={isBooked}
           dropId={dropId}
           dropBookingDisabled={isDropBookingDisabled || isSoldOut}
@@ -1012,7 +1016,7 @@ export default function DropDetailsScreen() {
         {cardContent}
       </View>
     );
-  }, [drop, userBookings, handleBook, dropId, isDropBookingDisabled, soldOutItems]);
+  }, [drop, userBookings, handleBook, dropId, isDropBookingDisabled, soldOutItems, cardEnabled]);
 
   if (loading) {
     return (

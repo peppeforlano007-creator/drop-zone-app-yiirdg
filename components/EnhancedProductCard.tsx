@@ -29,6 +29,8 @@ interface EnhancedProductCardProps {
   dropDiscount?: number;
   onInterest?: (productId: string) => void;
   onBook?: (productId: string, variantId?: string) => void | Promise<void>;
+  /** True only for customers enrolled in the card test: the confirmation then mentions the card, not cash. */
+  payByCard?: boolean;
   isInterested?: boolean;
   dropId?: string;
   dropBookingDisabled?: boolean;
@@ -46,6 +48,7 @@ export default function EnhancedProductCard({
   dropDiscount,
   onInterest,
   onBook,
+  payByCard,
   isInterested = false,
   dropId,
   dropBookingDisabled = false,
@@ -266,7 +269,7 @@ export default function EnhancedProductCard({
       // Show confirmation alert ONLY after all validations pass
       Alert.alert(
         'Conferma Prenotazione',
-        `Stai prenotando: ${product.name}${variantInfo}\nSconto attuale: ${Math.floor(discount)}%\n\nPagherai alla consegna. Più persone prenotano, più lo sconto aumenta!`,
+        `Stai prenotando: ${product.name}${variantInfo}\nSconto attuale: ${Math.floor(discount)}%\n\n${payByCard ? 'Pagherai con carta: ti verrà chiesta nel passaggio successivo e l\'importo sarà addebitato solo alla chiusura del drop.' : 'Pagherai alla consegna.'} Più persone prenotano, più lo sconto aumenta!`,
         [
           { 
             text: 'Annulla', 
