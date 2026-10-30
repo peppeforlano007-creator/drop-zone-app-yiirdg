@@ -20,7 +20,7 @@ import EnhancedProductCard from '@/components/EnhancedProductCard';
 import * as Haptics from 'expo-haptics';
 import * as Network from 'expo-network';
 import { computeDropDiscount } from '@/utils/dropHelpers';
-import { getCardCheckoutKey, payAndBookWithCard } from '@/utils/bookingCardCheckout';
+import { getCardCheckoutKey, payAndBookWithCard, cardCheckFailed } from '@/utils/bookingCardCheckout';
 import { fetchSavedCard, removeSavedCard, type SavedCard } from '@/utils/bookingCardApi';
 
 const { width, height } = Dimensions.get('window');
@@ -743,6 +743,10 @@ export default function DropDetailsScreen() {
       const originalPrice = product.original_price ?? 0;
       const currentDiscountedPrice = originalPrice * (1 - bookingDiscount / 100);
 
+      // Only if the earlier check ERRORED (not when the customer simply isn't enrolled) ask once more.
+      if (!cardCheckoutKey.current && cardCheckFailed) {
+        cardCheckoutKey.current = await getCardCheckoutKey(String(dropId), 0);
+      }
       if (cardCheckoutKey.current) {
         // Explicit consent, asked before the payment form. A card is saved only on the first button.
         let saveCard = false;

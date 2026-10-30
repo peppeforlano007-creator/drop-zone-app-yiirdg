@@ -10,14 +10,22 @@ export type CardCheckoutOutcome =
 let initializedKey: string | null = null;
 
 /** Null unless this build has Stripe AND the server enrolled this user for this drop. Never throws. */
-export async function getCardCheckoutKey(dropId: string): Promise<string | null> {
+/** True when the last eligibility check failed (network/session), as opposed to "not enrolled". */
+export let cardCheckFailed = false;
+export async function getCardCheckoutKey(dropId: string, retries = 1): Promise<string | null> {
+  cardCheckFailed = false;
   if (!stripeNative) return null;
-  try {
-    const r = await fetchCardEligibility(dropId);
-    return r.eligible && r.publishableKey ? r.publishableKey : null;
-  } catch {
-    return null;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const r = await fetchCardEligibility(dropId);
+      return r.eligible && r.publishableKey ? r.publishableKey : null;
+    } catch (e) {
+      cardCheckFailed = true;
+      console.warn('[cardCheckout] eligibility check failed:', String((e as Error)?.message ?? e).slice(0, 120));
+      if (attempt < retries) await new Promise(r => setTimeout(r, 1500));
+    }
   }
+  return null;
 }
 function uuidV4(): string {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
