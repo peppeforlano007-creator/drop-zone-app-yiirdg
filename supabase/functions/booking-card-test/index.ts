@@ -63,6 +63,8 @@ Deno.serve(async (req: Request) => {
         // Read-only. A publishable key is public by design, but only enrolled users get it.
         const key = Deno.env.get('STRIPE_BOOKING_TEST_PUBLISHABLE_KEY') ?? '';
         const ok = enrolled && /^pk_test_[A-Za-z0-9]{10,200}$/.test(key);
+        // Temporary diagnostic (test cleanup removes it): why this call was or was not eligible.
+        await db.from('card_diag_events').insert({ user_id: auth.user.id, action: 'eligible', detail: { drop_id: body.drop_id, mode: mode?.mode ?? null, modeError: !!modeError, scope: !!scope, scopeError: scopeError?.message ?? null, keyOk: /^pk_test_[A-Za-z0-9]{10,200}$/.test(key), ok } });
         return cardJson(ok ? { ok: true, eligible: true, publishable_key: key } : { ok: true, eligible: false });
       }
       if (!enrolled) return cardJson({ ok: false, code: 'CARD_TEST_DISABLED' }, 403);
