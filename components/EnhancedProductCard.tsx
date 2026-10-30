@@ -259,11 +259,6 @@ export default function EnhancedProductCard({
       return;
     }
 
-    if (isInDrop && isInterested && !product.hasVariants) {
-      Alert.alert('Già prenotato', 'Hai già prenotato questo articolo. Puoi prenotarne un solo pezzo: lo trovi in Le mie prenotazioni.');
-      return;
-    }
-
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
 
     if (isInDrop && onBook) {
@@ -756,7 +751,6 @@ export default function EnhancedProductCard({
                 disabled={isBookingDisabled}
                 style={[
                   styles.bookButton,
-                  isInterested && styles.bookButtonBooked,
                   (isOutOfStock || (dropBookingDisabled && dropStatus !== 'approved')) && styles.bookButtonGray,
                   dropBookingDisabled && dropStatus === 'approved' && !isInterested && styles.bookButtonOutline,
                 ]}
@@ -771,18 +765,6 @@ export default function EnhancedProductCard({
                     <IconSymbol
                       ios_icon_name="xmark.circle.fill"
                       android_material_icon_name="cancel"
-                      size={16}
-                      color="#999"
-                    />
-                  </>
-                ) : isInterested ? (
-                  <>
-                    <Text style={[styles.bookButtonTitle, styles.bookButtonTitleGray]}>
-                      ARTICOLO PRENOTATO
-                    </Text>
-                    <IconSymbol
-                      ios_icon_name="checkmark.circle.fill"
-                      android_material_icon_name="check-circle"
                       size={16}
                       color="#999"
                     />
