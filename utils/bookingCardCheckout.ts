@@ -65,6 +65,9 @@ export async function payAndBookWithCard(args: { publishableKey: string; product
     return { kind: 'pending' };
   } catch (e) {
     const code = (e as { code?: string })?.code;
+    if (code === 'BOOKING_DUPLICATE' || String((e as Error)?.message ?? '').includes('BOOKING_DUPLICATE')) {
+      return { kind: 'failed', message: 'Hai già prenotato questo articolo. Puoi prenotarne un solo pezzo.' };
+    }
     return { kind: 'failed', message: code === 'CARD_TEST_DISABLED' ? 'La carta non è disponibile per questa prenotazione.' : 'Non siamo riusciti a completare la prenotazione con carta. Controlla Le mie prenotazioni prima di riprovare.' };
   }
 }

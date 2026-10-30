@@ -259,8 +259,13 @@ export default function EnhancedProductCard({
       return;
     }
 
+    if (isInDrop && isInterested && !product.hasVariants) {
+      Alert.alert('Già prenotato', 'Hai già prenotato questo articolo. Puoi prenotarne un solo pezzo: lo trovi in Le mie prenotazioni.');
+      return;
+    }
+
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-    
+
     if (isInDrop && onBook) {
       const variantInfo = selectedVariant 
         ? `\n\n📦 Variante: ${selectedVariant.size || ''} ${selectedVariant.color || ''}`.trim()
