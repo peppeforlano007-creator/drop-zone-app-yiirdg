@@ -819,7 +819,7 @@ export default function DropDetailsScreen() {
         });
         
         // Pickup failures must not be mislabeled as stock errors (also P0001).
-        if (bookingError.message?.includes('PICKUP_POINT_')) throw bookingError;
+        if (bookingError.message?.includes('PICKUP_POINT_') || bookingError.message?.includes('CARD_REQUIRED') || bookingError.message?.includes('ACCOUNT_BLOCKED')) throw bookingError;
         if (bookingError.message?.includes('BOOKING_DUPLICATE:')) {
           setUserBookings(prev => new Set(prev).add(productId));
           Alert.alert('Già prenotato', 'Hai già una prenotazione per questo articolo o variante.');
@@ -880,7 +880,13 @@ export default function DropDetailsScreen() {
         error: error,
       });
       
-      if (error?.message?.includes('PICKUP_POINT_')) {
+      if (error?.message?.includes('ACCOUNT_BLOCKED')) {
+        Alert.alert('Account bloccato', 'Il tuo account è bloccato a causa di ordini non ritirati. Contatta l\'assistenza per sbloccarlo.');
+      } else if (error?.message?.includes('CARD_REQUIRED')) {
+        Alert.alert('Serve la carta', 'Dopo 2 ordini non ritirati, per prenotare è necessario pagare con carta.', [
+          { text: 'OK', onPress: () => loadDropDetails() },
+        ]);
+      } else if (error?.message?.includes('PICKUP_POINT_')) {
         Alert.alert('Verifica il punto di ritiro', 'Seleziona un punto attivo nel profilo e prenota soltanto dai drop di quel punto.', [
           { text: 'Vai al profilo', onPress: () => router.push('/(tabs)/profile') },
           { text: 'Annulla', style: 'cancel' },
