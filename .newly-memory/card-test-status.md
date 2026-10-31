@@ -1,15 +1,10 @@
 ---
 name: card-test-status
-description: Stato test carta sandbox e build TestFlight corrente
+description: Stato test carta/mancati ritiri e pulizia (31/10)
 metadata:
   type: project
 ---
 
-Sandbox carta ricreata 30/10 (prodotto test stock 2, drop/pickup test ...0001-0004). Versione corrente 2.8.7 (build 57, Android 35), TestFlight da autorizzare dal pannello.
-Regola quantità (decisa dal titolare 30/10): ogni prenotazione scala 1 pezzo; qualsiasi utente può prenotare più pezzi dello stesso articolo fino a esaurimento scorte. Migrazione DB 20261030170000 già applicata in produzione (indice unico e guard BOOKING_DUPLICATE rimossi).
-**Why:** il titolare non conosceva il vincolo "un pezzo a testa" preesistente.
-**How to apply:** non reintrodurre limiti per utente. Cleanup a fine test: ripristino punto ritiro account test (Andria 0ed22a26-...), rollout disabled, elimina dati test, drop tabella card_diag_events e relativo insert in booking-card-test.
-
-2026-10-30 sera: drop di prova chiuso (end_time anticipato su drop+attempts). 2 carte catturate a 48,15 EUR (100 -46,5% -10% fedeltà), differenza rilasciata. Restano: carta rifiutata, 3DS, mancati ritiri, poi pulizia. App 2.8.9 (59/37) caricata su TestFlight.
-
-Giro 2 (30/10 sera): nuovo drop test ...0005 + prodotto ...0006 (stock 3) + scope 2 giorni; policy hide_card_test_drop copre 04 e 05. Pulizia finale deve eliminare anche questi.
+31/10: test carta (autorizzazione, cattura, rilascio) e mancati ritiri (simulato in transazione annullata: resi/punto sbagliato/utente non contano; carta dal 2°, blocco al 5°) completati. Pulizia fatta (migrazione 20261031130000): dati test eliminati, account test su Andria, rollout disabled/false/false, card_diag_events rimossa. Resta la funzione stub card-diag-tmp (inutile, da ignorare).
+Regola quantità: ogni prenotazione scala 1 pezzo, nessun limite per utente (titolare, 30/10).
+Versione 2.8.11 (iOS build 61, Android 39) pronta, da pubblicare con publish_app. Live Stripe: vedi live-card-rollout-plan; serve OK scritto del titolare.
