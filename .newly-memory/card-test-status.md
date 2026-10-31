@@ -16,3 +16,5 @@ Versione 2.8.11 (iOS build 61, Android 39) pronta, da pubblicare con publish_app
 **31/10 sera:** utente chiede salvataggio carta + 'rimuovi carta' in Le mie prenotazioni anche in live (oggi disattivati in live: booking-saved-card.ts livemode===false, drop-details salta prompt con pk_live). Rimborso 0,99€ da fare dall'utente poi pulizia+rollout mancati ritiri (vedi sopra).
 
 **31/10 sera FINALE:** rimborso fatto dall'utente, test eliminati (migrazione 20261031150000). Rollout attivo: mode live, live_open false, collect_no_shows true (da 31/10 13:01 UTC), enforce_no_show_card true. Pagamento carta in live solo per chi ha ≥2 mancati ritiri. Salvataggio/rimuovi carta attivati in live (serve nuova versione app: pubblicare 2.8.11 con publish_app). Non attivare live_open senza OK scritto.
+
+31/10 sera: aggiunta notifica DB "Drop Completato … GIÀ PAGATO CON CARTA" (trigger z_notify_card_attempt_settled su booking_card_attempts, migrazione 20261031160000). Prossimo: test finale con drop nascosto da 3h (chiusura automatica, senza accorciare end_time); a fine test NON toccare il rollout (live / collect true / enforce true / live_open false).
