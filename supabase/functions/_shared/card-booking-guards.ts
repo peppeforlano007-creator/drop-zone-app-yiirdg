@@ -36,6 +36,7 @@ export function noShowDecision(count: number, alreadyBlocked: boolean): 'cod' | 
 }
 
 export interface ExpectedTestAuthorization {
+  expectLive?: boolean;
   intentId: string;
   attemptId: string;
   userId: string;
@@ -82,7 +83,7 @@ export function verifyTestAuthorization(pi: RetrievedPaymentIntent, expected: Ex
       !Number.isSafeInteger(expected.dropEndSeconds) || expected.dropEndSeconds <= expected.nowSeconds) {
     throw new Error('DROP_NOT_OPEN');
   }
-  if (pi.livemode !== false) throw new Error('LIVE_PAYMENTS_DISABLED');
+  if (pi.livemode !== (expected.expectLive === true)) throw new Error('LIVE_PAYMENTS_DISABLED');
   if (pi.id !== expected.intentId || pi.metadata?.booking_attempt_id !== expected.attemptId ||
       pi.metadata?.user_id !== expected.userId || pi.metadata?.drop_id !== expected.dropId) {
     throw new Error('AUTHORIZATION_IDENTITY_MISMATCH');

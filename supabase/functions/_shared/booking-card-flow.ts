@@ -43,8 +43,11 @@ export function validId(value: unknown): value is string { return typeof value =
 const intentId = /^pi_[A-Za-z0-9]+$/;
 const epoch = (s: string) => Math.floor(new Date(s).getTime() / 1000);
 
+/** Set from the gateway's key: a live key expects live PaymentIntents, a test key test ones. */
+let expectLive = false;
+
 export function verifyCardIdentity(pi: CardIntent, a: CardAttempt): void {
-  if (pi.livemode !== false) fail('LIVE_PAYMENTS_DISABLED');
+  if (pi.livemode !== expectLive) fail('LIVE_PAYMENTS_DISABLED');
   if (pi.object !== 'payment_intent' || !intentId.test(pi.id) || (a.intent_id !== null && pi.id !== a.intent_id) ||
     pi.capture_method !== 'manual' || pi.currency !== 'eur' || pi.amount !== a.authorized_cents ||
     pi.metadata?.flow !== BOOKING_FLOW || pi.metadata?.booking_attempt_id !== a.id ||
@@ -78,6 +81,7 @@ export class StripeTestCardGateway implements CardGateway {
   constructor(private key: string | undefined, private fetcher: typeof fetch = fetch,
     private saved: { customer?: string; save?: boolean } = {}) {
     if (!key || !/^sk_(test|live)_[A-Za-z0-9]+$/.test(key)) fail('TEST_KEY_REQUIRED');
+    expectLive = key.startsWith('sk_live_');
     if (saved.customer !== undefined && !/^cus_[A-Za-z0-9]+$/.test(saved.customer)) fail('CUSTOMER_INVALID');
   }
   private async request(path: string, body?: URLSearchParams, idempotency?: string): Promise<any> {
@@ -138,7 +142,7 @@ export class StripeTestCardGateway implements CardGateway {
     // Independent read: the whole charge must now be returned, nothing more.
     const pi = await this.retrieve(a.intent_id);
     const charge = pi.latest_charge;
-    if (pi.livemode !== false || !charge || typeof charge === 'string' || (charge as { amount_refunded?: number }).amount_refunded !== a.authorized_cents) return fail('REFUND_NOT_VERIFIED');
+    if (pi.livemode !== expectLive || !charge || typeof charge === 'string' || (charge as { amount_refunded?: number }).amount_refunded !== a.authorized_cents) return fail('REFUND_NOT_VERIFIED');
     return { id: r.id, amount: r.amount };
   }
   async cancel(a: CardAttempt): Promise<void> {
@@ -181,6 +185,7 @@ export async function reconcileCardAttempt(id: string, store: CardStore, stripe:
           verified = verifyTestAuthorization(pi, {
             intentId: a.intent_id!, attemptId: a.id, userId: a.user_id, dropId: a.drop_id,
             amountCents: a.authorized_cents, nowSeconds: now, dropEndSeconds: epoch(a.drop_end),
+            expectLive,
           });
         } catch (error) {
           // Identity already checked. A known own test hold can be safely
