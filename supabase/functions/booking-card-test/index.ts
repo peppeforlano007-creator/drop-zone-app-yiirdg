@@ -31,10 +31,6 @@ Deno.serve(async (req: Request) => {
       const { data } = await db.from('booking_card_save_requests').select('save_card,customer_id').eq('attempt_id', attemptId).maybeSingle();
       return data?.customer_id ? { customer: data.customer_id as string, save: data.save_card === true } : {};
     };
-    if ((body.action === 'saved_card' || body.action === 'remove_saved_card') && keys.live) {
-      // Saved cards are test-only for now: live customers pay each time.
-      return cardJson({ ok: true, has_card: false });
-    }
     if (body.action === 'saved_card' || body.action === 'remove_saved_card') {
       // Only the private test cohort (test mode + an active test scope) can use saved cards.
       const { data: scopes } = await db.from('booking_card_test_scopes').select('drop_id')
@@ -67,7 +63,7 @@ Deno.serve(async (req: Request) => {
         // Read-only. A publishable key is public by design, but only enrolled users get it.
         const key = keys.publishable;
         const ok = enrolled && key !== '' && !!keys.secret;
-        return cardJson(ok ? { ok: true, eligible: true, publishable_key: key, can_save_card: !keys.live } : { ok: true, eligible: false });
+        return cardJson(ok ? { ok: true, eligible: true, publishable_key: key, can_save_card: true } : { ok: true, eligible: false });
       }
       if (!enrolled) return cardJson({ ok: false, code: 'CARD_TEST_DISABLED' }, 403);
       a = await store.call('begin_test_card_booking', { p_id: body.attempt_id, p_user_id: auth.user.id,
@@ -76,7 +72,7 @@ Deno.serve(async (req: Request) => {
       if (!savedOpts.customer && a.state === 'creating') {
         // First decision for this attempt. The tick is the only way a card is saved.
         const { data: row } = await db.from('booking_saved_cards').select('stripe_customer_id,removed_at').eq('user_id', auth.user.id).maybeSingle();
-        const wantsSave = body.save_card === true && !keys.live;
+        const wantsSave = body.save_card === true;
         let customer: string | null = null;
         if (wantsSave) {
           customer = row?.stripe_customer_id ?? await new StripeTestCustomerGateway(testKey).createCustomer(auth.user.id);
@@ -84,7 +80,7 @@ Deno.serve(async (req: Request) => {
             stripe_customer_id: customer, consent_text_version: SAVED_CARD_CONSENT_VERSION,
             consented_at: new Date().toISOString(), removed_at: null }, { onConflict: 'user_id' });
           if (consentError) throw new Error('CARD_DATABASE_RETRY_REQUIRED');
-        } else if (row && !row.removed_at && !keys.live) customer = row.stripe_customer_id;
+        } else if (row && !row.removed_at) customer = row.stripe_customer_id;
         const { error: saveError } = await db.from('booking_card_save_requests').upsert(
           { attempt_id: a.id, user_id: auth.user.id, save_card: wantsSave, customer_id: customer },
           { onConflict: 'attempt_id', ignoreDuplicates: true });
