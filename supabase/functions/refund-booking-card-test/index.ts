@@ -1,5 +1,6 @@
 import { bookingAdmin, smallJson, cardJson, SupabaseCardStore } from '../_shared/booking-card-store.ts';
 import { StripeTestCardGateway, validId } from '../_shared/booking-card-flow.ts';
+import { stripeKeysFor } from '../_shared/booking-stripe-keys.ts';
 import { refundCardPayment, refundCodes, type RefundRow, type RefundStore } from '../_shared/booking-card-refund.ts';
 
 // Operator-only refund of an already captured TEST card payment. Auth.getUser
@@ -27,7 +28,7 @@ Deno.serve(async (req: Request) => {
       review: async (id) => { await db.rpc('note_test_card_refund_review', { p_attempt_id: id }); },
     };
     const row = await refundCardPayment(body.attempt_id as string, auth.user.id, body.reason as string, store,
-      new StripeTestCardGateway(Deno.env.get('STRIPE_BOOKING_TEST_SECRET_KEY')));
+      new StripeTestCardGateway((await stripeKeysFor(db)).secret));
     return cardJson({ ok: true, state: row.state, amount_cents: row.amount_cents });
   } catch (e) {
     const code = e instanceof Error && (refundCodes.has(e.message) || ['REFUND_NEEDS_REVIEW','REQUEST_INVALID','BODY_TOO_LARGE','BODY_INVALID'].includes(e.message)) ? e.message : 'REFUND_NOT_COMPLETED';

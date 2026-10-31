@@ -9,17 +9,20 @@ const reply = (status: number, body: Record<string, unknown>) =>
 
 Deno.serve(async (req: Request) => {
   if (req.method !== 'POST') return reply(405, { ok: false });
-  const secret = Deno.env.get('STRIPE_BOOKING_TEST_WEBHOOK_SECRET') ?? '';
-  if (!secret) return reply(503, { ok: false, code: 'WEBHOOK_NOT_CONFIGURED' });
+  const testSecret = Deno.env.get('STRIPE_BOOKING_TEST_WEBHOOK_SECRET') ?? '';
+  const liveSecret = Deno.env.get('STRIPE_BOOKING_LIVE_WEBHOOK_SECRET') ?? '';
+  if (!testSecret && !liveSecret) return reply(503, { ok: false, code: 'WEBHOOK_NOT_CONFIGURED' });
   const raw = await req.text();
   if (raw.length > 200_000) return reply(413, { ok: false });
-  if (!(await verifyStripeSignature(raw, req.headers.get('stripe-signature'), secret, Math.floor(Date.now() / 1000)))) {
-    return reply(400, { ok: false, code: 'SIGNATURE_INVALID' });
-  }
+  const now = Math.floor(Date.now() / 1000);
+  const sig = req.headers.get('stripe-signature');
+  const isTest = !!testSecret && await verifyStripeSignature(raw, sig, testSecret, now);
+  const isLive = !isTest && !!liveSecret && await verifyStripeSignature(raw, sig, liveSecret, now);
+  if (!isTest && !isLive) return reply(400, { ok: false, code: 'SIGNATURE_INVALID' });
   let event: { id?: unknown; type?: unknown; livemode?: unknown };
   try { event = JSON.parse(raw); } catch { return reply(400, { ok: false }); }
   const type = typeof event.type === 'string' ? event.type.slice(0, 80) : 'unknown';
-  if (event.livemode !== false) return reply(200, { ok: true, ignored: 'not_test_mode' });
+  if (event.livemode !== isLive) return reply(200, { ok: true, ignored: 'mode_mismatch' });
   console.log(JSON.stringify({ webhook: 'observed', type, watched: WATCHED.has(type) }));
   return reply(200, { ok: true, observed: WATCHED.has(type) });
 });

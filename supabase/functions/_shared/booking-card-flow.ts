@@ -77,7 +77,7 @@ export function verifyCardSettlement(pi: CardIntent, a: CardAttempt): 'captured'
 export class StripeTestCardGateway implements CardGateway {
   constructor(private key: string | undefined, private fetcher: typeof fetch = fetch,
     private saved: { customer?: string; save?: boolean } = {}) {
-    if (!key || !/^sk_test_[A-Za-z0-9]+$/.test(key)) fail('TEST_KEY_REQUIRED');
+    if (!key || !/^sk_(test|live)_[A-Za-z0-9]+$/.test(key)) fail('TEST_KEY_REQUIRED');
     if (saved.customer !== undefined && !/^cus_[A-Za-z0-9]+$/.test(saved.customer)) fail('CUSTOMER_INVALID');
   }
   private async request(path: string, body?: URLSearchParams, idempotency?: string): Promise<any> {
@@ -106,7 +106,7 @@ export class StripeTestCardGateway implements CardGateway {
     if (!validId(a.id)) return fail('ATTEMPT_INVALID');
     const body = new URLSearchParams({
       amount: String(a.authorized_cents), currency: 'eur', capture_method: 'manual',
-      'payment_method_types[]': 'card', description: 'RDN TEST ONLY - isolated booking authorization',
+      'payment_method_types[]': 'card', description: this.key?.startsWith('sk_live_') ? 'RDN Street Stock Market - prenotazione' : 'RDN TEST ONLY - isolated booking authorization',
       'metadata[flow]': BOOKING_FLOW, 'metadata[booking_attempt_id]': a.id,
       'metadata[user_id]': a.user_id, 'metadata[drop_id]': a.drop_id,
       'metadata[product_id]': a.product_id, 'metadata[variant_id]': a.variant_id ?? 'none',

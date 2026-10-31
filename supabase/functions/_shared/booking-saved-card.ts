@@ -8,7 +8,7 @@ const fail = (code: string): never => { throw new Error(code); };
 
 export class StripeTestCustomerGateway {
   constructor(private key: string | undefined, private fetcher: typeof fetch = fetch) {
-    if (!key || !/^sk_test_[A-Za-z0-9]+$/.test(key)) fail('TEST_KEY_REQUIRED');
+    if (!key || !/^sk_(test|live)_[A-Za-z0-9]+$/.test(key)) fail('TEST_KEY_REQUIRED');
   }
   private async request(path: string, method: 'GET' | 'POST', body?: URLSearchParams, idempotency?: string): Promise<any> {
     let response: Response;
@@ -26,7 +26,7 @@ export class StripeTestCustomerGateway {
   /** One Stripe customer per user: the idempotency key is derived from the user. */
   async createCustomer(userId: string): Promise<string> {
     const c = await this.request('customers', 'POST', new URLSearchParams({
-      description: 'RDN TEST ONLY - saved card', 'metadata[user_id]': userId,
+      description: this.key?.startsWith('sk_live_') ? 'RDN Street Stock Market - carta salvata' : 'RDN TEST ONLY - saved card', 'metadata[user_id]': userId,
     }), `rdn_saved_card_customer_v1:${userId}`);
     if (c?.object !== 'customer' || c.livemode !== false || !customerId.test(c.id) || c.metadata?.user_id !== userId) fail('STRIPE_IDENTITY_MISMATCH');
     return c.id;

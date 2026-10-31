@@ -754,7 +754,7 @@ export default function DropDetailsScreen() {
       if (cardCheckoutKey.current) {
         // Explicit consent, asked before the payment form. A card is saved only on the first button.
         let saveCard = false;
-        if (!savedCard) {
+        if (!savedCard && !cardCheckoutKey.current.startsWith('pk_live_')) {
           const choice = await new Promise<'save' | 'once' | 'cancel'>(resolve => Alert.alert(
             'Salva questa carta',
             'Salva questa carta per le prossime prenotazioni. Puoi rimuoverla quando vuoi.\n\nLa carta verrà addebitata solo alla chiusura del drop, per l\'importo finale scontato.',

@@ -1,5 +1,6 @@
 import { bookingAdmin, SupabaseCardStore } from '../_shared/booking-card-store.ts';
 import { StripeTestCardGateway, reconcileCardAttempt } from '../_shared/booking-card-flow.ts';
+import { stripeKeysFor } from '../_shared/booking-stripe-keys.ts';
 import { createReadinessHandler } from '../_shared/stripe-booking-readiness.ts';
 
 // Scheduler/management only. Single-use capability, never a customer JWT.
@@ -17,7 +18,7 @@ Deno.serve((req: Request) => {
       if (error) return { ok: false, code: 'CARD_QUEUE_UNAVAILABLE', checked: 0, retry_or_review: 0 };
       if (!data?.length) return { ok: true, code: 'NO_CARD_WORK', checked: 0, retry_or_review: 0 };
       const store = new SupabaseCardStore(db);
-      const stripe = new StripeTestCardGateway(Deno.env.get('STRIPE_BOOKING_TEST_SECRET_KEY'));
+      const stripe = new StripeTestCardGateway((await stripeKeysFor(db)).secret);
       let failed = 0;
       for (let i = 0; i < data.length; i += 2) {
         await Promise.all(data.slice(i, i+2).map(async row => {

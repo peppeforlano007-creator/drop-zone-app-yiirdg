@@ -1,6 +1,7 @@
 import { bookingAdmin, SupabaseCardStore, smallJson, cardJson } from '../_shared/booking-card-store.ts';
 import { StripeTestCardGateway, reconcileCardAttempt, verifyCardIdentity, type CardAttempt } from '../_shared/booking-card-flow.ts';
 import { StripeTestCustomerGateway, SAVED_CARD_CONSENT_VERSION } from '../_shared/booking-saved-card.ts';
+import { stripeKeysFor } from '../_shared/booking-stripe-keys.ts';
 import { parseCardRequest, requireCardOwner, cardAttemptView, customerCancelCodes, readCardAttemptResult } from '../_shared/booking-card-response.ts';
 
 // Private test-cohort API. Supabase Auth verifies the JWT; no client prices.
@@ -23,18 +24,23 @@ Deno.serve(async (req: Request) => {
       if (error) throw new Error('CARD_DATABASE_RETRY_REQUIRED');
       return cardJson({ ok: true, statuses: (data ?? []).map(a => cardAttemptView(a, a.drops)) });
     }
-    const testKey = Deno.env.get('STRIPE_BOOKING_TEST_SECRET_KEY');
+    const keys = await stripeKeysFor(db);
+    const testKey = keys.secret;
     // Stored per attempt BEFORE Stripe is called, so every retry builds the same PaymentIntent.
     const savedOptions = async (attemptId: string) => {
       const { data } = await db.from('booking_card_save_requests').select('save_card,customer_id').eq('attempt_id', attemptId).maybeSingle();
       return data?.customer_id ? { customer: data.customer_id as string, save: data.save_card === true } : {};
     };
+    if ((body.action === 'saved_card' || body.action === 'remove_saved_card') && keys.live) {
+      // Saved cards are test-only for now: live customers pay each time.
+      return cardJson({ ok: true, has_card: false });
+    }
     if (body.action === 'saved_card' || body.action === 'remove_saved_card') {
       // Only the private test cohort (test mode + an active test scope) can use saved cards.
-      const { data: mode } = await db.from('booking_card_rollout').select('mode').eq('singleton', true).single();
       const { data: scopes } = await db.from('booking_card_test_scopes').select('drop_id')
         .eq('user_id', auth.user.id).gt('expires_at', new Date().toISOString()).limit(1);
-      if (mode?.mode !== 'test' || !scopes?.length) return cardJson({ ok: false, code: 'CARD_TEST_DISABLED' }, 403);
+      const liveOpen = keys.live && (await db.from('booking_card_rollout').select('live_open').eq('singleton', true).single()).data?.live_open === true;
+      if (!(keys.mode === 'test' && scopes?.length) && !(keys.live && (liveOpen || scopes?.length))) return cardJson({ ok: false, code: 'CARD_TEST_DISABLED' }, 403);
       const { data: row } = await db.from('booking_saved_cards').select('stripe_customer_id,removed_at').eq('user_id', auth.user.id).maybeSingle();
       const customers = new StripeTestCustomerGateway(testKey);
       if (!row || row.removed_at) return cardJson({ ok: true, has_card: false });
@@ -55,17 +61,13 @@ Deno.serve(async (req: Request) => {
     let a: CardAttempt;
     let savedOpts: { customer?: string; save?: boolean } = {};
     if (body.action === 'eligible' || body.action === 'start') {
-      const { data: mode, error: modeError } = await db.from('booking_card_rollout').select('mode').eq('singleton', true).single();
-      const { data: scope, error: scopeError } = await db.from('booking_card_test_scopes').select('expires_at')
-        .eq('user_id', auth.user.id).eq('drop_id', body.drop_id).gt('expires_at', new Date().toISOString()).maybeSingle();
-      const enrolled = !modeError && !scopeError && mode?.mode === 'test' && !!scope;
+      const { data: allowed, error: allowedError } = await db.rpc('card_user_allowed', { p_user: auth.user.id, p_drop: body.drop_id });
+      const enrolled = !allowedError && allowed === true;
       if (body.action === 'eligible') {
         // Read-only. A publishable key is public by design, but only enrolled users get it.
-        const key = Deno.env.get('STRIPE_BOOKING_TEST_PUBLISHABLE_KEY') ?? '';
-        const ok = enrolled && /^pk_test_[A-Za-z0-9]{10,200}$/.test(key);
-        // Temporary diagnostic (test cleanup removes it): why this call was or was not eligible.
-        await db.from('card_diag_events').insert({ user_id: auth.user.id, action: 'eligible', detail: { drop_id: body.drop_id, mode: mode?.mode ?? null, modeError: !!modeError, scope: !!scope, scopeError: scopeError?.message ?? null, keyOk: /^pk_test_[A-Za-z0-9]{10,200}$/.test(key), ok } });
-        return cardJson(ok ? { ok: true, eligible: true, publishable_key: key } : { ok: true, eligible: false });
+        const key = keys.publishable;
+        const ok = enrolled && key !== '' && !!keys.secret;
+        return cardJson(ok ? { ok: true, eligible: true, publishable_key: key, can_save_card: !keys.live } : { ok: true, eligible: false });
       }
       if (!enrolled) return cardJson({ ok: false, code: 'CARD_TEST_DISABLED' }, 403);
       a = await store.call('begin_test_card_booking', { p_id: body.attempt_id, p_user_id: auth.user.id,
@@ -74,7 +76,7 @@ Deno.serve(async (req: Request) => {
       if (!savedOpts.customer && a.state === 'creating') {
         // First decision for this attempt. The tick is the only way a card is saved.
         const { data: row } = await db.from('booking_saved_cards').select('stripe_customer_id,removed_at').eq('user_id', auth.user.id).maybeSingle();
-        const wantsSave = body.save_card === true;
+        const wantsSave = body.save_card === true && !keys.live;
         let customer: string | null = null;
         if (wantsSave) {
           customer = row?.stripe_customer_id ?? await new StripeTestCustomerGateway(testKey).createCustomer(auth.user.id);
@@ -82,7 +84,7 @@ Deno.serve(async (req: Request) => {
             stripe_customer_id: customer, consent_text_version: SAVED_CARD_CONSENT_VERSION,
             consented_at: new Date().toISOString(), removed_at: null }, { onConflict: 'user_id' });
           if (consentError) throw new Error('CARD_DATABASE_RETRY_REQUIRED');
-        } else if (row && !row.removed_at) customer = row.stripe_customer_id;
+        } else if (row && !row.removed_at && !keys.live) customer = row.stripe_customer_id;
         const { error: saveError } = await db.from('booking_card_save_requests').upsert(
           { attempt_id: a.id, user_id: auth.user.id, save_card: wantsSave, customer_id: customer },
           { onConflict: 'attempt_id', ignoreDuplicates: true });
@@ -133,7 +135,7 @@ Deno.serve(async (req: Request) => {
       const session = savedOpts.customer ? await new StripeTestCustomerGateway(testKey).customerSession(savedOpts.customer) : null;
       return cardJson({ ...await view(a), client_secret: pi.client_secret, currency: 'eur',
         ...(session ? { customer_id: savedOpts.customer, customer_session_client_secret: session } : {}),
-        notice: 'TEST: autorizzazione temporanea; prenotazione solo dopo conferma bancaria. Incasso alla chiusura del drop, non superiore a questo importo.' });
+        notice: (keys.live ? '' : 'TEST: ') + 'autorizzazione temporanea; prenotazione solo dopo conferma bancaria. Incasso alla chiusura del drop, non superiore a questo importo.' });
     }
     return cardJson(await view(a));
   } catch (error) {
