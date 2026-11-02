@@ -3,3 +3,4 @@
 - [Card refund roles](card-refund-roles.md): pickup points always record return/no-show; rest admin-only
 - [Card test status](card-test-status.md): test e pulizia fatti 31/10; 2.8.11 pronta; live in attesa chiavi+OK
 - [Live card rollout plan](live-card-rollout-plan.md): dormant live mode + no-show enforcement; needs written OK
+- [Meta SDK](meta-sdk.md): SDK in 2.8.11, ids, non pubblicare senza
