@@ -1,3 +1,4 @@
+import { trackRegistration } from '@/utils/metaAnalytics';
 
 import { Stack, router } from 'expo-router';
 import {
@@ -307,6 +308,7 @@ export default function ConsumerRegisterScreen() {
       }
 
       console.log('Profile updated successfully');
+      trackRegistration();
 
       // Save user consents
       try {

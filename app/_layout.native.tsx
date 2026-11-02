@@ -21,6 +21,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { SubscriptionProvider } from "@/contexts/SubscriptionContext";
 import { DropInterestProvider } from "@/contexts/DropInterestContext";
 import { supabase } from "@/app/integrations/supabase/client";
+import { initMetaAnalytics } from "@/utils/metaAnalytics";
 
 // Import font
 import SpaceMonoFont from "../assets/fonts/SpaceMono-Regular.ttf";
@@ -145,6 +146,12 @@ export default function RootLayout() {
   const [showCustomSplash, setShowCustomSplash] = useState(true);
 
   // Handle deep links for email confirmation and password reset
+  // Meta SDK: ask iOS tracking consent, then start measuring installs
+  useEffect(() => {
+    const t = setTimeout(() => { initMetaAnalytics(); }, 1500);
+    return () => clearTimeout(t);
+  }, []);
+
   useEffect(() => {
     const handleDeepLink = async (url: string) => {
       console.log('Deep link received:', url);

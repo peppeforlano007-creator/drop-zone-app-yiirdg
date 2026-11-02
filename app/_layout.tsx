@@ -23,6 +23,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { SubscriptionProvider } from "@/contexts/SubscriptionContext";
 import { DropInterestProvider } from "@/contexts/DropInterestContext";
 import { supabase } from "@/app/integrations/supabase/client";
+import { initMetaAnalytics } from "@/utils/metaAnalytics";
 
 // Import font
 import SpaceMonoFont from "../assets/fonts/SpaceMono-Regular.ttf";
@@ -145,6 +146,12 @@ export default function RootLayout() {
     ...MaterialIcons.font,
   });
   const [showCustomSplash, setShowCustomSplash] = useState(true);
+
+  // Meta SDK: ask iOS tracking consent, then start measuring installs
+  useEffect(() => {
+    const t = setTimeout(() => { initMetaAnalytics(); }, 1500);
+    return () => clearTimeout(t);
+  }, []);
 
   // Force clean reload on background→active transition in dev to fix HMR disconnection errors
   useEffect(() => {

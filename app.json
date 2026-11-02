@@ -60,13 +60,36 @@
       "expo-font",
       "expo-router",
       "expo-web-browser",
-      ["@stripe/stripe-react-native", { "enableGooglePay": false }],
+      [
+        "@stripe/stripe-react-native",
+        {
+          "enableGooglePay": false
+        }
+      ],
       [
         "expo-notifications",
         {
           "icon": "./assets/images/rdnstreetstockmarket-icon.png",
           "color": "#000000",
           "sounds": []
+        }
+      ],
+      [
+        "react-native-fbsdk-next",
+        {
+          "appID": "1420595826086758",
+          "clientToken": "36386b7fa50d655e9b298aed5109e8cf",
+          "displayName": "RDN STREET STOCK MARKET",
+          "scheme": "fb1420595826086758",
+          "isAutoInitEnabled": true,
+          "autoLogAppEventsEnabled": true,
+          "advertiserIDCollectionEnabled": false
+        }
+      ],
+      [
+        "expo-tracking-transparency",
+        {
+          "userTrackingPermission": "Usiamo l'identificativo pubblicitario solo per misurare quali annunci portano nuove installazioni dell'app. Puoi rifiutare senza alcuna limitazione."
         }
       ]
     ],

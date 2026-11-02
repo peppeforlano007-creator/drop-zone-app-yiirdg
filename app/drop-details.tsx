@@ -1,3 +1,4 @@
+import { trackBooking } from '@/utils/metaAnalytics';
 
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import DropCategorySheet from '@/components/DropCategorySheet';
@@ -858,6 +859,7 @@ export default function DropDetailsScreen() {
 
       setUserBookings(prev => new Set([...prev, productId]));
       refreshInventoryRef.current();
+      trackBooking(Number(currentDiscountedPrice) || 0);
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       

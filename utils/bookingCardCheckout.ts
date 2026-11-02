@@ -1,3 +1,4 @@
+import { logMetaEvent } from '@/utils/metaAnalytics';
 import { stripeNative } from '@/utils/stripeNative';
 import { abandonCardAttempt, confirmCardBooking, fetchCardEligibility, startCardBooking } from '@/utils/bookingCardApi';
 
@@ -61,7 +62,7 @@ export async function payAndBookWithCard(args: { publishableKey: string; product
     }
     // The booking exists only after the server independently verified the authorization.
     const state = await confirmCardBooking(attemptId);
-    if (state.state === 'booked' || state.state === 'captured') return { kind: 'booked', bookingId: state.booking_id ?? null };
+    if (state.state === 'booked' || state.state === 'captured') { logMetaEvent('CardPaymentAuthorized'); return { kind: 'booked', bookingId: state.booking_id ?? null }; }
     return { kind: 'pending' };
   } catch (e) {
     const code = (e as { code?: string })?.code;
