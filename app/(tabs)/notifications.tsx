@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, Pressable, RefreshControl, ActivityIndicator, Platform } from 'react-native';
+import { View, Text, StyleSheet, FlatList, Pressable, RefreshControl, ActivityIndicator, Platform, Modal, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, router, useFocusEffect } from 'expo-router';
 import { colors, layout } from '@/styles/commonStyles';
@@ -27,6 +27,7 @@ export default function NotificationsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [selected, setSelected] = useState<Notification | null>(null);
 
   const loadNotifications = useCallback(async () => {
     if (!user) return;
@@ -188,6 +189,7 @@ export default function NotificationsScreen() {
       console.log('[Notifications] Navigating to pickup points tab for order:', notification.related_id);
       router.push('/(tabs)/payment-methods');
     } else {
+      setSelected(notification);
       console.log('[Notifications] No navigation target for notification:', notification.id, '(type:', notification.type, ', related_type:', notification.related_type, ')');
     }
   };
@@ -327,6 +329,28 @@ export default function NotificationsScreen() {
           />
         )}
       </SafeAreaView>
+      <Modal
+        visible={!!selected}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setSelected(null)}
+      >
+        <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+          <View style={styles.detailHeader}>
+            <Text style={styles.detailHeaderTitle}>Notifica</Text>
+            <Pressable onPress={() => setSelected(null)} style={styles.headerButton} accessibilityRole="button">
+              <Text style={styles.headerButtonText}>Chiudi</Text>
+            </Pressable>
+          </View>
+          <ScrollView contentContainerStyle={styles.detailBody}>
+            <Text style={styles.detailTitle}>{selected?.title}</Text>
+            <Text style={styles.notificationTime}>
+              {selected ? new Date(selected.created_at).toLocaleString('it-IT', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}
+            </Text>
+            <Text style={styles.detailMessage} selectable>{selected?.message}</Text>
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
     </>
   );
 }
@@ -420,6 +444,19 @@ const styles = StyleSheet.create({
     color: colors.textTertiary,
     marginTop: 4,
   },
+  detailHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  detailHeaderTitle: { fontSize: 17, fontWeight: '700', color: colors.text },
+  detailBody: { padding: 20, gap: 12 },
+  detailTitle: { fontSize: 22, fontWeight: '700', color: colors.text },
+  detailMessage: { fontSize: 16, lineHeight: 24, color: colors.text },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
