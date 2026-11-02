@@ -24,6 +24,8 @@ interface BookingItem {
   discount_percentage: number;
   loyalty_discount: number;
   status: string;
+  payment_method?: string | null;
+  payment_status?: string | null;
   pickup_point_id: string;
   products: { id: string; name: string; image_url: string | null } | null;
 }
@@ -66,7 +68,7 @@ export default function DropSummaryScreen() {
           .single(),
         supabase
           .from('bookings')
-          .select('id, product_id, original_price, final_price, discount_percentage, loyalty_discount, status, pickup_point_id, products!bookings_product_id_fkey(id, name, image_url)')
+          .select('id, product_id, original_price, final_price, discount_percentage, loyalty_discount, status, payment_method, payment_status, pickup_point_id, products!bookings_product_id_fkey(id, name, image_url)')
           .eq('drop_id', dropId)
           .eq('user_id', user.id)
           .eq('status', 'confirmed'),
@@ -131,6 +133,12 @@ export default function DropSummaryScreen() {
   };
 
   const totalAmount = bookings.reduce((sum, b) => sum + Number(b.final_price), 0);
+  const cardPaidTotal = bookings
+    .filter((b) => b.payment_method === 'card')
+    .reduce((sum, b) => sum + Number(b.final_price), 0);
+  const dueAtPickupTotal = totalAmount - cardPaidTotal;
+  const hasCard = bookings.some((b) => b.payment_method === 'card');
+  const allPaidByCard = hasCard && dueAtPickupTotal <= 0.0001;
   const totalSavings = bookings.reduce(
     (sum, b) => sum + (Number(b.original_price) - Number(b.final_price)),
     0
@@ -279,11 +287,22 @@ export default function DropSummaryScreen() {
 
         {/* Total box */}
         <View style={styles.totalBox}>
-          <Text style={styles.totalLabel}>TOTALE DA PAGARE AL RITIRO</Text>
+          <Text style={styles.totalLabel}>
+            {allPaidByCard ? 'GIÀ PAGATO CON CARTA' : 'TOTALE DA PAGARE AL RITIRO'}
+          </Text>
           <Text style={styles.totalAmount}>
             {'€'}
-            {totalAmountDisplay}
+            {allPaidByCard ? totalAmountDisplay : dueAtPickupTotal.toFixed(2)}
           </Text>
+          {allPaidByCard && (
+            <Text style={styles.totalSavings}>Nulla da pagare al ritiro</Text>
+          )}
+          {hasCard && !allPaidByCard && (
+            <Text style={styles.totalSavings}>
+              {'Già pagati con carta: €'}
+              {cardPaidTotal.toFixed(2)}
+            </Text>
+          )}
           {totalSavings > 0 && (
             <Text style={styles.totalSavings}>
               {'Hai risparmiato €'}
