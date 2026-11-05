@@ -311,13 +311,21 @@ export default function DropsScreen() {
       const supplierListIds = (data || []).map(d => d.supplier_list_id);
       let filtered = data || [];
       if (supplierListIds.length > 0) {
-        const { data: productsWithStock } = await supabase
-          .from('products')
-          .select('supplier_list_id')
-          .in('supplier_list_id', supplierListIds)
-          .gt('stock', 0);
-
-        const listsWithStock = new Set((productsWithStock || []).map(p => p.supplier_list_id));
+        // Una query per lista (1 riga basta): evita il limite di 1000 righe per richiesta,
+        // che escludeva liste con pochi prodotti quando il totale superava 1000.
+        const uniqueListIds = Array.from(new Set(supplierListIds));
+        const checks = await Promise.all(
+          uniqueListIds.map(async (listId) => {
+            const { data: row } = await supabase
+              .from('products')
+              .select('id')
+              .eq('supplier_list_id', listId)
+              .gt('stock', 0)
+              .limit(1);
+            return row && row.length > 0 ? listId : null;
+          })
+        );
+        const listsWithStock = new Set(checks.filter(Boolean));
         filtered = (data || []).filter(d => listsWithStock.has(d.supplier_list_id));
         console.log('[drops] drops after stock filter:', filtered.length, '/', (data || []).length);
       }
