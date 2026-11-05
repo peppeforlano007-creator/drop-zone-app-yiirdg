@@ -1,22 +1,17 @@
 ---
 name: card-test-status
-description: Stato test carta/mancati ritiri e pulizia (31/10)
+description: Test carta/mancati ritiri completati e ripuliti (05/11); rollout invariato
 metadata:
+  node_type: memory
   type: project
+  originSessionId: ecf8f11c-2f9c-47aa-8486-887a7b85b8f5
+  modified: 2026-11-05T09:29:00.483Z
 ---
 
-31/10: test carta (autorizzazione, cattura, rilascio) e mancati ritiri (simulato in transazione annullata: resi/punto sbagliato/utente non contano; carta dal 2°, blocco al 5°) completati. Pulizia fatta (migrazione 20261031130000): dati test eliminati, account test su Andria, rollout disabled/false/false, card_diag_events rimossa. Resta la funzione stub card-diag-tmp (inutile, da ignorare).
-Regola quantità: ogni prenotazione scala 1 pezzo, nessun limite per utente (titolare, 30/10).
-Versione 2.8.11 (iOS build 61, Android 39) pronta, da pubblicare con publish_app. Live Stripe: vedi live-card-rollout-plan; serve OK scritto del titolare.
+Tutti i test carta (live 1,10 €, test finale 3h del 02/11) e mancati ritiri sono andati a buon fine. Pulizia finale fatta il 05/11 (migrazione 20261105100000): punto ritiro test, drop/lista/prodotto test (id 7e570000-…), tentativi carta di test, carta salvata dell'utente test 68353694-fb8a-45ec-90db-e0d07658070a (Forlano Giuseppe), policy hide_card_test_* rimosse. Il suo punto ritiro attuale è Matera (59e85f25-…), lasciato così.
 
-**31/10 live test finding:** il primo tentativo live è fallito (LIVE_PAYMENTS_DISABLED): controlli `livemode !== false` rimasti nel codice condiviso. Corretto (expectLive dalla chiave), 3 funzioni ridistribuite, tentativi 'review' ripuliti. In attesa del nuovo test da 1,10 € sul drop nascosto; poi pulizia test (vedi live-card-rollout-plan).
+Rollout invariato: mode live, live_open false, collect_no_shows true, enforce_no_show_card true. Non attivare live_open senza OK scritto del titolare.
 
-**31/10 pomeriggio:** pagamento live OK (booking 900d2dab…, attempt e5a49f08-6a73-4e84-b04c-73af5a06cef1, intent pi_3UWbRN44A7XLMImJ1JgxHy52, utente test 68353694-fb8a-45ec-90db-e0d07658070a = tel 393208911937). Drop test chiuso, incasso live riuscito: 0,99 € catturati (final_cents 99, sconto fedeltà). Da fare: rimborso 0,99 € (io non posso: serve JWT admin → utente da Stripe o pannello admin), poi pulizia test (migrazione sul modello 20261031130000, id 7e570000-0000-4000-8000-00000000000{1..6}, pickup utente → Andria 0ed22a26-bdb3-493c-9c88-8f437c3c6827), poi rollout: l'utente ha chiesto OK a mancati ritiri per tutti (collect_no_shows+enforce), live_open resta false.
+Il pagamento catturato 0,99 € del test 02/11 (intent pi_3UXJ6s44A7XLMImJ0A4LI7w1) va rimborsato dal titolare su Stripe se non già fatto (nel database non c'è più traccia).
 
-**31/10 sera:** utente chiede salvataggio carta + 'rimuovi carta' in Le mie prenotazioni anche in live (oggi disattivati in live: booking-saved-card.ts livemode===false, drop-details salta prompt con pk_live). Rimborso 0,99€ da fare dall'utente poi pulizia+rollout mancati ritiri (vedi sopra).
-
-**31/10 sera FINALE:** rimborso fatto dall'utente, test eliminati (migrazione 20261031150000). Rollout attivo: mode live, live_open false, collect_no_shows true (da 31/10 13:01 UTC), enforce_no_show_card true. Pagamento carta in live solo per chi ha ≥2 mancati ritiri. Salvataggio/rimuovi carta attivati in live (serve nuova versione app: pubblicare 2.8.11 con publish_app). Non attivare live_open senza OK scritto.
-
-31/10 sera: aggiunta notifica DB "Drop Completato … GIÀ PAGATO CON CARTA" (trigger z_notify_card_attempt_settled su booking_card_attempts, migrazione 20261031160000). Prossimo: test finale con drop nascosto da 3h (chiusura automatica, senza accorciare end_time); a fine test NON toccare il rollout (live / collect true / enforce true / live_open false).
-
-**02/11 test finale 3h AVVIATO:** drop nascosto 7e570000-0000-4000-8000-000000000004 creato (migrazione 20261102120000), chiusura automatica 14:59 ora italiana (13:59 UTC), prodotto 2 €, utente test 68353694… (tel 393208911937) spostato sul punto ritiro di prova. Poi: controlli (incasso, notifica, ordine, punto ritiro), rimborso dall'utente, pulizia con migrazione sul modello 20261031150000 (SENZA toccare booking_card_rollout), poi publish 2.8.12.
+05/11: ripristinato reso sbagliato Cosori di Annalisa Senatore (80 punti restituiti, migrazione 20261104100000). Versione 2.8.13 (iOS 64, Android 42).
