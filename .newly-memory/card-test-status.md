@@ -15,3 +15,5 @@ Rollout invariato: mode live, live_open false, collect_no_shows true, enforce_no
 Il pagamento catturato 0,99 € del test 02/11 (intent pi_3UXJ6s44A7XLMImJ0A4LI7w1) va rimborsato dal titolare su Stripe se non già fatto (nel database non c'è più traccia).
 
 05/11: ripristinato reso sbagliato Cosori di Annalisa Senatore (80 punti restituiti, migrazione 20261104100000). Versione 2.8.13 (iOS 64, Android 42).
+
+06/11: notifiche attivazione drop Megastore (287305cc, 95e14213) rimandate ai clienti mancanti (migrazione 20261106100000, push via pg_net). Limite 1000 righe corretto in manage-drops.tsx e drops.tsx: serve nuova versione 2.8.14 (non ancora pubblicata).

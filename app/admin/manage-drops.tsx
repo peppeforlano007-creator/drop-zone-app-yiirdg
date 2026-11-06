@@ -20,7 +20,6 @@ import {
 import React, { useState, useEffect } from 'react';
 import * as Haptics from 'expo-haptics';
 import { supabase } from '@/app/integrations/supabase/client';
-import { sendPushNotification } from '@/utils/pushNotifications';
 
 interface Drop {
   id: string;
@@ -281,20 +280,46 @@ export default function ManageDropsScreen() {
 
               // Send in-app + push notifications only to consumers at the same pickup point
               try {
-                let consumersQuery = supabase
-                  .from('profiles')
-                  .select('user_id, push_token')
-                  .eq('role', 'consumer');
-
-                if (pickupPointId) {
-                  consumersQuery = consumersQuery.eq('pickup_point_id', pickupPointId);
+                // PostgREST returns at most 1000 rows per request: read in blocks until all are loaded.
+                const PAGE = 1000;
+                const consumers: { user_id: string; push_token: string | null }[] = [];
+                for (let from = 0; ; from += PAGE) {
+                  let pageQuery = supabase
+                    .from('profiles')
+                    .select('user_id, push_token')
+                    .eq('role', 'consumer')
+                    .order('user_id', { ascending: true })
+                    .range(from, from + PAGE - 1);
+                  if (pickupPointId) {
+                    pageQuery = pageQuery.eq('pickup_point_id', pickupPointId);
+                  }
+                  const { data: page, error: pageError } = await pageQuery;
+                  if (pageError) {
+                    console.error('[handleActivateDrop] Error reading consumers:', pageError);
+                    break;
+                  }
+                  consumers.push(...((page as any[]) || []));
+                  if (!page || page.length < PAGE) break;
                 }
 
-                const { data: consumers } = await consumersQuery;
+                console.log('[handleActivateDrop] Fetched', consumers.length, 'consumers for pickupPointId:', pickupPointId);
 
-                console.log('[handleActivateDrop] Fetched', consumers?.length ?? 0, 'consumers for pickupPointId:', pickupPointId);
+                // Customers who already have the notification for this drop (avoids duplicates on a second activation).
+                const alreadyNotified = new Set<string>();
+                for (let from = 0; ; from += PAGE) {
+                  const { data: existing } = await supabase
+                    .from('notifications')
+                    .select('user_id')
+                    .eq('type', 'drop_activated')
+                    .eq('related_id', dropId)
+                    .order('user_id', { ascending: true })
+                    .range(from, from + PAGE - 1);
+                  (existing || []).forEach((r: any) => alreadyNotified.add(r.user_id));
+                  if (!existing || existing.length < PAGE) break;
+                }
 
-                const notifRows = (consumers || []).map(c => ({
+                const toNotify = consumers.filter(c => !alreadyNotified.has(c.user_id));
+                const notifRows = toNotify.map(c => ({
                   user_id: c.user_id,
                   title: 'Nuovo Drop Disponibile! 🎉',
                   message: `Il drop "${dropName}" è ora attivo. Controlla ora per non perdere le migliori offerte!`,
@@ -304,36 +329,43 @@ export default function ManageDropsScreen() {
                   read: false,
                 }));
 
-                if (notifRows.length > 0) {
-                  const { error: notifInsertError } = await supabase.from('notifications').insert(notifRows);
+                for (let i = 0; i < notifRows.length; i += 500) {
+                  const { error: notifInsertError } = await supabase
+                    .from('notifications')
+                    .insert(notifRows.slice(i, i + 500));
                   if (notifInsertError) {
                     console.error('[handleActivateDrop] Error inserting notifications:', notifInsertError);
-                  } else {
-                    console.log('[handleActivateDrop] Inserted', notifRows.length, 'notification rows');
                   }
                 }
+                console.log('[handleActivateDrop] Inserted', notifRows.length, 'notification rows');
 
-                const consumersWithToken = (consumers || []).filter(c => c.push_token);
-                console.log('[handleActivateDrop] Sending push to', consumersWithToken.length, 'consumers with tokens');
-                let pushSent = 0;
-                for (const c of consumersWithToken) {
-                  const { count: unreadCount } = await supabase
-                    .from('notifications')
-                    .select('*', { count: 'exact', head: true })
-                    .eq('user_id', c.user_id)
-                    .eq('read', false);
-                  const badge = unreadCount ?? 0;
-                  console.log('[handleActivateDrop] Push badge for user', c.user_id, ':', badge);
-                  await sendPushNotification(
-                    c.push_token!,
-                    'Nuovo Drop Disponibile! 🎉',
-                    `Il drop "${dropName}" è ora attivo. Controlla ora!`,
-                    { type: 'drop_activated', dropId },
-                    badge
-                  );
-                  pushSent++;
+                // Push in blocks of 100 (Expo's batch limit), only to customers who had no notification yet.
+                const tokens = toNotify
+                  .map(c => c.push_token)
+                  .filter((t): t is string => !!t && t.startsWith('ExponentPushToken'));
+                console.log('[handleActivateDrop] Sending push to', tokens.length, 'consumers with tokens');
+                for (let i = 0; i < tokens.length; i += 100) {
+                  const messages = tokens.slice(i, i + 100).map(to => ({
+                    to,
+                    sound: 'default',
+                    title: 'Nuovo Drop Disponibile! 🎉',
+                    body: `Il drop "${dropName}" è ora attivo. Controlla ora!`,
+                    data: { type: 'drop_activated', dropId },
+                    priority: 'high',
+                  }));
+                  try {
+                    await fetch('https://exp.host/--/api/v2/push/send', {
+                      method: 'POST',
+                      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+                      body: JSON.stringify(messages),
+                    });
+                  } catch (pushError) {
+                    console.warn('[handleActivateDrop] Push block failed:', pushError);
+                  }
+                  // Expo allows ~600 pushes per second: a short pause between blocks stays well under it.
+                  await new Promise(resolve => setTimeout(resolve, 400));
                 }
-                console.log('[handleActivateDrop] Push sent:', pushSent, '/', consumersWithToken.length);
+                await supabase.from('drops').update({ push_notifications_sent: true }).eq('id', dropId);
               } catch (notifError) {
                 console.error('[handleActivateDrop] Notification error (non-blocking):', notifError);
               }
