@@ -17,7 +17,6 @@ import * as Haptics from 'expo-haptics';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 import { errorHandler, ErrorCategory, ErrorSeverity } from '@/utils/errorHandler';
-import { sendPushNotification } from '@/utils/pushNotifications';
 import { loadBroadcastRecipients, sendInAppBroadcast, type BroadcastPayload } from '@/utils/admin-broadcast';
 
 interface NotificationTemplate {
@@ -171,21 +170,30 @@ export default function NotificationsScreen() {
 
               // Send push notifications to users with tokens
               try {
-                const usersWithToken = (users || []).filter(u => u.push_token);
-                let pushSent = 0;
-                for (const u of usersWithToken) {
-                  const { count: unreadCount } = await supabase
-                    .from('notifications')
-                    .select('*', { count: 'exact', head: true })
-                    .eq('user_id', u.user_id)
-                    .eq('read', false);
-                  const data = isDropTemplate && selectedDropId
-                    ? { type: notificationType, dropId: selectedDropId }
-                    : { type: notificationType };
-                  await sendPushNotification(u.push_token!, title, message, data, unreadCount ?? 0);
-                  pushSent++;
+                const tokens = (users || [])
+                  .map(u => u.push_token)
+                  .filter((t): t is string => !!t && t.startsWith('ExponentPushToken'));
+                const data = isDropTemplate && selectedDropId
+                  ? { type: notificationType, dropId: selectedDropId }
+                  : { type: notificationType };
+                // Blocks of 100 (Expo's batch limit) with a short pause: fast, and under Expo's rate limit.
+                for (let i = 0; i < tokens.length; i += 100) {
+                  setSendProgress(`Invio push ${Math.min(i + 100, tokens.length)} / ${tokens.length}…`);
+                  const messages = tokens.slice(i, i + 100).map(to => ({
+                    to, sound: 'default', title: title.trim(), body: message.trim(), data, priority: 'high',
+                  }));
+                  try {
+                    await fetch('https://exp.host/--/api/v2/push/send', {
+                      method: 'POST',
+                      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+                      body: JSON.stringify(messages),
+                    });
+                  } catch (blockError) {
+                    console.warn('[Notifications] Push block failed:', blockError);
+                  }
+                  await new Promise(resolve => setTimeout(resolve, 400));
                 }
-                console.log('[Notifications] Push sent to', pushSent, 'of', usersWithToken.length, 'users with tokens');
+                console.log('[Notifications] Push sent to', tokens.length, 'tokens');
               } catch (pushError) {
                 console.error('[Notifications] Push error (non-blocking):', pushError);
               }
