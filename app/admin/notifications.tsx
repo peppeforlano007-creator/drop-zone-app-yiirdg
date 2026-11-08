@@ -47,6 +47,26 @@ export default function NotificationsScreen() {
   const [selectedDropId, setSelectedDropId] = useState<string | null>(null);
   const [loadingDrops, setLoadingDrops] = useState(false);
 
+  const [pickupPoints, setPickupPoints] = useState<{ id: string; name: string; city: string | null }[]>([]);
+  const [selectedPickupPointId, setSelectedPickupPointId] = useState<string | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      const { data, error } = await supabase
+        .from('pickup_points')
+        .select('id, name, city')
+        .order('name', { ascending: true })
+        .limit(1000);
+      if (error) {
+        console.error('[Notifications] Error loading pickup points:', error);
+      } else {
+        setPickupPoints((data || []) as any);
+      }
+    })();
+  }, []);
+
+  const selectedPickupPoint = pickupPoints.find(p => p.id === selectedPickupPointId) || null;
+
   const templates: NotificationTemplate[] = [
     {
       id: 'new_drop',
@@ -140,7 +160,7 @@ export default function NotificationsScreen() {
 
     Alert.alert(
       'Invia Notifica',
-      `Sei sicuro di voler inviare questa notifica a: ${getAudienceLabel(targetAudience)}?`,
+      `Sei sicuro di voler inviare questa notifica a: ${getAudienceLabel(targetAudience)}${selectedPickupPoint ? ` del punto di ritiro "${selectedPickupPoint.name}"` : ' (tutti i punti di ritiro)'}?`,
       [
         { text: 'Annulla', style: 'cancel' },
         {
@@ -160,6 +180,7 @@ export default function NotificationsScreen() {
               const payload: BroadcastPayload = {
                 title: title.trim(), message: message.trim(), type: notificationType,
                 role: targetAudience === 'all' ? null : roleMap[targetAudience],
+                ...(selectedPickupPointId ? { pickup_point_id: selectedPickupPointId } : {}),
                 ...(isDropTemplate && selectedDropId ? { related_id: selectedDropId, related_type: 'drop' as const } : {}),
               };
               setSendProgress('Caricamento di tutti i destinatari…');
@@ -210,6 +231,7 @@ export default function NotificationsScreen() {
                       setMessage('');
                       setSelectedTemplate(null);
                       setSelectedDropId(null);
+                      setSelectedPickupPointId(null);
                     },
                   },
                 ]
@@ -342,6 +364,51 @@ export default function NotificationsScreen() {
                 </Pressable>
               ))}
             </View>
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Punto di Ritiro</Text>
+            <Text style={styles.sectionDescription}>
+              Scegli un punto di ritiro per inviare la notifica solo ai suoi clienti
+            </Text>
+            {[{ id: null as string | null, name: 'Tutti i punti di ritiro', city: null as string | null }, ...pickupPoints].map((pp) => {
+              const isSelected = selectedPickupPointId === pp.id;
+              return (
+                <Pressable
+                  key={pp.id ?? 'all'}
+                  style={({ pressed }) => [
+                    styles.templateCard,
+                    isSelected && styles.templateCardSelected,
+                    pressed && styles.templateCardPressed,
+                  ]}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setSelectedPickupPointId(pp.id);
+                  }}
+                >
+                  <View style={styles.templateIcon}>
+                    <IconSymbol
+                      ios_icon_name="mappin.circle.fill"
+                      android_material_icon_name="location_on"
+                      size={24}
+                      color={isSelected ? colors.primary : colors.textSecondary}
+                    />
+                  </View>
+                  <View style={styles.templateContent}>
+                    <Text style={styles.templateTitle}>{pp.name}</Text>
+                    {pp.city ? <Text style={styles.templateMessage}>{pp.city}</Text> : null}
+                  </View>
+                  {isSelected && (
+                    <IconSymbol
+                      ios_icon_name="checkmark.circle.fill"
+                      android_material_icon_name="check-circle"
+                      size={24}
+                      color={colors.primary}
+                    />
+                  )}
+                </Pressable>
+              );
+            })}
           </View>
 
           {isDropTemplate && (
