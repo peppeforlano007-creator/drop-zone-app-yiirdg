@@ -1,8 +1,8 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Stack, router } from 'expo-router';
+import { Stack, router, useFocusEffect } from 'expo-router';
 import { supabase } from '@/app/integrations/supabase/client';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
@@ -30,10 +30,36 @@ export default function AdminDashboard() {
   });
   const [loading, setLoading] = useState(true);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [chatUnread, setChatUnread] = useState(0);
 
   useEffect(() => {
     loadDashboardStats();
   }, []);
+
+  const loadChatUnread = useCallback(async () => {
+    const { data, error } = await supabase.rpc('admin_chat_overview');
+    if (error) {
+      console.warn('Admin Dashboard: chat unread failed:', error);
+      return;
+    }
+    setChatUnread(((data ?? []) as any[]).reduce((s, g) => s + Number(g.unread_count || 0), 0));
+  }, []);
+
+  // Refresh the badge whenever the dashboard regains focus (e.g. back from the chat monitor).
+  useFocusEffect(useCallback(() => { void loadChatUnread(); }, [loadChatUnread]));
+
+  // Live: a new message anywhere updates the badge.
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const channel = supabase
+      .channel('admin-dashboard-chat-badge')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages' }, () => {
+        clearTimeout(timer);
+        timer = setTimeout(() => { void loadChatUnread(); }, 800);
+      })
+      .subscribe();
+    return () => { clearTimeout(timer); supabase.removeChannel(channel); };
+  }, [loadChatUnread]);
 
   const loadDashboardStats = async () => {
     try {
@@ -144,6 +170,14 @@ export default function AdminDashboard() {
       icon: { ios: 'calendar.badge.checkmark', android: 'event_available' },
       route: '/admin/bookings',
       color: '#32ADE6',
+    },
+    {
+      title: 'Chat',
+      description: 'Monitora i messaggi dei gruppi',
+      icon: { ios: 'bubble.left.and.bubble.right.fill', android: 'forum' },
+      route: '/admin/chat',
+      color: '#30B0C7',
+      badge: chatUnread > 0 ? (chatUnread > 99 ? '99+' : chatUnread) : null,
     },
     {
       title: 'Visualizza Resi',

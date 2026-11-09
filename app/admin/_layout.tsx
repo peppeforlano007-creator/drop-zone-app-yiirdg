@@ -21,6 +21,20 @@ export default function AdminLayout() {
         }}
       />
       <Stack.Screen
+        name="chat"
+        options={{
+          title: 'Chat',
+          headerShown: true,
+        }}
+      />
+      <Stack.Screen
+        name="chat-group"
+        options={{
+          title: 'Chat',
+          headerShown: true,
+        }}
+      />
+      <Stack.Screen
         name="manage-drops"
         options={{
           title: 'Gestisci Drop',
