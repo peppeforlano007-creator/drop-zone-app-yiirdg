@@ -342,8 +342,35 @@ export default function DropsScreen() {
         return orderA - orderB;
       });
 
+      // Ultimi 3 drop terminati del punto di ritiro (con i valori raggiunti).
+      // Best-effort: se fallisce, la lista attiva resta comunque visibile.
+      let ended: any[] = [];
+      try {
+        const { data: endedData, error: endedError } = await supabase
+          .from('drops')
+          .select(`
+            id, name, description, current_discount, current_value, target_value,
+            start_time, end_time, status, supplier_list_id, created_at, updated_at,
+            pickup_point_id,
+            pickup_points ( name, city ),
+            supplier_lists (
+              name, min_discount, max_discount, min_reservation_value,
+              max_reservation_value, delivery_min_days, delivery_max_days, banner_url
+            )
+          `)
+          .eq('status', 'completed')
+          .eq('pickup_point_id', userPickupPointId)
+          .or('archived.is.null,archived.eq.false')
+          .order('end_time', { ascending: false })
+          .limit(3);
+        if (endedError) throw endedError;
+        ended = endedData ?? [];
+      } catch (endedErr) {
+        console.warn('[drops] ended drops not loaded:', endedErr);
+      }
+
       if (currentRequest !== requestId.current) return;
-      setDrops(sorted);
+      setDrops([...sorted, ...ended]);
       setPickupGate('ready');
     } catch (error) {
       if (currentRequest !== requestId.current) return;
@@ -453,12 +480,21 @@ export default function DropsScreen() {
 
   const visibleDrops = drops;
 
+  const firstEndedId = visibleDrops.find(d => d.status === 'completed')?.id;
+
   const renderDrop = ({ item }: { item: Drop }) => (
-    <DropCard
-      drop={item}
-      deliveryMinDays={item.supplier_lists?.delivery_min_days ?? null}
-      deliveryMaxDays={item.supplier_lists?.delivery_max_days ?? null}
-    />
+    <>
+      {item.id === firstEndedId && (
+        <Text style={{ fontSize: 16, fontWeight: '700', color: colors.text, marginTop: 8, marginBottom: 10, marginHorizontal: 4 }}>
+          Drop terminati
+        </Text>
+      )}
+      <DropCard
+        drop={item}
+        deliveryMinDays={item.supplier_lists?.delivery_min_days ?? null}
+        deliveryMaxDays={item.supplier_lists?.delivery_max_days ?? null}
+      />
+    </>
   );
 
   const renderHeader = () => (
