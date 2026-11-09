@@ -206,7 +206,7 @@ export default function DropsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [pickupGate, setPickupGate] = useState<'checking' | 'required' | 'ready' | 'error'>('checking');
   const requestId = useRef(0);
-  const [inviteLink, setInviteLink] = useState('https://rdnstreet.app');
+  const [inviteLink, setInviteLink] = useState('https://rdnstreetmarket.it');
   const { user } = useAuth();
   const unreadCount = useUnreadNotifications();
 

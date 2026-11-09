@@ -1,13 +1,12 @@
 
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Pressable, Alert, Image } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Alert, Image, Share } from 'react-native';
 import { router } from 'expo-router';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from './IconSymbol';
 import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { computeDropDiscount } from '@/utils/dropHelpers';
-import ShareToGroupModal from '@/components/ShareToGroupModal';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDropInterest } from '@/contexts/DropInterestContext';
 import { supabase } from '@/app/integrations/supabase/client';
@@ -49,7 +48,6 @@ function formatEuro(value: number): string {
 
 export default function DropCard({ drop, deliveryMinDays, deliveryMaxDays }: DropCardProps) {
   const [timeRemaining, setTimeRemaining] = useState('');
-  const [showShareModal, setShowShareModal] = useState(false);
   const [bannerError, setBannerError] = useState(false);
 
   useEffect(() => {
@@ -173,11 +171,18 @@ export default function DropCard({ drop, deliveryMinDays, deliveryMaxDays }: Dro
     router.push({ pathname: '/drop-details', params: { dropId: drop.id } });
   };
 
-  const handleShare = (e: any) => {
+  const handleShare = async (e: any) => {
     e.stopPropagation();
     console.log('[DropCard] Share button pressed for drop:', drop.id, 'name:', drop.supplier_lists?.name ?? drop.name);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setShowShareModal(true);
+    const dropName = drop.supplier_lists?.name ?? drop.name ?? 'Drop';
+    try {
+      await Share.share({
+        message: `Scarica RDN STREET STOCK MARKET e partecipa al drop "${dropName}"!\nPiù acquistiamo, più risparmiamo! 🔥\nhttps://rdnstreetmarket.it`,
+      });
+    } catch (err) {
+      console.error('[DropCard] Share error:', err);
+    }
   };
 
   const currentDiscount = Number(drop.current_discount ?? 0);
@@ -501,11 +506,6 @@ export default function DropCard({ drop, deliveryMinDays, deliveryMaxDays }: Dro
           )}
         </View>
       </View>
-      <ShareToGroupModal
-        visible={showShareModal}
-        onClose={() => setShowShareModal(false)}
-        drop={{ id: drop.id, name: drop.supplier_lists?.name ?? drop.name ?? 'Drop' }}
-      />
     </Pressable>
   );
 }
