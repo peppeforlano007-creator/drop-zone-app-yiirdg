@@ -807,6 +807,17 @@ export default function MyBookingsScreen({ preview }: { preview?: BookingCardPre
           <Text style={styles.emptyText}>
             Le tue prenotazioni appariranno qui quando prenoti un prodotto in un drop attivo
           </Text>
+          <View style={[styles.pickupInfoBanner, { marginTop: 20, marginBottom: 0 }]}>
+            <IconSymbol
+              ios_icon_name="bell.fill"
+              android_material_icon_name="notifications"
+              size={16}
+              color="#B45309"
+            />
+            <Text style={styles.pickupInfoText}>
+              Quando il drop termina, riceverai una notifica appena i tuoi articoli saranno disponibili per il ritiro nel punto di ritiro.
+            </Text>
+          </View>
         </View>
       ) : (
         <ScrollView
@@ -856,19 +867,17 @@ export default function MyBookingsScreen({ preview }: { preview?: BookingCardPre
             </View>
           )}
 
-          {activeGroups.some((g) => g.dropStatus === 'completed') && (
-            <View style={styles.pickupInfoBanner}>
-              <IconSymbol
-                ios_icon_name="bell.fill"
-                android_material_icon_name="notifications"
-                size={16}
-                color="#B45309"
-              />
-              <Text style={styles.pickupInfoText}>
-                Drop terminato: ti avviseremo con una notifica non appena i tuoi articoli saranno pronti per il ritiro nel punto di ritiro.
-              </Text>
-            </View>
-          )}
+          <View style={styles.pickupInfoBanner}>
+            <IconSymbol
+              ios_icon_name="bell.fill"
+              android_material_icon_name="notifications"
+              size={16}
+              color="#B45309"
+            />
+            <Text style={styles.pickupInfoText}>
+              Quando il drop termina, riceverai una notifica appena i tuoi articoli saranno disponibili per il ritiro nel punto di ritiro.
+            </Text>
+          </View>
 
           {/* Active / non-picked-up drop groups */}
           {activeGroups.map((g) => renderDropGroup(g, false))}
