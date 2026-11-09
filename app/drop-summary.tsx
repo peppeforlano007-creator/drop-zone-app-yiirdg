@@ -312,6 +312,18 @@ export default function DropSummaryScreen() {
           )}
         </View>
 
+        <View style={styles.pickupInfoBanner}>
+          <IconSymbol
+            ios_icon_name="bell.fill"
+            android_material_icon_name="notifications"
+            size={16}
+            color="#B45309"
+          />
+          <Text style={styles.pickupInfoText}>
+            Quando il drop termina, riceverai una notifica appena i tuoi articoli saranno disponibili per il ritiro nel punto di ritiro.
+          </Text>
+        </View>
+
         {/* Pickup point */}
         {pickupPoint && (
           <View style={styles.pickupCard}>
@@ -519,6 +531,22 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#B8860B',
     fontWeight: '500',
+  },
+  pickupInfoBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: '#FEF3C7',
+    borderRadius: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    marginBottom: 12,
+  },
+  pickupInfoText: {
+    flex: 1,
+    fontSize: 12,
+    lineHeight: 16,
+    color: '#92400E',
   },
   totalBox: {
     backgroundColor: colors.text,
