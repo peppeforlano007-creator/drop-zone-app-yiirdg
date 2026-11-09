@@ -826,19 +826,6 @@ export default function MyBookingsScreen({ preview }: { preview?: BookingCardPre
               Anteprima grafica · Dati sintetici · Nessuna prenotazione o pagamento reale. Trascina per ripristinare l’anteprima.
             </Text>
           )}
-          {activeGroups.some((g) => g.dropStatus === 'completed') && (
-            <View style={styles.pickupInfoBanner}>
-              <IconSymbol
-                ios_icon_name="bell.fill"
-                android_material_icon_name="notifications"
-                size={18}
-                color={colors.primary}
-              />
-              <Text style={styles.pickupInfoText}>
-                Drop terminato: ti avviseremo con una notifica non appena i tuoi articoli saranno pronti per il ritiro nel punto di ritiro.
-              </Text>
-            </View>
-          )}
           {savedCard && (
             <View style={styles.savedCardRow}>
               <Text style={styles.savedCardText} numberOfLines={1}>Carta salvata {savedCard.brand.toUpperCase()} •••• {savedCard.last4}</Text>
@@ -866,6 +853,20 @@ export default function MyBookingsScreen({ preview }: { preview?: BookingCardPre
             <View style={styles.totalBanner}>
               <Text style={styles.totalBannerLabel}>💰 TOTALE DA PAGARE AL RITIRO</Text>
               <Text style={styles.totalBannerAmount}>€{totalToPay.toFixed(2)}</Text>
+            </View>
+          )}
+
+          {activeGroups.some((g) => g.dropStatus === 'completed') && (
+            <View style={styles.pickupInfoBanner}>
+              <IconSymbol
+                ios_icon_name="bell.fill"
+                android_material_icon_name="notifications"
+                size={16}
+                color="#B45309"
+              />
+              <Text style={styles.pickupInfoText}>
+                Drop terminato: ti avviseremo con una notifica non appena i tuoi articoli saranno pronti per il ritiro nel punto di ritiro.
+              </Text>
             </View>
           )}
 
@@ -930,19 +931,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    backgroundColor: colors.card,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingVertical: 10,
+    backgroundColor: '#FEF3C7',
+    borderRadius: 10,
+    paddingVertical: 8,
     paddingHorizontal: 12,
     marginBottom: 12,
   },
   pickupInfoText: {
     flex: 1,
-    fontSize: 13,
-    lineHeight: 18,
-    color: colors.text,
+    fontSize: 12,
+    lineHeight: 16,
+    color: '#92400E',
   },
   emptyContainer: {
     flex: 1,
