@@ -7,6 +7,7 @@ import {
   Text,
   StyleSheet,
   ScrollView,
+  FlatList,
   Pressable,
   Alert,
   ActivityIndicator,
@@ -93,11 +94,20 @@ export default function BookingsScreen() {
       console.log('Loading bookings...');
       
       // Load bookings first
-      const { data: bookingsData, error: bookingsError } = await supabase
-        .from('bookings')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(500);
+      // Load ALL bookings, page by page (the server caps a single response).
+      const bookingsData: any[] = [];
+      let bookingsError: any = null;
+      for (let offset = 0; ; offset += 500) {
+        const { data: page, error: pageError } = await supabase
+          .from('bookings')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .order('id', { ascending: false })
+          .range(offset, offset + 499);
+        if (pageError) { bookingsError = pageError; break; }
+        bookingsData.push(...(page ?? []));
+        if (!page || page.length < 500) break;
+      }
 
       if (bookingsError) {
         console.error('Error loading bookings:', bookingsError);
@@ -129,10 +139,22 @@ export default function BookingsScreen() {
       console.log('- Products:', productIds.length);
       console.log('- Drops:', dropIds.length);
 
+      // Batches keep each request URL short enough for hundreds of ids.
+      const fetchInChunks = async (table: string, columns: string, column: string, ids: string[]) => {
+        const rows: any[] = [];
+        let error: any = null;
+        for (let i = 0; i < ids.length; i += 100) {
+          const { data, error: chunkError } = await supabase
+            .from(table).select(columns).in(column, ids.slice(i, i + 100));
+          if (chunkError) { error = chunkError; continue; }
+          rows.push(...((data as any[]) ?? []));
+        }
+        return { data: rows, error };
+      };
       const [profilesResult, productsResult, dropsResult] = await Promise.all([
-        supabase.from('profiles').select('user_id, full_name, email').in('user_id', userIds),
-        supabase.from('products').select('id, name, image_url').in('id', productIds),
-        supabase.from('drops').select('id, name, status').in('id', dropIds),
+        fetchInChunks('profiles', 'user_id, full_name, email', 'user_id', userIds),
+        fetchInChunks('products', 'id, name, image_url', 'id', productIds),
+        fetchInChunks('drops', 'id, name, status', 'id', dropIds),
       ]);
 
       if (profilesResult.error) {
@@ -324,7 +346,10 @@ export default function BookingsScreen() {
     );
   }
 
-  const totalValue = filteredBookings.reduce((sum, b) => sum + b.final_price, 0);
+  // Cancelled bookings are not real value: exclude them from the money total.
+  const totalValue = filteredBookings
+    .filter(b => b.status !== 'cancelled')
+    .reduce((sum, b) => sum + Number(b.final_price ?? 0), 0);
   const capturedValue = filteredBookings
     .filter(b => b.payment_status === 'captured')
     .reduce((sum, b) => sum + b.final_price, 0);
@@ -404,9 +429,14 @@ export default function BookingsScreen() {
           </ScrollView>
         </View>
 
-        <ScrollView
+        <FlatList
           style={styles.container}
           contentContainerStyle={styles.contentContainer}
+          data={filteredBookings}
+          keyExtractor={(b) => b.id}
+          renderItem={({ item }) => renderBooking(item)}
+          initialNumToRender={12}
+          windowSize={7}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -414,7 +444,7 @@ export default function BookingsScreen() {
               tintColor={colors.primary}
             />
           }
-        >
+          ListHeaderComponent={
           <View style={styles.summaryCard}>
             <View style={styles.summaryItem}>
               <Text style={styles.summaryLabel}>Totale Prenotazioni</Text>
@@ -431,10 +461,8 @@ export default function BookingsScreen() {
               </Text>
             </View>
           </View>
-
-          {filteredBookings.length > 0 ? (
-            filteredBookings.map(renderBooking)
-          ) : (
+          }
+          ListEmptyComponent={
             <View style={styles.emptyState}>
               <IconSymbol
                 ios_icon_name="cart"
@@ -449,8 +477,8 @@ export default function BookingsScreen() {
                   : 'Prova a modificare i filtri di ricerca'}
               </Text>
             </View>
-          )}
-        </ScrollView>
+          }
+        />
       </SafeAreaView>
     </>
   );
