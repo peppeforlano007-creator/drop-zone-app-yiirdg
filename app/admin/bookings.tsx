@@ -13,6 +13,7 @@ import {
   ActivityIndicator,
   RefreshControl,
   TextInput,
+  Modal,
 } from 'react-native';
 import { supabase } from '@/app/integrations/supabase/client';
 import * as Haptics from 'expo-haptics';
@@ -44,7 +45,11 @@ interface BookingData {
     name: string;
     status: string;
   };
+  pickup_point_id?: string | null;
+  pickup_point_name?: string;
 }
+
+type PickerKind = 'drop' | 'pickup' | null;
 
 export default function BookingsScreen() {
   const [bookings, setBookings] = useState<BookingData[]>([]);
@@ -55,8 +60,34 @@ export default function BookingsScreen() {
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'confirmed' | 'cancelled' | 'completed'>('all');
   const [paymentFilter, setPaymentFilter] = useState<'all' | 'pending' | 'authorized' | 'captured' | 'failed' | 'refunded'>('all');
 
+  const [dropFilter, setDropFilter] = useState<string>('all');
+  const [pickupFilter, setPickupFilter] = useState<string>('all');
+  const [picker, setPicker] = useState<PickerKind>(null);
+
+  // Options come from the bookings themselves (first appearance = most recent first).
+  const dropOptions = React.useMemo(() => {
+    const map = new Map<string, string>();
+    bookings.forEach(b => { if (b.drop_id && !map.has(b.drop_id)) map.set(b.drop_id, b.drops?.name || 'N/A'); });
+    return Array.from(map, ([id, name]) => ({ id, name }));
+  }, [bookings]);
+  const pickupOptions = React.useMemo(() => {
+    const map = new Map<string, string>();
+    bookings.forEach(b => { if (b.pickup_point_id && !map.has(b.pickup_point_id)) map.set(b.pickup_point_id, b.pickup_point_name || 'N/A'); });
+    return Array.from(map, ([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
+  }, [bookings]);
+  const dropLabel = dropFilter === 'all' ? 'Tutti i drop' : dropOptions.find(o => o.id === dropFilter)?.name ?? 'Drop';
+  const pickupLabel = pickupFilter === 'all' ? 'Tutti i punti' : pickupOptions.find(o => o.id === pickupFilter)?.name ?? 'Punto';
+
   const filterBookings = useCallback(() => {
     let filtered = bookings;
+
+    if (dropFilter !== 'all') {
+      filtered = filtered.filter(booking => booking.drop_id === dropFilter);
+    }
+
+    if (pickupFilter !== 'all') {
+      filtered = filtered.filter(booking => booking.pickup_point_id === pickupFilter);
+    }
 
     if (statusFilter !== 'all') {
       filtered = filtered.filter(booking => booking.status === statusFilter);
@@ -77,7 +108,7 @@ export default function BookingsScreen() {
     }
 
     setFilteredBookings(filtered);
-  }, [bookings, searchQuery, statusFilter, paymentFilter]);
+  }, [bookings, searchQuery, statusFilter, paymentFilter, dropFilter, pickupFilter]);
 
   useEffect(() => {
     loadBookings();
@@ -151,11 +182,14 @@ export default function BookingsScreen() {
         }
         return { data: rows, error };
       };
-      const [profilesResult, productsResult, dropsResult] = await Promise.all([
+      const pickupIds = [...new Set(bookingsData.map(b => b.pickup_point_id).filter(Boolean))] as string[];
+      const [profilesResult, productsResult, dropsResult, pickupsResult] = await Promise.all([
         fetchInChunks('profiles', 'user_id, full_name, email', 'user_id', userIds),
         fetchInChunks('products', 'id, name, image_url', 'id', productIds),
         fetchInChunks('drops', 'id, name, status', 'id', dropIds),
+        fetchInChunks('pickup_points', 'id, name', 'id', pickupIds),
       ]);
+      const pickupsMap = new Map<string, any>(pickupsResult.data?.map(p => [p.id, p]) || []);
 
       if (profilesResult.error) {
         console.error('Error loading profiles:', profilesResult.error);
@@ -178,6 +212,7 @@ export default function BookingsScreen() {
         profiles: profilesMap.get(booking.user_id) || { full_name: 'N/A', email: 'N/A' },
         products: productsMap.get(booking.product_id) || { name: 'N/A', image_url: '' },
         drops: dropsMap.get(booking.drop_id) || { name: 'N/A', status: 'unknown' },
+        pickup_point_name: pickupsMap.get(booking.pickup_point_id)?.name || 'N/A',
       }));
 
       console.log('Bookings enriched successfully');
@@ -292,6 +327,11 @@ export default function BookingsScreen() {
             <Text style={styles.bookingDrop}>
               Drop: {booking.drops?.name || 'N/A'}
             </Text>
+            {!!booking.pickup_point_name && (
+              <Text style={styles.bookingDrop}>
+                Ritiro: {booking.pickup_point_name}
+              </Text>
+            )}
           </View>
         </View>
 
@@ -428,6 +468,64 @@ export default function BookingsScreen() {
             ))}
           </ScrollView>
         </View>
+
+        <View style={styles.dropdownRow}>
+          {([
+            { kind: 'drop' as const, label: dropLabel, active: dropFilter !== 'all', icon: 'bolt.fill', mat: 'flash-on' },
+            { kind: 'pickup' as const, label: pickupLabel, active: pickupFilter !== 'all', icon: 'mappin.circle.fill', mat: 'location-on' },
+          ]).map(d => (
+            <Pressable
+              key={d.kind}
+              style={[styles.dropdownButton, d.active && styles.dropdownButtonActive]}
+              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setPicker(d.kind); }}
+            >
+              <IconSymbol
+                ios_icon_name={d.icon}
+                android_material_icon_name={d.mat}
+                size={16}
+                color={d.active ? '#fff' : colors.textSecondary}
+              />
+              <Text numberOfLines={1} style={[styles.dropdownText, d.active && styles.filterButtonTextActive]}>
+                {d.label}
+              </Text>
+              <IconSymbol
+                ios_icon_name="chevron.down"
+                android_material_icon_name="keyboard-arrow-down"
+                size={14}
+                color={d.active ? '#fff' : colors.textSecondary}
+              />
+            </Pressable>
+          ))}
+        </View>
+
+        <Modal visible={picker !== null} transparent animationType="fade" onRequestClose={() => setPicker(null)}>
+          <Pressable style={styles.modalBackdrop} onPress={() => setPicker(null)}>
+            <Pressable style={styles.modalSheet} onPress={() => {}}>
+              <Text style={styles.modalTitle}>{picker === 'drop' ? 'Filtra per drop' : 'Filtra per punto di ritiro'}</Text>
+              <FlatList
+                data={[{ id: 'all', name: picker === 'drop' ? 'Tutti i drop' : 'Tutti i punti di ritiro' }, ...(picker === 'drop' ? dropOptions : pickupOptions)]}
+                keyExtractor={(o) => o.id}
+                renderItem={({ item }) => {
+                  const selected = (picker === 'drop' ? dropFilter : pickupFilter) === item.id;
+                  return (
+                    <Pressable
+                      style={[styles.modalOption, selected && styles.modalOptionSelected]}
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        if (picker === 'drop') setDropFilter(item.id); else setPickupFilter(item.id);
+                        setPicker(null);
+                      }}
+                    >
+                      <Text style={[styles.modalOptionText, selected && { color: colors.primary, fontWeight: '700' }]} numberOfLines={2}>
+                        {item.name}
+                      </Text>
+                    </Pressable>
+                  );
+                }}
+              />
+            </Pressable>
+          </Pressable>
+        </Modal>
 
         <FlatList
           style={styles.container}
@@ -569,6 +667,67 @@ const styles = StyleSheet.create({
   },
   filterButtonTextActive: {
     color: '#fff',
+  },
+  dropdownRow: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: colors.background,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  dropdownButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderRadius: 12,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  dropdownButtonActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  dropdownText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  modalSheet: {
+    maxHeight: '70%',
+    backgroundColor: colors.background,
+    borderRadius: 16,
+    padding: 16,
+  },
+  modalTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: 8,
+  },
+  modalOption: {
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+  },
+  modalOptionSelected: {
+    backgroundColor: colors.card,
+  },
+  modalOptionText: {
+    fontSize: 15,
+    color: colors.text,
   },
   summaryCard: {
     flexDirection: 'row',
