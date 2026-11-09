@@ -826,6 +826,19 @@ export default function MyBookingsScreen({ preview }: { preview?: BookingCardPre
               Anteprima grafica · Dati sintetici · Nessuna prenotazione o pagamento reale. Trascina per ripristinare l’anteprima.
             </Text>
           )}
+          {activeGroups.some((g) => g.dropStatus === 'completed') && (
+            <View style={styles.pickupInfoBanner}>
+              <IconSymbol
+                ios_icon_name="bell.fill"
+                android_material_icon_name="notifications"
+                size={18}
+                color={colors.primary}
+              />
+              <Text style={styles.pickupInfoText}>
+                Drop terminato: ti avviseremo con una notifica non appena i tuoi articoli saranno pronti per il ritiro nel punto di ritiro.
+              </Text>
+            </View>
+          )}
           {savedCard && (
             <View style={styles.savedCardRow}>
               <Text style={styles.savedCardText} numberOfLines={1}>Carta salvata {savedCard.brand.toUpperCase()} •••• {savedCard.last4}</Text>
@@ -912,6 +925,24 @@ const styles = StyleSheet.create({
     marginTop: 16,
     fontSize: 16,
     color: colors.textSecondary,
+  },
+  pickupInfoBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: colors.card,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    marginBottom: 12,
+  },
+  pickupInfoText: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 18,
+    color: colors.text,
   },
   emptyContainer: {
     flex: 1,

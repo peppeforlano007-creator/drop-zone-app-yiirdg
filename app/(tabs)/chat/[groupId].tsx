@@ -20,6 +20,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useLocalSearchParams, router, useFocusEffect } from 'expo-router';
 import { fetchChatPage, mergeChatMessages, type ChatCursor } from '@/utils/chat-pagination';
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { supabase } from '@/app/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { colors } from '@/styles/commonStyles';
@@ -55,6 +56,7 @@ interface ChatMessage {
   message_type: string;
   drop_id: string | null;
   product_id: string | null;
+  reply_to_id?: string | null;
   created_at: string;
   senderName: string;
   drop?: Drop | null;
@@ -205,14 +207,26 @@ function ProductShareCard({
   );
 }
 
+function messagePreview(m: ChatMessage): string {
+  if (m.message_type === 'drop') return `📦 ${m.drop?.name ?? 'Drop'}`;
+  if (m.message_type === 'product') return `📦 ${m.product?.name ?? 'Articolo'}`;
+  return m.content;
+}
+
 function MessageBubble({
   message,
   isOwn,
   isDark,
+  replyTarget,
+  onReply,
+  onJumpTo,
 }: {
   message: ChatMessage;
   isOwn: boolean;
   isDark: boolean;
+  replyTarget?: ChatMessage | null;
+  onReply?: (m: ChatMessage) => void;
+  onJumpTo?: (id: string) => void;
 }) {
   const ownBg = '#000000';
   const otherBg = isDark ? '#2C2C2E' : '#F0F0F0';
@@ -228,13 +242,31 @@ function MessageBubble({
       {!isOwn && (
         <Text style={[styles.senderName, { color: senderColor }]}>{message.senderName}</Text>
       )}
-      <View
+      <TouchableOpacity
+        activeOpacity={0.9}
+        delayLongPress={300}
+        onLongPress={() => onReply?.(message)}
         style={[
           styles.bubble,
           isOwn ? [styles.bubbleOwn, { backgroundColor: ownBg }] : [styles.bubbleOther, { backgroundColor: otherBg }],
           isCardType && styles.bubbleDrop,
         ]}
       >
+        {!!message.reply_to_id && (
+          <TouchableOpacity
+            activeOpacity={0.7}
+            disabled={!replyTarget}
+            onPress={() => onJumpTo?.(message.reply_to_id as string)}
+            style={[styles.replyQuote, { backgroundColor: isOwn ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.07)', borderLeftColor: isOwn ? '#FFFFFF' : colors.primary }]}
+          >
+            <Text style={[styles.replyQuoteName, { color: isOwn ? '#FFFFFF' : colors.primary }]} numberOfLines={1}>
+              {replyTarget ? replyTarget.senderName : 'Messaggio'}
+            </Text>
+            <Text style={[styles.replyQuoteText, { color: isOwn ? 'rgba(255,255,255,0.8)' : isDark ? '#AEAEB2' : '#555555' }]} numberOfLines={2}>
+              {replyTarget ? messagePreview(replyTarget) : 'Messaggio precedente'}
+            </Text>
+          </TouchableOpacity>
+        )}
         {message.message_type === 'drop' && message.drop ? (
           <DropShareCard drop={message.drop} isOwn={isOwn} isDark={isDark} />
         ) : message.message_type === 'product' && message.product ? (
@@ -247,7 +279,7 @@ function MessageBubble({
         <Text style={[styles.bubbleTime, { color: timeColor }]}>
           {formatMsgTime(message.created_at)}
         </Text>
-      </View>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -373,6 +405,7 @@ export default function GroupChatScreen() {
   const [inputText, setInputText] = useState('');
   const [sending, setSending] = useState(false);
   const [showDropPicker, setShowDropPicker] = useState(false);
+  const [replyingTo, setReplyingTo] = useState<ChatMessage | null>(null);
   const [userPickupPointId, setUserPickupPointId] = useState<string | null>(null);
   const flatListRef = useRef<FlatList>(null);
   const colorScheme = useColorScheme();
@@ -476,6 +509,7 @@ export default function GroupChatScreen() {
         message_type: raw.message_type,
         drop_id: raw.drop_id,
         product_id: raw.product_id ?? null,
+        reply_to_id: raw.reply_to_id ?? null,
         created_at: raw.created_at,
         senderName,
         drop,
@@ -639,24 +673,43 @@ export default function GroupChatScreen() {
     };
   }, [groupId, buildMessage, markGroupAsRead, loadMessages]));
 
+  const handleReply = (m: ChatMessage) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setReplyingTo(m);
+  };
+
+  const handleJumpTo = (id: string) => {
+    const index = messages.findIndex(m => m.id === id);
+    if (index < 0) return;
+    try {
+      flatListRef.current?.scrollToIndex({ index, animated: true, viewPosition: 0.5 });
+    } catch (e) {
+      console.warn('[Chat] scrollToIndex failed:', e);
+    }
+  };
+
   const sendMessage = async () => {
     const text = inputText.trim();
     if (!text || !user?.id || !groupId) return;
     console.log('[Chat] Sending text message to group:', groupId);
     setSending(true);
     setInputText('');
+    const replyTo = replyingTo;
+    setReplyingTo(null);
 
     const { error } = await supabase.from('chat_messages').insert({
       group_id: groupId,
       sender_id: user.id,
       content: text,
       message_type: 'text',
+      ...(replyTo ? { reply_to_id: replyTo.id } : {}),
     });
 
     if (error) {
       console.error('[Chat] Error sending message:', error);
       Alert.alert('Errore', 'Impossibile inviare il messaggio. Riprova.');
       setInputText(text);
+      setReplyingTo(replyTo);
       setSending(false);
       return;
     }
@@ -788,8 +841,12 @@ export default function GroupChatScreen() {
                   message={item}
                   isOwn={item.sender_id === user?.id}
                   isDark={isDark}
+                  replyTarget={item.reply_to_id ? messages.find(m => m.id === item.reply_to_id) ?? null : null}
+                  onReply={handleReply}
+                  onJumpTo={handleJumpTo}
                 />
               )}
+              onScrollToIndexFailed={() => {}}
               contentContainerStyle={[styles.messagesList, { paddingBottom: 16 }]}
               inverted
               maintainVisibleContentPosition={{ minIndexForVisible: 0, autoscrollToTopThreshold: 80 }}
@@ -816,6 +873,22 @@ export default function GroupChatScreen() {
             />
           )}
 
+          {replyingTo && (
+            <View style={[styles.replyBar, { backgroundColor: inputBarBg, borderTopColor: inputBorder }]}>
+              <View style={[styles.replyBarAccent, { backgroundColor: colors.primary }]} />
+              <View style={styles.flex}>
+                <Text style={[styles.replyQuoteName, { color: colors.primary }]} numberOfLines={1}>
+                  Rispondi a {replyingTo.senderName}
+                </Text>
+                <Text style={[styles.replyQuoteText, { color: isDark ? '#AEAEB2' : '#555555' }]} numberOfLines={1}>
+                  {messagePreview(replyingTo)}
+                </Text>
+              </View>
+              <TouchableOpacity onPress={() => setReplyingTo(null)} hitSlop={10}>
+                <Ionicons name="close-circle" size={22} color={isDark ? '#8E8E93' : '#999999'} />
+              </TouchableOpacity>
+            </View>
+          )}
           {/* Input bar */}
           <View style={[styles.inputBar, { backgroundColor: inputBarBg, borderTopColor: inputBorder, paddingBottom: insets.bottom + 8, marginBottom: 0 }]}>
             <TouchableOpacity
@@ -867,8 +940,12 @@ export default function GroupChatScreen() {
                   message={item}
                   isOwn={item.sender_id === user?.id}
                   isDark={isDark}
+                  replyTarget={item.reply_to_id ? messages.find(m => m.id === item.reply_to_id) ?? null : null}
+                  onReply={handleReply}
+                  onJumpTo={handleJumpTo}
                 />
               )}
+              onScrollToIndexFailed={() => {}}
               contentContainerStyle={styles.messagesList}
               inverted
               maintainVisibleContentPosition={{ minIndexForVisible: 0, autoscrollToTopThreshold: 80 }}
@@ -895,6 +972,22 @@ export default function GroupChatScreen() {
             />
           )}
 
+          {replyingTo && (
+            <View style={[styles.replyBar, { backgroundColor: inputBarBg, borderTopColor: inputBorder }]}>
+              <View style={[styles.replyBarAccent, { backgroundColor: colors.primary }]} />
+              <View style={styles.flex}>
+                <Text style={[styles.replyQuoteName, { color: colors.primary }]} numberOfLines={1}>
+                  Rispondi a {replyingTo.senderName}
+                </Text>
+                <Text style={[styles.replyQuoteText, { color: isDark ? '#AEAEB2' : '#555555' }]} numberOfLines={1}>
+                  {messagePreview(replyingTo)}
+                </Text>
+              </View>
+              <TouchableOpacity onPress={() => setReplyingTo(null)} hitSlop={10}>
+                <Ionicons name="close-circle" size={22} color={isDark ? '#8E8E93' : '#999999'} />
+              </TouchableOpacity>
+            </View>
+          )}
           {/* Input bar */}
           <View style={[styles.inputBar, { backgroundColor: inputBarBg, borderTopColor: inputBorder, paddingBottom: 12, marginBottom: insets.bottom + 110 }]}>
             <TouchableOpacity
@@ -1020,6 +1113,33 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontFamily: 'System',
     lineHeight: 21,
+  },
+  replyQuote: {
+    borderLeftWidth: 3,
+    borderRadius: 6,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    marginBottom: 6,
+  },
+  replyQuoteName: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  replyQuoteText: {
+    fontSize: 13,
+  },
+  replyBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  replyBarAccent: {
+    width: 3,
+    alignSelf: 'stretch',
+    borderRadius: 2,
   },
   bubbleTime: {
     fontSize: 11,

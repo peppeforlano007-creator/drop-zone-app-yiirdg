@@ -9,6 +9,7 @@ export interface RawChatMessage extends ChatCursor {
   message_type: string;
   drop_id: string | null;
   product_id: string | null;
+  reply_to_id?: string | null;
 }
 
 // Newest first, deterministic even when several messages have the same timestamp.
@@ -24,7 +25,7 @@ export function mergeChatMessages<T extends ChatCursor>(existing: T[], incoming:
 
 export async function fetchChatPage(client: SupabaseClient, groupId: string, before?: ChatCursor): Promise<RawChatMessage[]> {
   let query = client.from('chat_messages')
-    .select('id, group_id, sender_id, content, message_type, drop_id, product_id, created_at')
+    .select('id, group_id, sender_id, content, message_type, drop_id, product_id, created_at, reply_to_id')
     .eq('group_id', groupId)
     .order('created_at', { ascending: false })
     .order('id', { ascending: false })
