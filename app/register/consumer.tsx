@@ -37,7 +37,10 @@ export default function ConsumerRegisterScreen() {
   const [otp, setOtp] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [fullName, setFullName] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const cleanName = (v: string) => v.trim().replace(/\s+/g, ' ');
+  const fullName = `${cleanName(firstName)} ${cleanName(lastName)}`.trim();
   const [pickupPointId, setPickupPointId] = useState('');
   const [pickupPoints, setPickupPoints] = useState<PickupPoint[]>([]);
   const [loading, setLoading] = useState(false);
@@ -109,8 +112,13 @@ export default function ConsumerRegisterScreen() {
 
   const handleSendOTP = async () => {
     // Validation
-    if (!fullName.trim()) {
-      Alert.alert('Errore', 'Inserisci il tuo nome completo');
+    const nameRegex = /^[\p{L}][\p{L}'’ .-]*$/u;
+    if (cleanName(firstName).length < 2 || !nameRegex.test(cleanName(firstName))) {
+      Alert.alert('Nome mancante', 'Inserisci il tuo nome (almeno 2 lettere).');
+      return;
+    }
+    if (cleanName(lastName).length < 2 || !nameRegex.test(cleanName(lastName))) {
+      Alert.alert('Cognome mancante', 'Inserisci il tuo cognome (almeno 2 lettere).');
       return;
     }
 
@@ -276,15 +284,30 @@ export default function ConsumerRegisterScreen() {
 
       // Update the profile with user data
       console.log('Updating user profile with metadata...');
-      const { error: profileUpdateError } = await supabase
+      const profileFields = {
+        full_name: fullName,
+        phone: authData.user.phone,
+        pickup_point_id: pickupPointId,
+        role: 'consumer',
+      };
+      let { data: updatedRows, error: profileUpdateError } = await supabase
         .from('profiles')
-        .update({
-          full_name: fullName.trim(),
-          phone: authData.user.phone,
-          pickup_point_id: pickupPointId,
-          role: 'consumer',
-        })
-        .eq('user_id', authData.user.id);
+        .update(profileFields)
+        .eq('user_id', authData.user.id)
+        .select('user_id');
+      // The profile row is created by a database trigger: if it was not there yet, retry once
+      if (!profileUpdateError && (!updatedRows || updatedRows.length === 0)) {
+        console.warn('Profile row not found on first update, retrying...');
+        await new Promise(r => setTimeout(r, 1200));
+        ({ data: updatedRows, error: profileUpdateError } = await supabase
+          .from('profiles')
+          .update(profileFields)
+          .eq('user_id', authData.user.id)
+          .select('user_id'));
+        if (!profileUpdateError && (!updatedRows || updatedRows.length === 0)) {
+          profileUpdateError = { message: 'Profile row not found' } as any;
+        }
+      }
 
       if (profileUpdateError) {
         console.error('Error updating profile:', profileUpdateError);
@@ -427,15 +450,31 @@ export default function ConsumerRegisterScreen() {
             </View>
 
             <View style={styles.formSection}>
-              <Text style={styles.inputLabel}>Nome Completo *</Text>
+              <Text style={styles.inputLabel}>Nome *</Text>
               <TextInput
                 style={styles.input}
-                placeholder="Mario Rossi"
+                placeholder="Mario"
                 placeholderTextColor={colors.textTertiary}
-                value={fullName}
-                onChangeText={setFullName}
+                value={firstName}
+                onChangeText={setFirstName}
                 autoCapitalize="words"
-                autoComplete="name"
+                autoComplete="name-given"
+                textContentType="givenName"
+                maxLength={50}
+                editable={!loading && !otpSent}
+              />
+
+              <Text style={styles.inputLabel}>Cognome *</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Rossi"
+                placeholderTextColor={colors.textTertiary}
+                value={lastName}
+                onChangeText={setLastName}
+                autoCapitalize="words"
+                autoComplete="name-family"
+                textContentType="familyName"
+                maxLength={50}
                 editable={!loading && !otpSent}
               />
 

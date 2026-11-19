@@ -4,3 +4,4 @@
 - [Card test status](card-test-status.md): test e pulizia fatti 31/10; 2.8.11 pronta; live in attesa chiavi+OK
 - [Live card rollout plan](live-card-rollout-plan.md): dormant live mode + no-show enforcement; needs written OK
 - [Meta SDK](meta-sdk.md): SDK in 2.8.11, ids, non pubblicare senza
+- [Nameless accounts cause](nameless-accounts-cause.md): N/A users came from password reset; fixed in 2.8.15

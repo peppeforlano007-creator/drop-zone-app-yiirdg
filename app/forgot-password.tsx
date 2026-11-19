@@ -80,6 +80,8 @@ export default function ForgotPasswordScreen() {
         phone: formattedPhone,
         options: {
           channel: 'sms',
+          // Never create a new account from the password reset screen
+          shouldCreateUser: false,
         }
       });
 
@@ -88,6 +90,18 @@ export default function ForgotPasswordScreen() {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
         
         let errorMessage = error.message;
+        const lower = errorMessage.toLowerCase();
+        if (lower.includes('signups not allowed') || lower.includes('user not found') || (error as any).code === 'otp_disabled') {
+          Alert.alert(
+            'Numero non registrato',
+            `Non esiste un account con il numero ${displayPhone}. Controlla il numero oppure registrati.`,
+            [
+              { text: 'Annulla', style: 'cancel' },
+              { text: 'Registrati', onPress: () => router.replace('/register/consumer') },
+            ]
+          );
+          return;
+        }
         if (errorMessage.toLowerCase().includes('rate limit')) {
           errorMessage = 'Hai richiesto troppi codici. Attendi qualche minuto e riprova.';
         } else if (errorMessage.toLowerCase().includes('not a valid phone number')) {
