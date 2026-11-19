@@ -11,6 +11,7 @@ import {
   RefreshControl,
   Linking,
   Modal,
+  TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack } from 'expo-router';
@@ -83,6 +84,7 @@ export default function OrdersScreen() {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [selectedCustomerOrder, setSelectedCustomerOrder] = useState<CustomerOrder | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const loadOrders = useCallback(async () => {
     if (!user?.pickupPointId) {
@@ -1464,7 +1466,24 @@ export default function OrdersScreen() {
     );
   }
 
-  const allCustomerOrders = explodeOrdersByCustomer(allOrders);
+  const normalizedQuery = searchQuery.trim().toLowerCase();
+  const queryDigits = normalizedQuery.replace(/\D/g, '');
+  const matchesSearch = (co: CustomerOrder) => {
+    if (!normalizedQuery) return true;
+    const terms = normalizedQuery.split(/\s+/).filter(Boolean);
+    const haystack = [co.customerName, co.customerEmail, co.customerOrderNumber, co.order.order_number]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
+    if (terms.every(t => haystack.includes(t))) return true;
+    // Phone: compare digits only so "+39 333 123" matches "333123..."
+    if (queryDigits.length >= 3) {
+      const phoneDigits = (co.customerPhone || '').replace(/\D/g, '');
+      if (phoneDigits.includes(queryDigits)) return true;
+    }
+    return false;
+  };
+  const allCustomerOrders = explodeOrdersByCustomer(allOrders).filter(matchesSearch);
   const pendingCustomerOrders = allCustomerOrders.filter(co => co.effectiveStatus === 'pending');
   const readyCustomerOrders = allCustomerOrders.filter(co => co.effectiveStatus === 'ready');
   const completedCustomerOrders = allCustomerOrders.filter(co => co.effectiveStatus === 'completed');
@@ -1525,9 +1544,42 @@ export default function OrdersScreen() {
           </Pressable>
         </View>
 
+        {/* Search */}
+        <View style={styles.searchContainer}>
+          <IconSymbol
+            ios_icon_name="magnifyingglass"
+            android_material_icon_name="search"
+            size={18}
+            color={colors.textSecondary}
+          />
+          <TextInput
+            style={styles.searchInput}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            placeholder="Cerca nome, cognome, telefono o n. ordine"
+            placeholderTextColor={colors.textTertiary}
+            autoCorrect={false}
+            autoCapitalize="none"
+            returnKeyType="search"
+            clearButtonMode="never"
+          />
+          {searchQuery.length > 0 && (
+            <Pressable onPress={() => setSearchQuery('')} hitSlop={12} accessibilityLabel="Cancella ricerca">
+              <IconSymbol
+                ios_icon_name="xmark.circle.fill"
+                android_material_icon_name="cancel"
+                size={18}
+                color={colors.textTertiary}
+              />
+            </Pressable>
+          )}
+        </View>
+
         <ScrollView 
           style={styles.scrollView} 
           contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
@@ -1564,14 +1616,18 @@ export default function OrdersScreen() {
                 color={colors.textTertiary} 
               />
               <Text style={styles.emptyStateText}>
-                {selectedTab === 'pending'
+                {normalizedQuery
+                  ? `Nessun ordine trovato per "${searchQuery.trim()}"`
+                  : selectedTab === 'pending'
                   ? 'Nessun ordine in arrivo al momento'
                   : selectedTab === 'ready'
                   ? 'Nessun ordine da consegnare'
                   : 'Nessun ordine completato'}
               </Text>
               <Text style={styles.emptyStateSubtext}>
-                Gli ordini appariranno qui quando i drop verranno completati
+                {normalizedQuery
+                  ? 'Prova a cercare in un\'altra sezione o controlla quanto hai scritto'
+                  : 'Gli ordini appariranno qui quando i drop verranno completati'}
               </Text>
             </View>
           )}
@@ -1625,6 +1681,25 @@ const styles = StyleSheet.create({
   },
   tabTextActive: {
     color: colors.background,
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginHorizontal: 12,
+    marginTop: 12,
+    paddingHorizontal: 12,
+    minHeight: 44,
+    borderRadius: 10,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 15,
+    color: colors.text,
+    paddingVertical: 10,
   },
   scrollView: {
     flex: 1,
