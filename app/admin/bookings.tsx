@@ -47,6 +47,9 @@ interface BookingData {
   };
   pickup_point_id?: string | null;
   pickup_point_name?: string;
+  // Derived from the order item: the pickup point delivered it or sent it back
+  display_status: 'active' | 'confirmed' | 'cancelled' | 'completed' | 'returned';
+  picked_up_at?: string | null;
 }
 
 type PickerKind = 'drop' | 'pickup' | null;
@@ -57,7 +60,7 @@ export default function BookingsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'confirmed' | 'cancelled' | 'completed'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'confirmed' | 'cancelled' | 'completed' | 'returned'>('all');
   const [paymentFilter, setPaymentFilter] = useState<'all' | 'pending' | 'authorized' | 'captured' | 'failed' | 'refunded'>('all');
 
   const [dropFilter, setDropFilter] = useState<string>('all');
@@ -90,7 +93,7 @@ export default function BookingsScreen() {
     }
 
     if (statusFilter !== 'all') {
-      filtered = filtered.filter(booking => booking.status === statusFilter);
+      filtered = filtered.filter(booking => booking.display_status === statusFilter);
     }
 
     if (paymentFilter !== 'all') {
@@ -183,12 +186,18 @@ export default function BookingsScreen() {
         return { data: rows, error };
       };
       const pickupIds = [...new Set(bookingsData.map(b => b.pickup_point_id).filter(Boolean))] as string[];
-      const [profilesResult, productsResult, dropsResult, pickupsResult] = await Promise.all([
+      const bookingIds = bookingsData.map(b => b.id);
+      const [profilesResult, productsResult, dropsResult, pickupsResult, itemsResult] = await Promise.all([
         fetchInChunks('profiles', 'user_id, full_name, email', 'user_id', userIds),
         fetchInChunks('products', 'id, name, image_url', 'id', productIds),
         fetchInChunks('drops', 'id, name, status', 'id', dropIds),
         fetchInChunks('pickup_points', 'id, name', 'id', pickupIds),
+        fetchInChunks('order_items', 'booking_id, picked_up_at, returned_to_sender', 'booking_id', bookingIds),
       ]);
+      if (itemsResult.error) {
+        console.error('Error loading order items:', itemsResult.error);
+      }
+      const itemsMap = new Map<string, any>(itemsResult.data?.map(i => [i.booking_id, i]) || []);
       const pickupsMap = new Map<string, any>(pickupsResult.data?.map(p => [p.id, p]) || []);
 
       if (profilesResult.error) {
@@ -213,6 +222,14 @@ export default function BookingsScreen() {
         products: productsMap.get(booking.product_id) || { name: 'N/A', image_url: '' },
         drops: dropsMap.get(booking.drop_id) || { name: 'N/A', status: 'unknown' },
         pickup_point_name: pickupsMap.get(booking.pickup_point_id)?.name || 'N/A',
+        picked_up_at: itemsMap.get(booking.id)?.picked_up_at ?? null,
+        display_status: booking.status === 'cancelled'
+          ? 'cancelled'
+          : itemsMap.get(booking.id)?.picked_up_at
+            ? 'completed'
+            : itemsMap.get(booking.id)?.returned_to_sender
+              ? 'returned'
+              : booking.status,
       }));
 
       console.log('Bookings enriched successfully');
@@ -247,6 +264,8 @@ export default function BookingsScreen() {
         return colors.error;
       case 'completed':
         return colors.primary;
+      case 'returned':
+        return colors.warning;
       default:
         return colors.textSecondary;
     }
@@ -261,7 +280,9 @@ export default function BookingsScreen() {
       case 'cancelled':
         return 'Annullata';
       case 'completed':
-        return 'Completata';
+        return 'Consegnata';
+      case 'returned':
+        return 'Reso';
       default:
         return status;
     }
@@ -313,7 +334,7 @@ export default function BookingsScreen() {
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
           Alert.alert(
             'Dettagli Prenotazione',
-            `ID: ${booking.id}\n\nCliente: ${booking.profiles?.full_name}\nEmail: ${booking.profiles?.email}\n\nProdotto: ${booking.products?.name}\nDrop: ${booking.drops?.name}\n\nStato: ${getStatusLabel(booking.status)}\nPagamento: ${getPaymentStatusLabel(booking.payment_status)}\n\nPrezzo Originale: €${booking.original_price.toFixed(2)}\nSconto: ${Math.floor(booking.discount_percentage)}%\nPrezzo Finale: €${booking.final_price.toFixed(2)}`
+            `ID: ${booking.id}\n\nCliente: ${booking.profiles?.full_name}\nEmail: ${booking.profiles?.email}\n\nProdotto: ${booking.products?.name}\nDrop: ${booking.drops?.name}\n\nStato: ${getStatusLabel(booking.display_status)}\nPagamento: ${getPaymentStatusLabel(booking.payment_status)}${booking.picked_up_at ? `\nConsegnata il: ${new Date(booking.picked_up_at).toLocaleString('it-IT')}` : ''}\n\nPrezzo Originale: €${booking.original_price.toFixed(2)}\nSconto: ${Math.floor(booking.discount_percentage)}%\nPrezzo Finale: €${booking.final_price.toFixed(2)}`
           );
         }}
       >
@@ -330,6 +351,11 @@ export default function BookingsScreen() {
             {!!booking.pickup_point_name && (
               <Text style={styles.bookingDrop}>
                 Ritiro: {booking.pickup_point_name}
+              </Text>
+            )}
+            {!!booking.picked_up_at && (
+              <Text style={[styles.bookingDrop, { color: colors.success }]}>
+                Consegnata il {new Date(booking.picked_up_at).toLocaleDateString('it-IT')}
               </Text>
             )}
           </View>
@@ -358,9 +384,9 @@ export default function BookingsScreen() {
 
         <View style={styles.bookingFooter}>
           <View style={styles.badges}>
-            <View style={[styles.statusBadge, { backgroundColor: getStatusColor(booking.status) + '20' }]}>
-              <Text style={[styles.statusText, { color: getStatusColor(booking.status) }]}>
-                {getStatusLabel(booking.status)}
+            <View style={[styles.statusBadge, { backgroundColor: getStatusColor(booking.display_status) + '20' }]}>
+              <Text style={[styles.statusText, { color: getStatusColor(booking.display_status) }]}>
+                {getStatusLabel(booking.display_status)}
               </Text>
             </View>
             <View style={[styles.statusBadge, { backgroundColor: getPaymentStatusColor(booking.payment_status) + '20' }]}>
@@ -439,9 +465,9 @@ export default function BookingsScreen() {
             <Text style={styles.filterLabel}>Stato:</Text>
             {[
               { key: 'all', label: 'Tutti' },
-              { key: 'active', label: 'Attive' },
               { key: 'confirmed', label: 'Confermate' },
               { key: 'completed', label: 'Completate' },
+              { key: 'returned', label: 'Resi' },
               { key: 'cancelled', label: 'Annullate' },
             ].map((item) => (
               <Pressable
