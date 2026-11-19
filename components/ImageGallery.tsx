@@ -48,13 +48,28 @@ export default function ImageGallery({
     itemVisiblePercentThreshold: 50,
   }).current;
 
+  const [failed, setFailed] = useState<Record<string, boolean>>({});
+
   const renderImage = ({ item }: { item: string }) => (
     <View style={styles.imageContainer}>
-      <Image
-        source={{ uri: item }}
-        style={styles.image}
-        resizeMode="contain"
-      />
+      {failed[item] ? (
+        <View style={styles.failedContainer}>
+          <IconSymbol
+            ios_icon_name="photo"
+            android_material_icon_name="broken-image"
+            size={48}
+            color={colors.textSecondary}
+          />
+          <Text style={styles.failedText}>Foto non disponibile</Text>
+        </View>
+      ) : (
+        <Image
+          source={{ uri: item }}
+          style={styles.image}
+          resizeMode="contain"
+          onError={() => setFailed(prev => ({ ...prev, [item]: true }))}
+        />
+      )}
     </View>
   );
 
@@ -120,6 +135,15 @@ export default function ImageGallery({
 }
 
 const styles = StyleSheet.create({
+  failedContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+  },
+  failedText: {
+    fontSize: 15,
+    color: colors.textSecondary,
+  },
   container: {
     flex: 1,
     backgroundColor: colors.background,

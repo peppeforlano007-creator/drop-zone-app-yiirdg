@@ -91,7 +91,7 @@ export function getStandardizedImageUris(
   template: ImageDimensions = STANDARD_IMAGE_TEMPLATE
 ): string[] {
   return imageUrls
-    .filter(url => url && typeof url === 'string')
+    .filter((url, index, all) => url && typeof url === 'string' && all.indexOf(url) === index)
     .map(url => getStandardizedImageUri(url, template));
 }
 
@@ -108,6 +108,13 @@ export function getImageContainerStyle(
     height: containerWidth / template.aspectRatio,
     aspectRatio: template.aspectRatio,
   };
+}
+
+function isShopProductPage(host: string, pathname: string): boolean {
+  const isAmazonStore = /(^|\.)amazon\.[a-z.]+$/.test(host) || host === 'amzn.to' || host === 'amzn.eu';
+  if (isAmazonStore) return true;
+  if (/(^|\.)ebay\.[a-z.]+$/.test(host) && pathname.startsWith('/itm/')) return true;
+  return pathname.includes('/dp/') || pathname.includes('/gp/product/');
 }
 
 /**
@@ -136,7 +143,13 @@ export function isValidImageUrl(url: string): boolean {
     if (hasExtension && !hasImageExtension) {
       return false;
     }
-    
+
+    // Shop product pages pasted by mistake instead of photos (they render as a blank page).
+    // Image CDNs like m.media-amazon.com stay valid.
+    if (!hasImageExtension && isShopProductPage(urlObj.hostname.toLowerCase(), pathname)) {
+      return false;
+    }
+
     return true;
   } catch {
     return false;

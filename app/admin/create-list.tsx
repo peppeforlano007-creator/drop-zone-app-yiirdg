@@ -27,6 +27,7 @@ import * as FileSystemLegacy from 'expo-file-system/legacy';
 import * as XLSX from 'xlsx';
 import ExcelFormatGuide from '@/components/ExcelFormatGuide';
 import { getPlatformSettings } from '@/utils/dropHelpers';
+import { isValidImageUrl } from '@/utils/imageHelpers';
 
 interface Supplier {
   user_id: string;
@@ -599,6 +600,7 @@ export default function CreateListScreen() {
         }
         
         const productsToInsert: ProductInsertMapping[] = [];
+        let skippedImageLinks = 0;
         
         // Add grouped products
         for (const [sku, group] of productGroups.entries()) {
@@ -606,6 +608,10 @@ export default function CreateListScreen() {
           const additionalImages = additionalImagesStr && typeof additionalImagesStr === 'string'
             ? additionalImagesStr.split(',').map(url => url.trim()).filter(url => url)
             : [];
+          // Keep only real photos: shop page links (e.g. amazon.it/.../dp/...) would show as a blank page
+          const validAdditional = additionalImages.filter(url => isValidImageUrl(url));
+          skippedImageLinks += additionalImages.length - validAdditional.length;
+          additionalImages.splice(0, additionalImages.length, ...validAdditional);
           
           productsToInsert.push({
             type: 'grouped',
@@ -637,6 +643,10 @@ export default function CreateListScreen() {
           const additionalImages = additionalImagesStr && typeof additionalImagesStr === 'string'
             ? additionalImagesStr.split(',').map(url => url.trim()).filter(url => url)
             : [];
+          // Keep only real photos: shop page links (e.g. amazon.it/.../dp/...) would show as a blank page
+          const validAdditional = additionalImages.filter(url => isValidImageUrl(url));
+          skippedImageLinks += additionalImages.length - validAdditional.length;
+          additionalImages.splice(0, additionalImages.length, ...validAdditional);
           
           const sizes = product.taglia ? [product.taglia] : [];
           const colors = product.colore ? [product.colore] : [];
@@ -842,11 +852,14 @@ export default function CreateListScreen() {
           ? `\n\n📦 ${uniqueSkus} articoli unici con ${totalVariants} varianti (raggruppati per SKU)` 
           : '';
         const variantsLabel = totalVariants === 1 ? 'variante reale' : 'varianti reali';
+        const skippedMessage = skippedImageLinks > 0
+          ? `\n\n⚠️ ${skippedImageLinks} link in immagini_aggiuntive non erano foto (es. pagine Amazon) e sono stati scartati.`
+          : '';
         
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         Alert.alert(
           'Lista Creata!',
-          `La lista "${listName}" è stata creata con successo!${skuMessage}\n\n${productsWithoutSku.length} prodotti senza SKU\n\n⚡ Importazione completata in modo ottimizzato!\n\n✅ ${insertedProductsWithMapping.length} prodotti e ${totalVariants} ${variantsLabel} create`,
+          `La lista "${listName}" è stata creata con successo!${skuMessage}\n\n${productsWithoutSku.length} prodotti senza SKU\n\n⚡ Importazione completata in modo ottimizzato!\n\n✅ ${insertedProductsWithMapping.length} prodotti e ${totalVariants} ${variantsLabel} create${skippedMessage}`,
           [
             {
               text: 'Visualizza Lista',
