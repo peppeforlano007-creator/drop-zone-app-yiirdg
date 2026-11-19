@@ -7,6 +7,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { colors } from '@/styles/commonStyles';
 import { CHAT_PAGE_SIZE, fetchChatPage, mergeChatMessages, type RawChatMessage } from '@/utils/chat-pagination';
 import { previewText } from './chat';
+import { formatChatDay, isSameChatDay } from '@/utils/chat-day';
 
 export default function AdminChatGroupScreen() {
   const { groupId, name } = useLocalSearchParams<{ groupId: string; name?: string }>();
@@ -89,12 +90,12 @@ export default function AdminChatGroupScreen() {
 
   const renderItem = ({ item, index }: { item: RawChatMessage; index: number }) => {
     const older = messages[index + 1];
-    const showDay = !older || new Date(older.created_at).toDateString() !== new Date(item.created_at).toDateString();
+    const showDay = !older || !isSameChatDay(older.created_at, item.created_at);
     const d = new Date(item.created_at);
     return (
       <View>
         {showDay && (
-          <Text style={styles.day}>{d.toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' })}</Text>
+          <Text style={styles.day}>{formatChatDay(item.created_at)}</Text>
         )}
         <View style={styles.bubble}>
           <View style={styles.bubbleHead}>
@@ -142,7 +143,7 @@ const styles = StyleSheet.create({
   bannerText: { fontSize: 12, color: '#92400E', textAlign: 'center' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32 },
   empty: { fontSize: 14, color: colors.textSecondary, textAlign: 'center' },
-  day: { textAlign: 'center', fontSize: 12, color: colors.textSecondary, marginVertical: 10, textTransform: 'capitalize' },
+  day: { textAlign: 'center', fontSize: 12, color: colors.textSecondary, marginVertical: 10 },
   bubble: { backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 10, gap: 4 },
   bubbleHead: { flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
   sender: { fontSize: 13, fontWeight: '700', color: colors.primary },

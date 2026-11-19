@@ -19,6 +19,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router, useFocusEffect } from 'expo-router';
 import { fetchChatPage, mergeChatMessages, type ChatCursor } from '@/utils/chat-pagination';
+import { formatChatDay, isSameChatDay } from '@/utils/chat-day';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { supabase } from '@/app/integrations/supabase/client';
@@ -66,6 +67,16 @@ interface ChatMessage {
 function formatMsgTime(dateStr: string): string {
   const date = new Date(dateStr);
   return date.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+}
+
+function DaySeparator({ iso, isDark }: { iso: string; isDark: boolean }) {
+  return (
+    <View style={styles.daySeparator}>
+      <View style={[styles.dayPill, { backgroundColor: isDark ? '#2C2C2E' : '#ECECEC' }]}>
+        <Text style={[styles.dayPillText, { color: isDark ? '#AEAEB2' : '#555555' }]}>{formatChatDay(iso)}</Text>
+      </View>
+    </View>
+  );
 }
 
 function getDropDisplayName(drop: Drop): string {
@@ -836,15 +847,20 @@ export default function GroupChatScreen() {
               ref={flatListRef}
               data={messages}
               keyExtractor={(item) => item.id}
-              renderItem={({ item }) => (
-                <MessageBubble
-                  message={item}
-                  isOwn={item.sender_id === user?.id}
-                  isDark={isDark}
-                  replyTarget={item.reply_to_id ? messages.find(m => m.id === item.reply_to_id) ?? null : null}
-                  onReply={handleReply}
-                  onJumpTo={handleJumpTo}
-                />
+              renderItem={({ item, index }) => (
+                <View>
+                  {(index === messages.length - 1 || !isSameChatDay(messages[index + 1].created_at, item.created_at)) && (
+                    <DaySeparator iso={item.created_at} isDark={isDark} />
+                  )}
+                  <MessageBubble
+                    message={item}
+                    isOwn={item.sender_id === user?.id}
+                    isDark={isDark}
+                    replyTarget={item.reply_to_id ? messages.find(m => m.id === item.reply_to_id) ?? null : null}
+                    onReply={handleReply}
+                    onJumpTo={handleJumpTo}
+                  />
+                </View>
               )}
               onScrollToIndexFailed={() => {}}
               contentContainerStyle={[styles.messagesList, { paddingBottom: 16 }]}
@@ -935,15 +951,20 @@ export default function GroupChatScreen() {
               ref={flatListRef}
               data={messages}
               keyExtractor={(item) => item.id}
-              renderItem={({ item }) => (
-                <MessageBubble
-                  message={item}
-                  isOwn={item.sender_id === user?.id}
-                  isDark={isDark}
-                  replyTarget={item.reply_to_id ? messages.find(m => m.id === item.reply_to_id) ?? null : null}
-                  onReply={handleReply}
-                  onJumpTo={handleJumpTo}
-                />
+              renderItem={({ item, index }) => (
+                <View>
+                  {(index === messages.length - 1 || !isSameChatDay(messages[index + 1].created_at, item.created_at)) && (
+                    <DaySeparator iso={item.created_at} isDark={isDark} />
+                  )}
+                  <MessageBubble
+                    message={item}
+                    isOwn={item.sender_id === user?.id}
+                    isDark={isDark}
+                    replyTarget={item.reply_to_id ? messages.find(m => m.id === item.reply_to_id) ?? null : null}
+                    onReply={handleReply}
+                    onJumpTo={handleJumpTo}
+                  />
+                </View>
               )}
               onScrollToIndexFailed={() => {}}
               contentContainerStyle={styles.messagesList}
@@ -1140,6 +1161,19 @@ const styles = StyleSheet.create({
     width: 3,
     alignSelf: 'stretch',
     borderRadius: 2,
+  },
+  daySeparator: {
+    alignItems: 'center',
+    marginVertical: 10,
+  },
+  dayPill: {
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 10,
+  },
+  dayPillText: {
+    fontSize: 12,
+    fontWeight: '600',
   },
   bubbleTime: {
     fontSize: 11,
