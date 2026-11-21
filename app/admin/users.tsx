@@ -7,6 +7,7 @@ import {
   Text,
   StyleSheet,
   ScrollView,
+  FlatList,
   Pressable,
   Alert,
   ActivityIndicator,
@@ -64,22 +65,31 @@ export default function UsersScreen() {
     try {
       setLoading(true);
       
-      // First, fetch all profiles
-      const { data: profilesData, error: profilesError } = await supabase
-        .from('profiles')
-        .select('*')
-        .order('created_at', { ascending: false });
+      // First, fetch all profiles. The server returns at most 1000 rows per request,
+      // so page through them until a short page comes back.
+      const PAGE = 1000;
+      const profilesData: any[] = [];
+      for (let from = 0; ; from += PAGE) {
+        const { data: page, error: profilesError } = await supabase
+          .from('profiles')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .order('user_id', { ascending: true })
+          .range(from, from + PAGE - 1);
 
-      if (profilesError) {
-        console.error('Error loading users:', profilesError);
-        Alert.alert('Errore', 'Impossibile caricare gli utenti');
-        return;
+        if (profilesError) {
+          console.error('Error loading users:', profilesError);
+          Alert.alert('Errore', 'Impossibile caricare gli utenti');
+          return;
+        }
+        profilesData.push(...(page ?? []));
+        if (!page || page.length < PAGE) break;
       }
 
       // Then, fetch pickup points for users who have them
-      const pickupPointIds = profilesData
-        ?.filter(p => p.pickup_point_id)
-        .map(p => p.pickup_point_id) || [];
+      const pickupPointIds = Array.from(new Set(
+        profilesData.filter(p => p.pickup_point_id).map(p => p.pickup_point_id as string)
+      ));
 
       let pickupPointsMap: Record<string, any> = {};
       
@@ -429,9 +439,16 @@ export default function UsersScreen() {
           </ScrollView>
         </View>
 
-        <ScrollView
+        <FlatList
           style={styles.container}
           contentContainerStyle={styles.contentContainer}
+          data={filteredUsers}
+          keyExtractor={(item) => item.id}
+          renderItem={({ item }) => renderUser(item)}
+          initialNumToRender={15}
+          maxToRenderPerBatch={20}
+          windowSize={10}
+          keyboardShouldPersistTaps="handled"
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -439,7 +456,7 @@ export default function UsersScreen() {
               tintColor={colors.primary}
             />
           }
-        >
+          ListHeaderComponent={
           <View style={styles.headerRow}>
             <Text style={styles.statsText}>
               {filteredUsers.length} utent{filteredUsers.length === 1 ? 'e' : 'i'} trovat{filteredUsers.length === 1 ? 'o' : 'i'}
@@ -461,10 +478,8 @@ export default function UsersScreen() {
               <Text style={styles.createButtonText}>Crea Utente</Text>
             </Pressable>
           </View>
-
-          {filteredUsers.length > 0 ? (
-            filteredUsers.map(renderUser)
-          ) : (
+          }
+          ListEmptyComponent={
             <View style={styles.emptyState}>
               <IconSymbol
                 ios_icon_name="person.slash"
@@ -477,8 +492,8 @@ export default function UsersScreen() {
                 Prova a modificare i filtri di ricerca
               </Text>
             </View>
-          )}
-        </ScrollView>
+          }
+        />
       </SafeAreaView>
     </>
   );
