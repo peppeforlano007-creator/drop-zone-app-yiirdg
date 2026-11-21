@@ -183,6 +183,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         phone: profile.phone || undefined,
         pickupPoint: pickupPointCity,
         pickupPointId: profile.pickup_point_id || undefined,
+        adminPermissions: profile.role === 'admin' ? (profile.admin_permissions ?? null) : undefined,
       };
       
       console.log('AuthProvider: User data created:', {

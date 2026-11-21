@@ -10,4 +10,6 @@ export interface User {
   pickupPoint?: string;
   pickupPointId?: string;
   reservations?: string[];
+  /** Solo per admin: null/undefined = admin completo, array = sezioni consentite. */
+  adminPermissions?: string[] | null;
 }

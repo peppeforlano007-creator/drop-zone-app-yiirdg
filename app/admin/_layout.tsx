@@ -1,9 +1,34 @@
 
-import { Stack } from 'expo-router';
+import { Stack, router, useSegments } from 'expo-router';
+import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { colors } from '@/styles/commonStyles';
+import { useAuth } from '@/contexts/AuthContext';
+import { canAccessSection, sectionForScreen } from '@/utils/adminPermissions';
+
+function AccessDenied() {
+  return (
+    <View style={guardStyles.overlay}>
+      <Text style={guardStyles.title}>Accesso non consentito</Text>
+      <Text style={guardStyles.text}>Il tuo account admin non ha accesso a questa sezione.</Text>
+      <Pressable
+        style={({ pressed }) => [guardStyles.button, pressed && { opacity: 0.8 }]}
+        onPress={() => router.replace('/admin/dashboard')}
+      >
+        <Text style={guardStyles.buttonText}>Torna alla dashboard</Text>
+      </Pressable>
+    </View>
+  );
+}
 
 export default function AdminLayout() {
+  const { user } = useAuth();
+  const segments = useSegments() as string[];
+  const adminIndex = segments.indexOf('admin');
+  const screen = adminIndex >= 0 ? segments[adminIndex + 1] ?? 'dashboard' : 'dashboard';
+  const allowed = canAccessSection(user?.adminPermissions, sectionForScreen(screen));
+
   return (
+    <View style={{ flex: 1 }}>
     <Stack
       screenOptions={{
         headerStyle: {
@@ -119,5 +144,29 @@ export default function AdminLayout() {
         }}
       />
     </Stack>
+    {!allowed && <AccessDenied />}
+    </View>
   );
 }
+
+const guardStyles = StyleSheet.create({
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: colors.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 32,
+    gap: 12,
+  },
+  title: { fontSize: 20, fontWeight: '700', color: colors.text, textAlign: 'center' },
+  text: { fontSize: 15, color: colors.textSecondary, textAlign: 'center' },
+  button: {
+    marginTop: 12,
+    backgroundColor: colors.primary,
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    borderRadius: 12,
+    minHeight: 44,
+  },
+  buttonText: { color: '#FFF', fontSize: 16, fontWeight: '600' },
+});

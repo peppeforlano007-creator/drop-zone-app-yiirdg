@@ -16,6 +16,8 @@ import { supabase } from '@/app/integrations/supabase/client';
 import * as Haptics from 'expo-haptics';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
+import { useAuth } from '@/contexts/AuthContext';
+import { isFullAdmin } from '@/utils/adminPermissions';
 
 interface PickupPoint {
   id: string;
@@ -25,6 +27,8 @@ interface PickupPoint {
 }
 
 export default function CreateUserScreen() {
+  const { user: currentUser } = useAuth();
+  const iAmFullAdmin = currentUser?.role === 'admin' && isFullAdmin(currentUser.adminPermissions);
   const [loading, setLoading] = useState(false);
   const [pickupPoints, setPickupPoints] = useState<PickupPoint[]>([]);
   const [loadingPickupPoints, setLoadingPickupPoints] = useState(false);
@@ -147,6 +151,21 @@ export default function CreateUserScreen() {
       console.log('User created successfully:', data.user);
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      const newUserId: string | undefined = data.user?.id ?? data.user?.user_id;
+      if (role === 'admin' && newUserId) {
+        Alert.alert(
+          'Admin creato',
+          `"${fullName}" è stato creato come admin completo (vede tutte le sezioni).\n\nVuoi scegliere ora quali sezioni può vedere?`,
+          [
+            { text: 'Lascia completo', style: 'cancel', onPress: () => router.back() },
+            {
+              text: 'Scegli sezioni',
+              onPress: () => router.replace({ pathname: '/admin/edit-user', params: { userId: newUserId } }),
+            },
+          ]
+        );
+        return;
+      }
       Alert.alert(
         'Successo',
         `Utente "${fullName}" creato con successo!\n\nEmail: ${email}\nRuolo: ${getRoleLabel(role)}`,
@@ -210,12 +229,10 @@ export default function CreateUserScreen() {
     }
   };
 
-  const roles: ('consumer' | 'supplier' | 'pickup_point' | 'admin')[] = [
-    'consumer',
-    'supplier',
-    'pickup_point',
-    'admin',
-  ];
+  // Solo un admin completo può creare altri admin.
+  const roles: ('consumer' | 'supplier' | 'pickup_point' | 'admin')[] = iAmFullAdmin
+    ? ['consumer', 'supplier', 'pickup_point', 'admin']
+    : ['consumer', 'supplier', 'pickup_point'];
 
   return (
     <>

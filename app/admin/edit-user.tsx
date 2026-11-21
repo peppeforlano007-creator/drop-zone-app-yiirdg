@@ -7,6 +7,8 @@ import { IconSymbol } from '@/components/IconSymbol';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { supabase } from '@/app/integrations/supabase/client';
 import * as Haptics from 'expo-haptics';
+import { useAuth } from '@/contexts/AuthContext';
+import { ADMIN_SECTIONS, isFullAdmin } from '@/utils/adminPermissions';
 
 interface UserProfile {
   id: string;
@@ -16,10 +18,16 @@ interface UserProfile {
   phone: string;
   role: 'consumer' | 'supplier' | 'pickup_point' | 'admin';
   pickup_point_id?: string;
+  admin_permissions?: string[] | null;
 }
 
 export default function AdminEditUserScreen() {
   const { userId } = useLocalSearchParams<{ userId: string }>();
+  const { user: currentUser } = useAuth();
+  const iAmFullAdmin = currentUser?.role === 'admin' && isFullAdmin(currentUser.adminPermissions);
+  const [fullAccess, setFullAccess] = useState(true);
+  const [selectedSections, setSelectedSections] = useState<string[]>([]);
+  const [permLoading, setPermLoading] = useState(false);
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [name, setName] = useState('');
@@ -53,6 +61,8 @@ export default function AdminEditUserScreen() {
       setName(profile.full_name || '');
       setEmail(profile.email || '');
       setPhone(profile.phone || '');
+      setFullAccess(profile.admin_permissions == null);
+      setSelectedSections(profile.admin_permissions ?? []);
     } catch (error) {
       console.error('Exception loading user data:', error);
       Alert.alert('Errore', 'Errore imprevisto durante il caricamento');
@@ -275,6 +285,52 @@ export default function AdminEditUserScreen() {
     }
   };
 
+  const toggleSection = (key: string) => {
+    Haptics.selectionAsync();
+    setSelectedSections(prev => (prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]));
+  };
+
+  const handleSavePermissions = async () => {
+    if (!fullAccess && selectedSections.length === 0) {
+      Alert.alert('Errore', 'Seleziona almeno una sezione, oppure attiva "Admin completo".');
+      return;
+    }
+    if (userId === currentUser?.id && !fullAccess) {
+      Alert.alert('Errore', 'Non puoi limitare il tuo stesso account.');
+      return;
+    }
+    setPermLoading(true);
+    try {
+      const value = fullAccess ? null : ADMIN_SECTIONS.map(s => s.key).filter(k => selectedSections.includes(k));
+      const { data, error } = await supabase
+        .from('profiles')
+        .update({ admin_permissions: value })
+        .eq('user_id', userId)
+        .select('admin_permissions')
+        .single();
+      if (error) {
+        console.error('Error updating admin permissions:', error);
+        Alert.alert('Errore', 'Impossibile salvare i permessi');
+        return;
+      }
+      const saved = (data as any)?.admin_permissions ?? null;
+      if (JSON.stringify(saved) !== JSON.stringify(value)) {
+        Alert.alert('Errore', 'I permessi non sono stati salvati. Solo un admin completo può modificarli.');
+        return;
+      }
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert('Permessi salvati', fullAccess
+        ? 'Questo admin vede tutte le sezioni.'
+        : `Questo admin vede ${value!.length} ${value!.length === 1 ? 'sezione' : 'sezioni'}. Le modifiche valgono dal suo prossimo accesso all'app.`);
+      await loadUserData();
+    } catch (error) {
+      console.error('Exception updating admin permissions:', error);
+      Alert.alert('Errore', 'Errore imprevisto durante il salvataggio');
+    } finally {
+      setPermLoading(false);
+    }
+  };
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -300,6 +356,21 @@ export default function AdminEditUserScreen() {
             color="#FF3B30"
           />
           <Text style={styles.errorText}>Utente non trovato</Text>
+          <Pressable style={styles.backButton} onPress={() => router.back()}>
+            <Text style={styles.backButtonText}>Torna Indietro</Text>
+          </Pressable>
+        </View>
+      </>
+    );
+  }
+
+  // Un admin limitato non può modificare gli account di altri admin (email/password comprese).
+  if (!iAmFullAdmin && user.role === 'admin' && user.user_id !== currentUser?.id) {
+    return (
+      <>
+        <Stack.Screen options={{ title: 'Modifica Utente' }} />
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>Solo un admin completo può modificare un altro admin.</Text>
           <Pressable style={styles.backButton} onPress={() => router.back()}>
             <Text style={styles.backButtonText}>Torna Indietro</Text>
           </Pressable>
@@ -476,6 +547,64 @@ export default function AdminEditUserScreen() {
             </Pressable>
           </View>
 
+          {/* Admin permissions (solo admin completi, su account admin) */}
+          {iAmFullAdmin && user.role === 'admin' && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Sezioni visibili</Text>
+              <Text style={styles.sectionDescription}>
+                Scegli quali sezioni del pannello admin può aprire questo account.
+              </Text>
+
+              <Pressable
+                style={styles.permRow}
+                onPress={() => { Haptics.selectionAsync(); setFullAccess(v => !v); }}
+                disabled={user.user_id === currentUser?.id}
+              >
+                <View style={[styles.checkbox, fullAccess && styles.checkboxOn]}>
+                  {fullAccess && (
+                    <IconSymbol ios_icon_name="checkmark" android_material_icon_name="check" size={16} color={colors.background} />
+                  )}
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.permLabel}>Admin completo</Text>
+                  <Text style={styles.permHint}>
+                    {user.user_id === currentUser?.id ? 'Il tuo account resta sempre completo' : 'Vede tutte le sezioni e può gestire gli altri admin'}
+                  </Text>
+                </View>
+              </Pressable>
+
+              {!fullAccess && (
+                <View style={styles.permList}>
+                  {ADMIN_SECTIONS.map(section => {
+                    const on = selectedSections.includes(section.key);
+                    return (
+                      <Pressable key={section.key} style={styles.permRow} onPress={() => toggleSection(section.key)}>
+                        <View style={[styles.checkbox, on && styles.checkboxOn]}>
+                          {on && (
+                            <IconSymbol ios_icon_name="checkmark" android_material_icon_name="check" size={16} color={colors.background} />
+                          )}
+                        </View>
+                        <Text style={[styles.permLabel, { flex: 1 }]}>{section.label}</Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              )}
+
+              <Pressable
+                style={[styles.button, { marginTop: 16 }, permLoading && styles.buttonDisabled]}
+                onPress={handleSavePermissions}
+                disabled={permLoading}
+              >
+                {permLoading ? (
+                  <ActivityIndicator size="small" color={colors.background} />
+                ) : (
+                  <Text style={styles.buttonText}>Salva permessi</Text>
+                )}
+              </Pressable>
+            </View>
+          )}
+
           {/* Info Section */}
           <View style={styles.infoSection}>
             <View style={styles.infoCard}>
@@ -614,6 +743,40 @@ const styles = StyleSheet.create({
   },
   infoSection: {
     padding: 24,
+  },
+  permList: {
+    marginTop: 4,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  permRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    minHeight: 48,
+    paddingVertical: 8,
+  },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: colors.text,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkboxOn: {
+    backgroundColor: colors.text,
+  },
+  permLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  permHint: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    marginTop: 2,
   },
   infoCard: {
     backgroundColor: colors.card,

@@ -7,6 +7,7 @@ import { supabase } from '@/app/integrations/supabase/client';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 import { useAuth } from '@/contexts/AuthContext';
+import { canAccessRoute, canAccessSection } from '@/utils/adminPermissions';
 import * as Haptics from 'expo-haptics';
 
 interface DashboardStats {
@@ -19,7 +20,10 @@ interface DashboardStats {
 }
 
 export default function AdminDashboard() {
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
+  const permissions = user?.adminPermissions;
+  const canSeeChat = canAccessSection(permissions, 'chat');
+  const canSeeStats = canAccessSection(permissions, 'analytics');
   const [stats, setStats] = useState<DashboardStats>({
     totalUsers: 0,
     totalProducts: 0,
@@ -46,10 +50,11 @@ export default function AdminDashboard() {
   }, []);
 
   // Refresh the badge whenever the dashboard regains focus (e.g. back from the chat monitor).
-  useFocusEffect(useCallback(() => { void loadChatUnread(); }, [loadChatUnread]));
+  useFocusEffect(useCallback(() => { if (canSeeChat) void loadChatUnread(); }, [loadChatUnread, canSeeChat]));
 
   // Live: a new message anywhere updates the badge.
   useEffect(() => {
+    if (!canSeeChat) return;
     let timer: ReturnType<typeof setTimeout> | undefined;
     const channel = supabase
       .channel('admin-dashboard-chat-badge')
@@ -59,7 +64,7 @@ export default function AdminDashboard() {
       })
       .subscribe();
     return () => { clearTimeout(timer); supabase.removeChannel(channel); };
-  }, [loadChatUnread]);
+  }, [loadChatUnread, canSeeChat]);
 
   const loadDashboardStats = async () => {
     try {
@@ -339,6 +344,7 @@ export default function AdminDashboard() {
         </View>
 
         {/* Stats Grid */}
+        {canSeeStats && (
         <View style={styles.statsGrid}>
           <View style={styles.statCard}>
             <IconSymbol ios_icon_name="person.3.fill" android_material_icon_name="group" size={28} color="#007AFF" />
@@ -370,13 +376,14 @@ export default function AdminDashboard() {
             <Text style={styles.statLabel}>Fatturato Totale</Text>
           </View>
         </View>
+        )}
 
         {/* Quick Actions */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Azioni Rapide</Text>
           
           <View style={styles.actionsGrid}>
-            {quickActions.map((action, index) => (
+            {quickActions.filter(a => canAccessRoute(permissions, a.route)).map((action, index) => (
               <Pressable
                 key={index}
                 style={({ pressed }) => [
