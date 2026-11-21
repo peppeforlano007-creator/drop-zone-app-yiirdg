@@ -60,6 +60,7 @@ interface ChatMessage {
   reply_to_id?: string | null;
   created_at: string;
   senderName: string;
+  senderIsAdmin?: boolean;
   drop?: Drop | null;
   product?: Product | null;
 }
@@ -251,7 +252,14 @@ function MessageBubble({
   return (
     <View style={[styles.bubbleWrapper, isOwn ? styles.bubbleWrapperOwn : styles.bubbleWrapperOther]}>
       {!isOwn && (
-        <Text style={[styles.senderName, { color: senderColor }]}>{message.senderName}</Text>
+        message.senderIsAdmin ? (
+          <View style={styles.adminSenderRow}>
+            <Text style={[styles.senderName, styles.adminSenderName]}>{message.senderName}</Text>
+            <View style={styles.adminBadge}><Text style={styles.adminBadgeText}>STAFF</Text></View>
+          </View>
+        ) : (
+          <Text style={[styles.senderName, { color: senderColor }]}>{message.senderName}</Text>
+        )
       )}
       <TouchableOpacity
         activeOpacity={0.9}
@@ -454,13 +462,16 @@ export default function GroupChatScreen() {
   const buildMessage = useCallback(
     async (raw: any): Promise<ChatMessage> => {
       let senderName = 'Utente';
+      let senderIsAdmin = false;
       if (raw.sender_id) {
         const { data: profile } = await supabase
           .from('profiles')
-          .select('full_name')
+          .select('full_name, role')
           .eq('user_id', raw.sender_id)
           .single();
-        senderName = profile?.full_name || 'Utente';
+        // Staff replies are always signed "Amministratore", never with a personal name.
+        senderIsAdmin = profile?.role === 'admin';
+        senderName = senderIsAdmin ? 'Amministratore' : profile?.full_name || 'Utente';
       }
 
       let drop: Drop | null = null;
@@ -523,6 +534,7 @@ export default function GroupChatScreen() {
         reply_to_id: raw.reply_to_id ?? null,
         created_at: raw.created_at,
         senderName,
+        senderIsAdmin,
         drop,
         product,
       };
@@ -1107,6 +1119,10 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     alignItems: 'flex-start',
   },
+  adminSenderRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 3, marginLeft: 4 },
+  adminSenderName: { color: '#D97706', fontWeight: '700', marginBottom: 0, marginLeft: 0 },
+  adminBadge: { backgroundColor: '#D97706', borderRadius: 6, paddingHorizontal: 5, paddingVertical: 1 },
+  adminBadgeText: { color: '#FFFFFF', fontSize: 9, fontWeight: '800', letterSpacing: 0.5 },
   senderName: {
     fontSize: 12,
     fontWeight: '600',

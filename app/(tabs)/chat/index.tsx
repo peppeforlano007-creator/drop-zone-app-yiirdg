@@ -198,11 +198,11 @@ export default function ChatIndexScreen() {
             const msg = lastMsgs[0];
             const { data: senderProfile } = await supabase
               .from('profiles')
-              .select('full_name')
+              .select('full_name, role')
               .eq('user_id', msg.sender_id)
               .single();
 
-            const senderName = senderProfile?.full_name || 'Utente';
+            const senderName = senderProfile?.role === 'admin' ? 'Amministratore' : senderProfile?.full_name || 'Utente';
             const content =
               msg.message_type === 'drop' ? '📦 Drop condiviso' : msg.content;
             lastMessage = { content, senderName, created_at: msg.created_at };
