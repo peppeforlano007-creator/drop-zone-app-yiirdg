@@ -2,6 +2,8 @@
 import { colors, layout } from '@/styles/commonStyles';
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { CardBookingPayment } from '@/components/CardBookingPayment';
+import BookedProductSheet, { type BookedProductInfo } from '@/components/BookedProductSheet';
+import CachedImage from '@/components/CachedImage';
 import { cancelCardBooking, loadCardBookingStates, CardBookingError, fetchSavedCard, removeSavedCard, type SavedCard } from '@/utils/bookingCardApi';
 import { dueAtPickup, isCardPayment, cardCancellationError, type CardBookingState } from '@/utils/bookingCardPayment';
 import { IconSymbol } from '@/components/IconSymbol';
@@ -38,7 +40,18 @@ export interface Booking {
   payment_method: 'cod' | 'card';
   status: 'active' | 'confirmed' | 'cancelled' | 'completed';
   created_at: string;
-  products: { name: string; image_url: string } | null;
+  selected_size?: string | null;
+  selected_color?: string | null;
+  products: {
+    name: string;
+    image_url: string;
+    additional_images?: string[] | null;
+    description?: string | null;
+    brand?: string | null;
+    category?: string | null;
+    condition?: string | null;
+    sku?: string | null;
+  } | null;
   drops: {
     name: string;
     current_discount: number;
@@ -199,6 +212,7 @@ export default function MyBookingsScreen({ preview }: { preview?: BookingCardPre
   const [savedCard, setSavedCard] = useState<SavedCard>(null);
   const [cancellingIds, setCancellingIds] = useState<Set<string>>(new Set());
   const cancellationRequests = useRef(new Set<string>());
+  const [openProduct, setOpenProduct] = useState<BookedProductInfo | null>(null);
   const { user } = useAuth();
   const unreadCount = useUnreadNotifications();
 
@@ -230,7 +244,7 @@ export default function MyBookingsScreen({ preview }: { preview?: BookingCardPre
         .from('bookings')
         .select(`
           *,
-          products!bookings_product_id_fkey (name, image_url),
+          products!bookings_product_id_fkey (name, image_url, additional_images, description, brand, category, condition, sku),
           drops (
             name, current_discount, current_value, end_time, status, final_discount_percentage,
             supplier_lists (name, max_discount, min_discount, min_reservation_value, max_reservation_value)
@@ -563,8 +577,49 @@ export default function MyBookingsScreen({ preview }: { preview?: BookingCardPre
     return (
       <View key={booking.id} style={styles.bookingRow}>
         {/* Product name + status badges */}
-        <View style={styles.bookingRowHeader}>
-          <Text style={styles.bookingProductName}>{productName}</Text>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Dettagli di ${productName}`}
+          style={({ pressed }) => [styles.bookingRowHeader, pressed && { opacity: 0.6 }]}
+          onPress={() => {
+            void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            setOpenProduct({
+              name: productName,
+              imageUrl: booking.products?.image_url,
+              additionalImages: booking.products?.additional_images,
+              description: booking.products?.description,
+              brand: booking.products?.brand,
+              category: booking.products?.category,
+              condition: booking.products?.condition,
+              sku: booking.products?.sku,
+              selectedSize: booking.selected_size,
+              selectedColor: booking.selected_color,
+              originalPrice,
+              finalPrice,
+              discountPercentage,
+              dropName: drops?.name,
+              pickupPointName: booking.pickup_points?.name,
+              pickupPointAddress: booking.pickup_points ? `${booking.pickup_points.address}, ${booking.pickup_points.city}` : null,
+              statusLabel: isReturned ? 'Reso' : isPickedUp ? 'Ritirato' : getStatusText(booking.status),
+            });
+          }}
+        >
+          {booking.products?.image_url ? (
+            <CachedImage uri={booking.products.image_url} style={styles.bookingThumb} contentFit="cover" />
+          ) : (
+            <View style={[styles.bookingThumb, styles.bookingThumbEmpty]}>
+              <IconSymbol ios_icon_name="photo" android_material_icon_name="image" size={20} color={colors.textSecondary} />
+            </View>
+          )}
+          <View style={styles.bookingNameCol}>
+            <Text style={styles.bookingProductName} numberOfLines={2}>{productName}</Text>
+            {(booking.selected_size || booking.selected_color) ? (
+              <Text style={styles.bookingVariant} numberOfLines={1}>
+                {[booking.selected_size, booking.selected_color].filter(Boolean).join(' · ')}
+              </Text>
+            ) : null}
+            <Text style={styles.bookingDetailsLink}>Vedi dettagli ›</Text>
+          </View>
           <View style={styles.rowBadges}>
             <View style={[styles.statusBadge, { backgroundColor: getStatusColor(booking.status) + '20' }]}>
               <Text style={[styles.statusText, { color: getStatusColor(booking.status) }]}>
@@ -579,7 +634,7 @@ export default function MyBookingsScreen({ preview }: { preview?: BookingCardPre
               </View>
             )}
           </View>
-        </View>
+        </Pressable>
 
         {/* Price line */}
         {isReturned ? (
@@ -913,6 +968,7 @@ export default function MyBookingsScreen({ preview }: { preview?: BookingCardPre
           )}
         </ScrollView>
       )}
+      <BookedProductSheet product={openProduct} onClose={() => setOpenProduct(null)} />
     </SafeAreaView>
   );
 }
@@ -1075,8 +1131,35 @@ const styles = StyleSheet.create({
     marginBottom: 6,
     gap: 8,
   },
-  bookingProductName: {
+  bookingThumb: {
+    width: 56,
+    height: 56,
+    borderRadius: 10,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: colors.border,
+    overflow: 'hidden',
+  },
+  bookingThumbEmpty: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.backgroundSecondary,
+  },
+  bookingNameCol: {
     flex: 1,
+    gap: 2,
+  },
+  bookingVariant: {
+    fontSize: 12,
+    color: colors.textSecondary,
+  },
+  bookingDetailsLink: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.primary,
+    marginTop: 2,
+  },
+  bookingProductName: {
     fontSize: 15,
     fontWeight: '700',
     color: colors.text,
