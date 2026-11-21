@@ -27,3 +27,7 @@ verify_jwt = false
 # Observe only: changes no data.
 [functions.stripe-booking-card-webhook]
 verify_jwt = false
+
+# Admin → Utenti → Crea nuovo utente. Caller must be a signed-in admin.
+[functions.admin-create-user]
+verify_jwt = true
